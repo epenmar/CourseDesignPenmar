@@ -25,12 +25,21 @@
   /* ===== LAYOUT ===== */
   .page { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
 
-  /* ===== SUMMARY CARDS ===== */
-  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
-  .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 20px; }
-  .summary-card .label { font-size: 12px; color: #888; font-weight: 500; margin-bottom: 6px; }
-  .summary-card .value { font-size: 30px; font-weight: 700; }
-  .summary-card .sub { font-size: 12px; color: #666; margin-top: 2px; }
+  /* ===== SUMMARY + RESOURCES ROW ===== */
+  .dashboard-top { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
+  .summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 16px; }
+  .summary-card .label { font-size: 11px; color: #888; font-weight: 500; margin-bottom: 4px; }
+  .summary-card .value { font-size: 24px; font-weight: 700; }
+  .summary-card .sub { font-size: 11px; color: #666; margin-top: 2px; }
+  .resource-section { display: flex; flex-direction: column; gap: 10px; }
+  .resource-section h3 { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 2px; }
+  .resource-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 14px 16px; flex: 1; }
+  .resource-card .rc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .resource-card .rc-title { font-size: 13px; font-weight: 600; color: #8c1d40; }
+  .resource-card .rc-links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .resource-card .rc-link { font-size: 11px; color: #666; text-decoration: none; padding: 3px 8px; background: #f5f5f0; border-radius: 4px; border: 1px solid #e8e5dd; }
+  .resource-card .rc-link:hover { background: #fdf2f4; border-color: #8c1d40; color: #8c1d40; }
   .value-green { color: #2e7d32; }
   .value-orange { color: #e65100; }
   .value-red { color: #c62828; }
@@ -46,22 +55,25 @@
 
   /* ===== COURSE TABLE ===== */
   .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
-  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #f5f5f0; }
+  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #f5f5f0; cursor: pointer; user-select: none; white-space: nowrap; }
+  .course-table thead th:hover { color: #8c1d40; }
+  .course-table thead th .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.4; }
+  .course-table thead th.sorted .sort-arrow { opacity: 1; color: #8c1d40; }
   .course-table tbody tr { background: #fff; cursor: pointer; transition: all 0.1s; }
   .course-table tbody tr:hover { background: #fef9f0; }
   .course-table tbody td { padding: 14px; border-bottom: 1px solid #f0ede5; vertical-align: middle; }
   .course-table tbody tr:last-child td { border-bottom: none; }
 
   /* First column: course info */
-  .course-cell { display: flex; flex-direction: column; }
-  .course-cell .course-code { font-weight: 600; color: #8c1d40; font-size: 14px; }
-  .course-cell .course-title { font-size: 12px; color: #666; margin-top: 1px; }
+  .course-cell { display: flex; flex-direction: column; max-width: 180px; }
+  .course-cell .course-code { font-weight: 600; color: #8c1d40; font-size: 13px; }
+  .course-cell .course-title { font-size: 11px; color: #666; margin-top: 1px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
   .instructor-cell { display: flex; align-items: center; gap: 8px; }
   .avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; }
 
   /* Progress bar */
-  .progress-cell { min-width: 140px; }
+  .progress-cell { min-width: 100px; max-width: 120px; }
   .progress-bar-outer { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
   .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
   .fill-green { background: linear-gradient(90deg, #66bb6a, #43a047); }
@@ -153,6 +165,33 @@
   .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; }
   .meeting-action .check.done { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
 
+  /* ===== COLUMN FILTERS ===== */
+  .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
+  .col-filter-row label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
+  .col-filter { padding: 5px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: #fff; color: #444; cursor: pointer; }
+  .col-filter:focus { outline: none; border-color: #8c1d40; }
+
+  /* ===== EMAIL DROPDOWN ===== */
+  .email-dropdown-wrap { position: relative; display: inline-block; }
+  .email-dropdown-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: #fff; color: #8c1d40; border: 1.5px solid #8c1d40; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; }
+  .email-dropdown-btn:hover { background: #fdf2f4; }
+  .email-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 260px; z-index: 10; margin-top: 4px; }
+  .email-dropdown-menu.open { display: block; }
+  .email-dropdown-menu a { display: flex; align-items: center; gap: 8px; padding: 10px 14px; text-decoration: none; color: #444; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+  .email-dropdown-menu a:last-child { border-bottom: none; }
+  .email-dropdown-menu a:hover { background: #fdf2f4; color: #8c1d40; }
+  .email-dropdown-menu .em-icon { font-size: 16px; }
+  .email-dropdown-menu .em-desc { font-size: 11px; color: #999; }
+
+  /* ===== GOOGLE CALENDAR ===== */
+  .gcal-section { margin-top: 16px; padding: 14px 16px; background: #f5f5f0; border-radius: 8px; border: 1px solid #e0ddd5; }
+  .gcal-section h4 { font-size: 12px; font-weight: 600; color: #444; margin-bottom: 8px; display: flex; align-items: center; gap: 6px; }
+  .gcal-meeting { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; }
+  .gcal-meeting .gcal-dot { width: 8px; height: 8px; border-radius: 50%; background: #8c1d40; flex-shrink: 0; }
+  .gcal-meeting .gcal-time { color: #888; min-width: 60px; }
+  .gcal-link { font-size: 11px; color: #8c1d40; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
+  .gcal-link:hover { text-decoration: underline; }
+
   /* ===== SYNC INDICATOR ===== */
   .sync-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 6px 32px; background: #f0ede5; font-size: 11px; color: #999; }
   .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; }
@@ -179,8 +218,42 @@
 
 <div class="page">
 
-  <!-- SUMMARY CARDS -->
-  <div class="summary-row" id="summary-row"></div>
+  <!-- SUMMARY + RESOURCES -->
+  <div class="dashboard-top">
+    <div class="summary-row" id="summary-row"></div>
+    <div class="resource-section">
+      <h3>My College Resources</h3>
+      <div class="resource-card">
+        <div class="rc-header"><span style="font-size:16px;">🏫</span><span class="rc-title">New College of Interdisciplinary Arts &amp; Sciences</span></div>
+        <div class="rc-links">
+          <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Homepage</a>
+          <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
+          <a class="rc-link" href="https://newcollege.asu.edu/degrees" target="_blank">Programs</a>
+          <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog Policies</a>
+          <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff Directory</a>
+        </div>
+      </div>
+      <div class="resource-card">
+        <div class="rc-header"><span style="font-size:16px;">🔬</span><span class="rc-title">School of Technology for Public Health</span></div>
+        <div class="rc-links">
+          <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Homepage</a>
+          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">CHS Faculty</a>
+          <a class="rc-link" href="https://publichealthtech.asu.edu/degrees/ms-public-health-technology" target="_blank">MS Program</a>
+          <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">Accreditation</a>
+        </div>
+      </div>
+      <div class="resource-card">
+        <div class="rc-header"><span style="font-size:16px;">🏥</span><span class="rc-title">Health Systems Transformation — College of Health Solutions</span></div>
+        <div class="rc-links">
+          <a class="rc-link" href="https://chs.asu.edu/" target="_blank">CHS Home</a>
+          <a class="rc-link" href="https://chs.asu.edu/all-faculty-directory" target="_blank">Faculty Directory</a>
+          <a class="rc-link" href="https://chs.asu.edu/degree-programs" target="_blank">Degree Programs</a>
+          <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online Programs</a>
+          <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog Policies</a>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- UPCOMING DEADLINES -->
   <div class="section-header">
@@ -197,18 +270,23 @@
   <div class="filters" id="filters-row">
     <!-- rendered dynamically -->
   </div>
+  <div class="col-filter-row" id="col-filter-row">
+    <!-- rendered dynamically -->
+  </div>
 
   <table class="course-table">
     <thead>
       <tr>
-        <th>Course</th>
-        <th>Instructor</th>
-        <th>Session</th>
-        <th>Progress</th>
-        <th>Current Phase</th>
-        <th>Status</th>
-        <th>QA Date</th>
-        <th>Last Active</th>
+        <th data-sort="code" onclick="sortTable('code', this)">Course <span class="sort-arrow">▲</span></th>
+        <th data-sort="instructor" onclick="sortTable('instructor', this)">Instructor <span class="sort-arrow">▲</span></th>
+        <th data-sort="program" onclick="sortTable('program', this)">Program <span class="sort-arrow">▲</span></th>
+        <th data-sort="college" onclick="sortTable('college', this)">College <span class="sort-arrow">▲</span></th>
+        <th data-sort="session" onclick="sortTable('session', this)">Session <span class="sort-arrow">▲</span></th>
+        <th data-sort="progress" onclick="sortTable('progress', this)">Progress <span class="sort-arrow">▲</span></th>
+        <th data-sort="phase" onclick="sortTable('phase', this)">Phase <span class="sort-arrow">▲</span></th>
+        <th data-sort="status" onclick="sortTable('status', this)">Status <span class="sort-arrow">▲</span></th>
+        <th data-sort="qa" onclick="sortTable('qa', this)">QA Date <span class="sort-arrow">▲</span></th>
+        <th data-sort="lastActive" onclick="sortTable('lastActive', this)">Last Active <span class="sort-arrow">▲</span></th>
       </tr>
     </thead>
     <tbody id="course-table-body">
@@ -242,6 +320,20 @@
       <div>
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Instructor Email</label>
         <input type="text" id="nc-email" placeholder="e.g. jsmith@asu.edu" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Program</label>
+        <input type="text" id="nc-program" placeholder="e.g. TPH, MNS, BST" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">College</label>
+        <select id="nc-college" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; background:#fff;">
+          <option value="">— Select —</option>
+          <option value="New College">New College of Interdisciplinary Arts & Sciences</option>
+          <option value="Tech for Public Health">School of Technology for Public Health</option>
+          <option value="Health Solutions">College of Health Solutions</option>
+          <option value="Other">Other</option>
+        </select>
       </div>
       <div>
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Session</label>
@@ -296,11 +388,12 @@
       title: 'MNS 521 — AI Technologies',
       subtitle: 'Dariush Navabi &bull; Summer B 2026',
       code: 'MNS 521', courseName: 'AI Technologies',
+      program: 'MNS', college: 'New College',
       instructor: 'Dariush Navabi', initials: 'DN', avatarColor: '#5c6bc0',
       session: "Summer B '26", phase: 'Assignments Review', progressLabel: '25% — Assignments Review',
-      fillClass: 'fill-orange', lastActive: '3 days ago', lastActiveStale: false,
-      status: 'At Risk', statusClass: 'status-at-risk',
-      progress: 25, progressColor: '#e65100',
+      fillClass: 'fill-green', lastActive: '3 days ago', lastActiveStale: false,
+      status: 'On Track', statusClass: 'status-on-track',
+      progress: 25, progressColor: '#2e7d32',
       qa: 'Aug 1, 2026', qaShort: 'Aug 1',
       devLink: 'course-worksheet-v2.html?course=mns521',
       instructorSlug: 'dnavabi',
@@ -329,6 +422,7 @@
       title: 'TPH 552 — Design &amp; Systems Engineering in Public Health Technology',
       subtitle: 'Bogosian &bull; Session TBD',
       code: 'TPH 552', courseName: 'Design & Systems Engineering in Public Health Technology',
+      program: 'TPH', college: 'Tech for Public Health',
       instructor: 'Bogosian', initials: 'B', avatarColor: '#7b1fa2',
       session: '—', phase: 'Course Outline', progressLabel: '15% — CLOs & ELOs defined',
       fillClass: 'fill-orange', lastActive: 'No activity', lastActiveStale: true,
@@ -446,16 +540,64 @@
   }
 
   // ===== RENDER COURSE TABLE =====
+  let sortField = null;
+  let sortAsc = true;
+
+  function getSortedCourseKeys() {
+    const keys = Object.keys(courseData);
+    if (!sortField) return keys;
+    return keys.sort((a, b) => {
+      const ca = courseData[a];
+      const cb = courseData[b];
+      let va, vb;
+      switch (sortField) {
+        case 'code': va = ca.code; vb = cb.code; break;
+        case 'instructor': va = ca.instructor; vb = cb.instructor; break;
+        case 'program': va = ca.program || ''; vb = cb.program || ''; break;
+        case 'college': va = ca.college || ''; vb = cb.college || ''; break;
+        case 'session': va = ca.session; vb = cb.session; break;
+        case 'progress': return sortAsc ? ca.progress - cb.progress : cb.progress - ca.progress;
+        case 'phase': va = ca.phase; vb = cb.phase; break;
+        case 'status': va = ca.status; vb = cb.status; break;
+        case 'qa': va = ca.qa; vb = cb.qa; break;
+        case 'lastActive': va = ca.lastActive; vb = cb.lastActive; break;
+        default: va = ''; vb = '';
+      }
+      if (typeof va === 'string') {
+        const cmp = va.localeCompare(vb);
+        return sortAsc ? cmp : -cmp;
+      }
+      return 0;
+    });
+  }
+
+  function sortTable(field, th) {
+    if (sortField === field) { sortAsc = !sortAsc; }
+    else { sortField = field; sortAsc = true; }
+    // Update header styles
+    document.querySelectorAll('.course-table thead th').forEach(h => {
+      h.classList.remove('sorted');
+      const arrow = h.querySelector('.sort-arrow');
+      if (arrow) arrow.textContent = '▲';
+    });
+    th.classList.add('sorted');
+    const arrow = th.querySelector('.sort-arrow');
+    if (arrow) arrow.textContent = sortAsc ? '▲' : '▼';
+    renderTable();
+  }
+
   function renderTable() {
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
     const tbody = document.getElementById('course-table-body');
     let html = '';
-    Object.keys(courseData).forEach(id => {
+    getSortedCourseKeys().forEach(id => {
       const c = courseData[id];
       const dataStatus = statusMap[c.status] || 'not-started';
-      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}">
-        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title">${c.courseName}</span></div></td>
+      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}">
+        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span></div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
+        <td style="font-size:12px;">${c.program || '—'}</td>
+        <td style="font-size:12px;">${c.college || '—'}</td>
         <td>${c.session}</td>
         <td class="progress-cell">
           <div class="progress-bar-outer"><div class="progress-bar-fill ${c.fillClass}" style="width:${c.progress}%"></div></div>
@@ -468,6 +610,7 @@
       </tr>`;
     });
     tbody.innerHTML = html;
+    applyColumnFilters();
   }
 
   // ===== RENDER SYNC STATUS =====
@@ -518,8 +661,7 @@
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none;">📂 Google Drive</a>`;
     }
     if (c.email) {
-      const emailBtnLabel = c.emailLabel || 'Email Instructor';
-      html += `<a href="mailto:${c.email}?subject=Course%20Development%20Update%20-%20${encodeURIComponent(c.emailName)}" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; text-decoration:none;">📧 ${emailBtnLabel}</a>`;
+      html += buildEmailDropdown(id, c);
     }
     if (c.email && c.devLink && c.instructorSlug) {
       const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
@@ -629,7 +771,104 @@
       html += `</div>`; // close section
     }
 
+    // Google Calendar section
+    html += buildGCalSection(id, c);
+
     document.getElementById('detail-content').innerHTML = html;
+  }
+
+  // ===== EMAIL TEMPLATE DROPDOWN =====
+  function buildEmailDropdown(id, c) {
+    const emailLabel = c.emailLabel || 'Email Instructor';
+    const name = c.instructor.split(/\s+/)[0]; // first name
+    const courseLabel = c.emailName || c.code;
+
+    // Meeting follow-up body — pull from latest meeting notes
+    let followUpBody = '';
+    if (c.meetings && c.meetings.length > 0) {
+      const m = c.meetings[0];
+      followUpBody = `Hi ${name},\n\nThank you for our meeting on ${m.date}. Here's a quick summary:\n\n`;
+      if (m.summary) followUpBody += m.summary + '\n\n';
+      if (m.decisions && m.decisions.length > 0) {
+        followUpBody += 'Key decisions:\n';
+        m.decisions.forEach(d => { followUpBody += '• ' + d + '\n'; });
+        followUpBody += '\n';
+      }
+      if (m.actionItems && m.actionItems.length > 0) {
+        followUpBody += 'Action items:\n';
+        m.actionItems.forEach(a => { followUpBody += (a.done ? '✓ ' : '☐ ') + a.text + '\n'; });
+        followUpBody += '\n';
+      }
+      followUpBody += 'Please let me know if I missed anything or if you have questions.\n\nBest,\nElisa';
+    } else if (c.notes) {
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent discussion about ${courseLabel}.\n\n${c.notes.text}\n\nPlease let me know if you have any questions.\n\nBest,\nElisa`;
+    }
+
+    // Check-in body
+    const checkInBody = `Hi ${name},\n\nI wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\nLooking forward to hearing from you.\n\nBest,\nElisa`;
+
+    // Course readiness body
+    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\nElisa`;
+
+    const makeMailto = (subj, body) => {
+      return `mailto:${c.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+    };
+
+    return `<div class="email-dropdown-wrap">
+      <button class="email-dropdown-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open');">📧 ${emailLabel} ▾</button>
+      <div class="email-dropdown-menu" id="email-menu-${id}">
+        ${followUpBody ? `<a href="${makeMailto('Meeting Follow-Up — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Summary from latest meeting notes</div></div>
+        </a>` : ''}
+        <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">👋</span><div><div>Check-In</div><div class="em-desc">Ask about progress and offer help</div></div>
+        </a>
+        <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">📊</span><div><div>Course Readiness Update</div><div class="em-desc">Status and progress summary</div></div>
+        </a>
+        <a href="mailto:${c.email}?subject=${encodeURIComponent(courseLabel + ' — ')}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">✉️</span><div><div>Blank Email</div><div class="em-desc">Start from scratch</div></div>
+        </a>
+      </div>
+    </div>`;
+  }
+
+  // Close email dropdowns when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.email-dropdown-wrap')) {
+      document.querySelectorAll('.email-dropdown-menu.open').forEach(m => m.classList.remove('open'));
+    }
+  });
+
+  // ===== GOOGLE CALENDAR SECTION =====
+  function buildGCalSection(id, c) {
+    // Build Google Calendar search URLs for this course
+    const codeCompact = c.code.replace(/\s+/g, ''); // "MNS521"
+    const codeSpaced = c.code; // "MNS 521"
+    const instructor = c.instructor;
+
+    // Google Calendar search URL
+    const calSearchUrl = `https://calendar.google.com/calendar/r/search?q=${encodeURIComponent(codeSpaced + ' OR ' + codeCompact + ' OR ' + instructor)}`;
+
+    let html = `<div class="detail-section"><h3>📅 Calendar</h3>`;
+    html += `<div class="gcal-section">`;
+
+    // Show next meeting if synced
+    if (c.nextMeeting) {
+      const meetDate = new Date(c.nextMeeting.date + 'T00:00:00');
+      const fmtDate = meetDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+      html += `<div class="gcal-meeting">
+        <span class="gcal-dot"></span>
+        <span><strong>Next:</strong> ${fmtDate}${c.nextMeeting.time ? ' at ' + c.nextMeeting.time : ''} — ${c.nextMeeting.label || 'Meeting'}</span>
+      </div>`;
+    }
+
+    html += `<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">`;
+    html += `<a class="gcal-link" href="${calSearchUrl}" target="_blank">🔍 Search "${codeSpaced}" in Calendar</a>`;
+    html += `<a class="gcal-link" href="https://calendar.google.com/calendar/r/search?q=${encodeURIComponent(instructor)}" target="_blank">🔍 Search "${instructor}"</a>`;
+    html += `</div>`;
+    html += `</div></div>`;
+    return html;
   }
 
   // ===== FILTER =====
@@ -682,6 +921,47 @@
   }
 
   renderFilters();
+  renderColumnFilters();
+
+  // ===== COLUMN FILTERS =====
+  function renderColumnFilters() {
+    const programs = new Set();
+    const colleges = new Set();
+    const sessions = new Set();
+    const statuses = new Set();
+    Object.values(courseData).forEach(c => {
+      if (c.program) programs.add(c.program);
+      if (c.college) colleges.add(c.college);
+      if (c.session && c.session !== '—') sessions.add(c.session);
+      statuses.add(c.status);
+    });
+    const makeOpts = (set, label) => {
+      let html = `<option value="">All ${label}</option>`;
+      [...set].sort().forEach(v => { html += `<option value="${v}">${v}</option>`; });
+      return html;
+    };
+    document.getElementById('col-filter-row').innerHTML =
+      `<label>Filter:</label>` +
+      `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
+      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges')}</select>` +
+      `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
+      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>`;
+  }
+
+  function applyColumnFilters() {
+    const fp = document.getElementById('filter-program')?.value || '';
+    const fc = document.getElementById('filter-college')?.value || '';
+    const fs = document.getElementById('filter-session')?.value || '';
+    const fst = document.getElementById('filter-status')?.value || '';
+    document.querySelectorAll('.course-table tbody tr').forEach(row => {
+      const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
+      if (!id || !courseData[id]) return;
+      const c = courseData[id];
+      const show = (!fp || c.program === fp) && (!fc || c.college === fc) &&
+        (!fs || c.session === fs) && (!fst || c.status === fst);
+      row.style.display = show ? '' : 'none';
+    });
+  }
 
   // ===== ADD COURSE MODAL =====
   function openAddCourseModal() {
@@ -706,6 +986,8 @@
     }
 
     const email = document.getElementById('nc-email').value.trim();
+    const program = document.getElementById('nc-program').value.trim();
+    const college = document.getElementById('nc-college').value;
     const session = document.getElementById('nc-session').value;
     const id = document.getElementById('nc-id').value.trim() || 'Elisa Penmar';
     const modCount = parseInt(document.getElementById('nc-modules').value) || 7;
@@ -737,6 +1019,7 @@
       title: code + ' — ' + name,
       subtitle: instructor + ' &bull; ' + (session || 'Session TBD'),
       code: code, courseName: name,
+      program: program || code.split(/\s/)[0], college: college || '',
       instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
       session: sessionShort, phase: 'Not Started', progressLabel: '0% — Not started',
       fillClass: 'fill-red', lastActive: 'No activity', lastActiveStale: true,
@@ -792,10 +1075,12 @@
     renderSummary();
     renderTable();
     renderFilters();
+    renderColumnFilters();
     closeAddCourseModal();
 
     // Clear form
-    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-credits'].forEach(id => document.getElementById(id).value = '');
+    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('nc-college').value = '';
     document.getElementById('nc-session').value = '';
     document.getElementById('nc-modules').value = '7';
     document.getElementById('nc-id').value = 'Elisa Penmar';
