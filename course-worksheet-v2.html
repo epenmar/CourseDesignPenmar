@@ -209,6 +209,41 @@
   .obj-check { width: 16px; height: 16px; border: 1.5px solid #ccc; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
   .obj-option.selected .obj-check { background: #8c1d40; border-color: #8c1d40; color: #fff; }
 
+  /* Objective chip tooltip on hover */
+  .obj-chip { position: relative; cursor: default; }
+  .obj-chip[data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 400; white-space: normal; width: max-content; max-width: 280px; z-index: 60; line-height: 1.4; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
+  .obj-chip[data-tooltip]:hover::before { content: ''; position: absolute; bottom: calc(100% + 2px); left: 50%; transform: translateX(-50%); border: 5px solid transparent; border-top-color: #333; z-index: 61; }
+
+  /* Course objectives accordion at top of overview */
+  .course-obj-accordion { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; margin-bottom: 16px; overflow: hidden; }
+  .course-obj-accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; cursor: pointer; user-select: none; transition: background 0.15s; }
+  .course-obj-accordion-header:hover { background: #fafaf7; }
+  .course-obj-accordion-header h3 { font-size: 14px; font-weight: 600; color: #8c1d40; margin: 0; }
+  .course-obj-accordion-body { padding: 0 20px 16px; display: none; }
+  .course-obj-accordion-body.open { display: block; }
+  .course-obj-list { list-style: none; padding: 0; margin: 0; }
+  .course-obj-list li { padding: 6px 0; border-bottom: 1px solid #f0ede5; font-size: 13px; color: #444; display: flex; gap: 8px; }
+  .course-obj-list li:last-child { border-bottom: none; }
+  .course-obj-list .obj-num { font-weight: 700; color: #8c1d40; min-width: 32px; }
+
+  /* Module MLO accordion inside overview cards */
+  .mlo-accordion { margin-bottom: 8px; border: 1px solid #e8e5dd; border-radius: 8px; overflow: hidden; background: #fafaf7; }
+  .mlo-accordion-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; cursor: pointer; user-select: none; font-size: 12px; font-weight: 600; color: #666; transition: background 0.15s; }
+  .mlo-accordion-header:hover { background: #f0ede5; }
+  .mlo-accordion-body { padding: 4px 12px 8px; display: none; }
+  .mlo-accordion-body.open { display: block; }
+  .mlo-list { list-style: none; padding: 0; margin: 0; }
+  .mlo-list li { padding: 4px 0; font-size: 12px; color: #555; display: flex; gap: 6px; border-bottom: 1px solid #f0ede5; }
+  .mlo-list li:last-child { border-bottom: none; }
+  .mlo-list .mlo-id { font-weight: 700; color: #8c1d40; min-width: 28px; flex-shrink: 0; }
+
+  /* Overview activity block with inline content */
+  .overview-act-content { margin-top: 4px; margin-left: 24px; }
+  .overview-act-expand { font-size: 11px; color: #8c1d40; cursor: pointer; border: none; background: none; font-weight: 500; padding: 2px 0; font-family: 'Inter', sans-serif; }
+  .overview-act-expand:hover { text-decoration: underline; }
+  .overview-content-body { display: none; margin-top: 6px; }
+  .overview-content-body.open { display: block; }
+
   /* ===== CLO ALIGNMENT PICKER ===== */
   .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .clo-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #e0ddd5; background: #fff; color: #999; user-select: none; }
@@ -260,6 +295,33 @@
   .template-type-btn { padding: 5px 12px; border: 1px solid #e0ddd5; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: #fff; color: #666; transition: all 0.15s; font-family: 'Inter', sans-serif; }
   .template-type-btn:hover { border-color: #8c1d40; color: #8c1d40; }
   .template-type-btn.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+
+  /* ===== QUIZ BUILDER ===== */
+  .quiz-builder { padding: 0; }
+  .quiz-question-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
+  .quiz-question-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .quiz-question-num { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border-radius: 50%; background: #8c1d40; color: #fff; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+  .quiz-question-input { flex: 1; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; }
+  .quiz-question-input:focus { outline: none; border-color: #8c1d40; }
+  .quiz-question-type { padding: 6px 8px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 11px; font-family: 'Inter', sans-serif; cursor: pointer; }
+  .quiz-question-delete { border: none; background: none; color: #ccc; font-size: 16px; cursor: pointer; padding: 2px 4px; }
+  .quiz-question-delete:hover { color: #c62828; }
+  .quiz-choice { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 6px 8px; border: 1px solid #e8e5dd; border-radius: 6px; background: #fafaf7; transition: all 0.15s; }
+  .quiz-choice.correct { background: #e8f5e9; border-color: #a5d6a7; }
+  .quiz-choice-correct-btn { width: 22px; height: 22px; border-radius: 50%; border: 2px solid #ccc; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; transition: all 0.15s; flex-shrink: 0; }
+  .quiz-choice.correct .quiz-choice-correct-btn { border-color: #4caf50; background: #4caf50; color: #fff; }
+  .quiz-choice-input { flex: 1; padding: 4px 8px; border: 1px solid transparent; border-radius: 4px; font-size: 12px; font-family: 'Inter', sans-serif; background: transparent; }
+  .quiz-choice-input:focus { outline: none; border-color: #e0ddd5; background: #fff; }
+  .quiz-choice-delete { border: none; background: none; color: #ddd; font-size: 14px; cursor: pointer; }
+  .quiz-choice-delete:hover { color: #c62828; }
+  .quiz-feedback-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 6px; }
+  .quiz-feedback-input { padding: 6px 8px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 11px; font-family: 'Inter', sans-serif; }
+  .quiz-feedback-input:focus { outline: none; border-color: #8c1d40; }
+  .quiz-feedback-input.correct-fb { border-left: 3px solid #4caf50; }
+  .quiz-feedback-input.incorrect-fb { border-left: 3px solid #ef5350; }
+  .quiz-points-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; color: #666; }
+  .quiz-points-input { width: 60px; padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 4px; font-size: 12px; text-align: center; font-family: 'Inter', sans-serif; }
+  .quiz-add-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .attached-file { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; font-size: 12px; color: #2e7d32; margin-top: 6px; }
   .attached-file .remove-file { cursor: pointer; color: #999; font-size: 14px; }
   .attached-file .remove-file:hover { color: #c62828; }
@@ -507,6 +569,7 @@
       <div id="view-assignments-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Assignments Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All activities and assignments across all modules. Drag between modules to reorganize.</p>
+        <div id="course-objectives-accordion" class="course-obj-accordion"></div>
         <div class="view-toggle">
           <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
           <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
@@ -1084,7 +1147,9 @@
       chipsHtml = '<span class="obj-picker-placeholder">Select objectives...</span>';
     } else {
       chipsHtml = selected.map(function(id) {
-        return '<span class="obj-chip">' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + activityId + '\',\'' + id + '\')">×</span></span>';
+        var fullText = getMloText(id);
+        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
+        return '<span class="obj-chip"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + activityId + '\',\'' + id + '\')">×</span></span>';
       }).join('');
     }
 
@@ -1142,6 +1207,9 @@
               '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>' +
               '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />' +
             '</div>' +
+            '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
+              '<strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.' +
+            '</div>' +
             '<div id="' + id + '-files"></div>' +
           '</div>' +
           '<div class="content-attach-body hidden" id="' + id + '-link">' +
@@ -1155,6 +1223,7 @@
               '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>' +
               '<button class="template-type-btn' + (activeType === 'assignment' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'assignment\',this)">Assignment</button>' +
               '<button class="template-type-btn' + (activeType === 'quiz' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'quiz\',this)">Quiz</button>' +
+              '<button class="template-type-btn' + (activeType === 'blank' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'blank\',this)">Blank Page</button>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
               '<h4>Discussion Template</h4>' +
@@ -1162,6 +1231,11 @@
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea data-managed="true" placeholder="Central question or task for students..."></textarea></div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea data-managed="true" placeholder="e.g., Reply to at least two classmates..."></textarea></div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea data-managed="true" placeholder="List readings, videos, or links..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>' +
+              '<div style="margin-top:8px; display:flex; gap:8px;">' +
+                '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>' +
+              '</div>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
               '<h4>Assignment Template</h4>' +
@@ -1170,12 +1244,24 @@
               '<div class="template-section"><div class="template-section-label">Instructions</div><textarea data-managed="true" placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div><textarea data-managed="true" placeholder="Links, documents, or resources needed..."></textarea></div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>' +
+              '<div style="margin-top:8px; display:flex; gap:8px;">' +
+                '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>' +
+              '</div>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
-              '<div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *. Use ~ for incorrect feedback and @ for correct feedback.</div>' +
-              '<div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" data-managed="true" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div>' +
-              '<div class="template-section"><textarea data-managed="true" placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer&#10;&#10;2. Question text&#10;..." style="min-height:160px; font-family:\'Courier New\', monospace; font-size:12px;"></textarea></div>' +
+              '<div id="' + id + '-quiz-builder"></div>' +
+              '<div style="margin-top:8px;">' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\')">📂 Export to Google Drive</button>' +
+              '</div>' +
+            '</div>' +
+            '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">' +
+              '<h4>Blank Page</h4>' +
+              '<div class="template-section"><textarea data-managed="true" placeholder="Write your content here..." style="min-height:160px;"></textarea></div>' +
+              '<div style="margin-top:8px;">' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>' +
+              '</div>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -1210,6 +1296,9 @@
         '</div>' +
         '<div class="content-attach-body" id="' + id + '-upload">' +
           '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
+          '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
+            '<strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. When uploading slide presentations, consider using the original PowerPoint file. For all documents, use built-in heading styles and add alt text to images before uploading.' +
+          '</div>' +
           '<div id="' + id + '-files"></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-link">' +
@@ -2121,6 +2210,11 @@
 
     // Auto-resize textareas within rendered activities
     container.querySelectorAll('textarea').forEach(function(ta) { autoResize(ta); });
+
+    // Initialize quiz builders for any quiz templates
+    container.querySelectorAll('[id$="-quiz-builder"]').forEach(function(el) {
+      if (!el.hasChildNodes()) initQuizBuilder(el);
+    });
   }
 
   function renderModuleMaterials(num) {
@@ -2199,12 +2293,175 @@
     if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
   }
 
-  function renderAssignmentsOverview() {
+  // Helper: get MLO full text for a given ID like "1.2"
+  function getMloText(mloId) {
+    var parts = mloId.split('.');
+    var modIdx = parseInt(parts[0]) - 1;
+    var mloIdx = parseInt(parts[1]) - 1;
+    var mod = (activeCourse.modules || [])[modIdx];
+    if (mod && mod.mlos && mod.mlos[mloIdx]) return mod.mlos[mloIdx];
+    return '';
+  }
+
+  // Build objective chips with tooltips for overview
+  function buildObjChipsHtml(objectives, moduleNum) {
+    var html = '';
+    if (!objectives || objectives.length === 0) return '<span style="color:#ccc; font-size:11px;">—</span>';
+    for (var j = 0; j < objectives.length; j++) {
+      var fullText = getMloText(objectives[j]);
+      html += '<span class="obj-chip" style="font-size:10px; padding:1px 5px;"' +
+        (fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '') +
+        '>' + escapeHtml(objectives[j]) + '</span>';
+    }
+    return html;
+  }
+
+  // Render Course Objectives accordion at top of assignments overview
+  function renderCourseObjectivesAccordion() {
+    var container = document.getElementById('course-objectives-accordion');
+    if (!container) return;
+    var clos = activeCourse.clos || [];
+    var elos = activeCourse.elos || [];
+    if (clos.length === 0 && elos.length === 0) { container.innerHTML = ''; return; }
+
+    var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
+    html += '<h3>Course Learning Objectives (CLOs) &amp; Expected Learning Outcomes (ELOs)</h3>';
+    html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
+    html += '</div>';
+    html += '<div class="course-obj-accordion-body">';
+
+    if (clos.length > 0) {
+      html += '<div style="margin-bottom:12px;"><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Course Learning Objectives</div>';
+      html += '<ul class="course-obj-list">';
+      for (var i = 0; i < clos.length; i++) {
+        html += '<li><span class="obj-num">CLO ' + (i + 1) + '</span><span>' + escapeHtml(clos[i]) + '</span></li>';
+      }
+      html += '</ul></div>';
+    }
+    if (elos.length > 0) {
+      html += '<div><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Expected Learning Outcomes</div>';
+      html += '<ul class="course-obj-list">';
+      for (var i = 0; i < elos.length; i++) {
+        html += '<li><span class="obj-num">ELO ' + (i + 1) + '</span><span>' + escapeHtml(elos[i]) + '</span></li>';
+      }
+      html += '</ul></div>';
+    }
+    html += '</div>';
+    container.innerHTML = html;
+  }
+
+  // Build MLO accordion HTML for a module card
+  function buildMloAccordionHtml(moduleNum) {
+    var mod = (activeCourse.modules || [])[moduleNum - 1];
+    var mlos = mod && mod.mlos ? mod.mlos : [];
+    if (mlos.length === 0) return '';
+    var html = '<div class="mlo-accordion">';
+    html += '<div class="mlo-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
+    html += '<span>Module ' + moduleNum + ' Objectives (' + mlos.length + ' MLOs)</span>';
+    html += '<span class="ca-toggle" style="font-size:12px; color:#999; transition:transform 0.2s;">▾</span>';
+    html += '</div>';
+    html += '<div class="mlo-accordion-body">';
+    html += '<ul class="mlo-list">';
+    for (var j = 0; j < mlos.length; j++) {
+      html += '<li><span class="mlo-id">' + moduleNum + '.' + (j + 1) + '</span><span>' + escapeHtml(mlos[j]) + '</span></li>';
+    }
+    html += '</ul></div></div>';
+    return html;
+  }
+
+  // Build inline content attachment for an activity in overview
+  function buildOverviewContentHtml(act, moduleNum) {
+    var id = 'ov-' + act.id;
+    var driveDisplay = activeCourse.driveFolder ? 'inline-flex' : 'none';
+    var driveHref = activeCourse.driveFolder || '#';
+    var activeType = act.contentType || 'assignment';
+
+    var html = '<div class="overview-act-content">';
+    html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\';">▸ Content</button>';
+    html += '<div class="overview-content-body">';
+    html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
+    html += '<div class="content-attach-inner open" style="display:block;">';
+    html += '<a class="drive-folder-link" href="' + escapeHtml(driveHref) + '" style="display:' + driveDisplay + ';" target="_blank">📂 Open Google Drive Folder</a>';
+    html += '<div class="content-attach-tabs">';
+    html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
+    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
+    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
+    html += '</div>';
+    // Upload tab
+    html += '<div class="content-attach-body" id="' + id + '-upload">';
+    html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()">';
+    html += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
+    html += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
+    html += '</div>';
+    html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
+    html += '<div id="' + id + '-files"></div></div>';
+    // Link tab
+    html += '<div class="content-attach-body hidden" id="' + id + '-link">';
+    html += '<div class="link-input-row">';
+    html += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />';
+    html += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>';
+    html += '</div></div>';
+    // Template tab with dropdown selector
+    html += '<div class="content-attach-body hidden" id="' + id + '-template">';
+    html += '<div class="template-type-selector">';
+    html += '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>';
+    html += '<button class="template-type-btn' + (activeType === 'assignment' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'assignment\',this)">Assignment</button>';
+    html += '<button class="template-type-btn' + (activeType === 'quiz' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'quiz\',this)">Quiz</button>';
+    html += '<button class="template-type-btn' + (activeType === 'blank' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'blank\',this)">Blank Page</button>';
+    html += '</div>';
+    // Discussion template
+    html += '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">';
+    html += '<h4>Discussion Template</h4>';
+    html += '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the discussion topic and purpose..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea data-managed="true" placeholder="Central question or task for students..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea data-managed="true" placeholder="e.g., Reply to at least two classmates..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea data-managed="true" placeholder="List readings, videos, or links..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>';
+    html += '<div style="margin-top:8px; display:flex; gap:8px;">';
+    html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>';
+    html += '</div></div>';
+    // Assignment template
+    html += '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">';
+    html += '<h4>Assignment Template</h4>';
+    html += '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the assignment purpose and context..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea data-managed="true" placeholder="List the MLOs this assignment addresses..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Instructions</div><textarea data-managed="true" placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Materials</div><textarea data-managed="true" placeholder="Links, documents, or resources needed..."></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>';
+    html += '<div style="margin-top:8px; display:flex; gap:8px;">';
+    html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>';
+    html += '</div></div>';
+    // Quiz template (will be modernized in task 18)
+    html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
+    html += '<h4>Quiz Template</h4>';
+    html += '<div id="' + id + '-quiz-builder"></div>';
+    html += '<div style="margin-top:8px; display:flex; gap:8px;">';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\')">📂 Export to Google Drive</button>';
+    html += '</div></div>';
+    // Blank page template
+    html += '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">';
+    html += '<h4>Blank Page</h4>';
+    html += '<div class="template-section"><textarea data-managed="true" placeholder="Write your content here..." style="min-height:160px;"></textarea></div>';
+    html += '<div style="margin-top:8px;">';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>';
+    html += '</div></div>';
+    html += '</div>'; // template body
+    html += '</div></div>'; // content-attach-inner + content-attach
+    html += '</div></div>'; // overview-content-body + overview-act-content
+    return html;
+  }
+
+  function renderAssignmentsOverview(openModules) {
     var cardsContainer = document.getElementById('assignments-overview-cards');
     var tableContainer = document.getElementById('assignments-overview-table');
     if (!cardsContainer) return;
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
+
+    // Render course objectives accordion at page top
+    renderCourseObjectivesAccordion();
 
     // Card view
     var html = '';
@@ -2212,7 +2469,8 @@
       var mod = modules[m - 1];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var acts = courseActivities[m] || [];
-      var collapsed = m > 1 ? ' collapsed' : '';
+      var isOpen = openModules ? !!openModules[m] : (m === 1);
+      var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
       html += '<div class="card-header" onclick="toggleCard(this)">';
@@ -2221,9 +2479,12 @@
       html += 'Module ' + m + ': ' + escapeHtml(modTitle);
       html += '<span style="margin-left:8px; font-size:11px; color:#999; font-weight:400;">' + acts.length + ' activities</span>';
       html += '</div>';
-      html += '<span class="card-toggle' + (m === 1 ? ' open' : '') + '">▾</span>';
+      html += '<span class="card-toggle' + (isOpen ? ' open' : '') + '">▾</span>';
       html += '</div>';
       html += '<div class="card-body' + collapsed + '" data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
+
+      // Module objectives accordion
+      html += buildMloAccordionHtml(m);
 
       if (acts.length === 0) {
         html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
@@ -2242,18 +2503,15 @@
           html += '<div style="display:flex; align-items:center; gap:6px;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           html += '<div class="activity-row" style="flex:1;">';
-          // Objectives chips
-          html += '<div style="display:flex; flex-wrap:wrap; gap:3px;">';
-          for (var j = 0; j < (act.objectives || []).length; j++) {
-            html += '<span class="obj-chip" style="font-size:10px; padding:1px 5px;">' + escapeHtml(act.objectives[j]) + '</span>';
-          }
-          if (!act.objectives || act.objectives.length === 0) html += '<span style="color:#ccc; font-size:11px;">—</span>';
-          html += '</div>';
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" />';
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
+          // Objectives picker (interactive)
+          html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." oninput="syncOverviewActivity(this)" />';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '</div>';
           html += '</div>';
+          // Inline content expansion
+          html += buildOverviewContentHtml(act, m);
           html += '</div>';
         }
       }
@@ -2261,6 +2519,11 @@
       html += '</div></div>';
     }
     cardsContainer.innerHTML = html;
+
+    // Initialize quiz builders for any visible quiz templates
+    cardsContainer.querySelectorAll('[id$="-quiz-builder"]').forEach(function(el) {
+      if (!el.hasChildNodes()) initQuizBuilder(el);
+    });
 
     // Table view
     if (tableContainer) {
@@ -2272,7 +2535,7 @@
           var act = acts[i];
           thtml += '<tr data-activity-id="' + act.id + '" data-module-num="' + m + '">';
           thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
-          thtml += '<td>' + (act.objectives || []).join(', ') + '</td>';
+          thtml += '<td>' + buildObjChipsHtml(act.objectives, m) + '</td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%;" /></td>';
           thtml += '<td style="text-align:center;">' + escapeHtml(act.points) + '</td>';
           thtml += '<td style="text-align:center;">' + escapeHtml(act.due) + '</td>';
@@ -2287,7 +2550,7 @@
     }
   }
 
-  function renderMaterialsOverview() {
+  function renderMaterialsOverview(openModules) {
     var cardsContainer = document.getElementById('materials-overview-cards');
     var tableContainer = document.getElementById('materials-overview-table');
     if (!cardsContainer) return;
@@ -2300,7 +2563,8 @@
       var mod = modules[m - 1];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var mats = courseMaterials[m] || [];
-      var collapsed = m > 1 ? ' collapsed' : '';
+      var isOpen = openModules ? !!openModules[m] : (m === 1);
+      var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
       html += '<div class="card-header" onclick="toggleCard(this)">';
@@ -2309,7 +2573,7 @@
       html += 'Module ' + m + ': ' + escapeHtml(modTitle);
       html += '<span style="margin-left:8px; font-size:11px; color:#999; font-weight:400;">' + mats.length + ' materials</span>';
       html += '</div>';
-      html += '<span class="card-toggle' + (m === 1 ? ' open' : '') + '">▾</span>';
+      html += '<span class="card-toggle' + (isOpen ? ' open' : '') + '">▾</span>';
       html += '</div>';
       html += '<div class="card-body' + collapsed + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
 
@@ -2325,6 +2589,27 @@
           html += '<span style="font-size:11px; color:#8c1d40; font-weight:600; min-width:60px;">' + escapeHtml(mat.type) + '</span>';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" placeholder="Material title..." style="flex:1; font-size:12px;" oninput="syncOverviewMaterial(this)" />';
           html += '</div>';
+          // Inline content for material
+          var ovMatId = 'ov-' + mat.id;
+          html += '<div class="overview-act-content" style="margin-left:24px; margin-top:4px;">';
+          html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\';">▸ Content</button>';
+          html += '<div class="overview-content-body">';
+          html += '<div class="content-attach" id="attach-' + ovMatId + '" style="margin-top:0;">';
+          html += '<div class="content-attach-inner open" style="display:block;">';
+          html += '<div class="content-attach-tabs">';
+          html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + ovMatId + '\',\'upload\',this)">📁 Upload</button>';
+          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'link\',this)">🔗 Link</button>';
+          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'template\',this)">📝 Text Entry</button>';
+          html += '</div>';
+          html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
+          html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
+          html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
+          html += '<div id="' + ovMatId + '-files"></div></div>';
+          html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
+          html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>';
+          html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
+          html += '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;"></textarea></div>';
+          html += '</div></div></div></div>';
         }
       }
       html += '<button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button>';
@@ -2381,22 +2666,39 @@
   }
 
   // Add from overview
+  // Helper: snapshot which overview cards are currently expanded
+  function getOpenOverviewModules(containerId) {
+    var open = {};
+    var container = document.getElementById(containerId);
+    if (!container) return open;
+    container.querySelectorAll('.card').forEach(function(card) {
+      var m = card.getAttribute('data-overview-module');
+      var body = card.querySelector('.card-body');
+      if (m && body && !body.classList.contains('collapsed')) open[m] = true;
+    });
+    return open;
+  }
+
   function addActivityToModule(modNum) {
+    var openModules = getOpenOverviewModules('assignments-overview-cards');
+    openModules[modNum] = true; // ensure the module we're adding to stays open
     activityCounter++;
     var newAct = { id: 'act-' + activityCounter, objectives: [], name: '', points: '', due: '', contentType: 'assignment', links: [], richText: '' };
     if (!courseActivities[modNum]) courseActivities[modNum] = [];
     courseActivities[modNum].push(newAct);
     saveActivityData();
-    renderAssignmentsOverview();
+    renderAssignmentsOverview(openModules);
   }
 
   function addMaterialToModule(modNum) {
+    var openModules = getOpenOverviewModules('materials-overview-cards');
+    openModules[modNum] = true;
     materialCount++;
     var newMat = { id: 'mat-' + materialCount, type: 'Reading', title: '', links: [], richText: '' };
     if (!courseMaterials[modNum]) courseMaterials[modNum] = [];
     courseMaterials[modNum].push(newMat);
     saveActivityData();
-    renderMaterialsOverview();
+    renderMaterialsOverview(openModules);
   }
 
   // ===== CROSS-MODULE DRAG & DROP =====
@@ -2449,7 +2751,9 @@
       if (!courseActivities[targetModule]) courseActivities[targetModule] = [];
       courseActivities[targetModule].push(item);
       saveActivityData();
-      renderAssignmentsOverview();
+      var openA = getOpenOverviewModules('assignments-overview-cards');
+      openA[targetModule] = true;
+      renderAssignmentsOverview(openA);
     } else if (overviewDragData.type === 'materials-ov' && overviewDragData.materialId) {
       // Move material between modules
       var sourceList = courseMaterials[sourceModule] || [];
@@ -2459,7 +2763,9 @@
       if (!courseMaterials[targetModule]) courseMaterials[targetModule] = [];
       courseMaterials[targetModule].push(item);
       saveActivityData();
-      renderMaterialsOverview();
+      var openM = getOpenOverviewModules('materials-overview-cards');
+      openM[targetModule] = true;
+      renderMaterialsOverview(openM);
     }
   }
 
@@ -2514,18 +2820,20 @@
     if (selected.length === 0) {
       display.innerHTML = '<span class="obj-picker-placeholder">Select objectives...</span>';
     } else {
-      display.innerHTML = selected.map(id =>
-        '<span class="obj-chip">' + id + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + pickerId + '\',\'' + id + '\')">×</span></span>'
-      ).join('');
+      display.innerHTML = selected.map(function(id) {
+        var fullText = getMloText(id);
+        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
+        return '<span class="obj-chip"' + tooltipAttr + '>' + id + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + pickerId + '\',\'' + id + '\')">×</span></span>';
+      }).join('');
     }
 
     // Update data model if this is an activity picker
     const block = dd.closest('.activity-block');
     if (block) {
-      const actId = block.getAttribute('data-activity-id');
+      var rawActId = block.getAttribute('data-activity-id');
       const modNum = parseInt(block.getAttribute('data-module-num'));
-      if (actId && modNum && courseActivities[modNum]) {
-        const act = courseActivities[modNum].find(function(a) { return a.id === actId; });
+      if (rawActId && modNum && courseActivities[modNum]) {
+        const act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
         if (act) {
           act.objectives = selected;
           saveActivityData();
@@ -2931,7 +3239,399 @@
     const parent = btn.closest('.content-attach-body');
     parent.querySelectorAll('.template-preview').forEach(p => p.classList.add('hidden'));
     const target = document.getElementById(prefix + '-tpl-' + type);
-    if (target) target.classList.remove('hidden');
+    if (target) {
+      target.classList.remove('hidden');
+      // Initialize quiz builder if switching to quiz and not yet initialized
+      if (type === 'quiz') {
+        var qb = target.querySelector('[id$="-quiz-builder"]');
+        if (qb && !qb.hasChildNodes()) initQuizBuilder(qb);
+      }
+    }
+    // Update contentType in data model
+    var actBlock = btn.closest('.activity-block');
+    if (actBlock) {
+      var actId = actBlock.getAttribute('data-activity-id');
+      var modNum = parseInt(actBlock.getAttribute('data-module-num'));
+      if (actId && modNum && courseActivities[modNum]) {
+        var act = courseActivities[modNum].find(function(a) { return a.id === actId; });
+        if (act) { act.contentType = type; saveActivityData(); }
+      }
+    }
+  }
+
+  // ===== MODERN QUIZ BUILDER =====
+  var quizData = {}; // keyed by container element id
+
+  function initQuizBuilder(container) {
+    var builderId = container.id;
+    if (!quizData[builderId]) {
+      quizData[builderId] = {
+        pointsPerQuestion: 5,
+        questions: [createEmptyQuestion(1)]
+      };
+    }
+    renderQuizBuilder(container);
+  }
+
+  function createEmptyQuestion(num) {
+    return {
+      num: num,
+      text: '',
+      type: 'multiple-choice',
+      choices: [
+        { text: '', correct: false },
+        { text: '', correct: false },
+        { text: '', correct: false },
+        { text: '', correct: false }
+      ],
+      correctFeedback: '',
+      incorrectFeedback: ''
+    };
+  }
+
+  function renderQuizBuilder(container) {
+    var builderId = container.id;
+    var data = quizData[builderId];
+    if (!data) return;
+
+    var html = '<div class="quiz-builder">';
+    html += '<div class="quiz-points-row">';
+    html += '<label>Points per question:</label>';
+    html += '<input type="number" class="quiz-points-input" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1" />';
+    html += '</div>';
+
+    for (var q = 0; q < data.questions.length; q++) {
+      var question = data.questions[q];
+      html += '<div class="quiz-question-card" data-q-idx="' + q + '">';
+      html += '<div class="quiz-question-header">';
+      html += '<span class="quiz-question-num">' + (q + 1) + '</span>';
+      html += '<input type="text" class="quiz-question-input" value="' + escapeHtml(question.text) + '" placeholder="Enter question text..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'text\',this.value)" />';
+      html += '<select class="quiz-question-type" onchange="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'type\',this.value)">';
+      html += '<option value="multiple-choice"' + (question.type === 'multiple-choice' ? ' selected' : '') + '>Multiple Choice</option>';
+      html += '<option value="true-false"' + (question.type === 'true-false' ? ' selected' : '') + '>True/False</option>';
+      html += '<option value="short-answer"' + (question.type === 'short-answer' ? ' selected' : '') + '>Short Answer</option>';
+      html += '</select>';
+      if (data.questions.length > 1) {
+        html += '<button class="quiz-question-delete" onclick="removeQuizQuestion(\'' + builderId + '\',' + q + ')" title="Delete question">✕</button>';
+      }
+      html += '</div>';
+
+      // Answer choices
+      if (question.type === 'multiple-choice' || question.type === 'true-false') {
+        var choices = question.type === 'true-false' ?
+          [{ text: 'True', correct: question.choices[0] && question.choices[0].correct }, { text: 'False', correct: question.choices[1] && question.choices[1].correct }] :
+          question.choices;
+        for (var c = 0; c < choices.length; c++) {
+          html += '<div class="quiz-choice' + (choices[c].correct ? ' correct' : '') + '">';
+          html += '<button class="quiz-choice-correct-btn" onclick="toggleQuizCorrect(\'' + builderId + '\',' + q + ',' + c + ')" title="Mark as correct">✓</button>';
+          if (question.type === 'true-false') {
+            html += '<span style="flex:1; font-size:12px; font-weight:500;">' + choices[c].text + '</span>';
+          } else {
+            html += '<input type="text" class="quiz-choice-input" value="' + escapeHtml(choices[c].text) + '" placeholder="Answer choice ' + String.fromCharCode(65 + c) + '..." oninput="updateQuizChoice(\'' + builderId + '\',' + q + ',' + c + ',this.value)" />';
+            html += '<button class="quiz-choice-delete" onclick="removeQuizChoice(\'' + builderId + '\',' + q + ',' + c + ')" title="Remove choice">×</button>';
+          }
+          html += '</div>';
+        }
+        if (question.type === 'multiple-choice') {
+          html += '<button class="btn-add-row" style="margin-top:4px;" onclick="addQuizChoice(\'' + builderId + '\',' + q + ')">+ Add choice</button>';
+        }
+      } else {
+        // Short answer
+        html += '<div style="font-size:12px; color:#888; font-style:italic; padding:8px 0;">Students will enter a text response.</div>';
+      }
+
+      // Feedback
+      html += '<div class="quiz-feedback-row">';
+      html += '<input type="text" class="quiz-feedback-input correct-fb" value="' + escapeHtml(question.correctFeedback) + '" placeholder="Correct answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'correctFeedback\',this.value)" />';
+      html += '<input type="text" class="quiz-feedback-input incorrect-fb" value="' + escapeHtml(question.incorrectFeedback) + '" placeholder="Incorrect answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'incorrectFeedback\',this.value)" />';
+      html += '</div>';
+      html += '</div>';
+    }
+
+    html += '<div class="quiz-add-btns">';
+    html += '<button class="btn-add-row" onclick="addQuizQuestion(\'' + builderId + '\')">+ Add question</button>';
+    html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')">✨ Generate questions with AI</button>';
+    html += '</div>';
+    html += '</div>';
+
+    container.innerHTML = html;
+  }
+
+  function updateQuizQuestion(builderId, qIdx, field, value) {
+    var data = quizData[builderId];
+    if (!data || !data.questions[qIdx]) return;
+    data.questions[qIdx][field] = value;
+    if (field === 'type') {
+      // Reset choices when switching type
+      if (value === 'true-false') {
+        data.questions[qIdx].choices = [{ text: 'True', correct: false }, { text: 'False', correct: false }];
+      } else if (value === 'multiple-choice' && data.questions[qIdx].choices.length < 2) {
+        data.questions[qIdx].choices = [{ text: '', correct: false }, { text: '', correct: false }, { text: '', correct: false }, { text: '', correct: false }];
+      }
+      renderQuizBuilder(document.getElementById(builderId));
+    }
+  }
+
+  function updateQuizChoice(builderId, qIdx, cIdx, value) {
+    var data = quizData[builderId];
+    if (!data || !data.questions[qIdx]) return;
+    data.questions[qIdx].choices[cIdx].text = value;
+  }
+
+  function toggleQuizCorrect(builderId, qIdx, cIdx) {
+    var data = quizData[builderId];
+    if (!data || !data.questions[qIdx]) return;
+    var choices = data.questions[qIdx].choices;
+    // For MC/TF, allow single correct; toggle this one and deselect others
+    for (var i = 0; i < choices.length; i++) {
+      choices[i].correct = (i === cIdx) ? !choices[i].correct : false;
+    }
+    renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  function addQuizChoice(builderId, qIdx) {
+    var data = quizData[builderId];
+    if (!data || !data.questions[qIdx]) return;
+    data.questions[qIdx].choices.push({ text: '', correct: false });
+    renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  function removeQuizChoice(builderId, qIdx, cIdx) {
+    var data = quizData[builderId];
+    if (!data || !data.questions[qIdx]) return;
+    if (data.questions[qIdx].choices.length <= 2) return;
+    data.questions[qIdx].choices.splice(cIdx, 1);
+    renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  function addQuizQuestion(builderId) {
+    var data = quizData[builderId];
+    if (!data) return;
+    data.questions.push(createEmptyQuestion(data.questions.length + 1));
+    renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  function removeQuizQuestion(builderId, qIdx) {
+    var data = quizData[builderId];
+    if (!data || data.questions.length <= 1) return;
+    data.questions.splice(qIdx, 1);
+    renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  // ===== AI QUIZ GENERATION =====
+  async function generateQuizAI(builderId) {
+    var apiKey = getApiKey();
+    if (!apiKey) { showApiKeyModal(); return; }
+
+    var container = document.getElementById(builderId);
+    var card = container.closest('.activity-block') || container.closest('.card');
+    var actName = '';
+    if (card) {
+      var nameInput = card.querySelector('input[data-field="name"]');
+      if (nameInput) actName = nameInput.value;
+    }
+
+    var moduleMlos = '';
+    var modNumEl = card ? card.querySelector('[data-module-num]') : null;
+    if (modNumEl) {
+      var modNum = parseInt(modNumEl.getAttribute('data-module-num'));
+      var mod = (activeCourse.modules || [])[modNum - 1];
+      if (mod && mod.mlos) {
+        moduleMlos = mod.mlos.map(function(m, i) { return modNum + '.' + (i + 1) + ': ' + m; }).join('\n');
+      }
+    }
+
+    var prompt = 'Generate 5 multiple-choice quiz questions for a course activity called "' + actName + '".\n';
+    if (moduleMlos) prompt += '\nModule Learning Objectives:\n' + moduleMlos + '\n';
+    prompt += '\nFor each question provide:\n- Question text\n- 4 answer choices, with the correct one marked\n- Brief feedback for correct and incorrect answers\n\nReturn as JSON array with this structure:\n[{"text":"question","type":"multiple-choice","choices":[{"text":"answer","correct":true/false}],"correctFeedback":"...","incorrectFeedback":"..."}]';
+    prompt += '\nReturn ONLY the JSON array, no other text.';
+
+    // Show loading state
+    var btn = container.parentElement.querySelector('[onclick*="generateQuizAI"]');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating...'; }
+
+    try {
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!response.ok) throw new Error('API error ' + response.status);
+      var data = await response.json();
+      var text = data.content[0].text.trim();
+      // Extract JSON from response (handle markdown code blocks)
+      var jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (jsonMatch) {
+        var questions = JSON.parse(jsonMatch[0]);
+        quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 5, questions: [] };
+        quizData[builderId].questions = questions.map(function(q, i) {
+          return {
+            num: i + 1,
+            text: q.text || '',
+            type: q.type || 'multiple-choice',
+            choices: (q.choices || []).map(function(c) { return { text: c.text || '', correct: !!c.correct }; }),
+            correctFeedback: q.correctFeedback || '',
+            incorrectFeedback: q.incorrectFeedback || ''
+          };
+        });
+        renderQuizBuilder(container);
+      }
+    } catch (err) {
+      alert('AI generation failed: ' + err.message);
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '✨ Generate questions with AI'; }
+    }
+  }
+
+  // ===== AI RUBRIC GENERATION =====
+  async function generateRubricAI(btn, actId, moduleNum) {
+    var apiKey = getApiKey();
+    if (!apiKey) { showApiKeyModal(); return; }
+
+    // Gather activity context
+    var actName = '';
+    var actObjectives = [];
+    var acts = courseActivities[moduleNum] || [];
+    for (var i = 0; i < acts.length; i++) {
+      if (acts[i].id === actId) {
+        actName = acts[i].name;
+        actObjectives = acts[i].objectives || [];
+        break;
+      }
+    }
+
+    var mloTexts = actObjectives.map(function(id) {
+      return id + ': ' + getMloText(id);
+    }).filter(function(t) { return t.length > 3; });
+
+    // Find the rubric textarea in the same template
+    var templatePreview = btn.closest('.template-preview');
+    var rubricTextarea = null;
+    if (templatePreview) {
+      var sections = templatePreview.querySelectorAll('.template-section');
+      for (var i = 0; i < sections.length; i++) {
+        var label = sections[i].querySelector('.template-section-label');
+        if (label && label.textContent.toLowerCase().indexOf('rubric') !== -1) {
+          rubricTextarea = sections[i].querySelector('textarea');
+          break;
+        }
+      }
+    }
+
+    // Get template context (other fields in the template)
+    var templateContext = '';
+    if (templatePreview) {
+      templatePreview.querySelectorAll('.template-section').forEach(function(s) {
+        var label = s.querySelector('.template-section-label');
+        var ta = s.querySelector('textarea');
+        if (label && ta && ta.value.trim() && label.textContent.toLowerCase().indexOf('rubric') === -1) {
+          templateContext += label.textContent + ': ' + ta.value.trim() + '\n';
+        }
+      });
+    }
+
+    var prompt = 'Generate a rubric for a Canvas LMS assignment.\n';
+    prompt += 'Assignment: "' + actName + '"\n';
+    if (mloTexts.length > 0) prompt += 'Learning Objectives:\n' + mloTexts.join('\n') + '\n';
+    if (templateContext) prompt += '\nAssignment Details:\n' + templateContext + '\n';
+    prompt += '\nFormat the rubric as a table that Canvas can import:\n';
+    prompt += 'Criteria | Excellent | Proficient | Developing | Beginning | Points\n';
+    prompt += 'Use clear, specific descriptions for each cell. Include 3-5 criteria rows.\n';
+    prompt += 'Return ONLY the rubric table in plain text (pipe-separated), no other text.';
+
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = '⏳ Generating...';
+
+    try {
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2048,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!response.ok) throw new Error('API error ' + response.status);
+      var data = await response.json();
+      var rubricText = data.content[0].text.trim();
+      if (rubricTextarea) {
+        rubricTextarea.value = rubricText;
+        rubricTextarea.style.height = 'auto';
+        rubricTextarea.style.height = rubricTextarea.scrollHeight + 'px';
+      }
+    } catch (err) {
+      alert('AI rubric generation failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
+
+  // ===== EXPORT TEMPLATE TO GOOGLE DRIVE =====
+  function exportTemplateToGDrive(templateId) {
+    var template = document.getElementById(templateId);
+    if (!template) return;
+
+    // Collect template content
+    var title = template.querySelector('h4');
+    var content = (title ? title.textContent : 'Template') + '\n\n';
+
+    template.querySelectorAll('.template-section').forEach(function(section) {
+      var label = section.querySelector('.template-section-label');
+      var textarea = section.querySelector('textarea');
+      var input = section.querySelector('input');
+      if (label) content += label.textContent.toUpperCase() + '\n';
+      if (textarea && textarea.value.trim()) content += textarea.value.trim() + '\n';
+      if (input && input.value.trim()) content += input.value.trim() + '\n';
+      content += '\n';
+    });
+
+    // For quiz builders, export the quiz data
+    var quizBuilder = template.querySelector('[id$="-quiz-builder"]');
+    if (quizBuilder && quizData[quizBuilder.id]) {
+      var qd = quizData[quizBuilder.id];
+      content += 'Points per question: ' + qd.pointsPerQuestion + '\n\n';
+      qd.questions.forEach(function(q, i) {
+        content += (i + 1) + '. ' + q.text + '\n';
+        if (q.choices) {
+          q.choices.forEach(function(c, j) {
+            content += '   ' + (c.correct ? '*' : ' ') + String.fromCharCode(97 + j) + '. ' + c.text + '\n';
+          });
+        }
+        if (q.correctFeedback) content += '   Correct feedback: ' + q.correctFeedback + '\n';
+        if (q.incorrectFeedback) content += '   Incorrect feedback: ' + q.incorrectFeedback + '\n';
+        content += '\n';
+      });
+    }
+
+    // Download as .txt file then open Drive folder
+    var blob = new Blob([content], { type: 'text/plain' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = (title ? title.textContent.replace(/[^a-zA-Z0-9]/g, '_') : 'template') + '.txt';
+    a.click();
+    URL.revokeObjectURL(a.href);
+
+    // Open Drive folder if configured
+    if (activeCourse.driveFolder) {
+      window.open(activeCourse.driveFolder, '_blank');
+    }
   }
 
   function handleFileAttach(input, prefix) {
@@ -3527,23 +4227,53 @@
   }
 
   function applyHighlightToRange(range, commentId) {
-    try {
-      const mark = document.createElement('mark');
-      mark.className = 'inline-highlight';
-      mark.dataset.commentId = commentId;
-      mark.title = 'Click to view comment thread';
-      range.surroundContents(mark);
-    } catch(e) {
-      // If range spans multiple elements, use extractContents approach
+    // Collect all text nodes (or partial text nodes) within the range
+    // and wrap each individually, so we never merge containers
+    const textNodes = [];
+    const startContainer = range.startContainer;
+    const endContainer = range.endContainer;
+
+    if (startContainer === endContainer && startContainer.nodeType === 3) {
+      // Simple case: selection within a single text node
+      textNodes.push({ node: startContainer, start: range.startOffset, end: range.endOffset });
+    } else {
+      // Walk all text nodes within the range
+      const walker = document.createTreeWalker(
+        range.commonAncestorContainer,
+        NodeFilter.SHOW_TEXT,
+        { acceptNode: function(node) {
+          // Check if this text node is at least partially within the range
+          const nodeRange = document.createRange();
+          nodeRange.selectNodeContents(node);
+          if (range.compareBoundaryPoints(Range.END_TO_START, nodeRange) >= 0) return NodeFilter.FILTER_REJECT;
+          if (range.compareBoundaryPoints(Range.START_TO_END, nodeRange) <= 0) return NodeFilter.FILTER_REJECT;
+          return NodeFilter.FILTER_ACCEPT;
+        }}
+      );
+      let node;
+      while ((node = walker.nextNode())) {
+        const start = (node === startContainer) ? range.startOffset : 0;
+        const end = (node === endContainer) ? range.endOffset : node.textContent.length;
+        if (end > start && node.textContent.substring(start, end).trim()) {
+          textNodes.push({ node: node, start: start, end: end });
+        }
+      }
+    }
+
+    // Wrap each text segment in its own <mark>, preserving container structure
+    for (let i = textNodes.length - 1; i >= 0; i--) {
+      const info = textNodes[i];
       try {
         const mark = document.createElement('mark');
         mark.className = 'inline-highlight';
         mark.dataset.commentId = commentId;
         mark.title = 'Click to view comment thread';
-        mark.appendChild(range.extractContents());
-        range.insertNode(mark);
-      } catch(e2) {
-        console.warn('Could not apply highlight mark:', e2);
+        const segmentRange = document.createRange();
+        segmentRange.setStart(info.node, info.start);
+        segmentRange.setEnd(info.node, info.end);
+        segmentRange.surroundContents(mark);
+      } catch(e) {
+        console.warn('Could not wrap text segment for highlight', commentId, e);
       }
     }
   }
