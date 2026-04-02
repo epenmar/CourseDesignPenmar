@@ -98,12 +98,20 @@
 
   /* ===== CLO / ELO PAIRED LAYOUT ===== */
   .clo-elo-pairs { display: flex; flex-direction: column; gap: 10px; }
-  .clo-elo-row { display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 8px; align-items: center; padding: 10px 8px; border: 1px solid #e8e5dd; border-radius: 8px; background: #fafaf7; }
+  .clo-elo-row { display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 8px; align-items: start; padding: 10px 8px; border: 1px solid #e8e5dd; border-radius: 8px; background: #fafaf7; }
   .clo-elo-row:hover { background: #f5f3ed; }
-  .clo-elo-num { width: 28px; height: 28px; border-radius: 50%; background: #8c1d40; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .clo-elo-num { width: 28px; height: 28px; border-radius: 50%; background: #8c1d40; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; margin-top: 6px; }
   .clo-elo-field { flex: 1; }
   .clo-elo-field .field-input { margin: 0; font-size: 13px; resize: none; overflow: hidden; min-height: 38px; }
-  .clo-elo-arrow { font-size: 16px; color: #8c1d40; font-weight: 700; text-align: center; flex-shrink: 0; }
+  .clo-elo-arrow { font-size: 16px; color: #8c1d40; font-weight: 700; text-align: center; flex-shrink: 0; margin-top: 6px; }
+  .clo-elo-multi { display: flex; flex-direction: column; gap: 6px; }
+  .elo-entry { display: flex; gap: 6px; align-items: start; }
+  .elo-entry textarea { flex: 1; }
+  .elo-sub-label { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; background: #ffd54f; color: #5d4037; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 7px; }
+  .elo-remove-btn { background: none; border: none; color: #c62828; cursor: pointer; font-size: 14px; padding: 2px 4px; flex-shrink: 0; margin-top: 6px; opacity: 0.5; }
+  .elo-remove-btn:hover { opacity: 1; }
+  .elo-add-btn { background: none; border: 1px dashed #ccc; border-radius: 6px; color: #8c1d40; cursor: pointer; font-size: 11px; font-weight: 600; padding: 4px 10px; align-self: flex-start; }
+  .elo-add-btn:hover { background: #fdf2f4; border-color: #8c1d40; }
 
   /* ===== MODULE OVERVIEW TABLE ===== */
   .mod-overview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -166,7 +174,7 @@
   .doc-preview table th { background: #f5f5f0; text-align: left; padding: 8px 12px; font-weight: 600; border: 1px solid #e0ddd5; }
   .doc-preview table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: top; }
 
-  .view-toggle { display: flex; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
+  .view-toggle { display: inline-flex; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
   .view-btn { padding: 8px 20px; font-size: 13px; border: none; background: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; color: #666; transition: all 0.15s; }
   .view-btn.active { background: #8c1d40; color: #fff; }
 
@@ -280,6 +288,7 @@
   .content-attach-tab.active { background: #8c1d40; color: #fff; }
   .content-attach-body { border: 1px solid #e0ddd5; border-radius: 8px; padding: 12px; background: #fafaf7; }
   .content-attach-body.hidden { display: none; }
+  .template-preview.hidden { display: none; }
   .upload-zone { border: 2px dashed #d0cdc5; border-radius: 8px; padding: 16px; text-align: center; color: #999; font-size: 12px; cursor: pointer; transition: all 0.15s; }
   .upload-zone:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
   .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
@@ -554,9 +563,14 @@
           </div>
         </div>
 
+        <div class="view-toggle">
+          <button class="view-btn active" onclick="switchOverviewMode('module-overview','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('module-overview','table',this)">📊 Table View</button>
+        </div>
         <div id="module-overview-cards">
           <!-- Dynamically rendered module cards -->
         </div>
+        <div id="module-overview-table" style="display:none;"></div>
 
         <button class="btn-add-row" style="margin-top:8px;" onclick="addModuleCard()">+ Add module</button>
 
@@ -583,8 +597,8 @@
         <h1 style="font-size:22px; margin-bottom:4px;">Materials Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All learning materials across all modules. Drag between modules to reorganize.</p>
         <div class="view-toggle">
-          <button class="view-btn active" onclick="switchOverviewMode('materials-ov','card',this)">📋 Card View</button>
-          <button class="view-btn" onclick="switchOverviewMode('materials-ov','table',this)">📊 Table View</button>
+          <button class="view-btn active" onclick="switchOverviewMode('materials','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('materials','table',this)">📊 Table View</button>
         </div>
         <div id="materials-overview-cards"></div>
         <div id="materials-overview-table" style="display:none;"></div>
@@ -816,7 +830,7 @@
               </div>
               <div></div>
               <div style="padding:8px 12px; background:#f5f5f0; border:1px solid #e0ddd5; border-radius:8px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.04em;">
-                ELO — "Students will be able to..."
+                ELO(s) — "Students will be able to..."
               </div>
             </div>
             <div class="clo-elo-pairs" id="clo-elo-pairs">
@@ -1056,12 +1070,12 @@
         'Interpret complex AI system trade-offs for stakeholder communication',
       ],
       elos: [
-        'Differentiate between major AI paradigms including search, knowledge representation, and probabilistic reasoning',
-        'Formulate real-world problems using AI abstractions such as agents, state spaces, and constraints',
-        'Describe core machine learning approaches and evaluate their performance',
-        'Analyze and design high-level AI system architectures',
-        'Critically evaluate AI technologies for fairness, transparency, and societal impact',
-        'Communicate AI system designs and tradeoffs to technical and non-technical audiences',
+        ['Differentiate between major AI paradigms including search, knowledge representation, and probabilistic reasoning'],
+        ['Formulate real-world problems using AI abstractions such as agents, state spaces, and constraints'],
+        ['Describe core machine learning approaches and evaluate their performance'],
+        ['Analyze and design high-level AI system architectures'],
+        ['Critically evaluate AI technologies for fairness, transparency, and societal impact'],
+        ['Communicate AI system designs and tradeoffs to technical and non-technical audiences'],
       ],
       users: {
         dnavabi: { name: 'Dariush Navabi', role: 'instructor' },
@@ -1184,18 +1198,15 @@
         '</button>' +
         '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>' +
       '</div>' +
-      '<div class="activity-row">' +
+      '<div style="display:grid; grid-template-columns:2fr 3fr 80px 100px auto; gap:12px; align-items:center; padding:8px 0; border-bottom:1px solid #f0f0f0;">' +
         buildObjPickerHtml(id, act.objectives, moduleNum) +
         '<input type="text" class="activity-input" data-managed="true" data-field="name" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." />' +
         '<input type="text" class="activity-input" data-managed="true" data-field="points" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" />' +
         '<input type="text" class="activity-input" data-managed="true" data-field="due" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" />' +
+        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
       '</div>' +
-      '<div class="content-attach" id="attach-' + id + '">' +
-        '<div class="content-attach-header" onclick="toggleContentAttach(this)">' +
-          '<span class="ca-label">Content for this Activity</span>' +
-          '<span class="ca-toggle">▾</span>' +
-        '</div>' +
-        '<div class="content-attach-inner">' +
+      '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
+        '<div class="content-attach-inner open" style="display:block;">' +
           '<a class="drive-folder-link" id="drive-link-' + id + '" href="' + escapeHtml(driveHref) + '" style="display:' + driveDisplay + ';" target="_blank">📂 Open Google Drive Folder</a>' +
           '<div class="content-attach-tabs">' +
             '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
@@ -1208,7 +1219,7 @@
               '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />' +
             '</div>' +
             '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
-              '<strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.' +
+              '<strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.' +
             '</div>' +
             '<div id="' + id + '-files"></div>' +
           '</div>' +
@@ -1278,17 +1289,15 @@
       typeOptions += '<option' + (mat.type === types[i] ? ' selected' : '') + '>' + types[i] + '</option>';
     }
 
-    return '<div class="content-attach" data-material-id="' + id + '" data-module-num="' + moduleNum + '" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">' +
-      '<div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">' +
+    return '<div class="material-item" data-material-id="' + id + '" data-module-num="' + moduleNum + '" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">' +
+      '<div style="display:flex; gap:12px; align-items:center;">' +
         '<select class="activity-input" data-managed="true" data-field="type" style="width:140px; font-size:12px; padding:6px 8px;">' + typeOptions + '</select>' +
         '<input type="text" class="activity-input" data-managed="true" data-field="title" placeholder="Material title..." style="flex:1; font-size:12px;" value="' + escapeHtml(mat.title) + '" />' +
+        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'mat-attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
         '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteMaterial(this)" style="flex-shrink:0;">✕</button>' +
       '</div>' +
-      '<div class="content-attach-header" onclick="toggleContentAttach(this)">' +
-        '<span class="ca-label">Content for this Material</span>' +
-        '<span class="ca-toggle">▾</span>' +
-      '</div>' +
-      '<div class="content-attach-inner">' +
+      '<div class="content-attach overview-content-body" id="mat-attach-' + id + '" style="margin-top:4px;">' +
+      '<div class="content-attach-inner open" style="display:block;">' +
         '<div class="content-attach-tabs">' +
           '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
           '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
@@ -1297,7 +1306,7 @@
         '<div class="content-attach-body" id="' + id + '-upload">' +
           '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
           '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
-            '<strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. When uploading slide presentations, consider using the original PowerPoint file. For all documents, use built-in heading styles and add alt text to images before uploading.' +
+            '<strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. When uploading slide presentations, consider using the original PowerPoint file. For all documents, use built-in heading styles and add alt text to images before uploading.' +
           '</div>' +
           '<div id="' + id + '-files"></div>' +
         '</div>' +
@@ -1307,6 +1316,7 @@
         '<div class="content-attach-body hidden" id="' + id + '-template">' +
           '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;"></textarea>' +
         '</div>' +
+      '</div>' +
       '</div>' +
     '</div>';
   }
@@ -1481,32 +1491,74 @@
   });
 
   // ===== RENDER CLO/ELO PAIRS =====
+  // Helper: normalize elos — migrate flat array to array-of-arrays
+  function normalizeElos(elos) {
+    if (!elos || elos.length === 0) return [];
+    // If first element is a string, it's old flat format — convert
+    if (typeof elos[0] === 'string') {
+      return elos.map(function(e) { return [e]; });
+    }
+    return elos;
+  }
+
+  // Helper: get flat list of all ELOs with labels like "ELO 1a", "ELO 1b", "ELO 2"
+  function getElosFlat() {
+    var elos = normalizeElos(activeCourse.elos || []);
+    var flat = [];
+    for (var i = 0; i < elos.length; i++) {
+      var group = elos[i] || [];
+      for (var j = 0; j < group.length; j++) {
+        if (group[j]) {
+          var label = 'ELO ' + (i + 1) + (group.length > 1 ? String.fromCharCode(97 + j) : '');
+          flat.push({ label: label, text: group[j], cloIdx: i, eloIdx: j });
+        }
+      }
+    }
+    return flat;
+  }
+
   function renderCloEloPairs() {
     const container = document.getElementById('clo-elo-pairs');
     if (!container) return;
     const clos = activeCourse.clos || [];
-    const elos = activeCourse.elos || [];
+    const elos = normalizeElos(activeCourse.elos || []);
     const count = Math.max(clos.length, elos.length, 1);
     let html = '';
     for (let i = 0; i < count; i++) {
+      const eloGroup = elos[i] || [''];
       html += '<div class="clo-elo-row">';
       html += '<div class="clo-elo-num">' + (i + 1) + '</div>';
       html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-' + i + '" oninput="autoExpand(this)">' + (clos[i] || '') + '</textarea></div>';
       html += '<div class="clo-elo-arrow">→</div>';
-      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-' + i + '" oninput="autoExpand(this)">' + (elos[i] || '') + '</textarea></div>';
+      html += '<div class="clo-elo-field clo-elo-multi">';
+      for (let j = 0; j < eloGroup.length; j++) {
+        const eloLabel = eloGroup.length > 1 ? String.fromCharCode(97 + j) : '';
+        html += '<div class="elo-entry">';
+        if (eloGroup.length > 1) {
+          html += '<span class="elo-sub-label">' + (i + 1) + String.fromCharCode(97 + j) + '</span>';
+        }
+        html += '<textarea class="field-input auto-expand" id="elo-' + i + '-' + j + '" oninput="autoExpand(this)" placeholder="ELO ' + (i + 1) + eloLabel + ' — Students will be able to...">' + (eloGroup[j] || '') + '</textarea>';
+        if (eloGroup.length > 1) {
+          html += '<button class="elo-remove-btn" title="Remove this ELO" onclick="removeEloFromClo(' + i + ',' + j + ')">✕</button>';
+        }
+        html += '</div>';
+      }
+      html += '<button class="elo-add-btn" onclick="addEloToClo(' + i + ')">+ Add ELO</button>';
+      html += '</div>';
       html += '</div>';
     }
-    // If no data, show one empty row
     if (count === 0) {
       html += '<div class="clo-elo-row">';
       html += '<div class="clo-elo-num">1</div>';
       html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-0" oninput="autoExpand(this)" placeholder="Enter a Course Learning Outcome..."></textarea></div>';
       html += '<div class="clo-elo-arrow">→</div>';
-      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-0" oninput="autoExpand(this)" placeholder="Enter the corresponding Expected Learning Outcome..."></textarea></div>';
+      html += '<div class="clo-elo-field clo-elo-multi">';
+      html += '<div class="elo-entry"><textarea class="field-input auto-expand" id="elo-0-0" oninput="autoExpand(this)" placeholder="ELO 1 — Students will be able to..."></textarea></div>';
+      html += '<button class="elo-add-btn" onclick="addEloToClo(0)">+ Add ELO</button>';
+      html += '</div>';
       html += '</div>';
     }
     container.innerHTML = html;
-    // Auto-resize all textareas in the container
     container.querySelectorAll('textarea').forEach(function(ta) { if (typeof autoResize === 'function') autoResize(ta); });
   }
 
@@ -1514,7 +1566,7 @@
     const container = document.getElementById('module-overview-clo-ref');
     if (!container) return;
     const clos = activeCourse.clos || [];
-    const elos = activeCourse.elos || [];
+    const elos = normalizeElos(activeCourse.elos || []);
     const count = Math.max(clos.length, elos.length);
 
     let html = '';
@@ -1522,7 +1574,7 @@
     html += '<div></div>';
     html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">CLO — "Students will learn to..."</div>';
     html += '<div></div>';
-    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">ELO — "Students will be able to..."</div>';
+    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">ELO(s) — "Students will be able to..."</div>';
     html += '</div>';
 
     if (count === 0) {
@@ -1531,11 +1583,24 @@
       html += '<div style="display:flex; flex-direction:column; gap:6px;">';
       for (let i = 0; i < count; i++) {
         const border = i > 0 ? ' border-top:1px solid #e8e5dd;' : '';
-        html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; align-items:center; padding:6px 0;' + border + '">';
+        const eloGroup = elos[i] || [];
+        let eloHtml = '';
+        if (eloGroup.length === 0) {
+          eloHtml = '<em style="color:#999">Not defined</em>';
+        } else if (eloGroup.length === 1) {
+          eloHtml = '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (eloGroup[0] || '<em style="color:#999">Not defined</em>') + '</span>';
+        } else {
+          eloHtml = '<div style="display:flex; flex-direction:column; gap:4px;">';
+          for (let j = 0; j < eloGroup.length; j++) {
+            eloHtml += '<div style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">' + (i+1) + String.fromCharCode(97+j) + '.</span>' + (eloGroup[j] || '') + '</div>';
+          }
+          eloHtml += '</div>';
+        }
+        html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; align-items:start; padding:6px 0;' + border + '">';
         html += '<span class="clo-tag clo-tag-' + (i+1) + '" style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">' + (i+1) + '</span>';
-        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (clos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (clos[i] || '<em style="color:#999">Not defined</em>') + '</span>';
         html += '<span style="text-align:center; color:#2e7d32; font-weight:700;">→</span>';
-        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (elos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += eloHtml;
         html += '</div>';
       }
       html += '</div>';
@@ -1623,6 +1688,51 @@
     }
 
     container.innerHTML = html;
+
+    // Module overview table view
+    var tableContainer = document.getElementById('module-overview-table');
+    if (tableContainer) {
+      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Topic</th><th>Objectives (MLOs)</th><th>CLO Alignment</th></tr></thead><tbody>';
+      for (var m = 0; m < modCount; m++) {
+        var modNum = m + 1;
+        var modData = modules[m] || {};
+        var savedMod = savedMods[modNum] || {};
+        var topic = savedMod.topic || modData.title || '';
+        var mlos = savedMod.mlos || modData.mlos || [];
+        var mloText = mlos.length > 0 ? mlos.map(function(mlo, j) { return modNum + '.' + (j+1) + ': ' + mlo; }).join('\n') : '';
+        thtml += '<tr>';
+        thtml += '<td style="font-weight:600; color:#8c1d40; vertical-align:top;">M' + modNum + '</td>';
+        thtml += '<td style="vertical-align:top;"><input type="text" class="activity-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" style="border:none; background:transparent; width:100%;" /></td>';
+        thtml += '<td style="vertical-align:top;"><textarea class="activity-input" style="border:none; background:transparent; width:100%; min-height:40px; resize:none; overflow:hidden; font-size:12px; line-height:1.5;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; saveModuleOverviewFromTable(this,' + modNum + ')">' + escapeHtml(mloText) + '</textarea></td>';
+        thtml += '<td style="vertical-align:top; font-size:12px;">';
+        for (var c = 1; c <= cloCount; c++) {
+          thtml += '<span class="clo-toggle" style="margin:2px;" onclick="toggleCLO(' + modNum + ',' + c + ',this)"><span class="clo-check"></span> CLO ' + c + '</span>';
+        }
+        thtml += '</td>';
+        thtml += '</tr>';
+      }
+      thtml += '</tbody></table>';
+      tableContainer.innerHTML = thtml;
+      // Auto-size textareas
+      tableContainer.querySelectorAll('textarea').forEach(function(ta) { ta.style.height = ta.scrollHeight + 'px'; });
+    }
+  }
+
+  function saveModuleOverviewFromTable(textarea, modNum) {
+    // Parse MLOs from textarea (format: "1.1: text\n1.2: text")
+    var lines = textarea.value.split('\n').filter(function(l) { return l.trim(); });
+    var mlos = lines.map(function(line) {
+      var match = line.match(/^\d+\.\d+:\s*(.*)/);
+      return match ? match[1].trim() : line.trim();
+    });
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    savedMods[modNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    // Also update activeCourse
+    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+      activeCourse.modules[modNum - 1].mlos = mlos;
+    }
   }
 
   function escapeHtml(str) {
@@ -1828,6 +1938,8 @@
   function saveAllFields() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
+      // Sync CLO/ELO textareas back to activeCourse data model
+      if (document.getElementById('clo-elo-pairs')) saveCloEloState();
       const allData = {};
       // Save all inputs and textareas with values (exclude comment panel elements)
       document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
@@ -1978,7 +2090,7 @@
   function gatherWorksheetContext() {
     const c = activeCourse;
     const clos = (c.clos || []).filter(function(s) { return s; });
-    const elos = (c.elos || []).filter(function(s) { return s; });
+    const elosFlat = getElosFlat();
 
     const modules = [];
     const mods = c.modules || [];
@@ -1998,7 +2110,7 @@
       instructor: c.instructor,
       session: c.session,
       clos: clos,
-      elos: elos,
+      elos: elosFlat,
       modules: modules
     };
   }
@@ -2016,7 +2128,7 @@
     }
     if (ctx.elos.length > 0) {
       prompt += 'Expected Learning Outcomes (ELOs) - what students will be able to do:\n';
-      ctx.elos.forEach(function(e, i) { if (e) prompt += (i+1) + '. ' + e + '\n'; });
+      ctx.elos.forEach(function(e) { if (e.text) prompt += e.label + '. ' + e.text + '\n'; });
       prompt += '\n';
     }
 
@@ -2321,7 +2433,7 @@
     var container = document.getElementById('course-objectives-accordion');
     if (!container) return;
     var clos = activeCourse.clos || [];
-    var elos = activeCourse.elos || [];
+    var elos = normalizeElos(activeCourse.elos || []);
     if (clos.length === 0 && elos.length === 0) { container.innerHTML = ''; return; }
 
     var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
@@ -2338,11 +2450,12 @@
       }
       html += '</ul></div>';
     }
-    if (elos.length > 0) {
+    var elosFlat = getElosFlat();
+    if (elosFlat.length > 0) {
       html += '<div><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Expected Learning Outcomes</div>';
       html += '<ul class="course-obj-list">';
-      for (var i = 0; i < elos.length; i++) {
-        html += '<li><span class="obj-num">ELO ' + (i + 1) + '</span><span>' + escapeHtml(elos[i]) + '</span></li>';
+      for (var i = 0; i < elosFlat.length; i++) {
+        html += '<li><span class="obj-num">' + elosFlat[i].label + '</span><span>' + escapeHtml(elosFlat[i].text) + '</span></li>';
       }
       html += '</ul></div>';
     }
@@ -2393,7 +2506,7 @@
     html += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
     html += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
     html += '</div>';
-    html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
+    html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
     html += '<div id="' + id + '-files"></div></div>';
     // Link tab
     html += '<div class="content-attach-body hidden" id="' + id + '-link">';
@@ -2490,25 +2603,26 @@
         html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
       } else {
         // Activity header row
-        html += '<div class="activity-row" style="margin-bottom:4px;">';
+        html += '<div style="display:grid; grid-template-columns:24px 2fr 3fr 80px 100px 28px; gap:8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
+        html += '<div></div>';
         html += '<div class="activity-header">Objectives</div>';
         html += '<div class="activity-header">Activity</div>';
         html += '<div class="activity-header">Points</div>';
         html += '<div class="activity-header">Due</div>';
+        html += '<div></div>';
         html += '</div>';
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
           html += '<div class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
-          html += '<div style="display:flex; align-items:center; gap:6px;">';
+          html += '<div style="display:grid; grid-template-columns:24px 2fr 3fr 80px 100px 28px; gap:8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
-          html += '<div class="activity-row" style="flex:1;">';
           // Objectives picker (interactive)
           html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
           html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
-          html += '</div>';
+          html += '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button>';
           html += '</div>';
           // Inline content expansion
           html += buildOverviewContentHtml(act, m);
@@ -2525,25 +2639,27 @@
       if (!el.hasChildNodes()) initQuizBuilder(el);
     });
 
-    // Table view
+    // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
-      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Objectives</th><th>Activity</th><th>Points</th><th>Due</th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Objectives</th><th>Activity</th><th>Points</th><th>Due</th><th style="width:50px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mod = modules[m - 1];
         var acts = courseActivities[m] || [];
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
-          thtml += '<tr data-activity-id="' + act.id + '" data-module-num="' + m + '">';
+          thtml += '<tr class="activity-block" data-activity-id="' + act.id + '" data-module-num="' + m + '">';
           thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
-          thtml += '<td>' + buildObjChipsHtml(act.objectives, m) + '</td>';
+          thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%;" /></td>';
-          thtml += '<td style="text-align:center;">' + escapeHtml(act.points) + '</td>';
-          thtml += '<td style="text-align:center;">' + escapeHtml(act.due) + '</td>';
+          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
+          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
+          thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
         if (acts.length === 0) {
-          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No activities</td></tr>';
+          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
+        thtml += '<tr><td></td><td colspan="5"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
@@ -2556,6 +2672,11 @@
     if (!cardsContainer) return;
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
+    var matTypes = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
+
+    function buildTypeOptions(selected) {
+      return matTypes.map(function(t) { return '<option' + (t === selected ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+    }
 
     // Card view
     var html = '';
@@ -2582,18 +2703,22 @@
       } else {
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
+          var ovMatId = 'ov-' + mat.id;
           html += '<div class="material-item" draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)" ';
-          html += 'style="display:flex; gap:8px; align-items:center; padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff;">';
+          html += 'style="display:flex; gap:8px; align-items:center; padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff; flex-wrap:wrap;">';
           html += '<span class="act-drag-handle" title="Drag to move between modules" style="cursor:grab;">⠿</span>';
-          html += '<span style="font-size:11px; color:#8c1d40; font-weight:600; min-width:60px;">' + escapeHtml(mat.type) + '</span>';
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" placeholder="Material title..." style="flex:1; font-size:12px;" oninput="syncOverviewMaterial(this)" />';
+          // Type dropdown
+          html += '<select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="width:110px; font-size:11px; padding:4px 6px; flex-shrink:0;">' + buildTypeOptions(mat.type) + '</select>';
+          // Title input - responsive
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" placeholder="Material title..." style="flex:1; min-width:120px; font-size:12px;" oninput="syncOverviewMaterial(this)" />';
+          // Inline content toggle
+          html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.material-item\').nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>';
+          // Delete button
+          html += '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="flex-shrink:0;">✕</button>';
           html += '</div>';
-          // Inline content for material
-          var ovMatId = 'ov-' + mat.id;
-          html += '<div class="overview-act-content" style="margin-left:24px; margin-top:4px;">';
-          html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\';">▸ Content</button>';
-          html += '<div class="overview-content-body">';
+          // Content body (below row, toggled)
+          html += '<div class="overview-content-body" style="margin-left:24px; margin-bottom:6px;">';
           html += '<div class="content-attach" id="attach-' + ovMatId + '" style="margin-top:0;">';
           html += '<div class="content-attach-inner open" style="display:block;">';
           html += '<div class="content-attach-tabs">';
@@ -2603,13 +2728,13 @@
           html += '</div>';
           html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
           html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
-          html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
+          html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
           html += '<div id="' + ovMatId + '-files"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
           html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
           html += '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;"></textarea></div>';
-          html += '</div></div></div></div>';
+          html += '</div></div></div>';
         }
       }
       html += '<button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button>';
@@ -2617,22 +2742,24 @@
     }
     cardsContainer.innerHTML = html;
 
-    // Table view
+    // Table view — fully editable
     if (tableContainer) {
-      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Type</th><th>Title</th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Type</th><th>Title</th><th style="width:50px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
           thtml += '<tr data-material-id="' + mat.id + '" data-module-num="' + m + '">';
           thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
-          thtml += '<td>' + escapeHtml(mat.type) + '</td>';
+          thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" oninput="syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%;" /></td>';
+          thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
         if (mats.length === 0) {
-          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="2" style="color:#999; font-style:italic;">No materials</td></tr>';
+          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="3" style="color:#999; font-style:italic;">No materials</td></tr>';
         }
+        thtml += '<tr><td></td><td colspan="3"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
@@ -3030,6 +3157,31 @@
         saveActivityData();
       }
       renderModuleActivities(modNum);
+    }
+  }
+
+  function deleteOverviewActivity(actId, modNum) {
+    var acts = courseActivities[modNum] || [];
+    var act = acts.find(function(a) { return a.id === actId; });
+    var nameStr = act && act.name ? act.name : 'this activity';
+    if (confirm('Delete "' + nameStr + '"?')) {
+      courseActivities[modNum] = acts.filter(function(a) { return a.id !== actId; });
+      saveActivityData();
+      var open = getOpenOverviewModules('assignments-overview-cards');
+      open[modNum] = true;
+      renderAssignmentsOverview(open);
+    }
+  }
+
+  function deleteOverviewMaterial(matId, modNum) {
+    if (confirm('Delete this material?')) {
+      if (courseMaterials[modNum]) {
+        courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
+        saveActivityData();
+      }
+      var open = getOpenOverviewModules('materials-overview-cards');
+      open[modNum] = true;
+      renderMaterialsOverview(open);
     }
   }
 
@@ -3658,17 +3810,53 @@
   });
 
   function addCloEloPair() {
-    const container = document.getElementById('clo-elo-pairs');
-    const num = container.querySelectorAll('.clo-elo-row').length + 1;
-    const idx = num - 1;
-    const row = document.createElement('div');
-    row.className = 'clo-elo-row';
-    row.innerHTML = `
-      <div class="clo-elo-num">${num}</div>
-      <div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-${idx}" oninput="autoExpand(this)" placeholder="CLO ${num} — Students will learn to..."></textarea></div>
-      <div class="clo-elo-arrow">→</div>
-      <div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-${idx}" oninput="autoExpand(this)" placeholder="ELO ${num} — Students will be able to..."></textarea></div>`;
-    container.appendChild(row);
+    // Save current state before re-render
+    saveCloEloState();
+    const clos = activeCourse.clos || [];
+    const elos = normalizeElos(activeCourse.elos || []);
+    clos.push('');
+    elos.push(['']);
+    activeCourse.clos = clos;
+    activeCourse.elos = elos;
+    renderCloEloPairs();
+  }
+
+  function addEloToClo(cloIdx) {
+    saveCloEloState();
+    var elos = normalizeElos(activeCourse.elos || []);
+    while (elos.length <= cloIdx) elos.push(['']);
+    elos[cloIdx].push('');
+    activeCourse.elos = elos;
+    renderCloEloPairs();
+  }
+
+  function removeEloFromClo(cloIdx, eloIdx) {
+    saveCloEloState();
+    var elos = normalizeElos(activeCourse.elos || []);
+    if (elos[cloIdx] && elos[cloIdx].length > 1) {
+      elos[cloIdx].splice(eloIdx, 1);
+      activeCourse.elos = elos;
+      renderCloEloPairs();
+    }
+  }
+
+  // Save CLO/ELO textarea values back to activeCourse before re-render
+  function saveCloEloState() {
+    var clos = activeCourse.clos || [];
+    var elos = normalizeElos(activeCourse.elos || []);
+    var count = Math.max(clos.length, elos.length);
+    for (var i = 0; i < count; i++) {
+      var cloEl = document.getElementById('clo-' + i);
+      if (cloEl) clos[i] = cloEl.value;
+      var eloGroup = elos[i] || [''];
+      for (var j = 0; j < eloGroup.length; j++) {
+        var eloEl = document.getElementById('elo-' + i + '-' + j);
+        if (eloEl) eloGroup[j] = eloEl.value;
+      }
+      elos[i] = eloGroup;
+    }
+    activeCourse.clos = clos;
+    activeCourse.elos = elos;
   }
 
   function addMaterial() {

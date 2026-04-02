@@ -42,3 +42,12 @@ v1.2.0,2026-04-02,dc72232,Overview enhancements and quiz builder,"- Fix: accordi
 - AI-powered rubric generation (Canvas-compatible format)
 - Rubric section added to discussion template
 - Accessibility tips on all upload zones (PowerPoint vs PDF guidance)"
+v1.3.0,2026-04-02,pending,UX refinements and CLO-to-ELO split,"- Materials overview: type selector dropdown, inline content layout, table view, delete
+- Assignments overview: delete button, editable table view with objective tagging
+- Module Overview: table view with editable MLOs
+- Module pages: inline content toggle (same pattern as overview pages)
+- Fix: template showing all four at once (missing CSS rule)
+- Fix: materials table view prefix mismatch
+- CLO-to-ELO one-to-many split on objectives page
+- Add/remove individual ELOs per CLO with sub-labels (1a, 1b, etc.)
+- Updated accessibility tip wording for slide presentations"

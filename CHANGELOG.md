@@ -5,6 +5,40 @@ Format follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.3.0] — 2026-04-02
+
+### UX Refinements & CLO-to-ELO Split
+- **CLO-to-ELO One-to-Many** — each CLO can now map to multiple ELOs with sub-labels (1a, 1b, etc.), add/remove individual ELOs per CLO
+- **Materials Overview** — type selector dropdown, inline content layout, table view, delete button
+- **Assignments Overview** — delete button, editable table view with objective tagging
+- **Module Overview** — table view with editable MLOs
+- **Module Pages** — inline content toggle (same pattern as overview pages)
+- **Fix: template visibility** — all four templates were showing at once (missing CSS rule)
+- **Fix: materials table view** — prefix mismatch causing toggle to fail
+- **Accessibility tip** — updated wording for slide presentations
+
+---
+
+## [1.2.0] — 2026-04-02
+
+### Overview Enhancements & Quiz Builder
+- **Accordion collapse fix** — cards stay open when adding activity
+- **Cross-container text highlighting** — TreeWalker approach for multi-element selection
+- **Interactive objective picker** — tag activities with CLOs/ELOs in assignment overview
+- **Hover tooltips** — full objective text on chips
+- **Course objectives accordion** — CLO/ELO reference at top of assignments page
+- **Module MLO accordion** — inside each overview card
+- **Inline content expansion** — upload/link/template in both overview pages
+- **Template dropdown** — Discussion, Assignment, Quiz, Blank Page
+- **Google Drive export** — on all templates
+- **Quiz builder** — interactive MC/TF/short-answer with correct toggle and feedback
+- **AI quiz generation** — via Claude API
+- **AI rubric generation** — Canvas-compatible format
+- **Discussion rubrics** — rubric section added to discussion template
+- **Accessibility tips** — PowerPoint vs PDF guidance on all upload zones
+
+---
+
 ## [1.1.0] — 2026-04-02
 
 ### Data Model & Overview Views
