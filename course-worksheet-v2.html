@@ -799,7 +799,7 @@
             </div>
             </div><!-- /activity-block -->
 
-            <button class="btn-add-row">+ Add activity</button>
+            <button class="btn-add-row" onclick="addActivity(this)">+ Add activity</button>
           </div>
         </div>
 
@@ -821,7 +821,7 @@
             <div class="step-hint">List all materials: videos, readings, PDFs, websites, lecture slides, etc. Use the tabs below to upload files, paste links, or enter content directly.</div>
 
             <!-- Material 1 -->
-            <div style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">
+            <div class="content-attach" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">
               <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
                 <select class="activity-input" style="width:140px; font-size:12px; padding:6px 8px;">
                   <option>Reading</option>
@@ -1064,8 +1064,8 @@
       <div id="view-preview" style="display:none;">
         <div class="view-toggle">
           <button class="view-btn active">📄 Document Preview</button>
-          <button class="view-btn" onclick="alert('Export to Google Drive')">⬇ Export to Google Drive</button>
-          <button class="view-btn" onclick="alert('Download .docx')">💾 Download .docx</button>
+          <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
+          <button class="view-btn" onclick="downloadDocument()">💾 Download Document</button>
         </div>
         <div class="doc-preview">
           <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
@@ -2376,6 +2376,95 @@
   });
 
   // ===== ACTIVITY MANAGEMENT (delete, drag reorder, move to module) =====
+  let activityCounter = 10; // Start high to avoid ID collisions with existing act-1 through act-4
+  function addActivity(btn) {
+    activityCounter++;
+    const id = 'act-' + activityCounter;
+    const block = document.createElement('div');
+    block.className = 'activity-block';
+    block.draggable = true;
+    block.ondragstart = actDragStart;
+    block.ondragover = actDragOver;
+    block.ondrop = actDrop;
+    block.ondragend = actDragEnd;
+    block.ondragleave = actDragLeave;
+    block.innerHTML = `
+      <div class="activity-block-toolbar">
+        <span class="act-drag-handle" title="Drag to reorder">⠿</span>
+        <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
+          <div class="move-menu" id="move-menu-${id}"></div>
+        </button>
+        <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
+      </div>
+      <div class="activity-row">
+        <div class="obj-picker" data-picker="${id}">
+          <div class="obj-picker-display" onclick="toggleObjDropdown('${id}')">
+            <span class="obj-picker-placeholder">Select objectives...</span>
+          </div>
+          <div class="obj-dropdown" id="obj-dropdown-${id}"></div>
+        </div>
+        <input type="text" class="activity-input" placeholder="Activity name..." />
+        <input type="text" class="activity-input" placeholder="Pts" style="text-align:center;" />
+        <input type="text" class="activity-input" placeholder="Due" style="text-align:center;" />
+      </div>
+      <div class="content-attach" id="attach-${id}">
+        <div class="content-attach-header" onclick="toggleContentAttach(this)">
+          <span class="ca-label">Content for this Activity</span>
+          <span class="ca-toggle">▾</span>
+        </div>
+        <div class="content-attach-inner">
+          <div class="content-attach-tabs">
+            <button class="content-attach-tab active" onclick="switchAttachTab('${id}','upload',this)">📁 Upload</button>
+            <button class="content-attach-tab" onclick="switchAttachTab('${id}','link',this)">🔗 Link</button>
+            <button class="content-attach-tab" onclick="switchAttachTab('${id}','template',this)">📝 Template</button>
+          </div>
+          <div class="content-attach-body" id="${id}-upload">
+            <div class="upload-zone" onclick="this.querySelector('input').click()">
+              <div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
+              <input type="file" style="display:none;" onchange="handleFileAttach(this, '${id}')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
+            </div>
+            <div id="${id}-files"></div>
+          </div>
+          <div class="content-attach-body hidden" id="${id}-link">
+            <div class="link-input-row">
+              <input type="text" class="activity-input" placeholder="Paste URL..." style="font-size:12px;" />
+              <button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>
+            </div>
+          </div>
+          <div class="content-attach-body hidden" id="${id}-template">
+            <div class="template-type-selector">
+              <button class="template-type-btn active" onclick="switchTemplate('${id}','discussion',this)">Discussion</button>
+              <button class="template-type-btn" onclick="switchTemplate('${id}','assignment',this)">Assignment</button>
+              <button class="template-type-btn" onclick="switchTemplate('${id}','quiz',this)">Quiz</button>
+            </div>
+            <div class="template-preview" id="${id}-tpl-discussion">
+              <h4>Discussion Template</h4>
+              <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic and purpose..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question or task for students..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="e.g., Reply to at least two classmates..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea placeholder="List readings, videos, or links..."></textarea></div>
+            </div>
+            <div class="template-preview hidden" id="${id}-tpl-assignment">
+              <h4>Assignment Template</h4>
+              <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose and context..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List the MLOs this assignment addresses..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>
+              <div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, documents, or resources needed..."></textarea></div>
+              <div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>
+            </div>
+            <div class="template-preview hidden" id="${id}-tpl-quiz">
+              <h4>Quiz Template</h4>
+              <div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div>
+              <div class="template-section"><textarea placeholder="1. Question text&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer" style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+    // Insert before the "+ Add activity" button
+    btn.parentElement.insertBefore(block, btn);
+  }
+
   function deleteActivity(btn) {
     const block = btn.closest('.activity-block');
     if (!block) return;
@@ -2592,6 +2681,7 @@
     materialCount++;
     const id = 'mat-' + materialCount;
     const wrapper = document.createElement('div');
+    wrapper.className = 'content-attach';
     wrapper.style.cssText = 'border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;';
     wrapper.innerHTML = `
       <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
@@ -2627,6 +2717,50 @@
       document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
     }
   });
+
+  // ===== DOCUMENT EXPORT =====
+  function downloadDocument() {
+    const preview = document.querySelector('.doc-preview');
+    if (!preview) return;
+    const html = `<!DOCTYPE html>
+<html><head><meta charset="UTF-8">
+<title>${activeCourse.fullTitle} — Course Development Worksheet</title>
+<style>
+  body { font-family: 'Calibri', 'Arial', sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #333; line-height: 1.6; }
+  h1 { color: #8c1d40; font-size: 24px; margin-bottom: 4px; }
+  h2 { color: #8c1d40; font-size: 18px; border-bottom: 2px solid #ffc627; padding-bottom: 4px; margin-top: 28px; }
+  h3 { font-size: 15px; margin-top: 16px; }
+  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  th { background: #f5f5f0; text-align: left; padding: 8px; font-weight: 600; border: 1px solid #ddd; }
+  td { padding: 8px; border: 1px solid #ddd; vertical-align: top; }
+  .placeholder { color: #ccc; font-style: italic; }
+  p { margin: 4px 0; }
+</style></head><body>${preview.innerHTML}</body></html>`;
+
+    const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (activeCourse.code || 'course').replace(/\s+/g, '_') + '_Development_Worksheet.doc';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function exportToGoogleDrive() {
+    const driveUrl = activeCourse.driveFolder;
+    if (driveUrl) {
+      // Download the file first, then open the Drive folder
+      downloadDocument();
+      window.open(driveUrl, '_blank');
+    } else {
+      // No drive folder configured — just download
+      const msg = 'No Google Drive folder is configured for this course. The document has been downloaded to your computer instead. To enable direct Drive export, add a Google Drive folder URL in the course settings.';
+      downloadDocument();
+      setTimeout(() => alert(msg), 500);
+    }
+  }
 
   // ===== SUPABASE COMMENTS SYSTEM =====
   const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
@@ -2666,6 +2800,17 @@
     if (getCommentIdentity()) return true;
     document.getElementById('comment-identity-modal').style.display = 'flex';
     return false;
+  }
+
+  function showCommentError(msg) {
+    const msgContainer = document.getElementById('comment-messages');
+    if (!msgContainer) return;
+    const errorEl = document.createElement('div');
+    errorEl.style.cssText = 'background:#fde8e8; color:#c62828; padding:8px 12px; border-radius:6px; font-size:12px; margin-bottom:8px;';
+    errorEl.textContent = msg;
+    msgContainer.appendChild(errorEl);
+    msgContainer.scrollTop = msgContainer.scrollHeight;
+    setTimeout(() => errorEl.remove(), 8000);
   }
 
   // ===== COMMENT PANEL =====
@@ -2797,7 +2942,14 @@
 
   async function postComment() {
     const identity = getCommentIdentity();
-    if (!identity || !supabaseClient) return;
+    if (!identity) {
+      ensureIdentity();
+      return;
+    }
+    if (!supabaseClient) {
+      showCommentError('Commenting is not available — connection issue.');
+      return;
+    }
 
     const input = document.getElementById('comment-input');
     const text = input.value.trim();
@@ -2807,9 +2959,10 @@
     input.disabled = true;
 
     try {
+      const sectionId = (pendingHighlight && pendingHighlight.sectionId) || currentCommentSection || 'general';
       const insertData = {
         course_id: courseId,
-        section_id: currentCommentSection,
+        section_id: sectionId,
         author_name: identity.name,
         author_role: identity.role,
         content: text
@@ -2824,8 +2977,7 @@
       if (pendingHighlight) {
         insertData.highlight_text = pendingHighlight.text;
         insertData.highlight_anchor = pendingHighlight.anchor;
-        insertData.section_id = pendingHighlight.sectionId;
-        currentCommentSection = pendingHighlight.sectionId;
+        currentCommentSection = sectionId;
       }
 
       const { data, error } = await supabaseClient.from('comments').insert(insertData).select();
@@ -2845,6 +2997,7 @@
     } catch(e) {
       console.error('Failed to post comment:', e);
       input.value = text;
+      showCommentError('Failed to post: ' + (e.message || 'Check your connection.'));
     } finally {
       input.disabled = false;
       input.focus();
