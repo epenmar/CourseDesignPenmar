@@ -138,6 +138,9 @@
   .move-menu.open { display: block; }
   .move-menu-item { padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .move-menu-item:hover { background: #fef3e8; color: #8c1d40; }
+  [data-drop-zone].drag-over { background: #fef9f0; border: 2px dashed #ffc627; border-radius: 8px; }
+  .material-item { transition: border-color 0.15s; }
+  .material-item.dragging { opacity: 0.5; border-color: #8c1d40 !important; }
   .activity-row { display: grid; grid-template-columns: 2fr 3fr 80px 100px; gap: 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
   .activity-row:last-child { border-bottom: none; }
   .activity-header { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; padding-bottom: 4px; }
@@ -370,6 +373,12 @@
         <span class="icon">🗺</span> Module Overview
         <span class="badge badge-empty" id="sidebar-module-count">—</span>
       </div>
+      <div class="nav-item" onclick="showView('assignments-overview')">
+        <span class="icon">📝</span> Assignments Overview
+      </div>
+      <div class="nav-item" onclick="showView('materials-overview')">
+        <span class="icon">📖</span> Materials Overview
+      </div>
 
       <div id="sidebar-module-list"></div>
     </div>
@@ -494,6 +503,30 @@
         </div>
       </div>
 
+      <!-- ===== ASSIGNMENTS OVERVIEW ===== -->
+      <div id="view-assignments-overview" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Assignments Overview</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:16px;">All activities and assignments across all modules. Drag between modules to reorganize.</p>
+        <div class="view-toggle">
+          <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
+        </div>
+        <div id="assignments-overview-cards"></div>
+        <div id="assignments-overview-table" style="display:none;"></div>
+      </div>
+
+      <!-- ===== MATERIALS OVERVIEW ===== -->
+      <div id="view-materials-overview" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Materials Overview</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:16px;">All learning materials across all modules. Drag between modules to reorganize.</p>
+        <div class="view-toggle">
+          <button class="view-btn active" onclick="switchOverviewMode('materials-ov','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('materials-ov','table',this)">📊 Table View</button>
+        </div>
+        <div id="materials-overview-cards"></div>
+        <div id="materials-overview-table" style="display:none;"></div>
+      </div>
+
       <!-- ===== MODULE DETAIL ===== -->
       <div id="view-module" style="display:none;">
         <div class="module-tabs" id="module-tabs"></div>
@@ -542,262 +575,7 @@
               <div class="activity-header">Due Date</div>
             </div>
 
-            <!-- Activity 1: AI Misconceptions Debate -->
-            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
-            <div class="activity-block-toolbar">
-              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
-              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
-                <div class="move-menu" id="move-menu-act-1"></div>
-              </button>
-              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
-            </div>
-            <div class="activity-row">
-              <div class="obj-picker" data-picker="1">
-                <div class="obj-picker-display" onclick="toggleObjDropdown(1)">
-                  <span class="obj-chip">1.1 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(1,'1.1')">×</span></span>
-                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(1,'1.5')">×</span></span>
-                </div>
-                <div class="obj-dropdown" id="obj-dropdown-1">
-                  <div class="obj-option selected" onclick="toggleObj(1,'1.1')"><span class="obj-check">✓</span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
-                  <div class="obj-option" onclick="toggleObj(1,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
-                  <div class="obj-option" onclick="toggleObj(1,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
-                  <div class="obj-option" onclick="toggleObj(1,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(1,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
-                </div>
-              </div>
-              <input type="text" class="activity-input" value="AI Misconceptions Debate" />
-              <input type="text" class="activity-input" value="50" style="text-align:center;" />
-              <input type="text" class="activity-input" value="Week 1" style="text-align:center;" />
-            </div>
-            <div class="content-attach" id="attach-act-1">
-              <div class="content-attach-header" onclick="toggleContentAttach(this)">
-                <span class="ca-label">Content for this Activity</span>
-                <span class="ca-toggle">▾</span>
-              </div>
-              <div class="content-attach-inner">
-              <a class="drive-folder-link" id="drive-link-act-1" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
-              <div class="content-attach-tabs">
-                <button class="content-attach-tab active" onclick="switchAttachTab('act-1','upload',this)">📁 Upload</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-1','link',this)">🔗 Link</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-1','template',this)">📝 Template</button>
-              </div>
-              <div class="content-attach-body" id="act-1-upload">
-                <div class="upload-zone" onclick="this.querySelector('input').click()">
-                  <div class="upload-icon">📄</div>
-                  Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
-                  <input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-1')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
-                </div>
-                <div id="act-1-files"></div>
-              </div>
-              <div class="content-attach-body hidden" id="act-1-link">
-                <div class="link-input-row">
-                  <input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />
-                  <button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>
-                </div>
-              </div>
-              <div class="content-attach-body hidden" id="act-1-template">
-                <div class="template-type-selector">
-                  <button class="template-type-btn active" onclick="switchTemplate('act-1','discussion',this)">Discussion</button>
-                  <button class="template-type-btn" onclick="switchTemplate('act-1','assignment',this)">Assignment</button>
-                  <button class="template-type-btn" onclick="switchTemplate('act-1','quiz',this)">Quiz</button>
-                </div>
-                <div class="template-preview" id="act-1-tpl-discussion">
-                  <h4>Discussion Template</h4>
-                  <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic and purpose..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question or task for students..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="e.g., Reply to at least two classmates..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea placeholder="List readings, videos, or links..."></textarea></div>
-                </div>
-                <div class="template-preview hidden" id="act-1-tpl-assignment">
-                  <h4>Assignment Template</h4>
-                  <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose and context..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List the MLOs this assignment addresses..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, documents, or resources needed..."></textarea></div>
-                  <div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>
-                </div>
-                <div class="template-preview hidden" id="act-1-tpl-quiz">
-                  <h4>Quiz Template</h4>
-                  <div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *. Use ~ for incorrect feedback and @ for correct feedback.</div>
-                  <div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div>
-                  <div class="template-section"><textarea placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer&#10;&#10;2. Question text&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div>
-                </div>
-              </div>
-              </div><!-- /content-attach-inner -->
-            </div>
-            </div><!-- /activity-block -->
-
-            <!-- Activity 2: Agent Modeling Exercise -->
-            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
-            <div class="activity-block-toolbar">
-              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
-              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
-                <div class="move-menu" id="move-menu-act-2"></div>
-              </button>
-              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
-            </div>
-            <div class="activity-row" style="margin-top:8px;">
-              <div class="obj-picker" data-picker="2">
-                <div class="obj-picker-display" onclick="toggleObjDropdown(2)">
-                  <span class="obj-chip">1.2 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(2,'1.2')">×</span></span>
-                  <span class="obj-chip">1.3 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(2,'1.3')">×</span></span>
-                </div>
-                <div class="obj-dropdown" id="obj-dropdown-2">
-                  <div class="obj-option" onclick="toggleObj(2,'1.1')"><span class="obj-check"></span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(2,'1.2')"><span class="obj-check">✓</span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(2,'1.3')"><span class="obj-check">✓</span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
-                  <div class="obj-option" onclick="toggleObj(2,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
-                  <div class="obj-option" onclick="toggleObj(2,'1.5')"><span class="obj-check"></span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
-                </div>
-              </div>
-              <input type="text" class="activity-input" value="Agent Modeling Exercise" />
-              <input type="text" class="activity-input" value="40" style="text-align:center;" />
-              <input type="text" class="activity-input" value="Week 1" style="text-align:center;" />
-            </div>
-            <div class="content-attach" id="attach-act-2">
-              <div class="content-attach-header" onclick="toggleContentAttach(this)">
-                <span class="ca-label">Content for this Activity</span>
-                <span class="ca-toggle">▾</span>
-              </div>
-              <div class="content-attach-inner">
-              <a class="drive-folder-link" id="drive-link-act-2" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
-              <div class="content-attach-tabs">
-                <button class="content-attach-tab active" onclick="switchAttachTab('act-2','upload',this)">📁 Upload</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-2','link',this)">🔗 Link</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-2','template',this)">📝 Template</button>
-              </div>
-              <div class="content-attach-body" id="act-2-upload">
-                <div class="upload-zone" onclick="this.querySelector('input').click()">
-                  <div class="upload-icon">📄</div>
-                  Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
-                  <input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-2')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
-                </div>
-                <div id="act-2-files"></div>
-              </div>
-              <div class="content-attach-body hidden" id="act-2-link">
-                <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
-              </div>
-              <div class="content-attach-body hidden" id="act-2-template">
-                <div class="template-type-selector">
-                  <button class="template-type-btn" onclick="switchTemplate('act-2','discussion',this)">Discussion</button>
-                  <button class="template-type-btn active" onclick="switchTemplate('act-2','assignment',this)">Assignment</button>
-                  <button class="template-type-btn" onclick="switchTemplate('act-2','quiz',this)">Quiz</button>
-                </div>
-                <div class="template-preview hidden" id="act-2-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="Reply requirements..."></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="References..."></textarea></div></div>
-                <div class="template-preview" id="act-2-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List MLOs addressed..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, docs, resources..."></textarea></div><div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div></div>
-                <div class="template-preview hidden" id="act-2-tpl-quiz"><h4>Quiz Template</h4><div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div><div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div><div class="template-section"><textarea placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
-              </div>
-              </div><!-- /content-attach-inner -->
-            </div>
-            </div><!-- /activity-block -->
-
-            <!-- Activity 3: Discussion -->
-            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
-            <div class="activity-block-toolbar">
-              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
-              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
-                <div class="move-menu" id="move-menu-act-3"></div>
-              </button>
-              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
-            </div>
-            <div class="activity-row" style="margin-top:8px;">
-              <div class="obj-picker" data-picker="3">
-                <div class="obj-picker-display" onclick="toggleObjDropdown(3)">
-                  <span class="obj-chip">1.1 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(3,'1.1')">×</span></span>
-                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(3,'1.5')">×</span></span>
-                </div>
-                <div class="obj-dropdown" id="obj-dropdown-3">
-                  <div class="obj-option selected" onclick="toggleObj(3,'1.1')"><span class="obj-check">✓</span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
-                  <div class="obj-option" onclick="toggleObj(3,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
-                  <div class="obj-option" onclick="toggleObj(3,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
-                  <div class="obj-option" onclick="toggleObj(3,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(3,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
-                </div>
-              </div>
-              <input type="text" class="activity-input" value="What distinguishes AI from traditional software?" />
-              <input type="text" class="activity-input" value="30" style="text-align:center;" />
-              <input type="text" class="activity-input" value="Week 2" style="text-align:center;" />
-            </div>
-            <div class="content-attach" id="attach-act-3">
-              <div class="content-attach-header" onclick="toggleContentAttach(this)">
-                <span class="ca-label">Content for this Activity</span>
-                <span class="ca-toggle">▾</span>
-              </div>
-              <div class="content-attach-inner">
-              <a class="drive-folder-link" id="drive-link-act-3" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
-              <div class="content-attach-tabs">
-                <button class="content-attach-tab active" onclick="switchAttachTab('act-3','upload',this)">📁 Upload</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-3','link',this)">🔗 Link</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-3','template',this)">📝 Template</button>
-              </div>
-              <div class="content-attach-body" id="act-3-upload">
-                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-3')" accept=".docx,.pdf,.xlsx,.pptx,.zip" /></div>
-                <div id="act-3-files"></div>
-              </div>
-              <div class="content-attach-body hidden" id="act-3-link"><div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>
-              <div class="content-attach-body hidden" id="act-3-template">
-                <div class="template-type-selector"><button class="template-type-btn active" onclick="switchTemplate('act-3','discussion',this)">Discussion</button><button class="template-type-btn" onclick="switchTemplate('act-3','assignment',this)">Assignment</button><button class="template-type-btn" onclick="switchTemplate('act-3','quiz',this)">Quiz</button></div>
-                <div class="template-preview" id="act-3-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="Reply requirements..."></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="References..."></textarea></div></div>
-                <div class="template-preview hidden" id="act-3-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Rubric</div><textarea placeholder="Criteria | Points..." style="min-height:80px;"></textarea></div></div>
-                <div class="template-preview hidden" id="act-3-tpl-quiz"><h4>Quiz Template</h4><div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div><div class="template-section"><textarea placeholder="1. Question text&#10;*a. Correct&#10;b. Wrong&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
-              </div>
-              </div><!-- /content-attach-inner -->
-            </div>
-            </div><!-- /activity-block -->
-
-            <!-- Activity 4: Mini-Task -->
-            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
-            <div class="activity-block-toolbar">
-              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
-              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
-                <div class="move-menu" id="move-menu-act-4"></div>
-              </button>
-              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
-            </div>
-            <div class="activity-row" style="margin-top:8px;">
-              <div class="obj-picker" data-picker="4">
-                <div class="obj-picker-display" onclick="toggleObjDropdown(4)">
-                  <span class="obj-chip">1.4 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(4,'1.4')">×</span></span>
-                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(4,'1.5')">×</span></span>
-                </div>
-                <div class="obj-dropdown" id="obj-dropdown-4">
-                  <div class="obj-option" onclick="toggleObj(4,'1.1')"><span class="obj-check"></span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
-                  <div class="obj-option" onclick="toggleObj(4,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
-                  <div class="obj-option" onclick="toggleObj(4,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(4,'1.4')"><span class="obj-check">✓</span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
-                  <div class="obj-option selected" onclick="toggleObj(4,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
-                </div>
-              </div>
-              <input type="text" class="activity-input" value="Environment Classification Mini-Task" />
-              <input type="text" class="activity-input" value="20" style="text-align:center;" />
-              <input type="text" class="activity-input" value="Week 2" style="text-align:center;" />
-            </div>
-            <div class="content-attach" id="attach-act-4">
-              <div class="content-attach-header" onclick="toggleContentAttach(this)">
-                <span class="ca-label">Content for this Activity</span>
-                <span class="ca-toggle">▾</span>
-              </div>
-              <div class="content-attach-inner">
-              <a class="drive-folder-link" id="drive-link-act-4" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
-              <div class="content-attach-tabs">
-                <button class="content-attach-tab active" onclick="switchAttachTab('act-4','upload',this)">📁 Upload</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-4','link',this)">🔗 Link</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('act-4','template',this)">📝 Template</button>
-              </div>
-              <div class="content-attach-body" id="act-4-upload">
-                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-4')" accept=".docx,.pdf,.xlsx,.pptx,.zip" /></div>
-                <div id="act-4-files"></div>
-              </div>
-              <div class="content-attach-body hidden" id="act-4-link"><div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>
-              <div class="content-attach-body hidden" id="act-4-template">
-                <div class="template-type-selector"><button class="template-type-btn" onclick="switchTemplate('act-4','discussion',this)">Discussion</button><button class="template-type-btn active" onclick="switchTemplate('act-4','assignment',this)">Assignment</button><button class="template-type-btn" onclick="switchTemplate('act-4','quiz',this)">Quiz</button></div>
-                <div class="template-preview hidden" id="act-4-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Replies</div><textarea placeholder="Requirements..."></textarea></div></div>
-                <div class="template-preview" id="act-4-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Rubric</div><textarea placeholder="Criteria | Points..." style="min-height:80px;"></textarea></div></div>
-                <div class="template-preview hidden" id="act-4-tpl-quiz"><h4>Quiz Template</h4><div class="template-section"><textarea placeholder="1. Question&#10;*a. Correct&#10;b. Wrong&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
-              </div>
-              </div><!-- /content-attach-inner -->
-            </div>
-            </div><!-- /activity-block -->
+            <div id="module-activities-container"></div>
 
             <button class="btn-add-row" onclick="addActivity(this)">+ Add activity</button>
           </div>
@@ -820,36 +598,7 @@
           <div class="card-body collapsed">
             <div class="step-hint">List all materials: videos, readings, PDFs, websites, lecture slides, etc. Use the tabs below to upload files, paste links, or enter content directly.</div>
 
-            <!-- Material 1 -->
-            <div class="content-attach" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">
-              <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-                <select class="activity-input" style="width:140px; font-size:12px; padding:6px 8px;">
-                  <option>Reading</option>
-                  <option>Video</option>
-                  <option>Audio</option>
-                  <option>PDF</option>
-                  <option>Lecture Slides</option>
-                  <option>Website</option>
-                  <option>Other</option>
-                </select>
-                <input type="text" class="activity-input" placeholder="Material title..." style="flex:1; font-size:12px;" />
-              </div>
-              <div class="content-attach-tabs">
-                <button class="content-attach-tab active" onclick="switchAttachTab('mat-1','upload',this)">📁 Upload</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('mat-1','link',this)">🔗 Link</button>
-                <button class="content-attach-tab" onclick="switchAttachTab('mat-1','template',this)">📝 Text Entry</button>
-              </div>
-              <div class="content-attach-body" id="mat-1-upload">
-                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'mat-1')" /></div>
-                <div id="mat-1-files"></div>
-              </div>
-              <div class="content-attach-body hidden" id="mat-1-link">
-                <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
-              </div>
-              <div class="content-attach-body hidden" id="mat-1-template">
-                <textarea class="field-input" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;"></textarea>
-              </div>
-            </div>
+            <div id="module-materials-container"></div>
 
             <button class="btn-add-row" onclick="addMaterial()">+ Add material</button>
           </div>
@@ -1285,6 +1034,194 @@
   const courseId = urlParams.get('course') || 'mns521';
   const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
 
+  // ===== ACTIVITY & MATERIAL DATA MODEL =====
+  let courseActivities = {};
+  let courseMaterials = {};
+  let activityCounter = 100;
+  let materialCount = 100;
+
+  function initDataModel() {
+    const savedActs = loadField('courseActivities');
+    const savedMats = loadField('courseMaterials');
+
+    if (savedActs) {
+      courseActivities = savedActs;
+    } else {
+      if (courseId === 'mns521') {
+        courseActivities[1] = [
+          { id: 'act-1', objectives: ['1.1', '1.5'], name: 'AI Misconceptions Debate', points: '50', due: 'Week 1', contentType: 'discussion', links: [], richText: '' },
+          { id: 'act-2', objectives: ['1.2', '1.3'], name: 'Agent Modeling Exercise', points: '40', due: 'Week 1', contentType: 'assignment', links: [], richText: '' },
+          { id: 'act-3', objectives: ['1.1', '1.5'], name: 'What distinguishes AI from traditional software?', points: '30', due: 'Week 2', contentType: 'discussion', links: [], richText: '' },
+          { id: 'act-4', objectives: ['1.4', '1.5'], name: 'Environment Classification Mini-Task', points: '20', due: 'Week 2', contentType: 'assignment', links: [], richText: '' },
+        ];
+      }
+    }
+
+    if (savedMats) {
+      courseMaterials = savedMats;
+    } else {
+      if (courseId === 'mns521') {
+        courseMaterials[1] = [
+          { id: 'mat-1', type: 'Reading', title: '', links: [], richText: '' },
+        ];
+      }
+    }
+  }
+
+  function saveActivityData() {
+    saveField('courseActivities', courseActivities);
+    saveField('courseMaterials', courseMaterials);
+  }
+
+  // ===== OBJECTIVE PICKER HTML GENERATOR =====
+  function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
+    const mod = (activeCourse.modules || [])[moduleNum - 1];
+    const mlos = mod && mod.mlos ? mod.mlos : [];
+    const selected = selectedObjectives || [];
+
+    let chipsHtml = '';
+    if (selected.length === 0) {
+      chipsHtml = '<span class="obj-picker-placeholder">Select objectives...</span>';
+    } else {
+      chipsHtml = selected.map(function(id) {
+        return '<span class="obj-chip">' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + activityId + '\',\'' + id + '\')">×</span></span>';
+      }).join('');
+    }
+
+    let optionsHtml = '';
+    for (let j = 0; j < mlos.length; j++) {
+      const mloId = moduleNum + '.' + (j + 1);
+      const isSelected = selected.indexOf(mloId) !== -1;
+      optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObj(\'' + activityId + '\',\'' + mloId + '\')">' +
+        '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
+        '<span><strong>' + mloId + '</strong> ' + escapeHtml(mlos[j]) + '</span></div>';
+    }
+
+    return '<div class="obj-picker" data-picker="' + activityId + '">' +
+      '<div class="obj-picker-display" onclick="toggleObjDropdown(\'' + activityId + '\')">' + chipsHtml + '</div>' +
+      '<div class="obj-dropdown" id="obj-dropdown-' + activityId + '">' + optionsHtml + '</div>' +
+      '</div>';
+  }
+
+  // ===== ACTIVITY BLOCK HTML GENERATOR =====
+  function buildActivityBlockHtml(act, moduleNum) {
+    const id = act.id;
+    const driveDisplay = activeCourse.driveFolder ? 'inline-flex' : 'none';
+    const driveHref = activeCourse.driveFolder || '#';
+    const activeType = act.contentType || 'discussion';
+
+    return '<div class="activity-block" draggable="true" data-activity-id="' + id + '" data-module-num="' + moduleNum + '" ' +
+      'ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">' +
+      '<div class="activity-block-toolbar">' +
+        '<span class="act-drag-handle" title="Drag to reorder">⠿</span>' +
+        '<button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗' +
+          '<div class="move-menu" id="move-menu-' + id + '"></div>' +
+        '</button>' +
+        '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>' +
+      '</div>' +
+      '<div class="activity-row">' +
+        buildObjPickerHtml(id, act.objectives, moduleNum) +
+        '<input type="text" class="activity-input" data-managed="true" data-field="name" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." />' +
+        '<input type="text" class="activity-input" data-managed="true" data-field="points" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" />' +
+        '<input type="text" class="activity-input" data-managed="true" data-field="due" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" />' +
+      '</div>' +
+      '<div class="content-attach" id="attach-' + id + '">' +
+        '<div class="content-attach-header" onclick="toggleContentAttach(this)">' +
+          '<span class="ca-label">Content for this Activity</span>' +
+          '<span class="ca-toggle">▾</span>' +
+        '</div>' +
+        '<div class="content-attach-inner">' +
+          '<a class="drive-folder-link" id="drive-link-' + id + '" href="' + escapeHtml(driveHref) + '" style="display:' + driveDisplay + ';" target="_blank">📂 Open Google Drive Folder</a>' +
+          '<div class="content-attach-tabs">' +
+            '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
+            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
+            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
+          '</div>' +
+          '<div class="content-attach-body" id="' + id + '-upload">' +
+            '<div class="upload-zone" onclick="this.querySelector(\'input\').click()">' +
+              '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>' +
+              '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />' +
+            '</div>' +
+            '<div id="' + id + '-files"></div>' +
+          '</div>' +
+          '<div class="content-attach-body hidden" id="' + id + '-link">' +
+            '<div class="link-input-row">' +
+              '<input type="text" class="activity-input" data-managed="true" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />' +
+              '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>' +
+            '</div>' +
+          '</div>' +
+          '<div class="content-attach-body hidden" id="' + id + '-template">' +
+            '<div class="template-type-selector">' +
+              '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>' +
+              '<button class="template-type-btn' + (activeType === 'assignment' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'assignment\',this)">Assignment</button>' +
+              '<button class="template-type-btn' + (activeType === 'quiz' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'quiz\',this)">Quiz</button>' +
+            '</div>' +
+            '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
+              '<h4>Discussion Template</h4>' +
+              '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the discussion topic and purpose..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea data-managed="true" placeholder="Central question or task for students..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea data-managed="true" placeholder="e.g., Reply to at least two classmates..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea data-managed="true" placeholder="List readings, videos, or links..."></textarea></div>' +
+            '</div>' +
+            '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
+              '<h4>Assignment Template</h4>' +
+              '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the assignment purpose and context..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea data-managed="true" placeholder="List the MLOs this assignment addresses..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Instructions</div><textarea data-managed="true" placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Materials</div><textarea data-managed="true" placeholder="Links, documents, or resources needed..."></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>' +
+            '</div>' +
+            '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
+              '<h4>Quiz Template</h4>' +
+              '<div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *. Use ~ for incorrect feedback and @ for correct feedback.</div>' +
+              '<div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" data-managed="true" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div>' +
+              '<div class="template-section"><textarea data-managed="true" placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer&#10;&#10;2. Question text&#10;..." style="min-height:160px; font-family:\'Courier New\', monospace; font-size:12px;"></textarea></div>' +
+            '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
+  // ===== MATERIAL BLOCK HTML GENERATOR =====
+  function buildMaterialBlockHtml(mat, moduleNum) {
+    const id = mat.id;
+    const types = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
+    let typeOptions = '';
+    for (let i = 0; i < types.length; i++) {
+      typeOptions += '<option' + (mat.type === types[i] ? ' selected' : '') + '>' + types[i] + '</option>';
+    }
+
+    return '<div class="content-attach" data-material-id="' + id + '" data-module-num="' + moduleNum + '" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">' +
+      '<div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">' +
+        '<select class="activity-input" data-managed="true" data-field="type" style="width:140px; font-size:12px; padding:6px 8px;">' + typeOptions + '</select>' +
+        '<input type="text" class="activity-input" data-managed="true" data-field="title" placeholder="Material title..." style="flex:1; font-size:12px;" value="' + escapeHtml(mat.title) + '" />' +
+        '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteMaterial(this)" style="flex-shrink:0;">✕</button>' +
+      '</div>' +
+      '<div class="content-attach-header" onclick="toggleContentAttach(this)">' +
+        '<span class="ca-label">Content for this Material</span>' +
+        '<span class="ca-toggle">▾</span>' +
+      '</div>' +
+      '<div class="content-attach-inner">' +
+        '<div class="content-attach-tabs">' +
+          '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
+          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
+          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Text Entry</button>' +
+        '</div>' +
+        '<div class="content-attach-body" id="' + id + '-upload">' +
+          '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
+          '<div id="' + id + '-files"></div>' +
+        '</div>' +
+        '<div class="content-attach-body hidden" id="' + id + '-link">' +
+          '<div class="link-input-row"><input type="text" class="activity-input" data-managed="true" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>' +
+        '</div>' +
+        '<div class="content-attach-body hidden" id="' + id + '-template">' +
+          '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;"></textarea>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }
+
   // URL-based auto-identity for commenting
   const userParam = urlParams.get('user');
   let urlIdentity = null;
@@ -1294,6 +1231,8 @@
 
   // Populate page with course-specific data
   document.addEventListener('DOMContentLoaded', function() {
+    initDataModel();
+
     // Sidebar course name
     const sidebarName = document.querySelector('.sidebar-header .course-name');
     if (sidebarName) sidebarName.textContent = activeCourse.fullTitle;
@@ -1805,6 +1744,7 @@
       document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
         // Skip comment system elements — they're managed by Supabase, not localStorage
         if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
+        if (el.dataset.managed === 'true') return;
         // Build a unique key from context
         const view = el.closest('[id^="view-"]');
         const viewId = view ? view.id : 'global';
@@ -1843,6 +1783,7 @@
     document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
       // Skip comment system elements
       if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
+      if (el.dataset.managed === 'true') return;
       const view = el.closest('[id^="view-"]');
       const viewId = view ? view.id : 'global';
       let key = el.id || el.name || '';
@@ -2069,7 +2010,7 @@
   setTimeout(() => renderPageNav('dashboard'), 0);
 
   // ===== VIEW SWITCHING =====
-  const views = ['dashboard','module','module-overview','course-info','objectives','additional','materials','preview'];
+  const views = ['dashboard','module','module-overview','assignments-overview','materials-overview','course-info','objectives','additional','materials','preview'];
   function showView(viewId) {
     views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
     const target = document.getElementById('view-'+viewId);
@@ -2078,7 +2019,7 @@
       target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / CLOs & ELOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / CLOs & ELOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -2088,6 +2029,9 @@
     window.scrollTo(0, 0);
     document.querySelector('.main').scrollTo(0, 0);
     renderPageNav(viewId);
+    // Render overview content when navigating to overview views
+    if (viewId === 'assignments-overview') renderAssignmentsOverview();
+    if (viewId === 'materials-overview') renderMaterialsOverview();
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
   }
 
@@ -2117,8 +2061,9 @@
       }
     }
 
-    // Render activities from localStorage or show empty state for non-MNS courses
+    // Render activities and materials from data model
     renderModuleActivities(num);
+    renderModuleMaterials(num);
 
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
   }
@@ -2158,23 +2103,364 @@
   }
 
   function renderModuleActivities(num) {
-    const actBlocks = document.querySelectorAll('#view-module .activity-block');
-    const addBtn = document.querySelector('#view-module .btn-add-row');
-    let emptyMsg = document.getElementById('activities-empty-state');
+    const container = document.getElementById('module-activities-container');
+    if (!container) return;
+    container.innerHTML = '';
 
-    // Create empty state message if needed
-    if (!emptyMsg && addBtn) {
-      emptyMsg = document.createElement('div');
-      emptyMsg.id = 'activities-empty-state';
-      emptyMsg.style.cssText = 'text-align:center; padding:24px; color:#999; font-style:italic; font-size:13px;';
-      emptyMsg.textContent = 'No activities yet. Click "+ Add activity" to get started.';
-      addBtn.parentNode.insertBefore(emptyMsg, addBtn);
+    const activities = courseActivities[num] || [];
+    if (activities.length === 0) {
+      container.innerHTML = '<div id="activities-empty-state" style="text-align:center; padding:24px; color:#999; font-style:italic; font-size:13px;">No activities yet. Click "+ Add activity" to get started.</div>';
+      return;
     }
 
-    // Show hardcoded activities only for MNS 521 Module 1
-    const showHardcoded = (courseId === 'mns521' && num === 1);
-    actBlocks.forEach(block => block.style.display = showHardcoded ? '' : 'none');
-    if (emptyMsg) emptyMsg.style.display = showHardcoded ? 'none' : 'block';
+    let html = '';
+    for (let i = 0; i < activities.length; i++) {
+      html += buildActivityBlockHtml(activities[i], num);
+    }
+    container.innerHTML = html;
+
+    // Auto-resize textareas within rendered activities
+    container.querySelectorAll('textarea').forEach(function(ta) { autoResize(ta); });
+  }
+
+  function renderModuleMaterials(num) {
+    const container = document.getElementById('module-materials-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const materials = courseMaterials[num] || [];
+    if (materials.length === 0) {
+      container.innerHTML = '<div id="materials-empty-state" style="text-align:center; padding:24px; color:#999; font-style:italic; font-size:13px;">No materials yet. Click "+ Add material" to get started.</div>';
+      return;
+    }
+
+    let html = '';
+    for (let i = 0; i < materials.length; i++) {
+      html += buildMaterialBlockHtml(materials[i], num);
+    }
+    container.innerHTML = html;
+
+    // Auto-resize textareas within rendered materials
+    container.querySelectorAll('textarea').forEach(function(ta) { autoResize(ta); });
+  }
+
+  // ===== SYNC ACTIVITY/MATERIAL FROM DOM =====
+  function syncActivityFromDOM(target) {
+    const block = target.closest('.activity-block');
+    if (!block) return;
+    const actId = block.getAttribute('data-activity-id');
+    const modNum = parseInt(block.getAttribute('data-module-num'));
+    if (!actId || !modNum || !courseActivities[modNum]) return;
+    const act = courseActivities[modNum].find(function(a) { return a.id === actId; });
+    if (!act) return;
+    const field = target.getAttribute('data-field');
+    if (field === 'name') act.name = target.value;
+    else if (field === 'points') act.points = target.value;
+    else if (field === 'due') act.due = target.value;
+    saveActivityData();
+  }
+
+  function syncMaterialFromDOM(target) {
+    const block = target.closest('[data-material-id]');
+    if (!block) return;
+    const matId = block.getAttribute('data-material-id');
+    const modNum = parseInt(block.getAttribute('data-module-num'));
+    if (!matId || !modNum || !courseMaterials[modNum]) return;
+    const mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
+    if (!mat) return;
+    const field = target.getAttribute('data-field');
+    if (field === 'type') mat.type = target.value;
+    else if (field === 'title') mat.title = target.value;
+    else if (field === 'richText') mat.richText = target.value;
+    saveActivityData();
+  }
+
+  // Event delegation for activity/material input sync
+  document.addEventListener('DOMContentLoaded', function() {
+    var actContainer = document.getElementById('module-activities-container');
+    if (actContainer) {
+      actContainer.addEventListener('input', function(e) { syncActivityFromDOM(e.target); });
+      actContainer.addEventListener('change', function(e) { syncActivityFromDOM(e.target); });
+    }
+    var matContainer = document.getElementById('module-materials-container');
+    if (matContainer) {
+      matContainer.addEventListener('input', function(e) { syncMaterialFromDOM(e.target); });
+      matContainer.addEventListener('change', function(e) { syncMaterialFromDOM(e.target); });
+    }
+  });
+
+  // ===== OVERVIEW RENDERING =====
+  function switchOverviewMode(prefix, mode, btn) {
+    btn.closest('.view-toggle').querySelectorAll('.view-btn').forEach(function(b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    var cardsEl = document.getElementById(prefix + '-overview-cards');
+    var tableEl = document.getElementById(prefix + '-overview-table');
+    if (cardsEl) cardsEl.style.display = mode === 'card' ? 'block' : 'none';
+    if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
+  }
+
+  function renderAssignmentsOverview() {
+    var cardsContainer = document.getElementById('assignments-overview-cards');
+    var tableContainer = document.getElementById('assignments-overview-table');
+    if (!cardsContainer) return;
+    var modules = activeCourse.modules || [];
+    var modCount = activeCourse.moduleCount || modules.length || 7;
+
+    // Card view
+    var html = '';
+    for (var m = 1; m <= modCount; m++) {
+      var mod = modules[m - 1];
+      var modTitle = mod ? mod.title : 'Module ' + m;
+      var acts = courseActivities[m] || [];
+      var collapsed = m > 1 ? ' collapsed' : '';
+
+      html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
+      html += '<div class="card-header" onclick="toggleCard(this)">';
+      html += '<div class="card-title">';
+      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + m + '</span>';
+      html += 'Module ' + m + ': ' + escapeHtml(modTitle);
+      html += '<span style="margin-left:8px; font-size:11px; color:#999; font-weight:400;">' + acts.length + ' activities</span>';
+      html += '</div>';
+      html += '<span class="card-toggle' + (m === 1 ? ' open' : '') + '">▾</span>';
+      html += '</div>';
+      html += '<div class="card-body' + collapsed + '" data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
+
+      if (acts.length === 0) {
+        html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
+      } else {
+        // Activity header row
+        html += '<div class="activity-row" style="margin-bottom:4px;">';
+        html += '<div class="activity-header">Objectives</div>';
+        html += '<div class="activity-header">Activity</div>';
+        html += '<div class="activity-header">Points</div>';
+        html += '<div class="activity-header">Due</div>';
+        html += '</div>';
+        for (var i = 0; i < acts.length; i++) {
+          var act = acts[i];
+          html += '<div class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
+          html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          html += '<div style="display:flex; align-items:center; gap:6px;">';
+          html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
+          html += '<div class="activity-row" style="flex:1;">';
+          // Objectives chips
+          html += '<div style="display:flex; flex-wrap:wrap; gap:3px;">';
+          for (var j = 0; j < (act.objectives || []).length; j++) {
+            html += '<span class="obj-chip" style="font-size:10px; padding:1px 5px;">' + escapeHtml(act.objectives[j]) + '</span>';
+          }
+          if (!act.objectives || act.objectives.length === 0) html += '<span style="color:#ccc; font-size:11px;">—</span>';
+          html += '</div>';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" />';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
+          html += '</div>';
+          html += '</div>';
+          html += '</div>';
+        }
+      }
+      html += '<button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button>';
+      html += '</div></div>';
+    }
+    cardsContainer.innerHTML = html;
+
+    // Table view
+    if (tableContainer) {
+      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Objectives</th><th>Activity</th><th>Points</th><th>Due</th></tr></thead><tbody>';
+      for (var m = 1; m <= modCount; m++) {
+        var mod = modules[m - 1];
+        var acts = courseActivities[m] || [];
+        for (var i = 0; i < acts.length; i++) {
+          var act = acts[i];
+          thtml += '<tr data-activity-id="' + act.id + '" data-module-num="' + m + '">';
+          thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
+          thtml += '<td>' + (act.objectives || []).join(', ') + '</td>';
+          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%;" /></td>';
+          thtml += '<td style="text-align:center;">' + escapeHtml(act.points) + '</td>';
+          thtml += '<td style="text-align:center;">' + escapeHtml(act.due) + '</td>';
+          thtml += '</tr>';
+        }
+        if (acts.length === 0) {
+          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No activities</td></tr>';
+        }
+      }
+      thtml += '</tbody></table>';
+      tableContainer.innerHTML = thtml;
+    }
+  }
+
+  function renderMaterialsOverview() {
+    var cardsContainer = document.getElementById('materials-overview-cards');
+    var tableContainer = document.getElementById('materials-overview-table');
+    if (!cardsContainer) return;
+    var modules = activeCourse.modules || [];
+    var modCount = activeCourse.moduleCount || modules.length || 7;
+
+    // Card view
+    var html = '';
+    for (var m = 1; m <= modCount; m++) {
+      var mod = modules[m - 1];
+      var modTitle = mod ? mod.title : 'Module ' + m;
+      var mats = courseMaterials[m] || [];
+      var collapsed = m > 1 ? ' collapsed' : '';
+
+      html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
+      html += '<div class="card-header" onclick="toggleCard(this)">';
+      html += '<div class="card-title">';
+      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + m + '</span>';
+      html += 'Module ' + m + ': ' + escapeHtml(modTitle);
+      html += '<span style="margin-left:8px; font-size:11px; color:#999; font-weight:400;">' + mats.length + ' materials</span>';
+      html += '</div>';
+      html += '<span class="card-toggle' + (m === 1 ? ' open' : '') + '">▾</span>';
+      html += '</div>';
+      html += '<div class="card-body' + collapsed + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
+
+      if (mats.length === 0) {
+        html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No materials in this module yet.</div>';
+      } else {
+        for (var i = 0; i < mats.length; i++) {
+          var mat = mats[i];
+          html += '<div class="material-item" draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ';
+          html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)" ';
+          html += 'style="display:flex; gap:8px; align-items:center; padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff;">';
+          html += '<span class="act-drag-handle" title="Drag to move between modules" style="cursor:grab;">⠿</span>';
+          html += '<span style="font-size:11px; color:#8c1d40; font-weight:600; min-width:60px;">' + escapeHtml(mat.type) + '</span>';
+          html += '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" placeholder="Material title..." style="flex:1; font-size:12px;" oninput="syncOverviewMaterial(this)" />';
+          html += '</div>';
+        }
+      }
+      html += '<button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button>';
+      html += '</div></div>';
+    }
+    cardsContainer.innerHTML = html;
+
+    // Table view
+    if (tableContainer) {
+      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Type</th><th>Title</th></tr></thead><tbody>';
+      for (var m = 1; m <= modCount; m++) {
+        var mats = courseMaterials[m] || [];
+        for (var i = 0; i < mats.length; i++) {
+          var mat = mats[i];
+          thtml += '<tr data-material-id="' + mat.id + '" data-module-num="' + m + '">';
+          thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
+          thtml += '<td>' + escapeHtml(mat.type) + '</td>';
+          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" oninput="syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%;" /></td>';
+          thtml += '</tr>';
+        }
+        if (mats.length === 0) {
+          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="2" style="color:#999; font-style:italic;">No materials</td></tr>';
+        }
+      }
+      thtml += '</tbody></table>';
+      tableContainer.innerHTML = thtml;
+    }
+  }
+
+  // Sync overview edits back to data model
+  function syncOverviewActivity(el) {
+    var actId = el.getAttribute('data-activity-id');
+    var modNum = parseInt(el.getAttribute('data-module-num'));
+    var field = el.getAttribute('data-field');
+    if (!actId || !modNum || !courseActivities[modNum]) return;
+    var act = courseActivities[modNum].find(function(a) { return a.id === actId; });
+    if (!act) return;
+    if (field === 'name') act.name = el.value;
+    else if (field === 'points') act.points = el.value;
+    else if (field === 'due') act.due = el.value;
+    saveActivityData();
+  }
+
+  function syncOverviewMaterial(el) {
+    var matId = el.getAttribute('data-material-id');
+    var modNum = parseInt(el.getAttribute('data-module-num'));
+    var field = el.getAttribute('data-field');
+    if (!matId || !modNum || !courseMaterials[modNum]) return;
+    var mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
+    if (!mat) return;
+    if (field === 'title') mat.title = el.value;
+    else if (field === 'type') mat.type = el.value;
+    saveActivityData();
+  }
+
+  // Add from overview
+  function addActivityToModule(modNum) {
+    activityCounter++;
+    var newAct = { id: 'act-' + activityCounter, objectives: [], name: '', points: '', due: '', contentType: 'assignment', links: [], richText: '' };
+    if (!courseActivities[modNum]) courseActivities[modNum] = [];
+    courseActivities[modNum].push(newAct);
+    saveActivityData();
+    renderAssignmentsOverview();
+  }
+
+  function addMaterialToModule(modNum) {
+    materialCount++;
+    var newMat = { id: 'mat-' + materialCount, type: 'Reading', title: '', links: [], richText: '' };
+    if (!courseMaterials[modNum]) courseMaterials[modNum] = [];
+    courseMaterials[modNum].push(newMat);
+    saveActivityData();
+    renderMaterialsOverview();
+  }
+
+  // ===== CROSS-MODULE DRAG & DROP =====
+  var overviewDragData = null;
+
+  function overviewDragStart(e) {
+    var block = e.target.closest('[data-activity-id], [data-material-id]');
+    if (!block) return;
+    block.classList.add('dragging');
+    overviewDragData = {
+      type: block.getAttribute('data-overview-type'),
+      activityId: block.getAttribute('data-activity-id'),
+      materialId: block.getAttribute('data-material-id'),
+      sourceModule: parseInt(block.getAttribute('data-module-num'))
+    };
+    e.dataTransfer.effectAllowed = 'move';
+  }
+
+  function overviewDragEnd(e) {
+    var block = e.target.closest('[data-activity-id], [data-material-id]');
+    if (block) block.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+    overviewDragData = null;
+  }
+
+  function overviewDragOver(e) {
+    e.preventDefault();
+    e.currentTarget.classList.add('drag-over');
+  }
+
+  function overviewDragLeave(e) {
+    e.currentTarget.classList.remove('drag-over');
+  }
+
+  function overviewDrop(e) {
+    e.preventDefault();
+    e.currentTarget.classList.remove('drag-over');
+    if (!overviewDragData) return;
+
+    var targetModule = parseInt(e.currentTarget.getAttribute('data-drop-module'));
+    var sourceModule = overviewDragData.sourceModule;
+    if (!targetModule || targetModule === sourceModule) return;
+
+    if (overviewDragData.type === 'assignments' && overviewDragData.activityId) {
+      // Move activity between modules
+      var sourceList = courseActivities[sourceModule] || [];
+      var idx = sourceList.findIndex(function(a) { return a.id === overviewDragData.activityId; });
+      if (idx === -1) return;
+      var item = sourceList.splice(idx, 1)[0];
+      if (!courseActivities[targetModule]) courseActivities[targetModule] = [];
+      courseActivities[targetModule].push(item);
+      saveActivityData();
+      renderAssignmentsOverview();
+    } else if (overviewDragData.type === 'materials-ov' && overviewDragData.materialId) {
+      // Move material between modules
+      var sourceList = courseMaterials[sourceModule] || [];
+      var idx = sourceList.findIndex(function(m) { return m.id === overviewDragData.materialId; });
+      if (idx === -1) return;
+      var item = sourceList.splice(idx, 1)[0];
+      if (!courseMaterials[targetModule]) courseMaterials[targetModule] = [];
+      courseMaterials[targetModule].push(item);
+      saveActivityData();
+      renderMaterialsOverview();
+    }
   }
 
   function toggleCard(h) {
@@ -2193,6 +2479,7 @@
   // ===== OBJECTIVE PICKER =====
   function toggleObjDropdown(pickerId) {
     const dd = document.getElementById('obj-dropdown-' + pickerId);
+    if (!dd) return;
     const display = dd.previousElementSibling;
     const isOpen = dd.classList.contains('show');
     // Close all other dropdowns first
@@ -2205,6 +2492,7 @@
 
   function toggleObj(pickerId, objId) {
     const dd = document.getElementById('obj-dropdown-' + pickerId);
+    if (!dd) return;
     const options = dd.querySelectorAll('.obj-option');
     let selected = [];
 
@@ -2212,7 +2500,6 @@
     options.forEach(opt => {
       const id = opt.querySelector('strong').textContent;
       if (id === objId) opt.classList.toggle('selected');
-      // Update checkmark
       const check = opt.querySelector('.obj-check');
       if (opt.classList.contains('selected')) {
         check.textContent = '✓';
@@ -2228,8 +2515,22 @@
       display.innerHTML = '<span class="obj-picker-placeholder">Select objectives...</span>';
     } else {
       display.innerHTML = selected.map(id =>
-        `<span class="obj-chip">${id} <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(${pickerId},'${id}')">×</span></span>`
+        '<span class="obj-chip">' + id + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + pickerId + '\',\'' + id + '\')">×</span></span>'
       ).join('');
+    }
+
+    // Update data model if this is an activity picker
+    const block = dd.closest('.activity-block');
+    if (block) {
+      const actId = block.getAttribute('data-activity-id');
+      const modNum = parseInt(block.getAttribute('data-module-num'));
+      if (actId && modNum && courseActivities[modNum]) {
+        const act = courseActivities[modNum].find(function(a) { return a.id === actId; });
+        if (act) {
+          act.objectives = selected;
+          saveActivityData();
+        }
+      }
     }
   }
 
@@ -2246,6 +2547,8 @@
       { id: 'additional', label: 'Course Context Q&A', action: "showView('additional')" },
       { id: 'objectives', label: 'CLOs & ELOs', action: "showView('objectives')" },
       { id: 'module-overview', label: 'Module Overview', action: "showView('module-overview')" },
+      { id: 'assignments-overview', label: 'Assignments Overview', action: "showView('assignments-overview')" },
+      { id: 'materials-overview', label: 'Materials Overview', action: "showView('materials-overview')" },
     ];
     const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     for (let i = 1; i <= modCount; i++) {
@@ -2388,101 +2691,51 @@
   });
 
   // ===== ACTIVITY MANAGEMENT (delete, drag reorder, move to module) =====
-  let activityCounter = 10; // Start high to avoid ID collisions with existing act-1 through act-4
   function addActivity(btn) {
     activityCounter++;
     const id = 'act-' + activityCounter;
-    const block = document.createElement('div');
-    block.className = 'activity-block';
-    block.draggable = true;
-    block.ondragstart = actDragStart;
-    block.ondragover = actDragOver;
-    block.ondrop = actDrop;
-    block.ondragend = actDragEnd;
-    block.ondragleave = actDragLeave;
-    block.innerHTML = `
-      <div class="activity-block-toolbar">
-        <span class="act-drag-handle" title="Drag to reorder">⠿</span>
-        <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
-          <div class="move-menu" id="move-menu-${id}"></div>
-        </button>
-        <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
-      </div>
-      <div class="activity-row">
-        <div class="obj-picker" data-picker="${id}">
-          <div class="obj-picker-display" onclick="toggleObjDropdown('${id}')">
-            <span class="obj-picker-placeholder">Select objectives...</span>
-          </div>
-          <div class="obj-dropdown" id="obj-dropdown-${id}"></div>
-        </div>
-        <input type="text" class="activity-input" placeholder="Activity name..." />
-        <input type="text" class="activity-input" placeholder="Pts" style="text-align:center;" />
-        <input type="text" class="activity-input" placeholder="Due" style="text-align:center;" />
-      </div>
-      <div class="content-attach" id="attach-${id}">
-        <div class="content-attach-header" onclick="toggleContentAttach(this)">
-          <span class="ca-label">Content for this Activity</span>
-          <span class="ca-toggle">▾</span>
-        </div>
-        <div class="content-attach-inner">
-          <div class="content-attach-tabs">
-            <button class="content-attach-tab active" onclick="switchAttachTab('${id}','upload',this)">📁 Upload</button>
-            <button class="content-attach-tab" onclick="switchAttachTab('${id}','link',this)">🔗 Link</button>
-            <button class="content-attach-tab" onclick="switchAttachTab('${id}','template',this)">📝 Template</button>
-          </div>
-          <div class="content-attach-body" id="${id}-upload">
-            <div class="upload-zone" onclick="this.querySelector('input').click()">
-              <div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
-              <input type="file" style="display:none;" onchange="handleFileAttach(this, '${id}')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
-            </div>
-            <div id="${id}-files"></div>
-          </div>
-          <div class="content-attach-body hidden" id="${id}-link">
-            <div class="link-input-row">
-              <input type="text" class="activity-input" placeholder="Paste URL..." style="font-size:12px;" />
-              <button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>
-            </div>
-          </div>
-          <div class="content-attach-body hidden" id="${id}-template">
-            <div class="template-type-selector">
-              <button class="template-type-btn active" onclick="switchTemplate('${id}','discussion',this)">Discussion</button>
-              <button class="template-type-btn" onclick="switchTemplate('${id}','assignment',this)">Assignment</button>
-              <button class="template-type-btn" onclick="switchTemplate('${id}','quiz',this)">Quiz</button>
-            </div>
-            <div class="template-preview" id="${id}-tpl-discussion">
-              <h4>Discussion Template</h4>
-              <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic and purpose..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question or task for students..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="e.g., Reply to at least two classmates..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea placeholder="List readings, videos, or links..."></textarea></div>
-            </div>
-            <div class="template-preview hidden" id="${id}-tpl-assignment">
-              <h4>Assignment Template</h4>
-              <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose and context..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List the MLOs this assignment addresses..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>
-              <div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, documents, or resources needed..."></textarea></div>
-              <div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>
-            </div>
-            <div class="template-preview hidden" id="${id}-tpl-quiz">
-              <h4>Quiz Template</h4>
-              <div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div>
-              <div class="template-section"><textarea placeholder="1. Question text&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer" style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div>
-            </div>
-          </div>
-        </div>
-      </div>
-    `;
-    // Insert before the "+ Add activity" button
-    btn.parentElement.insertBefore(block, btn);
+    const newAct = { id: id, objectives: [], name: '', points: '', due: '', contentType: 'discussion', links: [], richText: '' };
+    if (!courseActivities[currentModuleNum]) courseActivities[currentModuleNum] = [];
+    courseActivities[currentModuleNum].push(newAct);
+    saveActivityData();
+    renderModuleActivities(currentModuleNum);
+    // Focus the new activity name input
+    var container = document.getElementById('module-activities-container');
+    var blocks = container.querySelectorAll('.activity-block');
+    var lastBlock = blocks[blocks.length - 1];
+    if (lastBlock) {
+      var nameInput = lastBlock.querySelector('input[data-field="name"]');
+      if (nameInput) nameInput.focus();
+    }
   }
 
   function deleteActivity(btn) {
     const block = btn.closest('.activity-block');
     if (!block) return;
-    const name = block.querySelector('.activity-input')?.value || 'this activity';
-    if (confirm('Delete "' + name + '"?')) {
-      block.remove();
+    const actId = block.getAttribute('data-activity-id');
+    const modNum = parseInt(block.getAttribute('data-module-num'));
+    const name = block.querySelector('input[data-field="name"]');
+    const nameStr = name ? name.value : 'this activity';
+    if (confirm('Delete "' + nameStr + '"?')) {
+      if (courseActivities[modNum]) {
+        courseActivities[modNum] = courseActivities[modNum].filter(function(a) { return a.id !== actId; });
+        saveActivityData();
+      }
+      renderModuleActivities(modNum);
+    }
+  }
+
+  function deleteMaterial(btn) {
+    const block = btn.closest('[data-material-id]');
+    if (!block) return;
+    const matId = block.getAttribute('data-material-id');
+    const modNum = parseInt(block.getAttribute('data-module-num'));
+    if (confirm('Delete this material?')) {
+      if (courseMaterials[modNum]) {
+        courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
+        saveActivityData();
+      }
+      renderModuleMaterials(modNum);
     }
   }
 
@@ -2518,11 +2771,28 @@
     } else {
       parent.insertBefore(draggedBlock, target);
     }
+    // Update data model to match new DOM order
+    syncActivityOrderFromDOM();
   }
   function actDragEnd(e) {
     if (draggedBlock) draggedBlock.classList.remove('dragging');
     document.querySelectorAll('.activity-block.drag-over').forEach(b => b.classList.remove('drag-over'));
     draggedBlock = null;
+  }
+
+  function syncActivityOrderFromDOM() {
+    const container = document.getElementById('module-activities-container');
+    if (!container || !courseActivities[currentModuleNum]) return;
+    const blocks = container.querySelectorAll('.activity-block');
+    const idOrder = [];
+    blocks.forEach(function(b) { idOrder.push(b.getAttribute('data-activity-id')); });
+    const reordered = [];
+    for (var i = 0; i < idOrder.length; i++) {
+      var found = courseActivities[currentModuleNum].find(function(a) { return a.id === idOrder[i]; });
+      if (found) reordered.push(found);
+    }
+    courseActivities[currentModuleNum] = reordered;
+    saveActivityData();
   }
 
   function toggleMoveMenu(btn) {
@@ -2534,21 +2804,34 @@
       return;
     }
     // Build menu items for all modules except current
-    const currentMod = document.querySelector('#module-title')?.textContent?.match(/Module (\d+)/)?.[1] || '1';
+    const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     menu.innerHTML = '';
-    for (let i = 1; i <= 7; i++) {
-      if (String(i) === currentMod) continue;
-      const title = document.getElementById('mod-title-display-' + i)?.textContent || 'Module ' + i;
+    for (let i = 1; i <= modCount; i++) {
+      if (i === currentModuleNum) continue;
+      const mod = (activeCourse.modules || [])[i - 1];
+      const title = mod ? mod.title : 'Module ' + i;
       const item = document.createElement('div');
       item.className = 'move-menu-item';
       item.textContent = 'Module ' + i + ': ' + title;
-      item.onclick = function(e) {
-        e.stopPropagation();
-        const block = btn.closest('.activity-block');
-        alert('Activity moved to Module ' + i + '. (In a future update, this will physically move the activity data to the target module.)');
-        block.remove();
-        menu.classList.remove('open');
-      };
+      item.onclick = (function(targetMod) {
+        return function(e) {
+          e.stopPropagation();
+          const block = btn.closest('.activity-block');
+          const actId = block.getAttribute('data-activity-id');
+          // Move in data model
+          if (courseActivities[currentModuleNum]) {
+            const actIdx = courseActivities[currentModuleNum].findIndex(function(a) { return a.id === actId; });
+            if (actIdx !== -1) {
+              const moved = courseActivities[currentModuleNum].splice(actIdx, 1)[0];
+              if (!courseActivities[targetMod]) courseActivities[targetMod] = [];
+              courseActivities[targetMod].push(moved);
+              saveActivityData();
+              renderModuleActivities(currentModuleNum);
+            }
+          }
+          menu.classList.remove('open');
+        };
+      })(i);
       menu.appendChild(item);
     }
     menu.classList.add('open');
@@ -2662,7 +2945,6 @@
     input.value = ''; // reset so same file can be re-added
   }
 
-  let materialCount = 1;
   function autoExpand(el) {
     el.style.height = 'auto';
     el.style.height = el.scrollHeight + 'px';
@@ -2692,35 +2974,11 @@
   function addMaterial() {
     materialCount++;
     const id = 'mat-' + materialCount;
-    const wrapper = document.createElement('div');
-    wrapper.className = 'content-attach';
-    wrapper.style.cssText = 'border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;';
-    wrapper.innerHTML = `
-      <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
-        <select class="activity-input" style="width:140px; font-size:12px; padding:6px 8px;">
-          <option>Reading</option><option>Video</option><option>Audio</option><option>PDF</option><option>Lecture Slides</option><option>Website</option><option>Other</option>
-        </select>
-        <input type="text" class="activity-input" placeholder="Material title..." style="flex:1; font-size:12px;" />
-      </div>
-      <div class="content-attach-tabs">
-        <button class="content-attach-tab active" onclick="switchAttachTab('${id}','upload',this)">📁 Upload</button>
-        <button class="content-attach-tab" onclick="switchAttachTab('${id}','link',this)">🔗 Link</button>
-        <button class="content-attach-tab" onclick="switchAttachTab('${id}','template',this)">📝 Text Entry</button>
-      </div>
-      <div class="content-attach-body" id="${id}-upload">
-        <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, '${id}')" /></div>
-        <div id="${id}-files"></div>
-      </div>
-      <div class="content-attach-body hidden" id="${id}-link">
-        <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
-      </div>
-      <div class="content-attach-body hidden" id="${id}-template">
-        <textarea class="field-input" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;"></textarea>
-      </div>
-    `;
-    const addBtn = wrapper.parentElement || document.querySelector('#view-module .card:last-of-type .card-body .btn-add-row');
-    // Insert before the "+ Add material" button
-    event.target.parentElement.insertBefore(wrapper, event.target);
+    const newMat = { id: id, type: 'Reading', title: '', links: [], richText: '' };
+    if (!courseMaterials[currentModuleNum]) courseMaterials[currentModuleNum] = [];
+    courseMaterials[currentModuleNum].push(newMat);
+    saveActivityData();
+    renderModuleMaterials(currentModuleNum);
   }
 
   // Close dropdowns when clicking outside

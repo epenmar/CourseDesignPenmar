@@ -5,6 +5,19 @@ Format follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.1.0] — 2026-04-02
+
+### Data Model & Overview Views
+- **Activity/Material Data Model** — activities and materials are now stored as structured data in localStorage (`courseActivities`, `courseMaterials`), enabling cross-module operations and multiple views
+- **Assignments Overview** — new view showing all activities across all modules with card/table toggle, cross-module drag-and-drop, inline editing
+- **Materials Overview** — new view showing all learning materials across all modules with card/table toggle, cross-module drag-and-drop
+- **Dynamic Rendering** — module detail activities and materials now render from data model instead of hardcoded HTML
+- **Cross-Module Drag & Drop** — drag activities or materials between modules in overview views
+- **Tab Bug Fix** — fixed `switchAttachTab()` nesting issue with material wrappers
+- **Content Accordion** — activity content accordions default to collapsed in all views
+
+---
+
 ## [1.0.0] — 2026-04-02
 
 ### Initial Release
