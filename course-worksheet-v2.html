@@ -321,9 +321,9 @@
   .comment-identity-setup button { width: 100%; padding: 10px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 
   /* ===== INLINE HIGHLIGHTS ===== */
-  .inline-highlight { background: rgba(255, 198, 39, 0.3); border-bottom: 2px solid #ffc627; cursor: pointer; border-radius: 2px; transition: background 0.15s; position: relative; }
-  .inline-highlight:hover { background: rgba(255, 198, 39, 0.5); }
-  .inline-highlight.resolved { background: rgba(200, 200, 200, 0.2); border-bottom-color: #ccc; }
+  .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
+  .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
+  .inline-highlight.resolved { border-bottom-color: #ccc; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
   .highlight-tooltip:hover { background: #6d1633; }
@@ -1192,7 +1192,7 @@
     <p style="color:#666; font-size:13px; margin-bottom:16px;">Enter your name and role so others can identify your comments.</p>
     <div class="comment-identity-setup">
       <label>Your Name</label>
-      <input type="text" id="comment-name-input" placeholder="e.g. Elisa Penmar" />
+      <input type="text" id="comment-name-input" />
       <label>Your Role</label>
       <select id="comment-role-input">
         <option value="id">Instructional Designer</option>
@@ -1380,6 +1380,14 @@
       if (previewPs[0]) previewPs[0].innerHTML = '<strong>Instructor:</strong> ' + activeCourse.instructor + ' (' + activeCourse.email + ')';
       if (previewPs[1]) previewPs[1].innerHTML = '<strong>Instructional Designer:</strong> ' + activeCourse.id;
       if (previewPs[2]) previewPs[2].innerHTML = '<strong>Credits:</strong> ' + activeCourse.credits;
+    }
+
+    // Populate textbook field from config (applies to ALL courses including MNS 521)
+    if (activeCourse.textbook) {
+      const matInputs = document.querySelectorAll('#view-materials input.field-input');
+      if (matInputs[0] && !matInputs[0].value) {
+        matInputs[0].value = activeCourse.textbook;
+      }
     }
 
     // Set the correct session in the dropdown
@@ -1793,8 +1801,10 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
       const allData = {};
-      // Save all inputs and textareas with values
+      // Save all inputs and textareas with values (exclude comment panel elements)
       document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
+        // Skip comment system elements — they're managed by Supabase, not localStorage
+        if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
         // Build a unique key from context
         const view = el.closest('[id^="view-"]');
         const viewId = view ? view.id : 'global';
@@ -1831,6 +1841,8 @@
     const allData = loadField('formData');
     if (!allData) return;
     document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
+      // Skip comment system elements
+      if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
       const view = el.closest('[id^="view-"]');
       const viewId = view ? view.id : 'global';
       let key = el.id || el.name || '';
@@ -2798,6 +2810,11 @@
 
   function ensureIdentity() {
     if (getCommentIdentity()) return true;
+    // Pre-fill from URL identity if available
+    if (urlIdentity) {
+      document.getElementById('comment-name-input').value = urlIdentity.name;
+      document.getElementById('comment-role-input').value = urlIdentity.role;
+    }
     document.getElementById('comment-identity-modal').style.display = 'flex';
     return false;
   }
@@ -2983,9 +3000,11 @@
       const { data, error } = await supabaseClient.from('comments').insert(insertData).select();
       if (error) throw error;
 
-      // If we just created a highlight comment, wrap the text in a mark
-      if (pendingHighlight && pendingHighlight.range && data && data[0]) {
-        applyHighlightToRange(pendingHighlight.range, data[0].id);
+      // If we just created a highlight comment, wrap the text in a mark (DOM text only, not field comments)
+      if (pendingHighlight && data && data[0]) {
+        if (pendingHighlight.range && !pendingHighlight.isFieldComment) {
+          applyHighlightToRange(pendingHighlight.range, data[0].id);
+        }
         pendingHighlight = null;
       }
 
@@ -3130,8 +3149,33 @@
     const tooltip = document.getElementById('highlight-tooltip');
     if (!tooltip) return;
 
-    // Don't show in inputs/textareas or inside the comment/AI panels
-    if (e.target.closest('input, textarea, select, .comment-thread-panel, .ai-panel, .highlight-tooltip')) {
+    // Don't show inside the comment/AI panels or tooltip itself
+    if (e.target.closest('.comment-thread-panel, .ai-panel, .highlight-tooltip')) {
+      return;
+    }
+
+    // Handle text selection inside textareas/inputs
+    const field = e.target.closest('textarea, input[type="text"]');
+    if (field) {
+      const mainContent = document.querySelector('.main-content');
+      if (!mainContent || !mainContent.contains(field)) { tooltip.style.display = 'none'; return; }
+      // Delay slightly so browser updates selectionStart/End
+      setTimeout(function() {
+        const start = field.selectionStart;
+        const end = field.selectionEnd;
+        if (start === end) { tooltip.style.display = 'none'; return; }
+        const selectedText = field.value.substring(start, end).trim();
+        if (!selectedText) { tooltip.style.display = 'none'; return; }
+
+        const rect = field.getBoundingClientRect();
+        tooltip.style.display = 'block';
+        tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+        tooltip.style.top = (rect.top - tooltip.offsetHeight - 10 + window.scrollY) + 'px';
+        tooltip._pendingRange = null;
+        tooltip._pendingText = selectedText;
+        tooltip._pendingContainer = field;
+        tooltip._isFieldComment = true;
+      }, 10);
       return;
     }
 
@@ -3158,6 +3202,7 @@
     tooltip._pendingRange = range.cloneRange();
     tooltip._pendingText = sel.toString();
     tooltip._pendingContainer = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentElement : range.commonAncestorContainer;
+    tooltip._isFieldComment = false;
   });
 
   // Hide tooltip on scroll or click elsewhere
@@ -3175,18 +3220,30 @@
     const text = tooltip._pendingText;
     const range = tooltip._pendingRange;
     const container = tooltip._pendingContainer;
+    const isFieldComment = tooltip._isFieldComment;
     tooltip.style.display = 'none';
 
-    if (!text || !range) return;
+    if (!text) return;
+    // For DOM highlights, range is required; for field comments, it's not
+    if (!isFieldComment && !range) return;
+
+    const sectionId = getViewSectionId(container);
+
     if (!ensureIdentity()) {
-      // Store pending data so we can resume after identity is set
-      const sectionId = getViewSectionId(container);
-      pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+      if (isFieldComment) {
+        pendingHighlight = { text, anchor: null, range: null, sectionId, isFieldComment: true };
+      } else {
+        pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+      }
       return;
     }
 
-    const sectionId = getViewSectionId(container);
-    pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+    if (isFieldComment) {
+      // Field comments: no DOM highlight, just store text reference
+      pendingHighlight = { text, anchor: null, range: null, sectionId, isFieldComment: true };
+    } else {
+      pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+    }
 
     // Open comment panel in highlight mode
     currentCommentSection = sectionId;
