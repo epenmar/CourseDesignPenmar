@@ -1533,9 +1533,9 @@
         const border = i > 0 ? ' border-top:1px solid #e8e5dd;' : '';
         html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; align-items:center; padding:6px 0;' + border + '">';
         html += '<span class="clo-tag clo-tag-' + (i+1) + '" style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">' + (i+1) + '</span>';
-        html += '<span style="font-size:13px;">' + (clos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (clos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
         html += '<span style="text-align:center; color:#2e7d32; font-weight:700;">→</span>';
-        html += '<span style="font-size:13px;">' + (elos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (elos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
         html += '</div>';
       }
       html += '</div>';
