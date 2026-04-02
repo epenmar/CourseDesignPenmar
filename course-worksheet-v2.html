@@ -283,7 +283,43 @@
   .page-nav-spacer { flex: 1; }
 
   @media (max-width: 900px) { .sidebar { display: none; } .main-content { padding: 16px 20px 60px; } }
+
+  /* ===== COMMENTS SYSTEM ===== */
+  .comment-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; font-size: 11px; color: #888; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+  .comment-btn:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
+  .comment-btn .comment-count { background: #8c1d40; color: #fff; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 10px; min-width: 18px; text-align: center; }
+  .comment-thread-panel { position: fixed; right: 0; top: 0; width: 360px; height: 100vh; background: #fff; border-left: 1px solid #e0ddd5; box-shadow: -4px 0 20px rgba(0,0,0,0.08); z-index: 110; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease; }
+  .comment-thread-panel.open { transform: translateX(0); }
+  .comment-thread-header { padding: 16px 20px; border-bottom: 1px solid #e0ddd5; display: flex; align-items: center; justify-content: space-between; }
+  .comment-thread-header h3 { font-size: 14px; font-weight: 600; color: #8c1d40; margin: 0; }
+  .comment-thread-close { border: none; background: none; font-size: 20px; cursor: pointer; color: #999; padding: 0; line-height: 1; }
+  .comment-thread-messages { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .comment-item { margin-bottom: 16px; padding: 12px; border-radius: 8px; background: #fafaf7; border: 1px solid #eee; }
+  .comment-item.resolved { opacity: 0.5; }
+  .comment-meta { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .comment-author { font-size: 12px; font-weight: 600; color: #333; }
+  .comment-author .role-tag { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
+  .role-tag.id { background: #e8f0fe; color: #1565c0; }
+  .role-tag.instructor { background: #fef3e8; color: #8c1d40; }
+  .comment-date { font-size: 10px; color: #999; }
+  .comment-text { font-size: 13px; line-height: 1.5; color: #333; }
+  .comment-actions { margin-top: 6px; display: flex; gap: 8px; }
+  .comment-action-btn { border: none; background: none; font-size: 11px; color: #888; cursor: pointer; padding: 2px 0; }
+  .comment-action-btn:hover { color: #8c1d40; }
+  .comment-input-area { padding: 12px 16px; border-top: 1px solid #e0ddd5; }
+  .comment-input-row { display: flex; gap: 8px; }
+  .comment-input { flex: 1; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; min-height: 40px; }
+  .comment-input:focus { outline: none; border-color: #8c1d40; }
+  .comment-send { padding: 10px 16px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+  .comment-send:hover { background: #6d1633; }
+  .comment-empty { text-align: center; color: #999; font-size: 13px; padding: 40px 20px; }
+  .comment-identity-setup { padding: 20px; }
+  .comment-identity-setup label { font-size: 12px; font-weight: 500; color: #666; display: block; margin-bottom: 4px; }
+  .comment-identity-setup input, .comment-identity-setup select { width: 100%; padding: 8px 12px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; margin-bottom: 12px; }
+  .comment-identity-setup select { appearance: auto; cursor: pointer; }
+  .comment-identity-setup button { width: 100%; padding: 10px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
 </head>
 <body>
@@ -413,7 +449,7 @@
         </div>
 
         <div class="callout callout-info" style="margin-top:20px;">
-          <strong>💡 The timeline above follows backward design principles.</strong> Your work will be auto-saved, and you can jump to any section using either the sidebar or the milestone links above. The final document will assemble itself correctly regardless of your working order.
+          <strong>💡 The timeline above follows backward design principles.</strong> Your work will be auto-saved, and you can jump to any section using either the sidebar or the milestone links above.
         </div>
       </div>
 
@@ -1120,6 +1156,39 @@
   </div>
 </div>
 
+<!-- ===== COMMENT THREAD PANEL ===== -->
+<div class="comment-thread-panel" id="comment-panel">
+  <div class="comment-thread-header">
+    <h3 id="comment-panel-title">Comments</h3>
+    <button class="comment-thread-close" onclick="closeCommentPanel()">×</button>
+  </div>
+  <div class="comment-thread-messages" id="comment-messages"></div>
+  <div class="comment-input-area" id="comment-input-area">
+    <div class="comment-input-row">
+      <textarea class="comment-input" id="comment-input" placeholder="Add a comment..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}"></textarea>
+      <button class="comment-send" onclick="postComment()">Post</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== COMMENT IDENTITY MODAL ===== -->
+<div id="comment-identity-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:28px; max-width:380px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
+    <h3 style="margin:0 0 8px; font-size:16px; color:#8c1d40;">Set Up Commenting</h3>
+    <p style="color:#666; font-size:13px; margin-bottom:16px;">Enter your name and role so others can identify your comments.</p>
+    <div class="comment-identity-setup">
+      <label>Your Name</label>
+      <input type="text" id="comment-name-input" placeholder="e.g. Elisa Penmar" />
+      <label>Your Role</label>
+      <select id="comment-role-input">
+        <option value="id">Instructional Designer</option>
+        <option value="instructor">Instructor / Faculty</option>
+      </select>
+      <button onclick="saveCommentIdentity()">Save & Continue</button>
+    </div>
+  </div>
+</div>
+
 <script>
   // ===== COURSE DATA & URL PARAM =====
   const worksheetCourses = {
@@ -1176,49 +1245,6 @@
         { title: 'Ethical and Responsible AI Reasoning', num: 5, mlos: ['Identify sources of bias in AI systems','Explain key fairness concepts and how they apply to evaluating AI system outcomes','Evaluate AI systems with respect to fairness, transparency, and accountability','Propose strategies to mitigate bias and improve responsible design of AI systems'] },
         { title: 'AI System Communication & Design', num: 6, mlos: ['Describe the structure and components of an AI system using appropriate diagrams','Explain AI system designs clearly to both technical and non-technical audiences','Justify modeling choices based on problem characteristics and data availability','Analyze tradeoffs between alternative AI approaches','Communicate the limitations and assumptions of AI systems clearly'] },
         { title: 'AI System Architecture, Evaluation & Responsible Design', num: 7, mlos: ['Design a high-level architecture for an AI system integrating appropriate modeling paradigms','Justify the selection of AI techniques based on problem structure and data availability','Critically evaluate an AI system for performance, interpretability, fairness, robustness, and deployment risk','Analyze tradeoffs between symbolic vs statistical approaches, accuracy vs explainability, and automation vs human oversight','Propose improvements or safeguards to enhance ethical and responsible AI deployment','Present AI system designs, limitations, and tradeoffs clearly to technical and non-technical audiences'] },
-      ],
-    },
-    tph552: {
-      code: 'TPH 552', name: 'Design & Systems Engineering in Public Health Technology',
-      fullTitle: 'TPH 552 — Design & Systems Engineering in Public Health Technology',
-      instructor: 'Bogosian', email: 'bogosian@asu.edu', office: '',
-      session: 'TBD', sessionShort: 'Session TBD',
-      credits: '3', prerequisites: '', sectionLines: '', enrollmentCap: '',
-      id: 'Tamara Mitchell',
-      textbook: '',
-      driveFolder: '',
-      sessionValue: null,
-      moduleCount: 7,
-      milestonesCompleted: 0,
-      qaDate: null,
-      clos: [
-        'Design research for sense-making',
-        'Design thinking and making in public health technology',
-        'Systems engineering in public health technology',
-        'Data collection, data integration, and access roles in systems',
-        'Implementation, evaluation, and scalability of public health technologies',
-        'Human-centered and life-centered design in public health technology',
-        'Socio-technical systems and consequences',
-      ],
-      elos: [
-        'Explain design and engineering processes, tools, and approaches for creating public health systems (CEPH 21, 22)',
-        'Identify the components of and evaluate public health systems using systems design and engineering concepts and principles (CEPH 5, 8, 11)',
-        'Investigate and explain public health situations, challenges, and context using human-centered methodologies (CEPH 2, 4, 8, 22)',
-        'Assess the ethical and equity implications of public health systems and technologies using political, economic, and cultural criteria (CEPH 4, 6, 7, 8, 15)',
-        'Propose human-centered public health systems using design and engineering processes, tools, and approaches (CEPH 8, 9, 17, 19, 21)',
-        'Design, prototype, and test innovative health technologies or interventions tailored to diverse communities\' specific needs (CEPH 9, 11, 13, 18, 21)',
-        'Identify requirements, constraints and resources needed to implement public health technologies and interventions, including data work and security (CEPH 5)',
-        'Propose systems architectures and data models that support the efficiency and reliability of public health systems (CEPH 9, 16)',
-        'Formulate strategies to create sustainable and scalable solutions in both resource-rich and resource-limited settings (CEPH 8, 10, 13, 14, 17)',
-      ],
-      modules: [
-        { title: 'Introduction: Systems Design & Engineering Practices', num: 1, mlos: ['Explain the core concepts of and approaches to systems design and engineering such as design thinking, co-design, human-centered design, and agile methodologies and how they are applied in public health systems','Evaluate the role of design and systems engineering practices in creating effective and sustainable public health services','Critically assess how co-design and human-centered design enhance the accessibility, efficiency, and impact of public health interventions','Apply systems analysis principles and engineering heuristics to identify complex public health challenges','Analyze public health systems to develop actionable insights using design sense-making techniques','Evaluate public health systems through the design lens and engineering principles to identify areas for improvement and innovation','Use systems thinking to discuss the interrelationships within public health systems and how it can inform the design of more effective interventions'] },
-        { title: 'Design Sense-Making Techniques & Reporting', num: 2, mlos: ['Analyze public health systems using design sense-making techniques','Develop a comprehensive sense-making plan that integrates fieldwork findings with design and systems analysis principles','Interpret qualitative data that informs the development of human-centered public health interventions using empathy-driven design methods','Assess the effectiveness of various sense-making techniques in understanding the complexities of public health challenges','Analyze data using design sense-making approaches to inform public health system improvements through the implementation of fieldwork strategies','Analyze public health systems through the application of sense-making reporting techniques, including stakeholder mapping, journey mapping, and mental models','Communicate key insights from fieldwork in a comprehensive sense-making report that integrates tools like empathy mapping and mental models','Identify key challenges and opportunities within public health interventions through stakeholder mapping and user journeys','Analyze the perspectives of diverse stakeholders in public health system design using mental models','Evaluate the effectiveness of sense-making tools in addressing complex public health challenges and informing decision-making'] },
-        { title: 'TBD', num: 3, mlos: [] },
-        { title: 'TBD', num: 4, mlos: [] },
-        { title: 'TBD', num: 5, mlos: [] },
-        { title: 'TBD', num: 6, mlos: [] },
-        { title: 'TBD', num: 7, mlos: [] },
       ],
     },
   };
@@ -2574,6 +2600,266 @@
     if (!e.target.closest('.obj-picker')) {
       document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
     }
+  });
+
+  // ===== SUPABASE COMMENTS SYSTEM =====
+  const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
+  let supabaseClient = null;
+  let currentCommentSection = null;
+  let commentCache = {};
+
+  try {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    console.warn('Supabase not available — commenting disabled.', e);
+  }
+
+  function getCommentIdentity() {
+    try {
+      return JSON.parse(localStorage.getItem('comment_identity'));
+    } catch(e) { return null; }
+  }
+
+  function saveCommentIdentity() {
+    const name = document.getElementById('comment-name-input').value.trim();
+    const role = document.getElementById('comment-role-input').value;
+    if (!name) return;
+    localStorage.setItem('comment_identity', JSON.stringify({ name, role }));
+    document.getElementById('comment-identity-modal').style.display = 'none';
+    // Continue with the action that triggered the modal
+    if (currentCommentSection) openCommentPanel(currentCommentSection);
+  }
+
+  function ensureIdentity(callback) {
+    const identity = getCommentIdentity();
+    if (identity) return true;
+    document.getElementById('comment-identity-modal').style.display = 'flex';
+    return false;
+  }
+
+  async function openCommentPanel(sectionId) {
+    if (!ensureIdentity()) { currentCommentSection = sectionId; return; }
+    currentCommentSection = sectionId;
+
+    // Close AI panel if open
+    const aiPanel = document.getElementById('ai-panel');
+    if (aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
+
+    const panel = document.getElementById('comment-panel');
+    const titleEl = document.getElementById('comment-panel-title');
+    titleEl.textContent = 'Comments — ' + sectionId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    panel.classList.add('open');
+
+    await loadComments(sectionId);
+  }
+
+  function closeCommentPanel() {
+    document.getElementById('comment-panel').classList.remove('open');
+    currentCommentSection = null;
+  }
+
+  async function loadComments(sectionId) {
+    const msgContainer = document.getElementById('comment-messages');
+    msgContainer.innerHTML = '<div class="comment-empty">Loading comments...</div>';
+
+    if (!supabaseClient) {
+      msgContainer.innerHTML = '<div class="comment-empty">Commenting unavailable — Supabase not connected.</div>';
+      return;
+    }
+
+    try {
+      const { data, error } = await supabaseClient
+        .from('comments')
+        .select('*')
+        .eq('course_id', courseId)
+        .eq('section_id', sectionId)
+        .order('created_at', { ascending: true });
+
+      if (error) throw error;
+
+      commentCache[sectionId] = data || [];
+      renderComments(data || []);
+      updateCommentCounts();
+    } catch(e) {
+      console.error('Failed to load comments:', e);
+      msgContainer.innerHTML = '<div class="comment-empty">Failed to load comments. Check your connection.</div>';
+    }
+  }
+
+  function renderComments(comments) {
+    const msgContainer = document.getElementById('comment-messages');
+    if (!comments || comments.length === 0) {
+      msgContainer.innerHTML = '<div class="comment-empty">No comments yet. Be the first to add one!</div>';
+      return;
+    }
+
+    msgContainer.innerHTML = comments.map(c => {
+      const date = new Date(c.created_at);
+      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+      const roleLabel = c.author_role === 'id' ? 'ID' : 'Faculty';
+      const roleClass = c.author_role === 'id' ? 'id' : 'instructor';
+      const identity = getCommentIdentity();
+      const isOwn = identity && c.author_name === identity.name;
+      return '<div class="comment-item' + (c.resolved ? ' resolved' : '') + '">' +
+        '<div class="comment-meta">' +
+          '<span class="comment-author">' + escapeHtml(c.author_name) + '<span class="role-tag ' + roleClass + '">' + roleLabel + '</span></span>' +
+          '<span class="comment-date">' + dateStr + '</span>' +
+        '</div>' +
+        '<div class="comment-text">' + escapeHtml(c.content) + '</div>' +
+        (isOwn || (identity && identity.role === 'id') ? '<div class="comment-actions">' +
+          (!c.resolved ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '<span style="font-size:11px;color:#4caf50;">Resolved</span>') +
+          (isOwn ? '<button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
+        '</div>' : '') +
+      '</div>';
+    }).join('');
+  }
+
+  async function postComment() {
+    const identity = getCommentIdentity();
+    if (!identity || !supabaseClient) return;
+
+    const input = document.getElementById('comment-input');
+    const text = input.value.trim();
+    if (!text || !currentCommentSection) return;
+
+    input.value = '';
+    input.disabled = true;
+
+    try {
+      const { error } = await supabaseClient.from('comments').insert({
+        course_id: courseId,
+        section_id: currentCommentSection,
+        author_name: identity.name,
+        author_role: identity.role,
+        content: text
+      });
+
+      if (error) throw error;
+      await loadComments(currentCommentSection);
+    } catch(e) {
+      console.error('Failed to post comment:', e);
+      input.value = text; // Restore text on failure
+    } finally {
+      input.disabled = false;
+      input.focus();
+    }
+  }
+
+  async function resolveComment(commentId) {
+    if (!supabaseClient) return;
+    try {
+      await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
+      if (currentCommentSection) await loadComments(currentCommentSection);
+    } catch(e) { console.error('Failed to resolve comment:', e); }
+  }
+
+  async function deleteComment(commentId) {
+    if (!supabaseClient) return;
+    try {
+      await supabaseClient.from('comments').delete().eq('id', commentId);
+      if (currentCommentSection) await loadComments(currentCommentSection);
+    } catch(e) { console.error('Failed to delete comment:', e); }
+  }
+
+  function updateCommentCounts() {
+    document.querySelectorAll('.comment-btn').forEach(btn => {
+      const section = btn.dataset.section;
+      const cached = commentCache[section];
+      const countEl = btn.querySelector('.comment-count');
+      if (cached && cached.length > 0 && countEl) {
+        const unresolvedCount = cached.filter(c => !c.resolved).length;
+        countEl.textContent = unresolvedCount;
+        countEl.style.display = unresolvedCount > 0 ? 'inline' : 'none';
+      } else if (countEl) {
+        countEl.style.display = 'none';
+      }
+    });
+  }
+
+  // Add comment buttons to each major section
+  function injectCommentButtons() {
+    const sections = [
+      { viewId: 'view-dashboard', sectionId: 'dashboard-timeline', label: 'Timeline' },
+      { viewId: 'view-course-info', sectionId: 'course-info', label: 'Course Info' },
+      { viewId: 'view-textbooks', sectionId: 'textbooks', label: 'Textbooks' },
+      { viewId: 'view-course-context', sectionId: 'course-context', label: 'Course Context' },
+      { viewId: 'view-clo-elo', sectionId: 'clos-elos', label: 'CLOs & ELOs' },
+      { viewId: 'view-module-overview', sectionId: 'module-overview', label: 'Module Overview' },
+    ];
+
+    sections.forEach(s => {
+      const view = document.getElementById(s.viewId);
+      if (!view) return;
+      const h1 = view.querySelector('h1');
+      if (!h1 || h1.querySelector('.comment-btn')) return;
+      const btn = document.createElement('button');
+      btn.className = 'comment-btn';
+      btn.dataset.section = s.sectionId;
+      btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
+      btn.title = 'Comments on ' + s.label;
+      btn.onclick = function() { openCommentPanel(s.sectionId); };
+      h1.style.display = 'flex';
+      h1.style.alignItems = 'center';
+      h1.style.gap = '12px';
+      h1.appendChild(btn);
+    });
+
+    // Also add to each module detail view
+    const moduleTabs = document.querySelectorAll('.module-tab');
+    if (moduleTabs.length > 0) {
+      const moduleView = document.getElementById('view-module');
+      if (moduleView) {
+        const h1 = moduleView.querySelector('h1');
+        if (h1 && !h1.querySelector('.comment-btn')) {
+          const btn = document.createElement('button');
+          btn.className = 'comment-btn';
+          btn.id = 'module-comment-btn';
+          btn.dataset.section = 'module-1';
+          btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
+          btn.title = 'Comments on this module';
+          btn.onclick = function() { openCommentPanel(this.dataset.section); };
+          h1.style.display = 'flex';
+          h1.style.alignItems = 'center';
+          h1.style.gap = '12px';
+          h1.appendChild(btn);
+        }
+      }
+    }
+  }
+
+  // Load comment counts for all sections on page load
+  async function loadAllCommentCounts() {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from('comments')
+        .select('section_id, resolved')
+        .eq('course_id', courseId);
+
+      if (error || !data) return;
+
+      // Group by section
+      const counts = {};
+      data.forEach(c => {
+        if (!counts[c.section_id]) counts[c.section_id] = [];
+        counts[c.section_id].push(c);
+      });
+
+      Object.keys(counts).forEach(section => {
+        commentCache[section] = counts[section];
+      });
+
+      updateCommentCounts();
+    } catch(e) { console.error('Failed to load comment counts:', e); }
+  }
+
+  // Initialize comments after DOM is ready
+  document.addEventListener('DOMContentLoaded', function() {
+    setTimeout(function() {
+      injectCommentButtons();
+      loadAllCommentCounts();
+    }, 500);
   });
 </script>
 
