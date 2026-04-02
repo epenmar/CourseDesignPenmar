@@ -302,6 +302,7 @@
       progress: 25, progressColor: '#e65100',
       qa: 'Aug 1, 2026', qaShort: 'Aug 1',
       devLink: 'course-worksheet-v2.html?course=mns521',
+      instructorSlug: 'dnavabi',
       driveFolder: '', // Google Drive shared folder URL
       email: 'dnavabi@asu.edu', emailName: 'MNS 521',
       id: 'Elisa Penmar &amp; Tamara Mitchell',
@@ -334,6 +335,7 @@
       progress: 15, progressColor: '#e65100',
       qa: '—', qaShort: '—',
       devLink: 'course-worksheet-v2.html?course=tph552',
+      instructorSlug: 'bogosian',
       driveFolder: '',
       email: 'bogosian@asu.edu', emailName: 'TPH 552',
       id: 'Tamara Mitchell',
@@ -517,6 +519,25 @@
     if (c.email) {
       const emailBtnLabel = c.emailLabel || 'Email Instructor';
       html += `<a href="mailto:${c.email}?subject=Course%20Development%20Update%20-%20${encodeURIComponent(c.emailName)}" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; text-decoration:none;">📧 ${emailBtnLabel}</a>`;
+    }
+    if (c.email && c.devLink && c.instructorSlug) {
+      const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+      const worksheetUrl = baseUrl + c.devLink + '&user=' + c.instructorSlug;
+      const subject = encodeURIComponent('Your ' + c.emailName + ' Course Development Worksheet');
+      const body = encodeURIComponent(
+        'Hi ' + c.instructor + ',\n\n' +
+        'Here is your personalized link to the ' + c.emailName + ' course development worksheet:\n\n' +
+        worksheetUrl + '\n\n' +
+        'You can use this link to:\n' +
+        '• Review and edit course content (CLOs, ELOs, module objectives)\n' +
+        '• Leave comments and feedback on any section\n' +
+        '• Highlight specific text to start a discussion\n' +
+        '• Track development milestones and timeline\n\n' +
+        'Your work will be auto-saved. Please bookmark this link for easy access.\n\n' +
+        'Best,\n' +
+        (courseData[Object.keys(courseData)[0]]?.id?.replace(/&amp;/g, '&') || 'Your Instructional Design Team')
+      );
+      html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none;">🔗 Send Worksheet Link</a>`;
     }
     html += `</div></div>`;
 
@@ -722,6 +743,7 @@
       progress: 0, progressColor: '#999',
       qa: '—', qaShort: '—',
       devLink: 'course-worksheet-v2.html?course=' + key,
+      instructorSlug: instructor.split(/\s+/).pop().toLowerCase(),
       driveFolder: drive,
       email: email, emailName: code,
       id: id,
@@ -748,7 +770,15 @@
       milestonesCompleted: 0,
       qaDate: null,
       clos: [], elos: [],
-      modules: Array.from({length: modCount}, (_, i) => ({ title: 'Module ' + (i+1), num: i+1, mlos: [] }))
+      modules: Array.from({length: modCount}, (_, i) => ({ title: 'Module ' + (i+1), num: i+1, mlos: [] })),
+      users: (function() {
+        const u = {};
+        const instructorSlug = instructor.split(/\s+/).pop().toLowerCase();
+        u[instructorSlug] = { name: instructor, role: 'instructor' };
+        const idSlug = id.split(/\s+/).pop().toLowerCase();
+        u[idSlug] = { name: id, role: 'id' };
+        return u;
+      })()
     };
 
     // Save both dashboard and worksheet data
