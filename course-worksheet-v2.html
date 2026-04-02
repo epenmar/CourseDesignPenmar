@@ -318,6 +318,16 @@
   .comment-identity-setup input, .comment-identity-setup select { width: 100%; padding: 8px 12px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; margin-bottom: 12px; }
   .comment-identity-setup select { appearance: auto; cursor: pointer; }
   .comment-identity-setup button { width: 100%; padding: 10px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+
+  /* ===== INLINE HIGHLIGHTS ===== */
+  .inline-highlight { background: rgba(255, 198, 39, 0.3); border-bottom: 2px solid #ffc627; cursor: pointer; border-radius: 2px; transition: background 0.15s; position: relative; }
+  .inline-highlight:hover { background: rgba(255, 198, 39, 0.5); }
+  .inline-highlight.resolved { background: rgba(200, 200, 200, 0.2); border-bottom-color: #ccc; }
+  .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
+  .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
+  .highlight-tooltip:hover { background: #6d1633; }
+  .comment-quote { background: #fef9f0; border-left: 3px solid #ffc627; padding: 8px 12px; margin-bottom: 12px; font-size: 12px; color: #666; font-style: italic; border-radius: 0 6px 6px 0; }
+  .comment-quote .quote-label { font-size: 10px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; display: block; font-style: normal; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
@@ -1171,6 +1181,9 @@
   </div>
 </div>
 
+<!-- ===== HIGHLIGHT TOOLTIP ===== -->
+<div class="highlight-tooltip" id="highlight-tooltip" onclick="startHighlightComment()">💬 Comment</div>
+
 <!-- ===== COMMENT IDENTITY MODAL ===== -->
 <div id="comment-identity-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:12px; padding:28px; max-width:380px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
@@ -1237,6 +1250,11 @@
         'Critically evaluate AI technologies for fairness, transparency, and societal impact',
         'Communicate AI system designs and tradeoffs to technical and non-technical audiences',
       ],
+      users: {
+        dnavabi: { name: 'Dariush Navabi', role: 'instructor' },
+        epenmar: { name: 'Elisa Penmar', role: 'id' },
+        tmitchell: { name: 'Tamara Mitchell', role: 'id' },
+      },
       modules: [
         { title: 'Foundations of AI Modeling', num: 1, mlos: ['Define artificial intelligence and distinguish it from machine learning and data science','Describe the agent-environment framework','Specify PEAS components for a given agent','Classify environments based on key properties','Identify and compare major AI paradigms'] },
         { title: 'AI Problem Modeling', num: 2, mlos: ['Identify appropriate state representations for a given problem','Specify actions, transitions, and goal conditions','Construct simple constraint satisfaction formulations','Distinguish between deterministic and stochastic environments','Select appropriate AI paradigms for different problem types','Describe basic logical reasoning and inference concepts used in AI'] },
@@ -1261,10 +1279,17 @@
     } catch(e) {}
   })();
 
-  // Read ?course= param
+  // Read ?course= and ?user= params
   const urlParams = new URLSearchParams(window.location.search);
   const courseId = urlParams.get('course') || 'mns521';
   const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
+
+  // URL-based auto-identity for commenting
+  const userParam = urlParams.get('user');
+  let urlIdentity = null;
+  if (userParam && activeCourse.users && activeCourse.users[userParam]) {
+    urlIdentity = activeCourse.users[userParam];
+  }
 
   // Populate page with course-specific data
   document.addEventListener('DOMContentLoaded', function() {
@@ -2607,6 +2632,8 @@
   const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
   let supabaseClient = null;
   let currentCommentSection = null;
+  let currentHighlightCommentId = null; // When viewing a highlight thread
+  let pendingHighlight = null; // { text, anchor, range } while composing a highlight comment
   let commentCache = {};
 
   try {
@@ -2615,7 +2642,10 @@
     console.warn('Supabase not available — commenting disabled.', e);
   }
 
+  // ===== IDENTITY =====
   function getCommentIdentity() {
+    // URL-derived identity takes priority
+    if (urlIdentity) return urlIdentity;
     try {
       return JSON.parse(localStorage.getItem('comment_identity'));
     } catch(e) { return null; }
@@ -2627,41 +2657,48 @@
     if (!name) return;
     localStorage.setItem('comment_identity', JSON.stringify({ name, role }));
     document.getElementById('comment-identity-modal').style.display = 'none';
-    // Continue with the action that triggered the modal
     if (currentCommentSection) openCommentPanel(currentCommentSection);
+    else if (pendingHighlight) startHighlightComment();
   }
 
-  function ensureIdentity(callback) {
-    const identity = getCommentIdentity();
-    if (identity) return true;
+  function ensureIdentity() {
+    if (getCommentIdentity()) return true;
     document.getElementById('comment-identity-modal').style.display = 'flex';
     return false;
   }
 
-  async function openCommentPanel(sectionId) {
+  // ===== COMMENT PANEL =====
+  async function openCommentPanel(sectionId, highlightId) {
     if (!ensureIdentity()) { currentCommentSection = sectionId; return; }
     currentCommentSection = sectionId;
+    currentHighlightCommentId = highlightId || null;
 
-    // Close AI panel if open
     const aiPanel = document.getElementById('ai-panel');
     if (aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
 
     const panel = document.getElementById('comment-panel');
     const titleEl = document.getElementById('comment-panel-title');
-    titleEl.textContent = 'Comments — ' + sectionId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+    if (highlightId) {
+      titleEl.textContent = 'Highlight Thread';
+    } else {
+      titleEl.textContent = 'Comments — ' + sectionId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
     panel.classList.add('open');
 
-    await loadComments(sectionId);
+    await loadComments(sectionId, highlightId);
   }
 
   function closeCommentPanel() {
     document.getElementById('comment-panel').classList.remove('open');
     currentCommentSection = null;
+    currentHighlightCommentId = null;
+    pendingHighlight = null;
   }
 
-  async function loadComments(sectionId) {
+  async function loadComments(sectionId, highlightId) {
     const msgContainer = document.getElementById('comment-messages');
-    msgContainer.innerHTML = '<div class="comment-empty">Loading comments...</div>';
+    msgContainer.innerHTML = '<div class="comment-empty">Loading...</div>';
 
     if (!supabaseClient) {
       msgContainer.innerHTML = '<div class="comment-empty">Commenting unavailable — Supabase not connected.</div>';
@@ -2669,50 +2706,92 @@
     }
 
     try {
-      const { data, error } = await supabaseClient
-        .from('comments')
-        .select('*')
-        .eq('course_id', courseId)
-        .eq('section_id', sectionId)
-        .order('created_at', { ascending: true });
-
-      if (error) throw error;
-
-      commentCache[sectionId] = data || [];
-      renderComments(data || []);
-      updateCommentCounts();
+      let query;
+      if (highlightId) {
+        // Load the highlight comment + its replies
+        const { data, error } = await supabaseClient
+          .from('comments')
+          .select('*')
+          .eq('course_id', courseId)
+          .or('id.eq.' + highlightId + ',parent_id.eq.' + highlightId)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        renderComments(data || [], true);
+      } else {
+        // Load section-level comments (no parent, no highlight) + highlight roots for this section
+        const { data, error } = await supabaseClient
+          .from('comments')
+          .select('*')
+          .eq('course_id', courseId)
+          .eq('section_id', sectionId)
+          .is('parent_id', null)
+          .order('created_at', { ascending: true });
+        if (error) throw error;
+        commentCache[sectionId] = data || [];
+        renderComments(data || [], false);
+        updateCommentCounts();
+      }
     } catch(e) {
       console.error('Failed to load comments:', e);
-      msgContainer.innerHTML = '<div class="comment-empty">Failed to load comments. Check your connection.</div>';
+      msgContainer.innerHTML = '<div class="comment-empty">Failed to load comments.</div>';
     }
   }
 
-  function renderComments(comments) {
+  function renderComments(comments, isThread) {
     const msgContainer = document.getElementById('comment-messages');
+
+    // Show pending highlight quote if composing
+    let quoteHtml = '';
+    if (pendingHighlight) {
+      quoteHtml = '<div class="comment-quote"><span class="quote-label">Highlighted text</span>"' + escapeHtml(pendingHighlight.text) + '"</div>';
+    }
+
     if (!comments || comments.length === 0) {
-      msgContainer.innerHTML = '<div class="comment-empty">No comments yet. Be the first to add one!</div>';
+      msgContainer.innerHTML = quoteHtml + '<div class="comment-empty">' + (pendingHighlight ? 'Add your comment about this selection.' : 'No comments yet. Be the first to add one!') + '</div>';
       return;
     }
 
-    msgContainer.innerHTML = comments.map(c => {
+    let html = '';
+
+    // For thread view, show the highlight quote from the root comment
+    if (isThread && comments.length > 0 && comments[0].highlight_text) {
+      html += '<div class="comment-quote"><span class="quote-label">Highlighted text</span>"' + escapeHtml(comments[0].highlight_text) + '"</div>';
+    } else {
+      html += quoteHtml;
+    }
+
+    html += comments.map(c => {
       const date = new Date(c.created_at);
       const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
       const roleLabel = c.author_role === 'id' ? 'ID' : 'Faculty';
       const roleClass = c.author_role === 'id' ? 'id' : 'instructor';
       const identity = getCommentIdentity();
       const isOwn = identity && c.author_name === identity.name;
+
+      // Show inline quote preview for highlight root comments in section view
+      let highlightBadge = '';
+      if (!isThread && c.highlight_text) {
+        const truncated = c.highlight_text.length > 60 ? c.highlight_text.substring(0, 60) + '...' : c.highlight_text;
+        highlightBadge = '<div class="comment-quote" style="margin-bottom:6px;margin-top:0;padding:4px 8px;font-size:11px;" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')" style="cursor:pointer;">"' + escapeHtml(truncated) + '"</div>';
+      }
+
       return '<div class="comment-item' + (c.resolved ? ' resolved' : '') + '">' +
         '<div class="comment-meta">' +
           '<span class="comment-author">' + escapeHtml(c.author_name) + '<span class="role-tag ' + roleClass + '">' + roleLabel + '</span></span>' +
           '<span class="comment-date">' + dateStr + '</span>' +
         '</div>' +
+        highlightBadge +
         '<div class="comment-text">' + escapeHtml(c.content) + '</div>' +
-        (isOwn || (identity && identity.role === 'id') ? '<div class="comment-actions">' +
-          (!c.resolved ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '<span style="font-size:11px;color:#4caf50;">Resolved</span>') +
-          (isOwn ? '<button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
-        '</div>' : '') +
+        '<div class="comment-actions">' +
+          (!isThread && c.highlight_text ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
+          (!c.resolved && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
+          (c.resolved ? '<span style="font-size:11px;color:#4caf50;">Resolved</span>' : '') +
+          (isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
+        '</div>' +
       '</div>';
     }).join('');
+
+    msgContainer.innerHTML = html;
   }
 
   async function postComment() {
@@ -2721,25 +2800,50 @@
 
     const input = document.getElementById('comment-input');
     const text = input.value.trim();
-    if (!text || !currentCommentSection) return;
+    if (!text) return;
 
     input.value = '';
     input.disabled = true;
 
     try {
-      const { error } = await supabaseClient.from('comments').insert({
+      const insertData = {
         course_id: courseId,
         section_id: currentCommentSection,
         author_name: identity.name,
         author_role: identity.role,
         content: text
-      });
+      };
 
+      // If replying to a highlight thread
+      if (currentHighlightCommentId) {
+        insertData.parent_id = currentHighlightCommentId;
+      }
+
+      // If this is a new highlight comment
+      if (pendingHighlight) {
+        insertData.highlight_text = pendingHighlight.text;
+        insertData.highlight_anchor = pendingHighlight.anchor;
+        insertData.section_id = pendingHighlight.sectionId;
+        currentCommentSection = pendingHighlight.sectionId;
+      }
+
+      const { data, error } = await supabaseClient.from('comments').insert(insertData).select();
       if (error) throw error;
-      await loadComments(currentCommentSection);
+
+      // If we just created a highlight comment, wrap the text in a mark
+      if (pendingHighlight && pendingHighlight.range && data && data[0]) {
+        applyHighlightToRange(pendingHighlight.range, data[0].id);
+        pendingHighlight = null;
+      }
+
+      if (currentHighlightCommentId) {
+        await loadComments(currentCommentSection, currentHighlightCommentId);
+      } else {
+        await loadComments(currentCommentSection);
+      }
     } catch(e) {
       console.error('Failed to post comment:', e);
-      input.value = text; // Restore text on failure
+      input.value = text;
     } finally {
       input.disabled = false;
       input.focus();
@@ -2750,15 +2854,36 @@
     if (!supabaseClient) return;
     try {
       await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
-      if (currentCommentSection) await loadComments(currentCommentSection);
+      // Also update the highlight mark styling
+      const mark = document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]');
+      if (mark) mark.classList.add('resolved');
+      if (currentHighlightCommentId) {
+        await loadComments(currentCommentSection, currentHighlightCommentId);
+      } else if (currentCommentSection) {
+        await loadComments(currentCommentSection);
+      }
     } catch(e) { console.error('Failed to resolve comment:', e); }
   }
 
   async function deleteComment(commentId) {
     if (!supabaseClient) return;
     try {
+      // Remove highlight mark if exists
+      const mark = document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]');
+      if (mark) {
+        const parent = mark.parentNode;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+      }
       await supabaseClient.from('comments').delete().eq('id', commentId);
-      if (currentCommentSection) await loadComments(currentCommentSection);
+      if (currentHighlightCommentId === commentId) {
+        currentHighlightCommentId = null;
+        closeCommentPanel();
+      } else if (currentHighlightCommentId) {
+        await loadComments(currentCommentSection, currentHighlightCommentId);
+      } else if (currentCommentSection) {
+        await loadComments(currentCommentSection);
+      }
     } catch(e) { console.error('Failed to delete comment:', e); }
   }
 
@@ -2777,7 +2902,255 @@
     });
   }
 
-  // Add comment buttons to each major section
+  // ===== INLINE TEXT HIGHLIGHTING =====
+  function getViewSectionId(element) {
+    // Walk up to find the view container and return its section ID
+    const viewMap = {
+      'view-dashboard': 'dashboard-timeline',
+      'view-course-info': 'course-info',
+      'view-textbooks': 'textbooks',
+      'view-course-context': 'course-context',
+      'view-clo-elo': 'clos-elos',
+      'view-module-overview': 'module-overview',
+      'view-module': 'module-1',
+    };
+    let el = element;
+    while (el && el !== document.body) {
+      if (el.id && viewMap[el.id]) {
+        let sectionId = viewMap[el.id];
+        // For module view, check which module tab is active
+        if (el.id === 'view-module') {
+          const activeTab = document.querySelector('.module-tab.active');
+          if (activeTab) {
+            const idx = Array.from(document.querySelectorAll('.module-tab')).indexOf(activeTab);
+            sectionId = 'module-' + (idx + 1);
+          }
+        }
+        return sectionId;
+      }
+      el = el.parentElement;
+    }
+    return 'general';
+  }
+
+  function buildAnchor(range, containerEl) {
+    // Build a stable anchor for re-locating the highlight
+    const selectedText = range.toString();
+    const fullText = containerEl.textContent || '';
+    const startOffset = fullText.indexOf(selectedText);
+
+    // Get some surrounding context for fuzzy matching
+    const ctxLen = 20;
+    const textBefore = startOffset > 0 ? fullText.substring(Math.max(0, startOffset - ctxLen), startOffset) : '';
+    const textAfter = fullText.substring(startOffset + selectedText.length, startOffset + selectedText.length + ctxLen);
+
+    // Build a CSS selector path to the container
+    let selector = '';
+    let el = containerEl;
+    const parts = [];
+    while (el && el !== document.body) {
+      let part = el.tagName.toLowerCase();
+      if (el.id) { parts.unshift('#' + el.id); break; }
+      if (el.parentElement) {
+        const siblings = Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName);
+        if (siblings.length > 1) {
+          part += ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
+        }
+      }
+      parts.unshift(part);
+      el = el.parentElement;
+    }
+    selector = parts.join(' > ');
+
+    return {
+      containerSelector: selector,
+      textBefore: textBefore,
+      textAfter: textAfter,
+      startOffset: startOffset,
+      highlightText: selectedText
+    };
+  }
+
+  // Show tooltip when user selects text
+  document.addEventListener('mouseup', function(e) {
+    const tooltip = document.getElementById('highlight-tooltip');
+    if (!tooltip) return;
+
+    // Don't show in inputs/textareas or inside the comment/AI panels
+    if (e.target.closest('input, textarea, select, .comment-thread-panel, .ai-panel, .highlight-tooltip')) {
+      return;
+    }
+
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    // Only allow highlights in main content area
+    const mainContent = document.querySelector('.main-content');
+    if (!mainContent || !mainContent.contains(sel.anchorNode)) {
+      tooltip.style.display = 'none';
+      return;
+    }
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    tooltip.style.display = 'block';
+    tooltip.style.left = (rect.left + rect.width / 2 - tooltip.offsetWidth / 2) + 'px';
+    tooltip.style.top = (rect.top - tooltip.offsetHeight - 10 + window.scrollY) + 'px';
+    // Store range info for when user clicks the tooltip
+    tooltip._pendingRange = range.cloneRange();
+    tooltip._pendingText = sel.toString();
+    tooltip._pendingContainer = range.commonAncestorContainer.nodeType === 3 ? range.commonAncestorContainer.parentElement : range.commonAncestorContainer;
+  });
+
+  // Hide tooltip on scroll or click elsewhere
+  document.addEventListener('mousedown', function(e) {
+    const tooltip = document.getElementById('highlight-tooltip');
+    if (tooltip && !tooltip.contains(e.target)) {
+      tooltip.style.display = 'none';
+    }
+  });
+
+  function startHighlightComment() {
+    const tooltip = document.getElementById('highlight-tooltip');
+    if (!tooltip) return;
+
+    const text = tooltip._pendingText;
+    const range = tooltip._pendingRange;
+    const container = tooltip._pendingContainer;
+    tooltip.style.display = 'none';
+
+    if (!text || !range) return;
+    if (!ensureIdentity()) {
+      // Store pending data so we can resume after identity is set
+      const sectionId = getViewSectionId(container);
+      pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+      return;
+    }
+
+    const sectionId = getViewSectionId(container);
+    pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
+
+    // Open comment panel in highlight mode
+    currentCommentSection = sectionId;
+    currentHighlightCommentId = null;
+
+    const aiPanel = document.getElementById('ai-panel');
+    if (aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
+
+    const panel = document.getElementById('comment-panel');
+    const titleEl = document.getElementById('comment-panel-title');
+    titleEl.textContent = 'New Comment';
+    panel.classList.add('open');
+
+    const msgContainer = document.getElementById('comment-messages');
+    msgContainer.innerHTML = '<div class="comment-quote"><span class="quote-label">Selected text</span>"' + escapeHtml(text) + '"</div>' +
+      '<div class="comment-empty">Write your comment about this selection below.</div>';
+
+    // Clear selection
+    window.getSelection().removeAllRanges();
+
+    // Focus the input
+    setTimeout(function() { document.getElementById('comment-input').focus(); }, 100);
+  }
+
+  function applyHighlightToRange(range, commentId) {
+    try {
+      const mark = document.createElement('mark');
+      mark.className = 'inline-highlight';
+      mark.dataset.commentId = commentId;
+      mark.title = 'Click to view comment thread';
+      range.surroundContents(mark);
+    } catch(e) {
+      // If range spans multiple elements, use extractContents approach
+      try {
+        const mark = document.createElement('mark');
+        mark.className = 'inline-highlight';
+        mark.dataset.commentId = commentId;
+        mark.title = 'Click to view comment thread';
+        mark.appendChild(range.extractContents());
+        range.insertNode(mark);
+      } catch(e2) {
+        console.warn('Could not apply highlight mark:', e2);
+      }
+    }
+  }
+
+  // Click handler for existing highlight marks
+  document.addEventListener('click', function(e) {
+    const mark = e.target.closest('.inline-highlight');
+    if (!mark) return;
+    const commentId = mark.dataset.commentId;
+    if (!commentId) return;
+    const sectionId = getViewSectionId(mark);
+    openCommentPanel(sectionId, commentId);
+  });
+
+  // ===== RESTORE HIGHLIGHTS ON PAGE LOAD =====
+  async function loadAndApplyHighlights() {
+    if (!supabaseClient) return;
+    try {
+      const { data, error } = await supabaseClient
+        .from('comments')
+        .select('*')
+        .eq('course_id', courseId)
+        .not('highlight_text', 'is', null)
+        .is('parent_id', null);
+
+      if (error || !data) return;
+
+      data.forEach(function(comment) {
+        if (!comment.highlight_anchor) return;
+        const anchor = comment.highlight_anchor;
+        try {
+          const container = document.querySelector(anchor.containerSelector);
+          if (!container) return;
+
+          const fullText = container.textContent || '';
+          const searchText = anchor.highlightText || comment.highlight_text;
+
+          // Try to find the text in the container
+          let idx = fullText.indexOf(searchText);
+          if (idx === -1) return; // Text no longer exists or was edited
+
+          // Walk text nodes to find the right position
+          const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+          let charCount = 0;
+          let startNode = null, startOffset = 0, endNode = null, endOffset = 0;
+
+          while (walker.nextNode()) {
+            const node = walker.currentNode;
+            const nodeLen = node.textContent.length;
+
+            if (!startNode && charCount + nodeLen > idx) {
+              startNode = node;
+              startOffset = idx - charCount;
+            }
+            if (startNode && charCount + nodeLen >= idx + searchText.length) {
+              endNode = node;
+              endOffset = idx + searchText.length - charCount;
+              break;
+            }
+            charCount += nodeLen;
+          }
+
+          if (startNode && endNode) {
+            const range = document.createRange();
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+            applyHighlightToRange(range, comment.id);
+          }
+        } catch(e) {
+          console.warn('Could not restore highlight for comment', comment.id, e);
+        }
+      });
+    } catch(e) { console.error('Failed to load highlights:', e); }
+  }
+
+  // ===== INJECT COMMENT BUTTONS =====
   function injectCommentButtons() {
     const sections = [
       { viewId: 'view-dashboard', sectionId: 'dashboard-timeline', label: 'Timeline' },
@@ -2805,41 +3178,36 @@
       h1.appendChild(btn);
     });
 
-    // Also add to each module detail view
-    const moduleTabs = document.querySelectorAll('.module-tab');
-    if (moduleTabs.length > 0) {
-      const moduleView = document.getElementById('view-module');
-      if (moduleView) {
-        const h1 = moduleView.querySelector('h1');
-        if (h1 && !h1.querySelector('.comment-btn')) {
-          const btn = document.createElement('button');
-          btn.className = 'comment-btn';
-          btn.id = 'module-comment-btn';
-          btn.dataset.section = 'module-1';
-          btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
-          btn.title = 'Comments on this module';
-          btn.onclick = function() { openCommentPanel(this.dataset.section); };
-          h1.style.display = 'flex';
-          h1.style.alignItems = 'center';
-          h1.style.gap = '12px';
-          h1.appendChild(btn);
-        }
+    const moduleView = document.getElementById('view-module');
+    if (moduleView) {
+      const h1 = moduleView.querySelector('h1');
+      if (h1 && !h1.querySelector('.comment-btn')) {
+        const btn = document.createElement('button');
+        btn.className = 'comment-btn';
+        btn.id = 'module-comment-btn';
+        btn.dataset.section = 'module-1';
+        btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
+        btn.title = 'Comments on this module';
+        btn.onclick = function() { openCommentPanel(this.dataset.section); };
+        h1.style.display = 'flex';
+        h1.style.alignItems = 'center';
+        h1.style.gap = '12px';
+        h1.appendChild(btn);
       }
     }
   }
 
-  // Load comment counts for all sections on page load
   async function loadAllCommentCounts() {
     if (!supabaseClient) return;
     try {
       const { data, error } = await supabaseClient
         .from('comments')
         .select('section_id, resolved')
-        .eq('course_id', courseId);
+        .eq('course_id', courseId)
+        .is('parent_id', null);
 
       if (error || !data) return;
 
-      // Group by section
       const counts = {};
       data.forEach(c => {
         if (!counts[c.section_id]) counts[c.section_id] = [];
@@ -2859,6 +3227,7 @@
     setTimeout(function() {
       injectCommentButtons();
       loadAllCommentCounts();
+      loadAndApplyHighlights();
     }, 500);
   });
 </script>
