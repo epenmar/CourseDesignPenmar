@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<title>ID Dashboard — ASU Online Course Development</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #f5f5f0; color: #1a1a1a; }
+
+  /* ===== TOP NAV ===== */
+  .topnav { background: #8c1d40; color: #fff; padding: 0 32px; height: 56px; display: flex; align-items: center; justify-content: space-between; }
+  .topnav-left { display: flex; align-items: center; gap: 16px; }
+  .topnav-logo { font-size: 14px; font-weight: 700; letter-spacing: 0.02em; }
+  .topnav-logo em { color: #ffc627; }
+  .topnav-title { font-size: 15px; font-weight: 500; opacity: 0.9; }
+  .topnav-right { display: flex; align-items: center; gap: 16px; }
+  .topnav-user { font-size: 13px; opacity: 0.8; }
+  .topnav-badge { background: #ffc627; color: #8c1d40; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+
+  /* ===== LAYOUT ===== */
+  .page { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+
+  /* ===== SUMMARY CARDS ===== */
+  .summary-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 28px; }
+  .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 20px; }
+  .summary-card .label { font-size: 12px; color: #888; font-weight: 500; margin-bottom: 6px; }
+  .summary-card .value { font-size: 30px; font-weight: 700; }
+  .summary-card .sub { font-size: 12px; color: #666; margin-top: 2px; }
+  .value-green { color: #2e7d32; }
+  .value-orange { color: #e65100; }
+  .value-red { color: #c62828; }
+  .value-maroon { color: #8c1d40; }
+
+  /* ===== FILTERS ===== */
+  .filters { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; }
+  .filter-btn { padding: 6px 16px; border-radius: 20px; border: 1px solid #e0ddd5; background: #fff; font-size: 12px; font-weight: 500; cursor: pointer; font-family: 'Inter', sans-serif; color: #666; transition: all 0.15s; }
+  .filter-btn:hover { border-color: #ccc; }
+  .filter-btn.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+  .filter-search { padding: 8px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; width: 240px; }
+  .filter-search:focus { outline: none; border-color: #8c1d40; }
+
+  /* ===== COURSE TABLE ===== */
+  .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #f5f5f0; }
+  .course-table tbody tr { background: #fff; cursor: pointer; transition: all 0.1s; }
+  .course-table tbody tr:hover { background: #fef9f0; }
+  .course-table tbody td { padding: 14px; border-bottom: 1px solid #f0ede5; vertical-align: middle; }
+  .course-table tbody tr:last-child td { border-bottom: none; }
+
+  /* First column: course info */
+  .course-cell { display: flex; flex-direction: column; }
+  .course-cell .course-code { font-weight: 600; color: #8c1d40; font-size: 14px; }
+  .course-cell .course-title { font-size: 12px; color: #666; margin-top: 1px; }
+
+  .instructor-cell { display: flex; align-items: center; gap: 8px; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: #fff; flex-shrink: 0; }
+
+  /* Progress bar */
+  .progress-cell { min-width: 140px; }
+  .progress-bar-outer { height: 8px; background: #eee; border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
+  .progress-bar-fill { height: 100%; border-radius: 4px; transition: width 0.5s; }
+  .fill-green { background: linear-gradient(90deg, #66bb6a, #43a047); }
+  .fill-orange { background: linear-gradient(90deg, #ffa726, #fb8c00); }
+  .fill-red { background: linear-gradient(90deg, #ef5350, #e53935); }
+  .fill-maroon { background: linear-gradient(90deg, #8c1d40, #b02050); }
+  .progress-text { font-size: 11px; color: #888; }
+
+  /* Status pills */
+  .status-pill { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+  .status-on-track { background: #e8f5e9; color: #2e7d32; }
+  .status-at-risk { background: #fff3e0; color: #e65100; }
+  .status-behind { background: #ffebee; color: #c62828; }
+  .status-complete { background: #e3f2fd; color: #1565c0; }
+  .status-not-started { background: #f5f5f5; color: #999; }
+
+  /* Phase badge */
+  .phase-badge { font-size: 11px; color: #666; }
+
+  /* QA date */
+  .qa-date { font-size: 12px; }
+  .qa-soon { color: #e65100; font-weight: 600; }
+  .qa-ok { color: #666; }
+
+  /* Last active */
+  .last-active { font-size: 12px; color: #888; }
+  .last-active.stale { color: #c62828; font-weight: 500; }
+
+  /* ===== DETAIL PANEL ===== */
+  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; }
+  .detail-overlay.open { display: flex; justify-content: flex-end; }
+  .detail-panel { width: 520px; background: #fff; height: 100vh; overflow-y: auto; box-shadow: -4px 0 20px rgba(0,0,0,0.1); padding: 28px 32px; }
+  .detail-close { border: none; background: none; font-size: 22px; cursor: pointer; color: #999; float: right; }
+  .detail-header h2 { font-size: 20px; color: #8c1d40; margin-bottom: 2px; }
+  .detail-header p { font-size: 13px; color: #666; margin-bottom: 20px; }
+  .detail-section { margin-bottom: 24px; }
+  .detail-section h3 { font-size: 14px; font-weight: 600; margin-bottom: 10px; color: #444; }
+
+  .detail-stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .detail-stat { background: #f5f5f0; border-radius: 8px; padding: 14px; }
+  .detail-stat .label { font-size: 11px; color: #888; margin-bottom: 4px; }
+  .detail-stat .value { font-size: 22px; font-weight: 700; }
+
+  .module-checklist { list-style: none; }
+  .module-checklist li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .module-checklist li:last-child { border-bottom: none; }
+  .mc-icon { width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+  .mc-done { background: #e8f5e9; color: #2e7d32; }
+  .mc-partial { background: #fff3e0; color: #e65100; }
+  .mc-empty { background: #f5f5f5; color: #ccc; }
+
+  .detail-timeline-item { display: flex; align-items: center; gap: 10px; padding: 6px 0; font-size: 12px; }
+  .dt-date { min-width: 90px; color: #888; }
+  .dt-label { flex: 1; }
+  .dt-status { font-size: 11px; }
+
+  .btn-open-dev { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .btn-open-dev:hover { background: #6d1633; }
+
+  /* ===== SECTION HEADER ===== */
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .section-header h2 { font-size: 20px; font-weight: 600; }
+
+  /* ===== UPCOMING ===== */
+  .upcoming-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
+  .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 16px; display: flex; align-items: flex-start; gap: 12px; }
+  .upcoming-date-box { background: #8c1d40; color: #fff; border-radius: 8px; padding: 8px; text-align: center; min-width: 52px; }
+  .upcoming-date-box .month { font-size: 10px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
+  .upcoming-date-box .day { font-size: 20px; font-weight: 700; line-height: 1; }
+  .upcoming-info .upcoming-title { font-size: 13px; font-weight: 600; }
+  .upcoming-info .upcoming-course { font-size: 12px; color: #666; }
+  .upcoming-card.urgent { border-color: #ef9a9a; background: #fff8f8; }
+  .upcoming-card.urgent .upcoming-date-box { background: #c62828; }
+  /* ===== MEETING CARDS ===== */
+  .meeting-card { background: #f9f9f6; border: 1px solid #e8e5dd; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
+  .meeting-card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .meeting-card-header h4 { font-size: 13px; font-weight: 600; color: #1a1a1a; margin: 0; }
+  .meeting-card-date { font-size: 11px; color: #888; }
+  .meeting-card-people { font-size: 11px; color: #999; margin-top: 2px; }
+  .meeting-card-toggle { font-size: 14px; color: #999; transition: transform 0.2s; }
+  .meeting-card-toggle.open { transform: rotate(180deg); }
+  .meeting-card-body { margin-top: 12px; display: none; }
+  .meeting-card-body.open { display: block; }
+  .meeting-summary { font-size: 13px; color: #444; line-height: 1.6; margin-bottom: 12px; }
+  .meeting-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #8c1d40; margin-bottom: 6px; margin-top: 12px; }
+  .meeting-decision { font-size: 12px; color: #444; padding: 3px 0; padding-left: 14px; position: relative; }
+  .meeting-decision::before { content: "→"; position: absolute; left: 0; color: #8c1d40; }
+  .meeting-action { font-size: 12px; color: #444; padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
+  .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; }
+  .meeting-action .check.done { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+
+  /* ===== SYNC INDICATOR ===== */
+  .sync-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 6px 32px; background: #f0ede5; font-size: 11px; color: #999; }
+  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; }
+  .sync-dot.stale { background: #ffc627; }
+  .sync-dot.none { background: #ccc; }
+</style>
+<script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
+</head>
+<body>
+
+<div class="topnav">
+  <div class="topnav-left">
+    <div class="topnav-logo">ASU <em>online</em></div>
+    <div class="topnav-title">Course Development Dashboard</div>
+  </div>
+  <div class="topnav-right">
+    <span class="topnav-badge" id="attention-badge">2 need attention</span>
+    <span class="topnav-user">Elisa Penmar</span>
+  </div>
+</div>
+<div class="sync-bar" id="sync-bar">
+  <span class="sync-dot none"></span> <span id="sync-label">No sync data — using defaults</span>
+</div>
+
+<div class="page">
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-row" id="summary-row"></div>
+
+  <!-- UPCOMING DEADLINES -->
+  <div class="section-header">
+    <h2>Upcoming Deadlines</h2>
+  </div>
+  <div class="upcoming-list" id="upcoming-list"></div>
+
+  <!-- COURSE TABLE -->
+  <div class="section-header" style="display:flex; align-items:center; justify-content:space-between;">
+    <h2>All Courses</h2>
+    <button onclick="openAddCourseModal()" style="padding:8px 18px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">+ Add Course</button>
+  </div>
+
+  <div class="filters" id="filters-row">
+    <!-- rendered dynamically -->
+  </div>
+
+  <table class="course-table">
+    <thead>
+      <tr>
+        <th>Course</th>
+        <th>Instructor</th>
+        <th>Session</th>
+        <th>Progress</th>
+        <th>Current Phase</th>
+        <th>Status</th>
+        <th>QA Date</th>
+        <th>Last Active</th>
+      </tr>
+    </thead>
+    <tbody id="course-table-body">
+      <!-- Rendered by JS -->
+    </tbody>
+  </table>
+</div>
+
+<!-- ===== ADD COURSE MODAL ===== -->
+<div id="add-course-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:300; align-items:center; justify-content:center;">
+  <div style="background:#fff; border-radius:12px; padding:32px; max-width:520px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15); max-height:90vh; overflow-y:auto;">
+    <h3 style="margin:0 0 4px; font-size:18px; color:#8c1d40;">Add New Course Development</h3>
+    <p style="color:#666; font-size:13px; margin-bottom:20px;">Enter the course details to begin a new development.</p>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Course Code *</label>
+        <input type="text" id="nc-code" placeholder="e.g. TPH 557" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Credits</label>
+        <input type="text" id="nc-credits" placeholder="e.g. 3" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Course Name *</label>
+        <input type="text" id="nc-name" placeholder="e.g. Tech Ethics, Policy & Law" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Instructor Name *</label>
+        <input type="text" id="nc-instructor" placeholder="e.g. Jane Smith" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Instructor Email</label>
+        <input type="text" id="nc-email" placeholder="e.g. jsmith@asu.edu" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Session</label>
+        <select id="nc-session" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; background:#fff;">
+          <option value="">— TBD —</option>
+          <option value="Summer A '26">Summer A 2026</option>
+          <option value="Summer B '26">Summer B 2026</option>
+          <option value="Summer C '26">Summer C 2026</option>
+          <option value="Fall A '26">Fall A 2026</option>
+          <option value="Fall B '26">Fall B 2026</option>
+          <option value="Fall C '26">Fall C 2026</option>
+          <option value="Spring A '27">Spring A 2027</option>
+          <option value="Spring B '27">Spring B 2027</option>
+          <option value="Spring C '27">Spring C 2027</option>
+        </select>
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Instructional Designer</label>
+        <input type="text" id="nc-id" value="Elisa Penmar" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Number of Modules</label>
+        <input type="number" id="nc-modules" value="7" min="1" max="15" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+      <div>
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Google Drive Folder URL</label>
+        <input type="text" id="nc-drive" placeholder="Optional" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
+      <button onclick="closeAddCourseModal()" style="padding:8px 20px; background:#fff; color:#666; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
+      <button onclick="submitNewCourse()" style="padding:8px 20px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">Create Course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== DETAIL PANEL ===== -->
+<div class="detail-overlay" id="detail-overlay" onclick="if(event.target===this)closeDetail()">
+  <div class="detail-panel" id="detail-panel">
+    <button class="detail-close" onclick="closeDetail()">×</button>
+    <div id="detail-content"></div>
+  </div>
+</div>
+
+<script>
+  // ===== COURSE DATA =====
+  // ===== MERGE SYNCED DATA =====
+  const synced = window.SYNCED_DATA || null;
+
+  const courseData = {
+    mns521: {
+      title: 'MNS 521 — AI Technologies',
+      subtitle: 'Dariush Navabi &bull; Summer B 2026',
+      code: 'MNS 521', courseName: 'AI Technologies',
+      instructor: 'Dariush Navabi', initials: 'DN', avatarColor: '#5c6bc0',
+      session: "Summer B '26", phase: 'Assignments Review', progressLabel: '25% — Assignments Review',
+      fillClass: 'fill-orange', lastActive: '3 days ago', lastActiveStale: false,
+      status: 'At Risk', statusClass: 'status-at-risk',
+      progress: 25, progressColor: '#e65100',
+      qa: 'Aug 1, 2026', qaShort: 'Aug 1',
+      devLink: 'course-worksheet-v2.html?course=mns521',
+      driveFolder: '', // Google Drive shared folder URL
+      email: 'dnavabi@asu.edu', emailName: 'MNS 521',
+      id: 'Elisa Penmar &amp; Tamara Mitchell',
+      modules: [
+        { name: 'Getting Started', desc: 'Course info, CLOs, ELOs', state: 'done', label: 'Complete' },
+        { name: 'Module 1', desc: 'Foundations of AI Modeling', state: 'done', label: 'Complete' },
+        { name: 'Module 2', desc: 'AI Problem Modeling', state: 'partial', label: 'In progress' },
+        { name: 'Module 3', desc: 'Learning as a Modeling Paradigm', state: 'empty', label: 'Not started' },
+        { name: 'Module 4', desc: 'AI System Integration', state: 'empty', label: 'Not started' },
+        { name: 'Module 5', desc: 'Ethical and Responsible AI', state: 'empty', label: 'Not started' },
+        { name: 'Module 6', desc: 'AI System Communication &amp; Design', state: 'empty', label: 'Not started' },
+        { name: 'Module 7', desc: 'Architecture, Eval &amp; Responsible Design', state: 'empty', label: 'Not started' },
+      ],
+      milestones: [
+        { date: 'Mar 30', label: 'Assignments Review', urgent: true, statusText: 'Due today' },
+        { date: 'Apr 8', label: 'Materials Review' },
+        { date: 'Apr 20', label: 'Module 1 Documents' },
+        { date: 'Aug 1', label: 'Final Walkthrough &amp; QA', bold: true },
+      ],
+      notes: { author: 'Elisa Penmar', date: 'Mar 19', text: 'Complete the assignment table. Need SME review on CLOs — Tamara flagged that Module 7 MLOs should target higher Bloom\'s levels (evaluate/create).' }
+    },
+    tph552: {
+      title: 'TPH 552 — Design &amp; Systems Engineering in Public Health Technology',
+      subtitle: 'Bogosian &bull; Session TBD',
+      code: 'TPH 552', courseName: 'Design & Systems Engineering in Public Health Technology',
+      instructor: 'Bogosian', initials: 'B', avatarColor: '#7b1fa2',
+      session: '—', phase: 'Course Outline', progressLabel: '15% — CLOs & ELOs defined',
+      fillClass: 'fill-orange', lastActive: 'No activity', lastActiveStale: true,
+      status: 'Not Started', statusClass: 'status-not-started',
+      progress: 15, progressColor: '#e65100',
+      qa: '—', qaShort: '—',
+      devLink: 'course-worksheet-v2.html?course=tph552',
+      driveFolder: '',
+      email: 'bogosian@asu.edu', emailName: 'TPH 552',
+      id: 'Tamara Mitchell',
+      modules: [
+        { name: 'Introduction: Systems Design & Engineering', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
+        { name: 'Sense-Making Techniques & Reporting', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
+        { name: 'Module 3', desc: 'TBD', state: 'empty', label: 'Not started' },
+        { name: 'Module 4', desc: 'TBD', state: 'empty', label: 'Not started' },
+        { name: 'Module 5', desc: 'TBD', state: 'empty', label: 'Not started' },
+        { name: 'Module 6', desc: 'TBD', state: 'empty', label: 'Not started' },
+        { name: 'Module 7', desc: 'TBD', state: 'empty', label: 'Not started' },
+      ],
+      milestones: [],
+      notes: { author: 'Tamara Mitchell', date: 'Mar 10', text: '7 CLOs and 9 ELOs defined (with CEPH competency alignments). Module 1 & 2 topics and MLOs drafted. Modules 3-7 pending. No session assigned yet.' }
+    },
+  };
+
+  // ===== LOAD USER-CREATED COURSES FROM LOCALSTORAGE =====
+  (function() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      Object.keys(saved).forEach(id => {
+        if (!courseData[id]) {
+          courseData[id] = saved[id];
+        }
+      });
+    } catch(e) {}
+  })();
+
+  // ===== MERGE SYNCED DATA INTO courseData =====
+  if (synced && synced.courses) {
+    Object.keys(synced.courses).forEach(id => {
+      if (courseData[id] && synced.courses[id]) {
+        const s = synced.courses[id];
+        if (s.notes) courseData[id].notes = s.notes;
+        if (s.lastActive) courseData[id].lastActive = s.lastActive;
+        if (s.lastActiveDate) {
+          courseData[id].lastActiveStale = false;
+          // Compute relative date from lastActiveDate
+          const diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
+          if (diff === 0) courseData[id].lastActive = 'Today';
+          else if (diff === 1) courseData[id].lastActive = '1 day ago';
+          else if (diff < 14) courseData[id].lastActive = diff + ' days ago';
+          else courseData[id].lastActive = s.lastActive;
+          courseData[id].lastActiveStale = diff > 14;
+        } else if (s.lastActive === 'No activity') {
+          courseData[id].lastActiveStale = true;
+        }
+        if (s.milestones) courseData[id].milestones = s.milestones;
+        if (s.meetings) courseData[id].meetings = s.meetings;
+        if (s.actionItems) courseData[id].actionItems = s.actionItems;
+        if (s.nextMeeting) courseData[id].nextMeeting = s.nextMeeting;
+      }
+    });
+  }
+
+  // ===== RENDER SUMMARY CARDS =====
+  function renderSummary() {
+    const counts = { total: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0 };
+    const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
+    Object.values(courseData).forEach(c => {
+      counts.total++;
+      const key = statusMap[c.status] || 'not-started';
+      if (counts[key] !== undefined) counts[key]++;
+    });
+    const attn = counts['at-risk'] + counts['not-started'];
+    document.getElementById('attention-badge').textContent = attn + ' need attention';
+    document.getElementById('summary-row').innerHTML = `
+      <div class="summary-card"><div class="label">Active Courses</div><div class="value value-maroon">${counts.total}</div><div class="sub">across your portfolio</div></div>
+      <div class="summary-card"><div class="label">On Track</div><div class="value value-green">${counts['on-track']}</div><div class="sub">meeting timeline milestones</div></div>
+      <div class="summary-card"><div class="label">At Risk</div><div class="value value-orange">${counts['at-risk']}</div><div class="sub">behind by 1–2 milestones</div></div>
+      <div class="summary-card"><div class="label">Not Started</div><div class="value value-red">${counts['not-started']}</div><div class="sub">development not yet begun</div></div>`;
+  }
+
+  // ===== RENDER UPCOMING DEADLINES =====
+  function renderUpcoming() {
+    let deadlines = [];
+    if (synced && synced.upcomingDeadlines) {
+      deadlines = synced.upcomingDeadlines;
+    } else {
+      // Fallback: build from courseData milestones
+      Object.values(courseData).forEach(c => {
+        if (c.milestones) {
+          c.milestones.slice(0, 2).forEach(m => {
+            deadlines.push({ title: m.label, course: c.title, urgent: !!m.urgent, date: m.date });
+          });
+        }
+      });
+    }
+    // Only show upcoming (not past), limit to 6
+    const today = new Date().toISOString().split('T')[0];
+    const upcoming = deadlines.filter(d => !d.date || d.date >= today).slice(0, 6);
+    const el = document.getElementById('upcoming-list');
+    if (upcoming.length === 0) {
+      el.innerHTML = '<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines.</div>';
+      return;
+    }
+    el.innerHTML = upcoming.map(d => {
+      const dt = d.date ? new Date(d.date + 'T00:00:00') : null;
+      const month = d.month || (dt ? dt.toLocaleDateString('en-US', {month:'short'}) : '—');
+      const day = d.day || (dt ? dt.getDate() : '—');
+      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}">
+        <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
+        <div class="upcoming-info"><div class="upcoming-title">${d.title}</div><div class="upcoming-course">${d.course}</div></div>
+      </div>`;
+    }).join('');
+  }
+
+  // ===== RENDER COURSE TABLE =====
+  function renderTable() {
+    const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
+    const tbody = document.getElementById('course-table-body');
+    let html = '';
+    Object.keys(courseData).forEach(id => {
+      const c = courseData[id];
+      const dataStatus = statusMap[c.status] || 'not-started';
+      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}">
+        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title">${c.courseName}</span></div></td>
+        <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
+        <td>${c.session}</td>
+        <td class="progress-cell">
+          <div class="progress-bar-outer"><div class="progress-bar-fill ${c.fillClass}" style="width:${c.progress}%"></div></div>
+          <div class="progress-text">${c.progressLabel}</div>
+        </td>
+        <td><span class="phase-badge">${c.phase}</span></td>
+        <td><span class="status-pill ${c.statusClass}">${c.status}</span></td>
+        <td><span class="qa-date qa-ok">${c.qaShort}</span></td>
+        <td><span class="last-active${c.lastActiveStale ? ' stale' : ''}">${c.lastActive}</span></td>
+      </tr>`;
+    });
+    tbody.innerHTML = html;
+  }
+
+  // ===== RENDER SYNC STATUS =====
+  function renderSyncStatus() {
+    if (synced && synced.syncedAt) {
+      const dt = new Date(synced.syncedAt);
+      const diff = Math.floor((new Date() - dt) / 3600000);
+      const dot = document.querySelector('.sync-dot');
+      const label = document.getElementById('sync-label');
+      if (diff < 1) {
+        dot.className = 'sync-dot';
+        label.textContent = 'Synced from Granola just now';
+      } else if (diff < 24) {
+        dot.className = 'sync-dot';
+        label.textContent = 'Synced from Granola ' + diff + 'h ago';
+      } else {
+        dot.className = 'sync-dot stale';
+        label.textContent = 'Synced from Granola ' + Math.floor(diff/24) + 'd ago — run /sync-dashboard to refresh';
+      }
+    }
+  }
+
+  // ===== INIT =====
+  renderSummary();
+  renderUpcoming();
+  renderTable();
+  renderSyncStatus();
+
+  // ===== RENDER DETAIL PANEL =====
+  function renderDetail(id) {
+    const c = courseData[id];
+    if (!c) return;
+
+    const stateIcons = { done: { cls: 'mc-done', icon: '✓' }, partial: { cls: 'mc-partial', icon: '◐' }, empty: { cls: 'mc-empty', icon: '○' } };
+    const stateColors = { done: '#2e7d32', partial: '#e65100', empty: '#999' };
+
+    let html = '';
+
+    // Header
+    html += `<div class="detail-header">
+      <h2>${c.title}</h2>
+      <p>${c.subtitle} &bull; <span class="status-pill ${c.statusClass}">${c.status}</span></p>
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">`;
+    if (c.devLink) {
+      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none;">📄 Open Instructor Development</a>`;
+    }
+    if (c.driveFolder) {
+      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none;">📂 Google Drive</a>`;
+    }
+    if (c.email) {
+      const emailBtnLabel = c.emailLabel || 'Email Instructor';
+      html += `<a href="mailto:${c.email}?subject=Course%20Development%20Update%20-%20${encodeURIComponent(c.emailName)}" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; text-decoration:none;">📧 ${emailBtnLabel}</a>`;
+    }
+    html += `</div></div>`;
+
+    // Stats
+    html += `<div class="detail-stat-row">
+      <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
+      <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
+    </div>`;
+
+    // ID assigned
+    html += `<div class="detail-section" style="margin-bottom:16px;">
+      <div style="font-size:12px; color:#888;">Instructional Designer</div>
+      <div style="font-size:14px; font-weight:600; color:#8c1d40; margin-top:2px;">${c.id}</div>
+    </div>`;
+
+    // Module status
+    if (c.modules.length > 0) {
+      html += `<div class="detail-section"><h3>Module Status</h3><ul class="module-checklist">`;
+      c.modules.forEach(m => {
+        const si = stateIcons[m.state];
+        html += `<li><span class="mc-icon ${si.cls}">${si.icon}</span> <strong>${m.name}</strong> — ${m.desc} <span style="margin-left:auto; font-size:11px; color:${stateColors[m.state]};">${m.label}</span></li>`;
+      });
+      html += `</ul></div>`;
+    } else {
+      html += `<div class="detail-section"><h3>Module Status</h3><div style="padding:16px; background:#f5f5f0; border-radius:8px; font-size:13px; color:#999; text-align:center;">No modules defined yet. Development has not started.</div></div>`;
+    }
+
+    // Milestones
+    if (c.milestones.length > 0) {
+      html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
+      c.milestones.forEach(m => {
+        const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
+        const labelStyle = m.bold ? 'font-weight:600;' : '';
+        const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
+        html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
+      });
+      html += `</div>`;
+    }
+
+    // Notes summary
+    if (c.notes) {
+      html += `<div class="detail-section"><h3>Current Status</h3>
+        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.5; color:#444;">
+          <strong style="color:#8c1d40;">${c.notes.author}</strong> <span style="color:#999; font-size:11px;">${c.notes.date}</span><br>
+          ${c.notes.text}
+        </div></div>`;
+    }
+
+    // Meeting history (inline)
+    if (c.meetings && c.meetings.length > 0) {
+      html += `<div class="detail-section"><h3>Meeting Notes</h3>`;
+      c.meetings.forEach((m, idx) => {
+        const isFirst = idx === 0;
+        html += `<div class="meeting-card">
+          <div class="meeting-card-header" onclick="this.querySelector('.meeting-card-toggle').classList.toggle('open'); this.nextElementSibling.classList.toggle('open');">
+            <div>
+              <h4>${m.title}</h4>
+              <div class="meeting-card-date">${m.date}${m.people ? ' — ' + m.people.join(', ') : ''}</div>
+            </div>
+            <span class="meeting-card-toggle${isFirst ? ' open' : ''}">▾</span>
+          </div>
+          <div class="meeting-card-body${isFirst ? ' open' : ''}">
+            <div class="meeting-summary">${m.summary}</div>`;
+
+        // Decisions
+        if (m.decisions && m.decisions.length > 0) {
+          html += `<div class="meeting-section-label">Decisions</div>`;
+          m.decisions.forEach(d => {
+            html += `<div class="meeting-decision">${d}</div>`;
+          });
+        }
+
+        // Action items
+        if (m.actionItems && m.actionItems.length > 0) {
+          html += `<div class="meeting-section-label">Action Items</div>`;
+          m.actionItems.forEach(a => {
+            html += `<div class="meeting-action"><span class="check${a.done ? ' done' : ''}">${a.done ? '✓' : ''}</span> <span${a.done ? ' style="text-decoration:line-through; color:#999;"' : ''}>${a.text}</span></div>`;
+          });
+        }
+
+        // Source link
+        if (m.granola) {
+          html += `<div style="margin-top:10px; font-size:11px;"><a href="${m.granola}" target="_blank" style="color:#8c1d40;">View full transcript in Granola →</a></div>`;
+        }
+
+        html += `</div></div>`; // close body + card
+      });
+      html += `</div>`; // close section
+    }
+
+    document.getElementById('detail-content').innerHTML = html;
+  }
+
+  // ===== FILTER =====
+  function filterCourses(status, btn) {
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('.course-table tbody tr').forEach(row => {
+      if (status === 'all' || row.dataset.status === status) {
+        row.style.display = '';
+      } else {
+        row.style.display = 'none';
+      }
+    });
+  }
+
+  function openDetail(courseId) {
+    console.log('Opening detail for:', courseId);
+    renderDetail(courseId);
+    document.getElementById('detail-overlay').classList.add('open');
+    document.getElementById('detail-panel').scrollTop = 0;
+  }
+
+  function closeDetail() {
+    document.getElementById('detail-overlay').classList.remove('open');
+  }
+
+  // ===== DYNAMIC FILTER BUTTONS =====
+  function renderFilters() {
+    const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
+    const counts = { total: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0 };
+    Object.values(courseData).forEach(c => {
+      counts.total++;
+      const key = statusMap[c.status] || 'not-started';
+      if (counts[key] !== undefined) counts[key]++;
+    });
+    document.getElementById('filters-row').innerHTML =
+      `<button class="filter-btn active" onclick="filterCourses('all', this)">All (${counts.total})</button>` +
+      `<button class="filter-btn" onclick="filterCourses('on-track', this)">On Track (${counts['on-track']})</button>` +
+      `<button class="filter-btn" onclick="filterCourses('at-risk', this)">At Risk (${counts['at-risk']})</button>` +
+      `<button class="filter-btn" onclick="filterCourses('not-started', this)">Not Started (${counts['not-started']})</button>` +
+      `<div style="flex:1;"></div>` +
+      `<input type="text" class="filter-search" placeholder="Search courses or instructors..." oninput="searchCourses(this.value)" />`;
+  }
+
+  function searchCourses(q) {
+    q = q.toLowerCase();
+    document.querySelectorAll('.course-table tbody tr').forEach(row => {
+      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  }
+
+  renderFilters();
+
+  // ===== ADD COURSE MODAL =====
+  function openAddCourseModal() {
+    const overlay = document.getElementById('add-course-overlay');
+    overlay.style.display = 'flex';
+    overlay.onclick = function(e) { if (e.target === overlay) closeAddCourseModal(); };
+  }
+
+  function closeAddCourseModal() {
+    document.getElementById('add-course-overlay').style.display = 'none';
+  }
+
+  const avatarColors = ['#5c6bc0','#ef6c00','#26a69a','#7b1fa2','#1565c0','#c62828','#2e7d32','#f57c00','#00838f','#ad1457'];
+
+  function submitNewCourse() {
+    const code = document.getElementById('nc-code').value.trim();
+    const name = document.getElementById('nc-name').value.trim();
+    const instructor = document.getElementById('nc-instructor').value.trim();
+    if (!code || !name || !instructor) {
+      alert('Please fill in Course Code, Course Name, and Instructor Name.');
+      return;
+    }
+
+    const email = document.getElementById('nc-email').value.trim();
+    const session = document.getElementById('nc-session').value;
+    const id = document.getElementById('nc-id').value.trim() || 'Elisa Penmar';
+    const modCount = parseInt(document.getElementById('nc-modules').value) || 7;
+    const credits = document.getElementById('nc-credits').value.trim() || '3';
+    const drive = document.getElementById('nc-drive').value.trim();
+
+    // Generate key
+    const key = code.toLowerCase().replace(/\s+/g, '');
+    if (courseData[key]) {
+      alert('A course with code "' + code + '" already exists.');
+      return;
+    }
+
+    // Initials
+    const parts = instructor.split(/\s+/);
+    const initials = parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : instructor.substring(0,2).toUpperCase();
+
+    // Color
+    const colorIdx = Object.keys(courseData).length % avatarColors.length;
+
+    // Build modules array
+    const modules = [];
+    for (let i = 1; i <= modCount; i++) {
+      modules.push({ name: 'Module ' + i, desc: 'TBD', state: 'empty', label: 'Not started' });
+    }
+
+    const sessionShort = session || '—';
+    const entry = {
+      title: code + ' — ' + name,
+      subtitle: instructor + ' &bull; ' + (session || 'Session TBD'),
+      code: code, courseName: name,
+      instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
+      session: sessionShort, phase: 'Not Started', progressLabel: '0% — Not started',
+      fillClass: 'fill-red', lastActive: 'No activity', lastActiveStale: true,
+      status: 'Not Started', statusClass: 'status-not-started',
+      progress: 0, progressColor: '#999',
+      qa: '—', qaShort: '—',
+      devLink: 'course-worksheet-v2.html?course=' + key,
+      driveFolder: drive,
+      email: email, emailName: code,
+      id: id,
+      modules: modules,
+      milestones: [],
+      notes: null,
+      _userCreated: true
+    };
+
+    // Add to in-memory data
+    courseData[key] = entry;
+
+    // Save worksheet config to localStorage
+    const worksheetEntry = {
+      code: code, name: name,
+      fullTitle: code + ' — ' + name,
+      instructor: instructor, email: email, office: '',
+      session: session || 'TBD', sessionShort: session || 'Session TBD',
+      credits: credits, prerequisites: '', sectionLines: '', enrollmentCap: '',
+      id: id, textbook: '',
+      driveFolder: drive,
+      sessionValue: null,
+      moduleCount: modCount,
+      milestonesCompleted: 0,
+      qaDate: null,
+      clos: [], elos: [],
+      modules: Array.from({length: modCount}, (_, i) => ({ title: 'Module ' + (i+1), num: i+1, mlos: [] }))
+    };
+
+    // Save both dashboard and worksheet data
+    const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    saved[key] = entry;
+    saved[key]._worksheet = worksheetEntry;
+    localStorage.setItem('user_courses', JSON.stringify(saved));
+
+    // Re-render
+    renderSummary();
+    renderTable();
+    renderFilters();
+    closeAddCourseModal();
+
+    // Clear form
+    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-credits'].forEach(id => document.getElementById(id).value = '');
+    document.getElementById('nc-session').value = '';
+    document.getElementById('nc-modules').value = '7';
+    document.getElementById('nc-id').value = 'Elisa Penmar';
+  }
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Course Development — v2</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Inter', sans-serif; background: #f5f5f0; color: #1a1a1a; }
+  .app { display: flex; height: 100vh; }
+
+  /* ===== SIDEBAR ===== */
+  .sidebar { width: 280px; background: #fff; border-right: 1px solid #e0ddd5; display: flex; flex-direction: column; flex-shrink: 0; }
+  .sidebar-header { padding: 20px 20px 16px; border-bottom: 1px solid #e0ddd5; }
+  .sidebar-header h2 { font-size: 14px; font-weight: 600; color: #8c1d40; letter-spacing: 0.02em; }
+  .sidebar-header .course-name { font-size: 12px; color: #666; margin-top: 2px; }
+  .nav-section { padding: 12px 12px 0; flex: 1; overflow-y: auto; }
+  .nav-section-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #999; padding: 0 8px; margin-bottom: 6px; margin-top: 14px; }
+  .nav-section-label:first-child { margin-top: 0; }
+  .nav-item { display: flex; align-items: center; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #444; transition: all 0.15s; margin-bottom: 1px; }
+  .nav-item:hover { background: #f5f5f0; }
+  .nav-item.active { background: #fef3e8; color: #8c1d40; font-weight: 500; }
+  .nav-item .icon { width: 20px; margin-right: 8px; text-align: center; font-size: 13px; }
+  .nav-item .badge { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
+  .badge-done { background: #e8f5e9; color: #2e7d32; }
+  .badge-partial { background: #fff3e0; color: #e65100; }
+  .badge-empty { background: #f5f5f5; color: #999; }
+  .nav-item-module { padding-left: 20px; font-size: 12px; }
+  .progress-section { padding: 12px 20px; border-top: 1px solid #e0ddd5; }
+  .progress-label { font-size: 11px; color: #666; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, #8c1d40, #ffc627); border-radius: 3px; transition: width 0.5s; }
+  .sidebar-actions { padding: 12px 16px; border-top: 1px solid #e0ddd5; display: flex; flex-direction: column; gap: 8px; }
+  .btn-generate { width: 100%; padding: 10px 16px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-generate:hover { background: #6d1633; }
+  .btn-ai { width: 100%; padding: 10px 16px; background: #fff; color: #8c1d40; border: 1.5px solid #8c1d40; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+  .btn-ai:hover { background: #fef3e8; }
+
+  /* ===== MAIN ===== */
+  .main { flex: 1; overflow-y: auto; }
+  .main-header { padding: 24px 40px 0; }
+  .breadcrumb { font-size: 12px; color: #999; margin-bottom: 8px; }
+  .breadcrumb span { color: #8c1d40; }
+  .main-content { padding: 12px 40px 60px; max-width: 920px; }
+
+  /* ===== CARDS ===== */
+  .card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 24px; margin-bottom: 14px; transition: all 0.2s; }
+  .card:hover { border-color: #ccc; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+  .card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
+  .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; }
+  .dot-empty { background: #ddd; } .dot-partial { background: #ffc627; } .dot-done { background: #4caf50; }
+  .card-toggle { font-size: 18px; color: #999; transition: transform 0.2s; }
+  .card-toggle.open { transform: rotate(180deg); }
+  .card-body { margin-top: 16px; }
+  .card-body.collapsed { display: none; }
+
+  /* ===== FORM ===== */
+  .field-group { margin-bottom: 14px; }
+  .field-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 5px; display: block; }
+  .field-hint { font-size: 11px; color: #999; margin-bottom: 6px; }
+  .field-input { width: 100%; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; }
+  .field-input:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
+  textarea.field-input { min-height: 38px; overflow: hidden; }
+  textarea.field-input.ta-multiline { min-height: 80px; }
+  .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
+  select.field-input { appearance: auto; cursor: pointer; }
+  .step-hint { font-size: 13px; color: #888; margin-bottom: 14px; font-style: italic; line-height: 1.5; }
+  .btn-add-row { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; color: #8c1d40; border: none; background: none; cursor: pointer; padding: 6px 0; font-weight: 500; }
+  .btn-add-row:hover { text-decoration: underline; }
+  .btn-mark-complete { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-size: 13px; font-weight: 600; border: 2px solid #4caf50; background: #fff; color: #4caf50; border-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; margin-top: 20px; }
+  .btn-mark-complete:hover { background: #e8f5e9; }
+  .btn-mark-complete.completed { background: #4caf50; color: #fff; border-color: #4caf50; }
+  .btn-mark-complete.completed:hover { background: #43a047; }
+
+  /* ===== PHASE HEADERS ===== */
+  .phase-header { display: flex; align-items: center; gap: 12px; margin-bottom: 16px; margin-top: 28px; }
+  .phase-header:first-child { margin-top: 8px; }
+  .phase-number { width: 28px; height: 28px; border-radius: 50%; background: #8c1d40; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 600; flex-shrink: 0; }
+  .phase-number.completed { background: #2e7d32; }
+  .phase-title { font-size: 18px; font-weight: 600; }
+  .phase-subtitle { font-size: 13px; color: #666; }
+
+  /* ===== TIMELINE TABLE ===== */
+  .timeline-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .timeline-table th { text-align: left; padding: 8px 12px; background: #f5f5f0; border: 1px solid #e0ddd5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .timeline-table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: middle; }
+  .timeline-table tr.done td { color: #999; background: #fafaf7; }
+  .timeline-table tr.done td:first-child { text-decoration: line-through; color: #999; }
+  .timeline-table tr.done td:first-child a { text-decoration: line-through; color: #999; }
+  .timeline-table tr.current td { background: #fef9f0; font-weight: 500; }
+  .timeline-table .date-input { padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 4px; font-size: 13px; font-family: 'Inter', sans-serif; width: 130px; }
+  .timeline-table .date-input:focus { outline: none; border-color: #8c1d40; }
+  .timeline-alert { font-size: 11px; color: #e65100; margin-top: 2px; }
+
+  /* ===== CLO / ELO PAIRED LAYOUT ===== */
+  .clo-elo-pairs { display: flex; flex-direction: column; gap: 10px; }
+  .clo-elo-row { display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 8px; align-items: center; padding: 10px 8px; border: 1px solid #e8e5dd; border-radius: 8px; background: #fafaf7; }
+  .clo-elo-row:hover { background: #f5f3ed; }
+  .clo-elo-num { width: 28px; height: 28px; border-radius: 50%; background: #8c1d40; color: #fff; font-size: 12px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .clo-elo-field { flex: 1; }
+  .clo-elo-field .field-input { margin: 0; font-size: 13px; resize: none; overflow: hidden; min-height: 38px; }
+  .clo-elo-arrow { font-size: 16px; color: #8c1d40; font-weight: 700; text-align: center; flex-shrink: 0; }
+
+  /* ===== MODULE OVERVIEW TABLE ===== */
+  .mod-overview-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .mod-overview-table th { text-align: left; padding: 10px 12px; background: #f5f5f0; border: 1px solid #e0ddd5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .mod-overview-table td { padding: 10px 12px; border: 1px solid #e0ddd5; vertical-align: top; }
+  .mod-overview-table input, .mod-overview-table textarea { width: 100%; padding: 6px 8px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; font-family: 'Inter', sans-serif; background: transparent; resize: vertical; }
+  .mod-overview-table input:focus, .mod-overview-table textarea:focus { outline: none; border-color: #8c1d40; background: #fff; }
+  .mod-overview-table textarea { min-height: 50px; }
+  .mod-num { font-weight: 700; color: #8c1d40; text-align: center; }
+  .clo-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; margin: 2px; cursor: pointer; }
+  .clo-tag-1 { background: #f2e3ea; color: #8C1D40; }
+  .clo-tag-2 { background: #fef6d9; color: #9e7a00; }
+  .clo-tag-3 { background: #e8f5e0; color: #4a7a10; }
+  .clo-tag-4 { background: #ddf2fb; color: #006f99; }
+  .clo-tag-5 { background: #ffecd9; color: #cc5500; }
+  .clo-tag-6 { background: #ececec; color: #555555; }
+  .clo-tag-unlinked { background: #f5f5f5; color: #999; border: 1px dashed #ccc; }
+
+  /* ===== ACTIVITY ROWS ===== */
+  .activity-block { position: relative; border: 1px solid transparent; border-radius: 10px; padding: 0; margin-bottom: 4px; transition: border-color 0.15s, box-shadow 0.15s; }
+  .activity-block:hover { border-color: #e0ddd5; }
+  .activity-block.dragging { opacity: 0.5; border-color: #8c1d40; box-shadow: 0 4px 12px rgba(140,29,64,0.15); }
+  .activity-block.drag-over { border-color: #8c1d40; border-style: dashed; background: #fef3e8; }
+  .activity-block-toolbar { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
+  .activity-block:hover .activity-block-toolbar { display: flex; }
+  .act-tool-btn { width: 28px; height: 28px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; color: #888; transition: all 0.15s; }
+  .act-tool-btn:hover { background: #f5f5f0; color: #444; }
+  .act-tool-btn.btn-delete:hover { background: #fde8e8; color: #c62828; border-color: #c62828; }
+  .act-drag-handle { cursor: grab; font-size: 14px; color: #ccc; margin-right: 4px; }
+  .act-drag-handle:active { cursor: grabbing; }
+  .move-menu { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 4px 0; z-index: 10; min-width: 180px; }
+  .move-menu.open { display: block; }
+  .move-menu-item { padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
+  .move-menu-item:hover { background: #fef3e8; color: #8c1d40; }
+  .activity-row { display: grid; grid-template-columns: 2fr 3fr 80px 100px; gap: 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-header { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; padding-bottom: 4px; }
+  .activity-input { padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; }
+  .activity-input:focus { outline: none; border-color: #8c1d40; }
+  textarea.activity-input { resize: none; overflow: hidden; min-height: 34px; }
+
+  /* ===== MODULE TABS ===== */
+  .module-tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
+  .module-tab { padding: 8px 16px; border-radius: 8px; font-size: 13px; cursor: pointer; border: 1px solid #e0ddd5; background: #fff; transition: all 0.15s; }
+  .module-tab:hover { border-color: #ccc; }
+  .module-tab.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+
+  /* ===== DOC PREVIEW ===== */
+  .doc-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 40px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .doc-preview h1 { font-size: 24px; color: #8c1d40; margin-bottom: 4px; }
+  .doc-preview .doc-subtitle { font-size: 14px; color: #666; margin-bottom: 24px; }
+  .doc-preview h2 { font-size: 18px; color: #8c1d40; margin-top: 28px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #ffc627; }
+  .doc-preview h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; }
+  .doc-preview p { font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
+  .doc-preview .placeholder { color: #ccc; font-style: italic; }
+  .doc-preview table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
+  .doc-preview table th { background: #f5f5f0; text-align: left; padding: 8px 12px; font-weight: 600; border: 1px solid #e0ddd5; }
+  .doc-preview table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: top; }
+
+  .view-toggle { display: flex; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; margin-bottom: 24px; }
+  .view-btn { padding: 8px 20px; font-size: 13px; border: none; background: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; color: #666; transition: all 0.15s; }
+  .view-btn.active { background: #8c1d40; color: #fff; }
+
+  /* ===== AI CHAT PANEL ===== */
+  .ai-panel { position: fixed; right: 0; top: 0; width: 380px; height: 100vh; background: #fff; border-left: 1px solid #e0ddd5; box-shadow: -4px 0 20px rgba(0,0,0,0.08); z-index: 100; display: flex; flex-direction: column; transform: translateX(100%); transition: transform 0.3s ease; }
+  .ai-panel.open { transform: translateX(0); }
+  .ai-panel-header { padding: 16px 20px; border-bottom: 1px solid #e0ddd5; display: flex; align-items: center; justify-content: space-between; }
+  .ai-panel-header h3 { font-size: 15px; font-weight: 600; color: #8c1d40; }
+  .ai-close { border: none; background: none; font-size: 20px; cursor: pointer; color: #999; }
+  .ai-messages { flex: 1; overflow-y: auto; padding: 16px 20px; }
+  .ai-msg { margin-bottom: 16px; }
+  .ai-msg-label { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
+  .ai-msg-label.assistant { color: #8c1d40; }
+  .ai-msg-label.user { color: #666; }
+  .ai-msg-body { font-size: 13px; line-height: 1.6; padding: 12px 16px; border-radius: 10px; }
+  .ai-msg.assistant .ai-msg-body { background: #fef3e8; }
+  .ai-msg.user .ai-msg-body { background: #f5f5f0; }
+  .ai-input-area { padding: 12px 16px; border-top: 1px solid #e0ddd5; display: flex; gap: 8px; }
+  .ai-input { flex: 1; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; }
+  .ai-input:focus { outline: none; border-color: #8c1d40; }
+  .ai-send { padding: 10px 16px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+  .ai-quick-actions { padding: 8px 16px 4px; border-top: 1px solid #f0f0f0; display: flex; gap: 6px; flex-wrap: wrap; }
+  .ai-quick { padding: 4px 10px; border: 1px solid #e0ddd5; border-radius: 20px; font-size: 11px; cursor: pointer; background: #fff; color: #666; transition: all 0.15s; }
+  .ai-quick:hover { border-color: #8c1d40; color: #8c1d40; }
+
+  /* ===== OBJECTIVE PICKER ===== */
+  .obj-picker { position: relative; }
+  .obj-picker-display { padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; cursor: pointer; min-height: 34px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; background: #fff; }
+  .obj-picker-display:hover { border-color: #ccc; }
+  .obj-picker-display.open { border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
+  .obj-picker-placeholder { color: #999; font-size: 12px; }
+  .obj-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #fef3e8; border: 1px solid #f5d5b0; border-radius: 4px; font-size: 11px; font-weight: 600; color: #8c1d40; }
+  .obj-chip-remove { cursor: pointer; font-size: 13px; color: #c99; line-height: 1; }
+  .obj-chip-remove:hover { color: #8c1d40; }
+  .obj-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 50; margin-top: 4px; display: none; max-height: 180px; overflow-y: auto; }
+  .obj-dropdown.show { display: block; }
+  .obj-option { padding: 8px 12px; cursor: pointer; font-size: 13px; display: flex; align-items: center; gap: 8px; transition: background 0.1s; }
+  .obj-option:hover { background: #fef3e8; }
+  .obj-option.selected { background: #fef3e8; font-weight: 500; }
+  .obj-check { width: 16px; height: 16px; border: 1.5px solid #ccc; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
+  .obj-option.selected .obj-check { background: #8c1d40; border-color: #8c1d40; color: #fff; }
+
+  /* ===== CLO ALIGNMENT PICKER ===== */
+  .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .clo-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #e0ddd5; background: #fff; color: #999; user-select: none; }
+  .clo-toggle:hover { border-color: #bbb; }
+  .clo-toggle.active-1 { background: #f2e3ea; border-color: #c98aa5; color: #8C1D40; }
+  .clo-toggle.active-2 { background: #fef6d9; border-color: #e6b800; color: #9e7a00; }
+  .clo-toggle.active-3 { background: #e8f5e0; border-color: #78BE20; color: #4a7a10; }
+  .clo-toggle.active-4 { background: #ddf2fb; border-color: #00A3E0; color: #006f99; }
+  .clo-toggle.active-5 { background: #ffecd9; border-color: #FF7F32; color: #cc5500; }
+  .clo-toggle.active-6 { background: #ececec; border-color: #999; color: #555555; }
+  .clo-toggle .clo-check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 10px; transition: all 0.15s; }
+  .clo-toggle.active-1 .clo-check { background: #8C1D40; border-color: #8C1D40; color: #fff; }
+  .clo-toggle.active-2 .clo-check { background: #9e7a00; border-color: #9e7a00; color: #fff; }
+  .clo-toggle.active-3 .clo-check { background: #4a7a10; border-color: #4a7a10; color: #fff; }
+  .clo-toggle.active-4 .clo-check { background: #006f99; border-color: #006f99; color: #fff; }
+  .clo-toggle.active-5 .clo-check { background: #cc5500; border-color: #cc5500; color: #fff; }
+  .clo-toggle.active-6 .clo-check { background: #555555; border-color: #555555; color: #fff; }
+
+  /* ===== CONTENT ATTACH ===== */
+  .content-attach { margin-top: 8px; border: 1px solid #e0ddd5; border-radius: 10px; overflow: hidden; }
+  .content-attach-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f5f5f0; cursor: pointer; user-select: none; }
+  .content-attach-header:hover { background: #eeeee8; }
+  .content-attach-header .ca-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
+  .content-attach-header .ca-toggle { font-size: 14px; color: #999; transition: transform 0.2s; }
+  .content-attach-header .ca-toggle.open { transform: rotate(180deg); }
+  .content-attach-inner { padding: 12px; display: none; }
+  .content-attach-inner.open { display: block; }
+  .drive-folder-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #fff; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 11px; font-weight: 600; color: #1a73e8; text-decoration: none; margin-bottom: 10px; transition: all 0.15s; }
+  .drive-folder-link:hover { background: #e8f0fe; border-color: #1a73e8; }
+  .content-attach-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; }
+  .content-attach-tab { flex: 1; padding: 7px 10px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; background: #fff; color: #666; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; border-right: 1px solid #e0ddd5; }
+  .content-attach-tab:last-child { border-right: none; }
+  .content-attach-tab:hover { background: #f5f5f0; }
+  .content-attach-tab.active { background: #8c1d40; color: #fff; }
+  .content-attach-body { border: 1px solid #e0ddd5; border-radius: 8px; padding: 12px; background: #fafaf7; }
+  .content-attach-body.hidden { display: none; }
+  .upload-zone { border: 2px dashed #d0cdc5; border-radius: 8px; padding: 16px; text-align: center; color: #999; font-size: 12px; cursor: pointer; transition: all 0.15s; }
+  .upload-zone:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
+  .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
+  .link-input-row { display: flex; gap: 8px; align-items: center; }
+  .link-input-row input { flex: 1; }
+  .template-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 16px; font-size: 13px; }
+  .template-preview h4 { font-size: 13px; font-weight: 600; color: #8c1d40; margin-bottom: 8px; }
+  .template-preview .template-section { margin-bottom: 10px; }
+  .template-preview .template-section-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  .template-preview textarea { width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; overflow: hidden; }
+  .template-preview textarea:focus { outline: none; border-color: #8c1d40; }
+  .template-type-selector { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
+  .template-type-btn { padding: 5px 12px; border: 1px solid #e0ddd5; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: #fff; color: #666; transition: all 0.15s; font-family: 'Inter', sans-serif; }
+  .template-type-btn:hover { border-color: #8c1d40; color: #8c1d40; }
+  .template-type-btn.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+  .attached-file { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; font-size: 12px; color: #2e7d32; margin-top: 6px; }
+  .attached-file .remove-file { cursor: pointer; color: #999; font-size: 14px; }
+  .attached-file .remove-file:hover { color: #c62828; }
+
+  /* ===== CALLOUT ===== */
+  .callout { padding: 16px 20px; border-radius: 10px; font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+  .callout-info { background: #fef9f0; border: 1px solid #ffc627; }
+  .callout-tip { background: #e8f5e9; border: 1px solid #a5d6a7; }
+  .callout strong { color: #8c1d40; }
+
+  /* ===== DASHBOARD GRID ===== */
+  .dashboard-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 20px; }
+  .dash-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 20px; }
+  .dash-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #8c1d40; }
+  .dash-stat { font-size: 32px; font-weight: 700; }
+  .dash-stat-label { font-size: 12px; color: #666; }
+
+  /* ===== PREV / NEXT NAV ===== */
+  .page-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0ddd5; }
+  .page-nav-btn { display: flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px; border: 1px solid #e0ddd5; background: #fff; cursor: pointer; font-family: 'Inter', sans-serif; font-size: 13px; color: #444; transition: all 0.15s; text-decoration: none; }
+  .page-nav-btn:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
+  .page-nav-btn .nav-arrow { font-size: 16px; color: #8c1d40; }
+  .page-nav-btn .nav-label { font-size: 11px; color: #999; display: block; }
+  .page-nav-btn .nav-title { font-weight: 500; }
+  .page-nav-spacer { flex: 1; }
+
+  @media (max-width: 900px) { .sidebar { display: none; } .main-content { padding: 16px 20px 60px; } }
+</style>
+<script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
+</head>
+<body>
+
+<div class="app">
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <h2>COURSE DEVELOPMENT</h2>
+      <div class="course-name">MNS 521 — AI Technologies</div>
+    </div>
+
+    <div class="nav-section">
+      <div class="nav-section-label">Getting Started</div>
+      <div class="nav-item active" onclick="showView('dashboard')">
+        <span class="icon">📊</span> Dashboard &amp; Timeline
+      </div>
+      <div class="nav-item" onclick="showView('course-info')">
+        <span class="icon">📋</span> Course Info
+        <span class="badge badge-done">✓</span>
+      </div>
+      <div class="nav-item" onclick="showView('materials')">
+        <span class="icon">📚</span> Textbooks &amp; Materials
+        <span class="badge badge-empty">—</span>
+      </div>
+      <div class="nav-item" onclick="showView('additional')">
+        <span class="icon">💬</span> Course Context Q&amp;A
+        <span class="badge badge-empty">—</span>
+      </div>
+      <div class="nav-item" onclick="showView('objectives')">
+        <span class="icon">🎯</span> CLOs &amp; ELOs
+        <span class="badge badge-done">6/6</span>
+      </div>
+
+      <div class="nav-section-label">Module Design</div>
+      <div class="nav-item" onclick="showView('module-overview')">
+        <span class="icon">🗺</span> Module Overview
+        <span class="badge badge-empty" id="sidebar-module-count">—</span>
+      </div>
+
+      <div id="sidebar-module-list"></div>
+    </div>
+
+    <div class="progress-section">
+      <div class="progress-label"><span>Overall Progress</span><span>25%</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:25%"></div></div>
+    </div>
+
+    <div class="sidebar-actions">
+      <button class="btn-generate" onclick="showView('preview')">📄 Generate Document</button>
+      <button class="btn-ai" onclick="toggleAI()">✨ AI Design Assistant</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTENT -->
+  <div class="main">
+    <div class="main-header"><div class="breadcrumb" id="breadcrumb">Getting Started / Dashboard</div></div>
+    <div class="main-content" id="main-content">
+
+      <!-- ===== DASHBOARD ===== -->
+      <div id="view-dashboard">
+        <h1 style="font-size:24px; margin-bottom:4px;">MNS 521 — AI Technologies</h1>
+        <p style="color:#666; font-size:14px; margin-bottom:24px;">Summer 2026 Session B &bull; Instructional Designer: Elisa Penmar</p>
+
+        <div class="dashboard-grid">
+          <div class="dash-card">
+            <h3>Completion</h3>
+            <div class="dash-stat">25%</div>
+            <div class="dash-stat-label">of development fields completed</div>
+          </div>
+          <div class="dash-card">
+            <h3>Modules</h3>
+            <div class="dash-stat">3 <span style="font-size:16px; font-weight:400; color:#666;">of 7</span></div>
+            <div class="dash-stat-label">modules started</div>
+          </div>
+        </div>
+
+        <!-- TIMELINE -->
+        <div style="margin-top:28px;">
+          <h3 style="font-size:16px; margin-bottom:8px;">Development Timeline</h3>
+          <p style="font-size:13px; color:#666; margin-bottom:16px;">Based on backward design principles. Dates auto-calculated from your session launch date — click any date to adjust.</p>
+
+          <div class="card" style="padding:16px;">
+            <div class="field-row" style="margin-bottom:16px; align-items:end;">
+              <div class="field-group" style="margin-bottom:0;">
+                <label class="field-label">Session Launch</label>
+                <select class="field-input" id="session-select" onchange="recalcTimeline()">
+                  <optgroup label="Summer 2026">
+                    <option value="2026-05-18">Summer 2026 A — May 18</option>
+                    <option value="2026-07-01">Summer 2026 B — Jul 1</option>
+                    <option value="2026-05-18c">Summer 2026 C — May 18</option>
+                  </optgroup>
+                  <optgroup label="Fall 2026">
+                    <option value="2026-08-20">Fall 2026 A — Aug 20</option>
+                    <option value="2026-10-14">Fall 2026 B — Oct 14</option>
+                    <option value="2026-08-20c">Fall 2026 C — Aug 20</option>
+                  </optgroup>
+                  <optgroup label="Spring 2027">
+                    <option value="2027-01-11">Spring 2027 A — Jan 11</option>
+                    <option value="2027-03-15">Spring 2027 B — Mar 15</option>
+                    <option value="2027-01-11c">Spring 2027 C — Jan 11</option>
+                  </optgroup>
+                </select>
+              </div>
+              <div class="field-group" style="margin-bottom:0;">
+                <label class="field-label" style="display:flex; align-items:center; gap:6px;">
+                  <input type="checkbox" id="summer-toggle" onchange="recalcTimeline()">
+                  Faculty available over summer?
+                </label>
+                <div style="font-size:11px; color:#999; margin-top:4px;">If unchecked, timeline will not include June–August work weeks.</div>
+              </div>
+            </div>
+
+            <table class="timeline-table" id="timeline-table">
+              <thead>
+                <tr>
+                  <th style="width:50%">Milestone</th>
+                  <th style="width:25%">Target Week</th>
+                  <th style="width:25%">Status</th>
+                </tr>
+              </thead>
+              <tbody id="timeline-body">
+                <!-- Populated by JS -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="callout callout-info" style="margin-top:20px;">
+          <strong>💡 The timeline above follows backward design principles.</strong> Your work will be auto-saved, and you can jump to any section using either the sidebar or the milestone links above. The final document will assemble itself correctly regardless of your working order.
+        </div>
+      </div>
+
+      <!-- ===== MODULE OVERVIEW ===== -->
+      <div id="view-module-overview" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Module Overview</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:16px;">Define topics and objectives for all modules. These will populate each module's detail page.</p>
+
+        <!-- Collapsible Course Objectives Reference -->
+        <div class="card" style="margin-bottom:20px;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title">
+              <span style="font-size:16px;">🎯</span> Course Objectives Reference
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">CLOs &amp; ELOs for alignment</span>
+            </div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body" id="module-overview-clo-ref">
+            <!-- Dynamically rendered from course config -->
+          </div>
+        </div>
+
+        <div id="module-overview-cards">
+          <!-- Dynamically rendered module cards -->
+        </div>
+
+        <button class="btn-add-row" style="margin-top:8px;" onclick="addModuleCard()">+ Add module</button>
+
+        <div class="callout callout-info" style="margin-top:20px;">
+          <strong>What happens next:</strong> Once you've defined topics and objectives here, click into any module from the sidebar to add its <strong>Activities &amp; Assignments</strong> and <strong>Learning Materials</strong>. The objectives you wrote above will already be there.
+        </div>
+      </div>
+
+      <!-- ===== MODULE DETAIL ===== -->
+      <div id="view-module" style="display:none;">
+        <div class="module-tabs" id="module-tabs"></div>
+
+        <h1 style="font-size:22px; margin-bottom:2px; display:flex; align-items:center; gap:8px;" id="module-title-row">
+          <span id="module-title">Module 1: Foundations of AI Modeling</span>
+          <button onclick="editModuleTitle()" style="background:none; border:1px solid #e0ddd5; border-radius:6px; padding:2px 8px; font-size:11px; cursor:pointer; color:#888;" title="Edit module title">Rename</button>
+        </h1>
+        <p style="color:#666; font-size:13px; margin-bottom:6px;" id="module-clo-tags">
+          <span class="clo-tag clo-tag-1" style="font-size:11px;">Aligned: CLO 1</span>
+        </p>
+
+        <!-- Objectives (populated from overview) -->
+        <div class="card" style="margin-top:16px; background:#fafaf7;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-done"></span> Objectives <span style="font-size:11px; color:#999; font-weight:400; margin-left:8px;">(from Module Overview)</span></div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div id="module-objectives-list" style="padding:12px 16px; background:#fff; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; line-height:1.8;">
+            </div>
+            <div style="margin-top:8px; font-size:12px; color:#8c1d40; cursor:pointer;" onclick="showView('module-overview')">Edit objectives in Module Overview →</div>
+          </div>
+        </div>
+
+        <!-- Activities & Assignments -->
+        <div class="phase-header">
+          <div class="phase-number completed">1</div>
+          <div>
+            <div class="phase-title">Activities &amp; Assignments</div>
+            <div class="phase-subtitle">What will students do to demonstrate learning?</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-done"></span> Graded &amp; Ungraded Activities</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">List discussions, quizzes, papers, reflections, etc. Note third-party tools (Yellowdig, Perusall, etc.)</div>
+            <div class="activity-row">
+              <div class="activity-header">Objective(s)</div>
+              <div class="activity-header">Activity</div>
+              <div class="activity-header">Points</div>
+              <div class="activity-header">Due Date</div>
+            </div>
+
+            <!-- Activity 1: AI Misconceptions Debate -->
+            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
+            <div class="activity-block-toolbar">
+              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
+              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
+                <div class="move-menu" id="move-menu-act-1"></div>
+              </button>
+              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
+            </div>
+            <div class="activity-row">
+              <div class="obj-picker" data-picker="1">
+                <div class="obj-picker-display" onclick="toggleObjDropdown(1)">
+                  <span class="obj-chip">1.1 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(1,'1.1')">×</span></span>
+                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(1,'1.5')">×</span></span>
+                </div>
+                <div class="obj-dropdown" id="obj-dropdown-1">
+                  <div class="obj-option selected" onclick="toggleObj(1,'1.1')"><span class="obj-check">✓</span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
+                  <div class="obj-option" onclick="toggleObj(1,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
+                  <div class="obj-option" onclick="toggleObj(1,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
+                  <div class="obj-option" onclick="toggleObj(1,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(1,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
+                </div>
+              </div>
+              <input type="text" class="activity-input" value="AI Misconceptions Debate" />
+              <input type="text" class="activity-input" value="50" style="text-align:center;" />
+              <input type="text" class="activity-input" value="Week 1" style="text-align:center;" />
+            </div>
+            <div class="content-attach" id="attach-act-1">
+              <div class="content-attach-header" onclick="toggleContentAttach(this)">
+                <span class="ca-label">Content for this Activity</span>
+                <span class="ca-toggle">▾</span>
+              </div>
+              <div class="content-attach-inner">
+              <a class="drive-folder-link" id="drive-link-act-1" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
+              <div class="content-attach-tabs">
+                <button class="content-attach-tab active" onclick="switchAttachTab('act-1','upload',this)">📁 Upload</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-1','link',this)">🔗 Link</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-1','template',this)">📝 Template</button>
+              </div>
+              <div class="content-attach-body" id="act-1-upload">
+                <div class="upload-zone" onclick="this.querySelector('input').click()">
+                  <div class="upload-icon">📄</div>
+                  Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
+                  <input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-1')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
+                </div>
+                <div id="act-1-files"></div>
+              </div>
+              <div class="content-attach-body hidden" id="act-1-link">
+                <div class="link-input-row">
+                  <input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />
+                  <button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>
+                </div>
+              </div>
+              <div class="content-attach-body hidden" id="act-1-template">
+                <div class="template-type-selector">
+                  <button class="template-type-btn active" onclick="switchTemplate('act-1','discussion',this)">Discussion</button>
+                  <button class="template-type-btn" onclick="switchTemplate('act-1','assignment',this)">Assignment</button>
+                  <button class="template-type-btn" onclick="switchTemplate('act-1','quiz',this)">Quiz</button>
+                </div>
+                <div class="template-preview" id="act-1-tpl-discussion">
+                  <h4>Discussion Template</h4>
+                  <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic and purpose..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question or task for students..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="e.g., Reply to at least two classmates..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea placeholder="List readings, videos, or links..."></textarea></div>
+                </div>
+                <div class="template-preview hidden" id="act-1-tpl-assignment">
+                  <h4>Assignment Template</h4>
+                  <div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose and context..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List the MLOs this assignment addresses..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, documents, or resources needed..."></textarea></div>
+                  <div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>
+                </div>
+                <div class="template-preview hidden" id="act-1-tpl-quiz">
+                  <h4>Quiz Template</h4>
+                  <div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *. Use ~ for incorrect feedback and @ for correct feedback.</div>
+                  <div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div>
+                  <div class="template-section"><textarea placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;c. Wrong answer&#10;d. Wrong answer&#10;&#10;2. Question text&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div>
+                </div>
+              </div>
+              </div><!-- /content-attach-inner -->
+            </div>
+            </div><!-- /activity-block -->
+
+            <!-- Activity 2: Agent Modeling Exercise -->
+            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
+            <div class="activity-block-toolbar">
+              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
+              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
+                <div class="move-menu" id="move-menu-act-2"></div>
+              </button>
+              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
+            </div>
+            <div class="activity-row" style="margin-top:8px;">
+              <div class="obj-picker" data-picker="2">
+                <div class="obj-picker-display" onclick="toggleObjDropdown(2)">
+                  <span class="obj-chip">1.2 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(2,'1.2')">×</span></span>
+                  <span class="obj-chip">1.3 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(2,'1.3')">×</span></span>
+                </div>
+                <div class="obj-dropdown" id="obj-dropdown-2">
+                  <div class="obj-option" onclick="toggleObj(2,'1.1')"><span class="obj-check"></span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(2,'1.2')"><span class="obj-check">✓</span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(2,'1.3')"><span class="obj-check">✓</span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
+                  <div class="obj-option" onclick="toggleObj(2,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
+                  <div class="obj-option" onclick="toggleObj(2,'1.5')"><span class="obj-check"></span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
+                </div>
+              </div>
+              <input type="text" class="activity-input" value="Agent Modeling Exercise" />
+              <input type="text" class="activity-input" value="40" style="text-align:center;" />
+              <input type="text" class="activity-input" value="Week 1" style="text-align:center;" />
+            </div>
+            <div class="content-attach" id="attach-act-2">
+              <div class="content-attach-header" onclick="toggleContentAttach(this)">
+                <span class="ca-label">Content for this Activity</span>
+                <span class="ca-toggle">▾</span>
+              </div>
+              <div class="content-attach-inner">
+              <a class="drive-folder-link" id="drive-link-act-2" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
+              <div class="content-attach-tabs">
+                <button class="content-attach-tab active" onclick="switchAttachTab('act-2','upload',this)">📁 Upload</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-2','link',this)">🔗 Link</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-2','template',this)">📝 Template</button>
+              </div>
+              <div class="content-attach-body" id="act-2-upload">
+                <div class="upload-zone" onclick="this.querySelector('input').click()">
+                  <div class="upload-icon">📄</div>
+                  Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>
+                  <input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-2')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />
+                </div>
+                <div id="act-2-files"></div>
+              </div>
+              <div class="content-attach-body hidden" id="act-2-link">
+                <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
+              </div>
+              <div class="content-attach-body hidden" id="act-2-template">
+                <div class="template-type-selector">
+                  <button class="template-type-btn" onclick="switchTemplate('act-2','discussion',this)">Discussion</button>
+                  <button class="template-type-btn active" onclick="switchTemplate('act-2','assignment',this)">Assignment</button>
+                  <button class="template-type-btn" onclick="switchTemplate('act-2','quiz',this)">Quiz</button>
+                </div>
+                <div class="template-preview hidden" id="act-2-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="Reply requirements..."></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="References..."></textarea></div></div>
+                <div class="template-preview" id="act-2-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea placeholder="List MLOs addressed..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="Links, docs, resources..."></textarea></div><div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div></div>
+                <div class="template-preview hidden" id="act-2-tpl-quiz"><h4>Quiz Template</h4><div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div><div class="template-section"><div class="template-section-label">Points per question</div><input type="text" class="activity-input" placeholder="e.g., 5" style="width:80px; font-size:12px;" /></div><div class="template-section"><textarea placeholder="1. Question text&#10;~ Incorrect feedback&#10;@ Correct feedback&#10;*a. Correct answer&#10;b. Wrong answer&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
+              </div>
+              </div><!-- /content-attach-inner -->
+            </div>
+            </div><!-- /activity-block -->
+
+            <!-- Activity 3: Discussion -->
+            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
+            <div class="activity-block-toolbar">
+              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
+              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
+                <div class="move-menu" id="move-menu-act-3"></div>
+              </button>
+              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
+            </div>
+            <div class="activity-row" style="margin-top:8px;">
+              <div class="obj-picker" data-picker="3">
+                <div class="obj-picker-display" onclick="toggleObjDropdown(3)">
+                  <span class="obj-chip">1.1 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(3,'1.1')">×</span></span>
+                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(3,'1.5')">×</span></span>
+                </div>
+                <div class="obj-dropdown" id="obj-dropdown-3">
+                  <div class="obj-option selected" onclick="toggleObj(3,'1.1')"><span class="obj-check">✓</span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
+                  <div class="obj-option" onclick="toggleObj(3,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
+                  <div class="obj-option" onclick="toggleObj(3,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
+                  <div class="obj-option" onclick="toggleObj(3,'1.4')"><span class="obj-check"></span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(3,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
+                </div>
+              </div>
+              <input type="text" class="activity-input" value="What distinguishes AI from traditional software?" />
+              <input type="text" class="activity-input" value="30" style="text-align:center;" />
+              <input type="text" class="activity-input" value="Week 2" style="text-align:center;" />
+            </div>
+            <div class="content-attach" id="attach-act-3">
+              <div class="content-attach-header" onclick="toggleContentAttach(this)">
+                <span class="ca-label">Content for this Activity</span>
+                <span class="ca-toggle">▾</span>
+              </div>
+              <div class="content-attach-inner">
+              <a class="drive-folder-link" id="drive-link-act-3" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
+              <div class="content-attach-tabs">
+                <button class="content-attach-tab active" onclick="switchAttachTab('act-3','upload',this)">📁 Upload</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-3','link',this)">🔗 Link</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-3','template',this)">📝 Template</button>
+              </div>
+              <div class="content-attach-body" id="act-3-upload">
+                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-3')" accept=".docx,.pdf,.xlsx,.pptx,.zip" /></div>
+                <div id="act-3-files"></div>
+              </div>
+              <div class="content-attach-body hidden" id="act-3-link"><div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>
+              <div class="content-attach-body hidden" id="act-3-template">
+                <div class="template-type-selector"><button class="template-type-btn active" onclick="switchTemplate('act-3','discussion',this)">Discussion</button><button class="template-type-btn" onclick="switchTemplate('act-3','assignment',this)">Assignment</button><button class="template-type-btn" onclick="switchTemplate('act-3','quiz',this)">Quiz</button></div>
+                <div class="template-preview" id="act-3-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Describe the discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea placeholder="Reply requirements..."></textarea></div><div class="template-section"><div class="template-section-label">Materials</div><textarea placeholder="References..."></textarea></div></div>
+                <div class="template-preview hidden" id="act-3-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step instructions..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Rubric</div><textarea placeholder="Criteria | Points..." style="min-height:80px;"></textarea></div></div>
+                <div class="template-preview hidden" id="act-3-tpl-quiz"><h4>Quiz Template</h4><div style="font-size:12px; color:#666; margin-bottom:10px;">Mark correct answers with *.</div><div class="template-section"><textarea placeholder="1. Question text&#10;*a. Correct&#10;b. Wrong&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
+              </div>
+              </div><!-- /content-attach-inner -->
+            </div>
+            </div><!-- /activity-block -->
+
+            <!-- Activity 4: Mini-Task -->
+            <div class="activity-block" draggable="true" ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">
+            <div class="activity-block-toolbar">
+              <span class="act-drag-handle" title="Drag to reorder">⠿</span>
+              <button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗
+                <div class="move-menu" id="move-menu-act-4"></div>
+              </button>
+              <button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteActivity(this)">✕</button>
+            </div>
+            <div class="activity-row" style="margin-top:8px;">
+              <div class="obj-picker" data-picker="4">
+                <div class="obj-picker-display" onclick="toggleObjDropdown(4)">
+                  <span class="obj-chip">1.4 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(4,'1.4')">×</span></span>
+                  <span class="obj-chip">1.5 <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(4,'1.5')">×</span></span>
+                </div>
+                <div class="obj-dropdown" id="obj-dropdown-4">
+                  <div class="obj-option" onclick="toggleObj(4,'1.1')"><span class="obj-check"></span> <span><strong>1.1</strong> Define artificial intelligence and distinguish it from machine learning and data science</span></div>
+                  <div class="obj-option" onclick="toggleObj(4,'1.2')"><span class="obj-check"></span> <span><strong>1.2</strong> Describe the agent-environment framework</span></div>
+                  <div class="obj-option" onclick="toggleObj(4,'1.3')"><span class="obj-check"></span> <span><strong>1.3</strong> Specify PEAS components for a given agent</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(4,'1.4')"><span class="obj-check">✓</span> <span><strong>1.4</strong> Classify environments based on key properties</span></div>
+                  <div class="obj-option selected" onclick="toggleObj(4,'1.5')"><span class="obj-check">✓</span> <span><strong>1.5</strong> Identify and compare major AI paradigms</span></div>
+                </div>
+              </div>
+              <input type="text" class="activity-input" value="Environment Classification Mini-Task" />
+              <input type="text" class="activity-input" value="20" style="text-align:center;" />
+              <input type="text" class="activity-input" value="Week 2" style="text-align:center;" />
+            </div>
+            <div class="content-attach" id="attach-act-4">
+              <div class="content-attach-header" onclick="toggleContentAttach(this)">
+                <span class="ca-label">Content for this Activity</span>
+                <span class="ca-toggle">▾</span>
+              </div>
+              <div class="content-attach-inner">
+              <a class="drive-folder-link" id="drive-link-act-4" style="display:none;" target="_blank">📂 Open Google Drive Folder</a>
+              <div class="content-attach-tabs">
+                <button class="content-attach-tab active" onclick="switchAttachTab('act-4','upload',this)">📁 Upload</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-4','link',this)">🔗 Link</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('act-4','template',this)">📝 Template</button>
+              </div>
+              <div class="content-attach-body" id="act-4-upload">
+                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'act-4')" accept=".docx,.pdf,.xlsx,.pptx,.zip" /></div>
+                <div id="act-4-files"></div>
+              </div>
+              <div class="content-attach-body hidden" id="act-4-link"><div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>
+              <div class="content-attach-body hidden" id="act-4-template">
+                <div class="template-type-selector"><button class="template-type-btn" onclick="switchTemplate('act-4','discussion',this)">Discussion</button><button class="template-type-btn active" onclick="switchTemplate('act-4','assignment',this)">Assignment</button><button class="template-type-btn" onclick="switchTemplate('act-4','quiz',this)">Quiz</button></div>
+                <div class="template-preview hidden" id="act-4-tpl-discussion"><h4>Discussion Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Discussion topic..."></textarea></div><div class="template-section"><div class="template-section-label">Prompt</div><textarea placeholder="Central question..."></textarea></div><div class="template-section"><div class="template-section-label">Peer Replies</div><textarea placeholder="Requirements..."></textarea></div></div>
+                <div class="template-preview" id="act-4-tpl-assignment"><h4>Assignment Template</h4><div class="template-section"><div class="template-section-label">Overview</div><textarea placeholder="Assignment purpose..."></textarea></div><div class="template-section"><div class="template-section-label">Instructions</div><textarea placeholder="Step-by-step..." style="min-height:100px;"></textarea></div><div class="template-section"><div class="template-section-label">Rubric</div><textarea placeholder="Criteria | Points..." style="min-height:80px;"></textarea></div></div>
+                <div class="template-preview hidden" id="act-4-tpl-quiz"><h4>Quiz Template</h4><div class="template-section"><textarea placeholder="1. Question&#10;*a. Correct&#10;b. Wrong&#10;..." style="min-height:160px; font-family:'Courier New', monospace; font-size:12px;"></textarea></div></div>
+              </div>
+              </div><!-- /content-attach-inner -->
+            </div>
+            </div><!-- /activity-block -->
+
+            <button class="btn-add-row">+ Add activity</button>
+          </div>
+        </div>
+
+        <!-- Learning Materials -->
+        <div class="phase-header">
+          <div class="phase-number">2</div>
+          <div>
+            <div class="phase-title">Learning Materials</div>
+            <div class="phase-subtitle">What resources support the weekly objectives?</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-empty"></span> Readings, Videos, &amp; Resources</div>
+            <span class="card-toggle">▾</span>
+          </div>
+          <div class="card-body collapsed">
+            <div class="step-hint">List all materials: videos, readings, PDFs, websites, lecture slides, etc. Use the tabs below to upload files, paste links, or enter content directly.</div>
+
+            <!-- Material 1 -->
+            <div style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">
+              <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+                <select class="activity-input" style="width:140px; font-size:12px; padding:6px 8px;">
+                  <option>Reading</option>
+                  <option>Video</option>
+                  <option>Audio</option>
+                  <option>PDF</option>
+                  <option>Lecture Slides</option>
+                  <option>Website</option>
+                  <option>Other</option>
+                </select>
+                <input type="text" class="activity-input" placeholder="Material title..." style="flex:1; font-size:12px;" />
+              </div>
+              <div class="content-attach-tabs">
+                <button class="content-attach-tab active" onclick="switchAttachTab('mat-1','upload',this)">📁 Upload</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('mat-1','link',this)">🔗 Link</button>
+                <button class="content-attach-tab" onclick="switchAttachTab('mat-1','template',this)">📝 Text Entry</button>
+              </div>
+              <div class="content-attach-body" id="mat-1-upload">
+                <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, 'mat-1')" /></div>
+                <div id="mat-1-files"></div>
+              </div>
+              <div class="content-attach-body hidden" id="mat-1-link">
+                <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
+              </div>
+              <div class="content-attach-body hidden" id="mat-1-template">
+                <textarea class="field-input" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;"></textarea>
+              </div>
+            </div>
+
+            <button class="btn-add-row" onclick="addMaterial()">+ Add material</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== COURSE INFO ===== -->
+      <div id="view-course-info" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Information</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:24px;">Basic details about the course and instructor.</p>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-done"></span> Course Details</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Course Prefix &amp; Number</label><input type="text" class="field-input" value="MNS 521" /></div>
+              <div class="field-group"><label class="field-label">Course Name</label><input type="text" class="field-input" value="AI Technologies" /></div>
+            </div>
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Credits</label><input type="text" class="field-input" value="3" /></div>
+              <div class="field-group"><label class="field-label">Prerequisites</label><input type="text" class="field-input" value="None" /></div>
+            </div>
+            <div class="field-row-3">
+              <div class="field-group"><label class="field-label">Session</label><input type="text" class="field-input" value="Summer 2026 — Session B" /></div>
+              <div class="field-group"><label class="field-label">Section Line(s)</label><input type="text" class="field-input" value="87023" /></div>
+              <div class="field-group"><label class="field-label">Enrollment Cap</label><input type="text" class="field-input" value="50" /></div>
+            </div>
+            <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" class="field-input" /></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-done"></span> Instructor Information</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Instructor Name</label><input type="text" class="field-input" value="Dariush Navabi" /></div>
+              <div class="field-group"><label class="field-label">Email</label><input type="text" class="field-input" value="dnavabi@asu.edu" /></div>
+            </div>
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Office</label><input type="text" class="field-input" value="COOR 4422" /></div>
+              <div class="field-group"><label class="field-label">Phone</label><input type="text" class="field-input" /></div>
+            </div>
+            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" class="field-input" /></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Course Description</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">Write a paragraph or two about the course content. You may reference the <a href="#" style="color:#8c1d40;">Catalog Description</a>.</div>
+            <div class="field-group"><textarea class="field-input" style="min-height:120px;" placeholder="Course description..."></textarea></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== CLOs & ELOs ===== -->
+      <div id="view-objectives" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Learning Outcomes</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:20px;">Define what students will learn — <strong>Course Learning Outcomes (CLOs)</strong> and <strong>Expected Learning Outcomes (ELOs)</strong>.</p>
+
+        <!-- Always-visible tip -->
+        <div class="callout callout-info" style="margin-bottom:12px;">
+          <strong style="color:#e65100;">💡 Tips for writing objectives:</strong> Start each objective with one measurable action verb. Avoid vague verbs like "know," "understand," or "learn." A strong objective looks like: <em>"Students will be able to <strong>[verb]</strong> [specific knowledge/skill] by <strong>[method or context]</strong>."</em>
+        </div>
+
+        <!-- Action Verbs Guide Accordion -->
+        <div class="card" style="margin-bottom:20px; border-color:#c8d8e8; background:#f6f9fc;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title" style="color:#1565c0;">
+              <span style="font-size:16px;">📐</span> Action Verbs &amp; Cognitive Levels
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">Expand for a guide to choosing the right verbs</span>
+            </div>
+            <span class="card-toggle">▾</span>
+          </div>
+          <div class="card-body collapsed">
+            <p style="font-size:13px; color:#555; line-height:1.6; margin-bottom:16px;">
+              Learning objectives are organized into six levels of cognitive complexity — from recalling facts up to creating original work. Use this to pick the right verb for the level of thinking you're asking students to do. <strong>CLOs (Course Learning Outcomes)</strong> typically target lower-to-mid levels (understand, apply). <strong>ELOs (Expected Learning Outcomes)</strong> should use higher levels (apply, analyze, evaluate, create). <strong>MLOs (Module Learning Outcomes)</strong> can span any level depending on the module.
+            </p>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <!-- Level 1 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #e0e0e0;">
+                <div style="font-size:13px; font-weight:600; color:#757575; margin-bottom:4px;">1. Remember <span style="font-weight:400; font-size:11px; color:#999;">— Recall facts &amp; basic concepts</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> define, list, memorize, recall, repeat, state, identify, name, recognize
+                </div>
+              </div>
+
+              <!-- Level 2 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #90caf9;">
+                <div style="font-size:13px; font-weight:600; color:#1565c0; margin-bottom:4px;">2. Understand <span style="font-weight:400; font-size:11px; color:#999;">— Explain ideas or concepts</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> classify, describe, discuss, explain, locate, recognize, report, select, translate, paraphrase, summarize
+                </div>
+              </div>
+
+              <!-- Level 3 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #81c784;">
+                <div style="font-size:13px; font-weight:600; color:#2e7d32; margin-bottom:4px;">3. Apply <span style="font-weight:400; font-size:11px; color:#999;">— Use information in new situations</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> execute, implement, solve, use, demonstrate, interpret, operate, illustrate, practice, compute
+                </div>
+              </div>
+
+              <!-- Level 4 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #ffb74d;">
+                <div style="font-size:13px; font-weight:600; color:#e65100; margin-bottom:4px;">4. Analyze <span style="font-weight:400; font-size:11px; color:#999;">— Draw connections among ideas</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> compare, contrast, differentiate, distinguish, categorize, deconstruct, examine, organize, relate, structure
+                </div>
+              </div>
+
+              <!-- Level 5 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #ef9a9a;">
+                <div style="font-size:13px; font-weight:600; color:#c62828; margin-bottom:4px;">5. Evaluate <span style="font-weight:400; font-size:11px; color:#999;">— Justify a stand or decision</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> appraise, argue, assess, critique, defend, judge, justify, rank, recommend, support, validate
+                </div>
+              </div>
+
+              <!-- Level 6 -->
+              <div style="padding:12px; background:#fff; border-radius:8px; border-left:4px solid #ce93d8;">
+                <div style="font-size:13px; font-weight:600; color:#7b1fa2; margin-bottom:4px;">6. Create <span style="font-weight:400; font-size:11px; color:#999;">— Produce new or original work</span></div>
+                <div style="font-size:12px; color:#666; line-height:1.6;">
+                  <strong>Verbs:</strong> design, develop, formulate, construct, compose, generate, hypothesize, invent, plan, produce, synthesize
+                </div>
+              </div>
+            </div>
+
+            <div style="margin-top:16px; padding:12px 16px; background:#fff8e1; border-radius:8px; font-size:12px; color:#666; line-height:1.6;">
+              <strong>✨ Want personalized feedback?</strong> Open the <a href="#" onclick="event.preventDefault(); toggleAI();" style="color:#8c1d40;">AI Design Assistant</a> to check your objectives against these cognitive levels, get verb suggestions, or understand how CLOs, ELOs, and MLOs relate.
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Course Learning Outcomes (CLOs) and Expected Learning Outcomes (ELOs) Connections</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; margin-bottom:12px; padding:0 8px;">
+              <div></div>
+              <div style="padding:8px 12px; background:#f5f5f0; border:1px solid #e0ddd5; border-radius:8px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.04em;">
+                CLO — "Students will learn to..."
+              </div>
+              <div></div>
+              <div style="padding:8px 12px; background:#f5f5f0; border:1px solid #e0ddd5; border-radius:8px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.04em;">
+                ELO — "Students will be able to..."
+              </div>
+            </div>
+            <div class="clo-elo-pairs" id="clo-elo-pairs">
+              <!-- Dynamically rendered from course config -->
+            </div>
+            <button class="btn-add-row" onclick="addCloEloPair()">+ Add CLO / ELO pair</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ADDITIONAL Q&A ===== -->
+      <div id="view-additional" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Context &amp; Questions</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:24px;">Help the instructional design team understand your course context.</p>
+        <div class="card"><div class="card-body">
+          <div class="field-group"><label class="field-label">What is the intended audience for this course?</label><textarea class="field-input auto-expand" placeholder="Describe the target students..."></textarea></div>
+          <div class="field-group"><label class="field-label">What will students need to do by the end of the course?</label><textarea class="field-input auto-expand" placeholder="Key outcomes and skills..."></textarea></div>
+          <div class="field-group"><label class="field-label">Are there external standards or accreditations we need to align with or be conscious of?</label><textarea class="field-input auto-expand" placeholder="Accreditation, competency frameworks, etc."></textarea></div>
+          <div class="field-group"><label class="field-label">How is this course currently being taught or supported?</label><textarea class="field-input auto-expand" placeholder="Existing offerings, formats, etc."></textarea></div>
+          <div class="field-group"><label class="field-label">Which courses will students take prior to this course?</label><textarea class="field-input auto-expand" placeholder="Prerequisites, typical sequencing..."></textarea></div>
+          <div class="field-group"><label class="field-label">Where do you anticipate students may struggle?</label><textarea class="field-input auto-expand" placeholder="Known challenge areas..."></textarea></div>
+          <div class="field-group"><label class="field-label">What access or technology limitations should we expect?</label><textarea class="field-input auto-expand" placeholder="Tools, platforms, access issues..."></textarea></div>
+          <div class="field-group"><label class="field-label">Is there an existing i-course or course shell we can review?</label><textarea class="field-input auto-expand" placeholder="Links or references to existing materials..."></textarea></div>
+        </div></div>
+
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title">ID Notes &amp; Action Items</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="field-group"><label class="field-label">Instructional Design Notes</label><textarea class="field-input auto-expand" style="min-height:80px;" placeholder="Notes from ID perspective..."></textarea></div>
+          </div>
+        </div>
+        <button class="btn-mark-complete" id="btn-complete-context" onclick="toggleSectionComplete('context', this)">
+          <span class="complete-icon">○</span> Mark as Complete
+        </button>
+      </div>
+
+      <!-- ===== TEXTBOOKS ===== -->
+      <div id="view-materials" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Textbooks &amp; Required Materials</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:24px;">Course-wide required materials. Per-module resources go in each module's detail page.</p>
+        <div class="card"><div class="card-body">
+          <div class="step-hint">Include name, author, edition, and publisher for each textbook.</div>
+          <div class="field-group"><label class="field-label">Textbook 1</label><input type="text" class="field-input" placeholder="Title, author, edition, publisher" /></div>
+          <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" class="field-input" placeholder="Add another..." /></div>
+          <button class="btn-add-row">+ Add textbook</button>
+          <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
+        </div></div>
+        <button class="btn-mark-complete" id="btn-complete-materials" onclick="toggleSectionComplete('materials', this)">
+          <span class="complete-icon">○</span> Mark as Complete
+        </button>
+      </div>
+
+      <!-- ===== DOC PREVIEW ===== -->
+      <div id="view-preview" style="display:none;">
+        <div class="view-toggle">
+          <button class="view-btn active">📄 Document Preview</button>
+          <button class="view-btn" onclick="alert('Export to Google Drive')">⬇ Export to Google Drive</button>
+          <button class="view-btn" onclick="alert('Download .docx')">💾 Download .docx</button>
+        </div>
+        <div class="doc-preview">
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
+            <div><h1>Course Development</h1><div class="doc-subtitle">MNS 521 — AI Technologies &bull; Summer 2026 Session B</div></div>
+            <div style="text-align:right; font-size:12px; color:#8c1d40; font-weight:700;">ASU <em>online</em></div>
+          </div>
+          <p><strong>Instructor:</strong> Dariush Navabi (dnavabi@asu.edu)</p>
+          <p><strong>Instructional Designer:</strong> Elisa Penmar</p>
+          <p><strong>Credits:</strong> 3 &bull; <strong>Prerequisites:</strong> None</p>
+          <h2>Course Learning Outcomes</h2>
+          <h3>CLOs — Students will learn to:</h3>
+          <p>1. Understand the evolution and core differences between major AI paradigms</p>
+          <p>2. Identify appropriate abstractions and modeling techniques for AI solutions</p>
+          <p>3. Recognize the mechanics of machine learning algorithms</p>
+          <p>4. Comprehend structural requirements for integrated AI architectures</p>
+          <p>5. Appreciate ethical complexities including fairness and transparency in AI</p>
+          <p>6. Interpret complex AI system trade-offs for stakeholder communication</p>
+          <h3>ELOs — Students will be able to:</h3>
+          <p>1. Differentiate between major AI paradigms including search, knowledge representation, and probabilistic reasoning</p>
+          <p>2. Formulate real-world problems using AI abstractions such as agents, state spaces, and constraints</p>
+          <p>3. Describe core machine learning approaches and evaluate their performance</p>
+          <p>4. Analyze and design high-level AI system architectures</p>
+          <p>5. Critically evaluate AI technologies for fairness, transparency, and societal impact</p>
+          <p>6. Communicate AI system designs and tradeoffs to technical and non-technical audiences</p>
+          <h2>Module 1: Foundations of AI Modeling</h2>
+          <p><em>Aligned to: CLO 1</em></p>
+          <h3>Objectives</h3>
+          <p>1.1 Define artificial intelligence and distinguish it from machine learning and data science</p>
+          <p>1.2 Describe the agent-environment framework</p>
+          <p>1.3 Specify PEAS components for a given agent</p>
+          <p>1.4 Classify environments based on key properties</p>
+          <p>1.5 Identify and compare major AI paradigms</p>
+          <h3>Activities &amp; Assignments</h3>
+          <table><tr><th>Objective(s)</th><th>Activity</th><th>Points</th><th>Due</th></tr>
+          <tr><td>1.1, 1.5</td><td>AI Misconceptions Debate</td><td>50</td><td>Week 1</td></tr>
+          <tr><td>1.2, 1.3</td><td>Agent Modeling Exercise</td><td>40</td><td>Week 1</td></tr>
+          <tr><td>1.1, 1.5</td><td>What distinguishes AI from traditional software?</td><td>30</td><td>Week 2</td></tr>
+          <tr><td>1.4, 1.5</td><td>Environment Classification Mini-Task</td><td>20</td><td>Week 2</td></tr></table>
+          <h3>Learning Materials</h3>
+          <p>Chapter 1-2 of textbook: Introduction to AI fundamentals</p>
+          <h2>Module 2: AI Problem Modeling</h2>
+          <p class="placeholder">Partially complete — objectives defined, activities and materials pending.</p>
+          <h2 style="color:#999;">Modules 3–7</h2>
+          <p class="placeholder">Not yet started</p>
+          <div style="margin-top:40px; padding-top:20px; border-top:2px solid #e0ddd5; font-size:11px; color:#999; text-align:center;">
+            Generated from Course Development &bull; ASU Online &bull; March 31, 2026
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ===== AI ASSISTANT PANEL ===== -->
+  <div class="ai-panel" id="ai-panel">
+    <div class="ai-panel-header">
+      <h3>✨ AI Design Assistant</h3>
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button style="background:none; border:1px solid #e0ddd5; border-radius:6px; padding:4px 8px; font-size:11px; cursor:pointer; color:#888;" onclick="clearAIChat()" title="Clear conversation">Clear</button>
+        <button class="ai-close" onclick="toggleAI()">×</button>
+      </div>
+    </div>
+    <div class="ai-messages" id="ai-messages">
+      <div class="ai-msg assistant">
+        <div class="ai-msg-label assistant">Design Assistant</div>
+        <div class="ai-msg-body">
+          Hi! I can help you with course design. Here are some things I can do:<br><br>
+          <strong>Bloom's Taxonomy:</strong> Check if your objectives use the right level of cognitive complexity.<br><br>
+          <strong>CLOs → ELOs → MLOs:</strong> Help you understand the relationship between course-level and module-level outcomes.<br><br>
+          <strong>Action Verbs:</strong> Suggest stronger, more measurable verbs for your objectives.<br><br>
+          <strong>Alignment:</strong> Check that your activities actually assess what your objectives claim students will learn.<br><br>
+          What would you like help with?
+        </div>
+      </div>
+    </div>
+    <div class="ai-quick-actions">
+      <div class="ai-quick" onclick="sendQuickAction('Check my CLOs against Bloom\'s Taxonomy')">Check Bloom's level</div>
+      <div class="ai-quick" onclick="sendQuickAction('Suggest ELOs based on my CLOs')">Suggest ELOs</div>
+      <div class="ai-quick" onclick="sendQuickAction('Do my module objectives align with my CLOs?')">Check alignment</div>
+      <div class="ai-quick" onclick="sendQuickAction('Review my activities and suggest improvements')">Review activities</div>
+    </div>
+    <div class="ai-input-area">
+      <input type="text" class="ai-input" id="ai-input" placeholder="Ask about objectives, Bloom's, alignment..." onkeydown="if(event.key==='Enter')sendAIMessage()" />
+      <button class="ai-send" onclick="sendAIMessage()">Send</button>
+    </div>
+  </div>
+
+  <!-- API Key Modal -->
+  <div id="api-key-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center;">
+    <div style="background:#fff; border-radius:12px; padding:28px; max-width:420px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
+      <h3 style="margin:0 0 8px; font-size:16px; color:#8c1d40;">Configure AI Assistant</h3>
+      <p style="color:#666; font-size:13px; margin-bottom:16px;">Enter your Anthropic API key to enable the design assistant. Your key is stored locally in your browser only.</p>
+      <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:100%; padding:10px 14px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; margin-bottom:12px;" />
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="closeApiKeyModal()" style="padding:8px 16px; border:1px solid #e0ddd5; border-radius:6px; background:#fff; cursor:pointer; font-size:13px;">Cancel</button>
+        <button onclick="saveApiKey()" style="padding:8px 16px; background:#8c1d40; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Save &amp; Continue</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // ===== COURSE DATA & URL PARAM =====
+  const worksheetCourses = {
+    mns521: {
+      code: 'MNS 521', name: 'AI Technologies', fullTitle: 'MNS 521 — AI Technologies',
+      instructor: 'Dariush Navabi', email: 'dnavabi@asu.edu', office: 'COOR 4422',
+      session: 'Summer 2026 — Session B', sessionShort: 'Summer 2026 Session B',
+      credits: '3', prerequisites: 'None', sectionLines: '87023', enrollmentCap: '50',
+      id: 'Elisa Penmar',
+      textbook: 'Artificial Intelligence: A Modern Approach (4th Edition) by Russell & Norvig',
+      driveFolder: '', // Paste Google Drive shared folder URL here
+      sessionValue: '2026-07-01',
+      moduleCount: 7,
+      milestonesCompleted: 2, // ELOs/CLOs and MLOs/Topics done
+      qaDate: '2026-08-01',
+      // Actual dates from the course planning worksheet
+      milestoneDates: [
+        '2026-03-02', // ELOs and CLOs Review
+        '2026-03-16', // Module MLOs and Topics Review
+        '2026-03-30', // Assignments Review
+        '2026-04-08', // Materials Review
+        '2026-04-20', // Module 1
+        '2026-04-29', // Module 2
+        '2026-05-11', // Module 3
+        '2026-05-20', // Module 4
+        '2026-06-01', // Module 5
+        '2026-06-10', // Module 6
+        '2026-06-22', // Module 7
+        '2026-07-01', // Course Shell Draft
+        '2026-07-13', // Course Lectures
+        '2026-07-27', // Course Shell
+      ],
+      clos: [
+        'Understand the evolution and core differences between major AI paradigms',
+        'Identify appropriate abstractions and modeling techniques for AI solutions',
+        'Recognize the mechanics of machine learning algorithms',
+        'Comprehend structural requirements for integrated AI architectures',
+        'Appreciate ethical complexities including fairness and transparency in AI',
+        'Interpret complex AI system trade-offs for stakeholder communication',
+      ],
+      elos: [
+        'Differentiate between major AI paradigms including search, knowledge representation, and probabilistic reasoning',
+        'Formulate real-world problems using AI abstractions such as agents, state spaces, and constraints',
+        'Describe core machine learning approaches and evaluate their performance',
+        'Analyze and design high-level AI system architectures',
+        'Critically evaluate AI technologies for fairness, transparency, and societal impact',
+        'Communicate AI system designs and tradeoffs to technical and non-technical audiences',
+      ],
+      modules: [
+        { title: 'Foundations of AI Modeling', num: 1, mlos: ['Define artificial intelligence and distinguish it from machine learning and data science','Describe the agent-environment framework','Specify PEAS components for a given agent','Classify environments based on key properties','Identify and compare major AI paradigms'] },
+        { title: 'AI Problem Modeling', num: 2, mlos: ['Identify appropriate state representations for a given problem','Specify actions, transitions, and goal conditions','Construct simple constraint satisfaction formulations','Distinguish between deterministic and stochastic environments','Select appropriate AI paradigms for different problem types','Describe basic logical reasoning and inference concepts used in AI'] },
+        { title: 'Learning as a Modeling Paradigm', num: 3, mlos: ['Explain the differences between supervised and unsupervised learning paradigms','Describe the components of the machine learning pipeline','Interpret common evaluation metrics in the context of model performance','Analyze the relationship between model complexity, overfitting, and generalization','Describe how neural networks learn representations from data at a conceptual level','Identify limitations and risks of machine learning models'] },
+        { title: 'AI in Perception & Communication', num: 4, mlos: ['Describe the main components and stages of NLP and computer vision pipelines','Identify the roles of perception, learning, and reasoning components within AI systems','Compare symbolic and data-driven approaches in real-world AI applications','Analyze how different components of an AI system interact to produce end-to-end behavior','Evaluate the strengths and limitations of AI systems in perception and communication tasks'] },
+        { title: 'Ethical and Responsible AI Reasoning', num: 5, mlos: ['Identify sources of bias in AI systems','Explain key fairness concepts and how they apply to evaluating AI system outcomes','Evaluate AI systems with respect to fairness, transparency, and accountability','Propose strategies to mitigate bias and improve responsible design of AI systems'] },
+        { title: 'AI System Communication & Design', num: 6, mlos: ['Describe the structure and components of an AI system using appropriate diagrams','Explain AI system designs clearly to both technical and non-technical audiences','Justify modeling choices based on problem characteristics and data availability','Analyze tradeoffs between alternative AI approaches','Communicate the limitations and assumptions of AI systems clearly'] },
+        { title: 'AI System Architecture, Evaluation & Responsible Design', num: 7, mlos: ['Design a high-level architecture for an AI system integrating appropriate modeling paradigms','Justify the selection of AI techniques based on problem structure and data availability','Critically evaluate an AI system for performance, interpretability, fairness, robustness, and deployment risk','Analyze tradeoffs between symbolic vs statistical approaches, accuracy vs explainability, and automation vs human oversight','Propose improvements or safeguards to enhance ethical and responsible AI deployment','Present AI system designs, limitations, and tradeoffs clearly to technical and non-technical audiences'] },
+      ],
+    },
+    tph552: {
+      code: 'TPH 552', name: 'Design & Systems Engineering in Public Health Technology',
+      fullTitle: 'TPH 552 — Design & Systems Engineering in Public Health Technology',
+      instructor: 'Bogosian', email: 'bogosian@asu.edu', office: '',
+      session: 'TBD', sessionShort: 'Session TBD',
+      credits: '3', prerequisites: '', sectionLines: '', enrollmentCap: '',
+      id: 'Tamara Mitchell',
+      textbook: '',
+      driveFolder: '',
+      sessionValue: null,
+      moduleCount: 7,
+      milestonesCompleted: 0,
+      qaDate: null,
+      clos: [
+        'Design research for sense-making',
+        'Design thinking and making in public health technology',
+        'Systems engineering in public health technology',
+        'Data collection, data integration, and access roles in systems',
+        'Implementation, evaluation, and scalability of public health technologies',
+        'Human-centered and life-centered design in public health technology',
+        'Socio-technical systems and consequences',
+      ],
+      elos: [
+        'Explain design and engineering processes, tools, and approaches for creating public health systems (CEPH 21, 22)',
+        'Identify the components of and evaluate public health systems using systems design and engineering concepts and principles (CEPH 5, 8, 11)',
+        'Investigate and explain public health situations, challenges, and context using human-centered methodologies (CEPH 2, 4, 8, 22)',
+        'Assess the ethical and equity implications of public health systems and technologies using political, economic, and cultural criteria (CEPH 4, 6, 7, 8, 15)',
+        'Propose human-centered public health systems using design and engineering processes, tools, and approaches (CEPH 8, 9, 17, 19, 21)',
+        'Design, prototype, and test innovative health technologies or interventions tailored to diverse communities\' specific needs (CEPH 9, 11, 13, 18, 21)',
+        'Identify requirements, constraints and resources needed to implement public health technologies and interventions, including data work and security (CEPH 5)',
+        'Propose systems architectures and data models that support the efficiency and reliability of public health systems (CEPH 9, 16)',
+        'Formulate strategies to create sustainable and scalable solutions in both resource-rich and resource-limited settings (CEPH 8, 10, 13, 14, 17)',
+      ],
+      modules: [
+        { title: 'Introduction: Systems Design & Engineering Practices', num: 1, mlos: ['Explain the core concepts of and approaches to systems design and engineering such as design thinking, co-design, human-centered design, and agile methodologies and how they are applied in public health systems','Evaluate the role of design and systems engineering practices in creating effective and sustainable public health services','Critically assess how co-design and human-centered design enhance the accessibility, efficiency, and impact of public health interventions','Apply systems analysis principles and engineering heuristics to identify complex public health challenges','Analyze public health systems to develop actionable insights using design sense-making techniques','Evaluate public health systems through the design lens and engineering principles to identify areas for improvement and innovation','Use systems thinking to discuss the interrelationships within public health systems and how it can inform the design of more effective interventions'] },
+        { title: 'Design Sense-Making Techniques & Reporting', num: 2, mlos: ['Analyze public health systems using design sense-making techniques','Develop a comprehensive sense-making plan that integrates fieldwork findings with design and systems analysis principles','Interpret qualitative data that informs the development of human-centered public health interventions using empathy-driven design methods','Assess the effectiveness of various sense-making techniques in understanding the complexities of public health challenges','Analyze data using design sense-making approaches to inform public health system improvements through the implementation of fieldwork strategies','Analyze public health systems through the application of sense-making reporting techniques, including stakeholder mapping, journey mapping, and mental models','Communicate key insights from fieldwork in a comprehensive sense-making report that integrates tools like empathy mapping and mental models','Identify key challenges and opportunities within public health interventions through stakeholder mapping and user journeys','Analyze the perspectives of diverse stakeholders in public health system design using mental models','Evaluate the effectiveness of sense-making tools in addressing complex public health challenges and informing decision-making'] },
+        { title: 'TBD', num: 3, mlos: [] },
+        { title: 'TBD', num: 4, mlos: [] },
+        { title: 'TBD', num: 5, mlos: [] },
+        { title: 'TBD', num: 6, mlos: [] },
+        { title: 'TBD', num: 7, mlos: [] },
+      ],
+    },
+  };
+
+  // ===== LOAD USER-CREATED COURSES FROM LOCALSTORAGE =====
+  (function() {
+    try {
+      const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      Object.keys(saved).forEach(id => {
+        if (!worksheetCourses[id] && saved[id]._worksheet) {
+          worksheetCourses[id] = saved[id]._worksheet;
+        }
+      });
+    } catch(e) {}
+  })();
+
+  // Read ?course= param
+  const urlParams = new URLSearchParams(window.location.search);
+  const courseId = urlParams.get('course') || 'mns521';
+  const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
+
+  // Populate page with course-specific data
+  document.addEventListener('DOMContentLoaded', function() {
+    // Sidebar course name
+    const sidebarName = document.querySelector('.sidebar-header .course-name');
+    if (sidebarName) sidebarName.textContent = activeCourse.fullTitle;
+
+    // Dashboard header
+    const dashH1 = document.querySelector('#view-dashboard h1');
+    if (dashH1) dashH1.textContent = activeCourse.fullTitle;
+    const dashP = document.querySelector('#view-dashboard > p');
+    if (dashP) dashP.innerHTML = activeCourse.sessionShort + ' &bull; Instructional Designer: ' + activeCourse.id;
+
+    // Page title
+    document.title = 'Course Development — ' + activeCourse.code;
+
+    // Restore any saved module titles from localStorage, then render sidebar
+    const modules = activeCourse.modules || [];
+    const modCount = activeCourse.moduleCount || modules.length || 7;
+    for (let i = 0; i < modCount; i++) {
+      const saved = loadField('module_title_' + (i + 1));
+      if (saved && modules[i]) {
+        modules[i].title = saved;
+      }
+    }
+
+    const sidebarModList = document.getElementById('sidebar-module-list');
+    if (sidebarModList) {
+      let html = '';
+      for (let i = 0; i < modCount; i++) {
+        const mod = modules[i];
+        const title = mod ? mod.title : 'Module ' + (i + 1);
+        html += '<div class="nav-item nav-item-module" onclick="showModule(' + (i + 1) + ')">' +
+          '<span class="icon" style="font-size:11px;">' + (i + 1) + '</span> ' + title +
+          '<span class="badge badge-empty">—</span></div>';
+      }
+      sidebarModList.innerHTML = html;
+    }
+
+    // Render module detail tabs dynamically
+    const moduleTabs = document.getElementById('module-tabs');
+    if (moduleTabs) {
+      const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+      let html = '';
+      for (let i = 1; i <= modCount; i++) {
+        html += '<div class="module-tab' + (i === 1 ? ' active' : '') + '" onclick="showModule(' + i + ')">' + i + '</div>';
+      }
+      moduleTabs.innerHTML = html;
+    }
+
+    // Course Info fields (only overwrite if not MNS 521, since MNS 521 data is already hardcoded)
+    if (courseId !== 'mns521') {
+      const fields = document.querySelectorAll('#view-course-info .field-input');
+      // Clear all course info fields for non-MNS courses
+      fields.forEach(f => { if (f.tagName === 'TEXTAREA') f.value = ''; else if (f.type === 'text') f.value = ''; });
+
+      // Fill in what we know
+      const courseInfoInputs = document.querySelectorAll('#view-course-info input.field-input');
+      if (courseInfoInputs[0]) courseInfoInputs[0].value = activeCourse.code; // prefix & number
+      if (courseInfoInputs[1]) courseInfoInputs[1].value = activeCourse.name; // course name
+      if (courseInfoInputs[2]) courseInfoInputs[2].value = activeCourse.credits; // credits
+      if (courseInfoInputs[3]) courseInfoInputs[3].value = activeCourse.prerequisites; // prereqs
+      if (courseInfoInputs[4]) courseInfoInputs[4].value = activeCourse.session; // session
+      if (courseInfoInputs[5]) courseInfoInputs[5].value = activeCourse.sectionLines; // section lines
+      if (courseInfoInputs[6]) courseInfoInputs[6].value = activeCourse.enrollmentCap; // enrollment
+      // Instructor fields
+      if (courseInfoInputs[8]) courseInfoInputs[8].value = activeCourse.instructor;
+      if (courseInfoInputs[9]) courseInfoInputs[9].value = activeCourse.email;
+      if (courseInfoInputs[10]) courseInfoInputs[10].value = activeCourse.office;
+
+      // Clear CLOs and ELOs for non-MNS courses
+      document.querySelectorAll('#view-objectives input.field-input').forEach(f => f.value = '');
+
+      // Clear textbook
+      const matInputs = document.querySelectorAll('#view-materials input.field-input');
+      matInputs.forEach(f => f.value = '');
+
+      // Clear course context Q&A
+      document.querySelectorAll('#view-additional textarea.field-input, #view-additional .auto-expand').forEach(f => f.value = '');
+
+      // Update doc preview
+      const previewTitle = document.querySelector('.doc-preview h1');
+      if (previewTitle) previewTitle.textContent = 'Course Development';
+      const previewSubtitle = document.querySelector('.doc-subtitle');
+      if (previewSubtitle) previewSubtitle.innerHTML = activeCourse.fullTitle + ' &bull; ' + activeCourse.sessionShort;
+      const previewPs = document.querySelectorAll('.doc-preview > p');
+      if (previewPs[0]) previewPs[0].innerHTML = '<strong>Instructor:</strong> ' + activeCourse.instructor + ' (' + activeCourse.email + ')';
+      if (previewPs[1]) previewPs[1].innerHTML = '<strong>Instructional Designer:</strong> ' + activeCourse.id;
+      if (previewPs[2]) previewPs[2].innerHTML = '<strong>Credits:</strong> ' + activeCourse.credits;
+    }
+
+    // Set the correct session in the dropdown
+    const sessionSelect = document.getElementById('session-select');
+    if (activeCourse.sessionValue) {
+      // Try to select the matching option
+      const opts = sessionSelect.options;
+      let found = false;
+      for (let i = 0; i < opts.length; i++) {
+        opts[i].selected = false;
+        if (opts[i].value === activeCourse.sessionValue) {
+          opts[i].selected = true;
+          found = true;
+        }
+      }
+      if (!found) {
+        // Add a custom option for sessions not in the list (e.g. Fall 2025 C)
+        const opt = document.createElement('option');
+        opt.value = activeCourse.sessionValue;
+        opt.textContent = activeCourse.session;
+        opt.selected = true;
+        sessionSelect.appendChild(opt);
+      }
+    } else {
+      // No session assigned — add a blank option
+      const opt = document.createElement('option');
+      opt.value = '';
+      opt.textContent = '— No session assigned —';
+      opt.selected = true;
+      sessionSelect.insertBefore(opt, sessionSelect.firstChild);
+    }
+
+    // Restore saved session selection from localStorage (overrides default)
+    const savedSession = loadField('sessionSelect');
+    if (savedSession) {
+      const opt = sessionSelect.querySelector('option[value="' + savedSession + '"]');
+      if (opt) sessionSelect.value = savedSession;
+    }
+
+    // Recalculate timeline with the correct session
+    recalcTimeline();
+
+    // Populate Google Drive folder links if configured
+    if (activeCourse.driveFolder) {
+      document.querySelectorAll('.drive-folder-link').forEach(link => {
+        link.href = activeCourse.driveFolder;
+        link.style.display = 'inline-flex';
+      });
+    }
+
+    // Update "Back to Dashboard" link to preserve course context
+    const backLink = document.querySelector('.breadcrumb a');
+    if (backLink) backLink.href = 'id-dashboard.html';
+
+    // ===== RENDER CLO/ELO PAIRS (Objectives View) =====
+    renderCloEloPairs();
+
+    // ===== RENDER MODULE OVERVIEW CLO/ELO REFERENCE =====
+    renderModuleOverviewRef();
+
+    // ===== RENDER MODULE OVERVIEW CARDS =====
+    renderModuleOverviewCards();
+  });
+
+  // ===== RENDER CLO/ELO PAIRS =====
+  function renderCloEloPairs() {
+    const container = document.getElementById('clo-elo-pairs');
+    if (!container) return;
+    const clos = activeCourse.clos || [];
+    const elos = activeCourse.elos || [];
+    const count = Math.max(clos.length, elos.length, 1);
+    let html = '';
+    for (let i = 0; i < count; i++) {
+      html += '<div class="clo-elo-row">';
+      html += '<div class="clo-elo-num">' + (i + 1) + '</div>';
+      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-' + i + '" oninput="autoExpand(this)">' + (clos[i] || '') + '</textarea></div>';
+      html += '<div class="clo-elo-arrow">→</div>';
+      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-' + i + '" oninput="autoExpand(this)">' + (elos[i] || '') + '</textarea></div>';
+      html += '</div>';
+    }
+    // If no data, show one empty row
+    if (count === 0) {
+      html += '<div class="clo-elo-row">';
+      html += '<div class="clo-elo-num">1</div>';
+      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-0" oninput="autoExpand(this)" placeholder="Enter a Course Learning Outcome..."></textarea></div>';
+      html += '<div class="clo-elo-arrow">→</div>';
+      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-0" oninput="autoExpand(this)" placeholder="Enter the corresponding Expected Learning Outcome..."></textarea></div>';
+      html += '</div>';
+    }
+    container.innerHTML = html;
+    // Auto-resize all textareas in the container
+    container.querySelectorAll('textarea').forEach(function(ta) { if (typeof autoResize === 'function') autoResize(ta); });
+  }
+
+  function renderModuleOverviewRef() {
+    const container = document.getElementById('module-overview-clo-ref');
+    if (!container) return;
+    const clos = activeCourse.clos || [];
+    const elos = activeCourse.elos || [];
+    const count = Math.max(clos.length, elos.length);
+
+    let html = '';
+    html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; padding:0; margin-bottom:8px;">';
+    html += '<div></div>';
+    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">CLO — "Students will learn to..."</div>';
+    html += '<div></div>';
+    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">ELO — "Students will be able to..."</div>';
+    html += '</div>';
+
+    if (count === 0) {
+      html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No CLOs or ELOs defined yet. Go to the CLOs & ELOs page to add them.</div>';
+    } else {
+      html += '<div style="display:flex; flex-direction:column; gap:6px;">';
+      for (let i = 0; i < count; i++) {
+        const border = i > 0 ? ' border-top:1px solid #e8e5dd;' : '';
+        html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; align-items:center; padding:6px 0;' + border + '">';
+        html += '<span class="clo-tag clo-tag-' + (i+1) + '" style="width:28px; height:28px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700;">' + (i+1) + '</span>';
+        html += '<span style="font-size:13px;">' + (clos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += '<span style="text-align:center; color:#2e7d32; font-weight:700;">→</span>';
+        html += '<span style="font-size:13px;">' + (elos[i] || '<em style=color:#999>Not defined</em>') + '</span>';
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    html += '<div style="margin-top:12px; font-size:12px; color:#888; border-top:1px solid #e0e8e0; padding-top:10px;">';
+    html += '💡 Each module\'s objectives (MLOs) should map to at least one CLO or ELO above. Gaps may indicate a missing module or a CLO that needs rethinking.';
+    html += '</div>';
+
+    container.innerHTML = html;
+  }
+
+  // ===== RENDER MODULE OVERVIEW CARDS =====
+  function renderModuleOverviewCards() {
+    const container = document.getElementById('module-overview-cards');
+    if (!container) return;
+    const modules = activeCourse.modules || [];
+    const modCount = activeCourse.moduleCount || 7;
+    const cloCount = Math.max((activeCourse.clos || []).length, 1);
+    let html = '';
+
+    // Get saved MLO data from localStorage
+    const savedMods = loadField('moduleOverviewData') || {};
+
+    for (let m = 0; m < modCount; m++) {
+      const modNum = m + 1;
+      const modData = modules[m] || {};
+      const savedMod = savedMods[modNum] || {};
+      const topic = savedMod.topic || modData.title || '';
+      const mlos = savedMod.mlos || modData.mlos || [];
+      const mloCount = Math.max(mlos.length, 0);
+      const collapsed = m > 0 ? ' collapsed' : '';
+
+      html += '<div class="card" style="margin-bottom:12px;" data-mod-num="' + modNum + '">';
+      html += '<div class="card-header" onclick="toggleCard(this)">';
+      html += '<div class="card-title">';
+      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + modNum + '</span>';
+      html += '<span id="mod-title-display-' + modNum + '">' + (topic || 'Module ' + modNum) + '</span>';
+      html += '</div>';
+      html += '<span class="card-toggle' + (m === 0 ? ' open' : '') + '">▾</span>';
+      html += '</div>';
+      html += '<div class="card-body' + collapsed + '">';
+
+      // Topic field
+      html += '<div class="field-group">';
+      html += '<label class="field-label">Module Topic</label>';
+      html += '<input type="text" class="field-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" />';
+      html += '</div>';
+
+      // Objectives
+      html += '<div class="field-group">';
+      html += '<label class="field-label">Module Objectives</label>';
+      html += '<div class="field-hint">Each objective gets auto-numbered (' + modNum + '.1, ' + modNum + '.2, etc.) and flows into the module detail page.</div>';
+      html += '<div class="obj-list" id="obj-list-' + modNum + '">';
+
+      if (mloCount > 0) {
+        for (let j = 0; j < mloCount; j++) {
+          html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">';
+          html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">' + modNum + '.' + (j + 1) + '</span>';
+          html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" />';
+          html += '</div>';
+        }
+      } else {
+        // One empty row
+        html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">';
+        html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">' + modNum + '.1</span>';
+        html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" />';
+        html += '</div>';
+      }
+
+      html += '</div>';
+      html += '<button class="btn-add-row" onclick="addObjective(' + modNum + ')">+ Add objective</button>';
+      html += '</div>';
+
+      // CLO alignment toggles
+      html += '<div class="field-group" style="margin-top:12px;">';
+      html += '<label class="field-label">Aligns to Course Objectives</label>';
+      html += '<div class="clo-picker" id="clo-picker-' + modNum + '">';
+      for (let c = 1; c <= cloCount; c++) {
+        html += '<span class="clo-toggle" onclick="toggleCLO(' + modNum + ',' + c + ',this)"><span class="clo-check"></span> CLO ' + c + '</span>';
+      }
+      html += '</div></div>';
+
+      html += '</div></div>';
+    }
+
+    container.innerHTML = html;
+  }
+
+  function escapeHtml(str) {
+    if (!str) return '';
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function saveModuleOverview() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function() {
+      const cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
+      const data = {};
+      cards.forEach(function(card) {
+        const modNum = card.getAttribute('data-mod-num');
+        const topicInput = card.querySelector('[data-mod-topic]');
+        const mlos = [];
+        card.querySelectorAll('.obj-entry input').forEach(function(inp) {
+          if (inp.value.trim()) mlos.push(inp.value.trim());
+        });
+        data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
+      });
+      saveField('moduleOverviewData', data);
+      showSaveIndicator();
+    }, 500);
+  }
+
+  function addModuleCard() {
+    const container = document.getElementById('module-overview-cards');
+    const currentCount = container.querySelectorAll('.card[data-mod-num]').length;
+    activeCourse.moduleCount = currentCount + 1;
+    renderModuleOverviewCards();
+  }
+
+  // ===== TIMELINE CALCULATION =====
+  // Build milestones dynamically based on the active course
+  function buildMilestones(course) {
+    const ms = [
+      { label: 'ELOs and CLOs Review', section: 'objectives', action: "showView('objectives')" },
+      { label: 'Module MLOs and Topics Review', section: 'module-overview', action: "showView('module-overview')" },
+      { label: 'Assignments Review', section: 'assignments', action: "showModule(1)" },
+      { label: 'Materials Review', section: 'materials', action: "showView('materials')" },
+    ];
+    for (let i = 1; i <= course.moduleCount; i++) {
+      ms.push({ label: 'Module ' + i, section: 'mod-' + i, action: "showModule(" + i + ")" });
+    }
+    ms.push({ label: 'Course Shell Draft', section: null, action: null });
+    ms.push({ label: 'Course Lectures', section: null, action: null });
+    ms.push({ label: 'Course Shell', section: null, action: null });
+    return ms;
+  }
+
+  const milestones = buildMilestones(activeCourse);
+
+  function recalcTimeline() {
+    const sel = document.getElementById('session-select').value;
+    if (!sel) {
+      // No session — show TBD message
+      document.getElementById('timeline-body').innerHTML = '<tr><td colspan="3" style="text-align:center; padding:24px; color:#999; font-style:italic;">No session assigned yet. Select a target session above to generate a timeline.</td></tr>';
+      return;
+    }
+    const launchStr = sel.replace(/[a-z]$/i, '');
+    const launch = new Date(launchStr + 'T00:00:00');
+    const summerOk = document.getElementById('summer-toggle').checked;
+
+    // Fixed dates
+    const qaDate = activeCourse.qaDate ? new Date(activeCourse.qaDate + 'T00:00:00') : (function() { const d = new Date(launch); d.setDate(d.getDate() - 28); return d; })();
+    const liveDate = mondayBefore(launch);
+
+    // Use explicit dates if available, otherwise calculate backwards from QA
+    const totalMilestones = milestones.length;
+    const dates = [];
+    if (activeCourse.milestoneDates && activeCourse.milestoneDates.length === totalMilestones) {
+      for (let i = 0; i < totalMilestones; i++) {
+        dates[i] = new Date(activeCourse.milestoneDates[i] + 'T00:00:00');
+      }
+    } else {
+      let cursor = new Date(qaDate);
+      cursor.setDate(cursor.getDate() - 7);
+      for (let i = totalMilestones - 1; i >= 0; i--) {
+        dates[i] = new Date(cursor);
+        cursor.setDate(cursor.getDate() - 7);
+        if (!summerOk) {
+          while (cursor.getMonth() >= 5 && cursor.getMonth() <= 7) {
+            cursor.setDate(cursor.getDate() - 7);
+          }
+        }
+      }
+    }
+
+    const completed = activeCourse.milestonesCompleted;
+    const tbody = document.getElementById('timeline-body');
+    let html = '';
+
+    // Pull synced milestone status from dashboard-data.js if available
+    const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
+    const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+
+    for (let i = 0; i < milestones.length; i++) {
+      const rowClass = i < completed ? 'done' : (i === completed ? 'current' : '');
+      let statusLabel, statusColor;
+      const ms = milestoneStatus && milestoneStatus[i];
+      if (ms && ms.status === 'done') {
+        statusLabel = '✓ Done';
+        statusColor = '#4caf50';
+      } else if (ms && ms.status === 'meeting') {
+        statusLabel = '📅 Meeting ' + ms.meetingLabel;
+        statusColor = '#1565c0';
+      } else if (i < completed) {
+        statusLabel = '✓ Done';
+        statusColor = '#4caf50';
+      } else if (i === completed) {
+        statusLabel = '▶ Current';
+        statusColor = '#e65100';
+      } else {
+        statusLabel = '—';
+        statusColor = '#999';
+      }
+      const dateVal = fmt(dates[i]);
+      const datePretty = prettyDate(dates[i]);
+      const labelText = milestones[i].label + (i === completed ? ' (current)' : '');
+      const labelHtml = milestones[i].action
+        ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${datePretty} — ${labelText}</a>`
+        : `${datePretty} — ${labelText}`;
+      html += `<tr class="${rowClass}">
+        <td>${labelHtml}</td>
+        <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
+        <td style="font-size:12px; color:${statusColor}">${statusLabel}</td>
+      </tr>`;
+    }
+
+    // Fixed end rows
+    const qaFmt = fmt(qaDate);
+    const qaPretty = prettyDate(qaDate);
+    const liveFmt = fmt(liveDate);
+    const livePretty = prettyDate(liveDate);
+    const launchFmt = fmt(launch);
+    const launchPretty = launch.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    html += `<tr class="current" style="background:#fef3e8;">
+      <td><strong>${qaPretty} — Final Walkthrough and QA Check</strong></td>
+      <td><input type="date" class="date-input" value="${qaFmt}" /></td>
+      <td style="font-size:12px; color:#e65100;">Upcoming</td></tr>`;
+    html += `<tr>
+      <td><strong>${livePretty} — Live Course Shell i-course</strong></td>
+      <td><input type="date" class="date-input" value="${liveFmt}" /></td>
+      <td style="font-size:12px; color:#999;">—</td></tr>`;
+    html += `<tr style="background:#f5f5f0;">
+      <td><strong>🎓 Session begins — ${launchPretty}</strong></td>
+      <td><strong>${launchPretty}</strong></td>
+      <td></td></tr>`;
+
+    tbody.innerHTML = html;
+  }
+
+  function prettyDate(d) {
+    return 'Wk of ' + (d.getMonth() + 1) + '/' + d.getDate();
+  }
+
+  function mondayBefore(date) {
+    const d = new Date(date);
+    const day = d.getDay();
+    const diff = day === 0 ? 6 : day - 1;
+    d.setDate(d.getDate() - diff);
+    return d;
+  }
+
+  function fmt(d) {
+    return d.toISOString().split('T')[0];
+  }
+
+  // ===== LOCAL STORAGE PERSISTENCE =====
+  const storageKey = 'worksheet_' + (courseId || 'default');
+
+  function saveField(key, value) {
+    try {
+      const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      data[key] = value;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch(e) {}
+  }
+
+  function loadField(key) {
+    try {
+      const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      return data[key];
+    } catch(e) { return undefined; }
+  }
+
+  // Save session select changes
+  document.getElementById('session-select').addEventListener('change', function() {
+    saveField('sessionSelect', this.value);
+  });
+
+  // Save timeline date overrides
+  function saveTimelineDate(index, value) {
+    const dates = loadField('timelineDates') || {};
+    dates[index] = value;
+    saveField('timelineDates', dates);
+  }
+
+  // ===== GLOBAL PERSISTENCE ENGINE =====
+  let saveTimer = null;
+  function saveAllFields() {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(function() {
+      const allData = {};
+      // Save all inputs and textareas with values
+      document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
+        // Build a unique key from context
+        const view = el.closest('[id^="view-"]');
+        const viewId = view ? view.id : 'global';
+        const card = el.closest('.card');
+        const fieldGroup = el.closest('.field-group');
+        const objEntry = el.closest('.obj-entry');
+        const actBlock = el.closest('.activity-block');
+        const label = el.getAttribute('data-mod-topic') || el.closest('.field-group')?.querySelector('.field-label')?.textContent || '';
+        // Use element id, name, or positional key
+        let key = el.id || el.name || '';
+        if (!key) {
+          key = viewId + '_' + idx;
+        }
+        if (el.type === 'checkbox') {
+          allData[key] = el.checked;
+        } else if (el.tagName === 'SELECT') {
+          allData[key] = el.selectedIndex;
+        } else {
+          allData[key] = el.value;
+        }
+      });
+      // Save checkbox states
+      document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+        const key = el.id || ('chk_' + idx);
+        allData[key] = el.checked;
+      });
+      saveField('formData', allData);
+      // Brief save indicator
+      showSaveIndicator();
+    }, 500);
+  }
+
+  function restoreAllFields() {
+    const allData = loadField('formData');
+    if (!allData) return;
+    document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
+      const view = el.closest('[id^="view-"]');
+      const viewId = view ? view.id : 'global';
+      let key = el.id || el.name || '';
+      if (!key) key = viewId + '_' + idx;
+      if (key in allData) {
+        if (el.tagName === 'SELECT') {
+          el.selectedIndex = allData[key];
+        } else {
+          el.value = allData[key];
+        }
+        if (el.tagName === 'TEXTAREA' && typeof autoResize === 'function') autoResize(el);
+      }
+    });
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+      const key = el.id || ('chk_' + idx);
+      if (key in allData) el.checked = allData[key];
+    });
+  }
+
+  function showSaveIndicator() {
+    let ind = document.getElementById('save-indicator');
+    if (!ind) {
+      ind = document.createElement('div');
+      ind.id = 'save-indicator';
+      ind.style.cssText = 'position:fixed; bottom:20px; right:20px; background:#4caf50; color:#fff; padding:6px 14px; border-radius:6px; font-size:12px; font-weight:600; opacity:0; transition:opacity 0.3s; z-index:300; pointer-events:none;';
+      ind.textContent = '✓ Saved';
+      document.body.appendChild(ind);
+    }
+    ind.style.opacity = '1';
+    setTimeout(function() { ind.style.opacity = '0'; }, 1200);
+  }
+
+  // Listen for all form changes
+  document.addEventListener('input', function(e) {
+    if (e.target.matches('input, textarea, select')) saveAllFields();
+  });
+  document.addEventListener('change', function(e) {
+    if (e.target.matches('input, textarea, select')) saveAllFields();
+  });
+
+  // ===== AI ASSISTANT =====
+  let chatHistory = [];
+
+  function getApiKey() {
+    return localStorage.getItem('ai_api_key');
+  }
+
+  function showApiKeyModal() {
+    const modal = document.getElementById('api-key-modal');
+    modal.style.display = 'flex';
+  }
+
+  function closeApiKeyModal() {
+    document.getElementById('api-key-modal').style.display = 'none';
+  }
+
+  function saveApiKey() {
+    const key = document.getElementById('api-key-input').value.trim();
+    if (!key) return;
+    localStorage.setItem('ai_api_key', key);
+    closeApiKeyModal();
+    // If there was a pending message, send it
+    if (pendingMessage) {
+      const msg = pendingMessage;
+      pendingMessage = null;
+      doSendAIMessage(msg);
+    }
+  }
+
+  let pendingMessage = null;
+
+  function sendQuickAction(text) {
+    document.getElementById('ai-input').value = text;
+    sendAIMessage();
+  }
+
+  function sendAIMessage() {
+    const input = document.getElementById('ai-input');
+    const message = input.value.trim();
+    if (!message) return;
+    input.value = '';
+
+    if (!getApiKey()) {
+      pendingMessage = message;
+      showApiKeyModal();
+      return;
+    }
+
+    doSendAIMessage(message);
+  }
+
+  function appendAIMessage(role, text) {
+    const container = document.getElementById('ai-messages');
+    const msg = document.createElement('div');
+    msg.className = 'ai-msg ' + role;
+    const label = role === 'assistant' ? 'Design Assistant' : 'You';
+    msg.innerHTML = '<div class="ai-msg-label ' + role + '">' + label + '</div><div class="ai-msg-body">' + text + '</div>';
+    container.appendChild(msg);
+    container.scrollTop = container.scrollHeight;
+    return msg;
+  }
+
+  function gatherWorksheetContext() {
+    const c = activeCourse;
+    const clos = (c.clos || []).filter(function(s) { return s; });
+    const elos = (c.elos || []).filter(function(s) { return s; });
+
+    const modules = [];
+    const mods = c.modules || [];
+    const modCount = c.moduleCount || mods.length || 7;
+    for (let i = 0; i < modCount; i++) {
+      const mod = mods[i];
+      modules.push({
+        num: i + 1,
+        topic: mod ? mod.title : '',
+        objectives: mod && mod.mlos ? mod.mlos : []
+      });
+    }
+
+    return {
+      courseCode: c.code,
+      courseName: c.name,
+      instructor: c.instructor,
+      session: c.session,
+      clos: clos,
+      elos: elos,
+      modules: modules
+    };
+  }
+
+  function buildSystemPrompt(ctx) {
+    let prompt = 'You are an instructional design assistant for ASU Online course development. You help faculty and instructional designers create well-structured courses using backward design principles.\n\n';
+    prompt += 'Current course: ' + ctx.courseCode + ' - ' + ctx.courseName + '\n';
+    prompt += 'Instructor: ' + ctx.instructor + '\n';
+    prompt += 'Session: ' + ctx.session + '\n\n';
+
+    if (ctx.clos.length > 0) {
+      prompt += 'Course Learning Outcomes (CLOs) - what students will learn to understand:\n';
+      ctx.clos.forEach(function(c, i) { if (c) prompt += (i+1) + '. ' + c + '\n'; });
+      prompt += '\n';
+    }
+    if (ctx.elos.length > 0) {
+      prompt += 'Expected Learning Outcomes (ELOs) - what students will be able to do:\n';
+      ctx.elos.forEach(function(e, i) { if (e) prompt += (i+1) + '. ' + e + '\n'; });
+      prompt += '\n';
+    }
+
+    prompt += 'Module Structure:\n';
+    ctx.modules.forEach(function(m) {
+      if (m.topic) {
+        prompt += 'Module ' + m.num + ': ' + m.topic + '\n';
+        m.objectives.forEach(function(o, j) { prompt += '  ' + m.num + '.' + (j+1) + ' ' + o + '\n'; });
+      }
+    });
+
+    prompt += '\nYou specialize in: Bloom\'s Taxonomy, CLO/ELO/MLO alignment, action verb selection for measurable outcomes, backward design, activity and assessment design.\n';
+    prompt += 'Keep responses concise and practical. Use bullet points and bold for emphasis. When suggesting changes, reference specific objectives by number (e.g., MLO 2.3). Format with HTML tags (use <br> for line breaks, <strong> for bold, <ul>/<li> for lists).';
+    return prompt;
+  }
+
+  async function doSendAIMessage(message) {
+    appendAIMessage('user', message);
+    chatHistory.push({ role: 'user', content: message });
+
+    const typingMsg = appendAIMessage('assistant', '<em style="color:#999;">Thinking...</em>');
+
+    const ctx = gatherWorksheetContext();
+    const systemPrompt = buildSystemPrompt(ctx);
+
+    // Keep last 20 messages for context
+    const recentHistory = chatHistory.slice(-20);
+
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': getApiKey(),
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 1024,
+          system: systemPrompt,
+          messages: recentHistory
+        })
+      });
+
+      if (!response.ok) {
+        const err = await response.json().catch(function() { return { error: { message: 'API request failed (' + response.status + ')' } }; });
+        throw new Error(err.error?.message || 'API error');
+      }
+
+      const data = await response.json();
+      const assistantText = data.content[0].text;
+      chatHistory.push({ role: 'assistant', content: assistantText });
+
+      // Replace typing indicator with response (convert markdown-ish to HTML)
+      const htmlText = assistantText
+        .replace(/\n\n/g, '<br><br>')
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+      typingMsg.querySelector('.ai-msg-body').innerHTML = htmlText;
+    } catch (err) {
+      typingMsg.querySelector('.ai-msg-body').innerHTML = '<span style="color:#c62828;">Error: ' + err.message + '</span><br><br><span style="font-size:12px; color:#888;">Check your API key or try again.</span>';
+      if (err.message.includes('401') || err.message.includes('Invalid')) {
+        localStorage.removeItem('ai_api_key');
+      }
+    }
+
+    document.getElementById('ai-messages').scrollTop = document.getElementById('ai-messages').scrollHeight;
+  }
+
+  function clearAIChat() {
+    chatHistory = [];
+    const container = document.getElementById('ai-messages');
+    container.innerHTML = '<div class="ai-msg assistant"><div class="ai-msg-label assistant">Design Assistant</div><div class="ai-msg-body">Conversation cleared. How can I help with your course design?</div></div>';
+  }
+
+  // Timeline is initialized in DOMContentLoaded after setting the correct session
+  // Init page nav for dashboard
+  setTimeout(() => renderPageNav('dashboard'), 0);
+
+  // ===== VIEW SWITCHING =====
+  const views = ['dashboard','module','module-overview','course-info','objectives','additional','materials','preview'];
+  function showView(viewId) {
+    views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
+    const target = document.getElementById('view-'+viewId);
+    if(target) {
+      target.style.display='block';
+      target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
+    }
+    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / CLOs & ELOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    // Show back-to-dashboard link on all non-dashboard views
+    if (viewId !== 'dashboard') {
+      document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
+    } else {
+      document.getElementById('breadcrumb').innerHTML = names[viewId] || viewId;
+    }
+    window.scrollTo(0, 0);
+    document.querySelector('.main').scrollTo(0, 0);
+    renderPageNav(viewId);
+    if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
+  }
+
+  let currentModuleNum = 1;
+
+  function showModule(num) {
+    currentModuleNum = num;
+    showView('module');
+    document.querySelector('.main').scrollTo(0, 0);
+    renderPageNav('mod-' + num);
+    document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; <a href="#" onclick="event.preventDefault(); showView(\'module-overview\')" style="color:#8c1d40; text-decoration:none;">Module Overview</a> &nbsp;/&nbsp; <span>Module '+num+'</span>';
+    // Fix: tabs are 0-indexed, num is 1-indexed
+    document.querySelectorAll('.module-tab').forEach((tab,i) => tab.classList.toggle('active', i === num - 1));
+    const modules = activeCourse.modules || [];
+    const mod = modules[num - 1];
+    const title = mod ? 'Module ' + num + ': ' + mod.title : 'Module ' + num;
+    document.getElementById('module-title').textContent = title;
+
+    // Render module objectives dynamically
+    const objList = document.getElementById('module-objectives-list');
+    if (objList) {
+      const mlos = mod && mod.mlos ? mod.mlos : [];
+      if (mlos.length > 0) {
+        objList.innerHTML = mlos.map((mlo, i) => '<strong>' + num + '.' + (i+1) + '</strong> ' + mlo).join('<br>');
+      } else {
+        objList.innerHTML = '<span style="color:#999; font-style:italic;">No objectives defined yet. Add them in Module Overview.</span>';
+      }
+    }
+
+    // Render activities from localStorage or show empty state for non-MNS courses
+    renderModuleActivities(num);
+
+    if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
+  }
+
+  function editModuleTitle() {
+    const modules = activeCourse.modules || [];
+    const mod = modules[currentModuleNum - 1];
+    const currentTitle = mod ? mod.title : 'Module ' + currentModuleNum;
+    const newTitle = prompt('Enter new module title:', currentTitle);
+    if (newTitle !== null && newTitle.trim() !== '') {
+      // Update the config
+      if (!mod) {
+        // Create module entry if it doesn't exist
+        while (modules.length < currentModuleNum) {
+          modules.push({ title: 'Module ' + (modules.length + 1), num: modules.length + 1, mlos: [] });
+        }
+      }
+      modules[currentModuleNum - 1].title = newTitle.trim();
+      // Update the display
+      document.getElementById('module-title').textContent = 'Module ' + currentModuleNum + ': ' + newTitle.trim();
+      // Update sidebar
+      const sidebarModList = document.getElementById('sidebar-module-list');
+      if (sidebarModList) {
+        const items = sidebarModList.querySelectorAll('.nav-item-module');
+        if (items[currentModuleNum - 1]) {
+          const badge = items[currentModuleNum - 1].querySelector('.badge');
+          items[currentModuleNum - 1].innerHTML = '<span class="icon" style="font-size:11px;">' + currentModuleNum + '</span> ' + newTitle.trim();
+          if (badge) items[currentModuleNum - 1].appendChild(badge);
+        }
+      }
+      // Update module overview cards if they exist
+      renderModuleOverviewCards();
+      // Save to localStorage
+      saveField('module_title_' + currentModuleNum, newTitle.trim());
+      if (typeof saveAllFields === 'function') saveAllFields();
+    }
+  }
+
+  function renderModuleActivities(num) {
+    const actBlocks = document.querySelectorAll('#view-module .activity-block');
+    const addBtn = document.querySelector('#view-module .btn-add-row');
+    let emptyMsg = document.getElementById('activities-empty-state');
+
+    // Create empty state message if needed
+    if (!emptyMsg && addBtn) {
+      emptyMsg = document.createElement('div');
+      emptyMsg.id = 'activities-empty-state';
+      emptyMsg.style.cssText = 'text-align:center; padding:24px; color:#999; font-style:italic; font-size:13px;';
+      emptyMsg.textContent = 'No activities yet. Click "+ Add activity" to get started.';
+      addBtn.parentNode.insertBefore(emptyMsg, addBtn);
+    }
+
+    // Show hardcoded activities only for MNS 521 Module 1
+    const showHardcoded = (courseId === 'mns521' && num === 1);
+    actBlocks.forEach(block => block.style.display = showHardcoded ? '' : 'none');
+    if (emptyMsg) emptyMsg.style.display = showHardcoded ? 'none' : 'block';
+  }
+
+  function toggleCard(h) {
+    const body = h.nextElementSibling;
+    body.classList.toggle('collapsed');
+    h.querySelector('.card-toggle').classList.toggle('open');
+    if (!body.classList.contains('collapsed')) {
+      body.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
+    }
+  }
+
+  function toggleAI() {
+    document.getElementById('ai-panel').classList.toggle('open');
+  }
+
+  // ===== OBJECTIVE PICKER =====
+  function toggleObjDropdown(pickerId) {
+    const dd = document.getElementById('obj-dropdown-' + pickerId);
+    const display = dd.previousElementSibling;
+    const isOpen = dd.classList.contains('show');
+    // Close all other dropdowns first
+    document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
+    if (!isOpen) {
+      dd.classList.add('show');
+      display.classList.add('open');
+    }
+  }
+
+  function toggleObj(pickerId, objId) {
+    const dd = document.getElementById('obj-dropdown-' + pickerId);
+    const options = dd.querySelectorAll('.obj-option');
+    let selected = [];
+
+    // Toggle the clicked option
+    options.forEach(opt => {
+      const id = opt.querySelector('strong').textContent;
+      if (id === objId) opt.classList.toggle('selected');
+      // Update checkmark
+      const check = opt.querySelector('.obj-check');
+      if (opt.classList.contains('selected')) {
+        check.textContent = '✓';
+        selected.push(id);
+      } else {
+        check.textContent = '';
+      }
+    });
+
+    // Update the display chips
+    const display = dd.previousElementSibling;
+    if (selected.length === 0) {
+      display.innerHTML = '<span class="obj-picker-placeholder">Select objectives...</span>';
+    } else {
+      display.innerHTML = selected.map(id =>
+        `<span class="obj-chip">${id} <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(${pickerId},'${id}')">×</span></span>`
+      ).join('');
+    }
+  }
+
+  function removeObj(pickerId, objId) {
+    toggleObj(pickerId, objId);
+  }
+
+  // ===== PAGE ORDER & PREV/NEXT =====
+  const pageOrder = (function() {
+    const pages = [
+      { id: 'dashboard', label: 'Dashboard & Timeline', action: "showView('dashboard')" },
+      { id: 'course-info', label: 'Course Info', action: "showView('course-info')" },
+      { id: 'materials', label: 'Textbooks & Materials', action: "showView('materials')" },
+      { id: 'additional', label: 'Course Context Q&A', action: "showView('additional')" },
+      { id: 'objectives', label: 'CLOs & ELOs', action: "showView('objectives')" },
+      { id: 'module-overview', label: 'Module Overview', action: "showView('module-overview')" },
+    ];
+    const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    for (let i = 1; i <= modCount; i++) {
+      pages.push({ id: 'mod-' + i, label: 'Module ' + i, action: "showModule(" + i + ")" });
+    }
+    pages.push({ id: 'preview', label: 'Document Preview', action: "showView('preview')" });
+    return pages;
+  })();
+
+  let currentPageId = 'dashboard';
+
+  function renderPageNav(pageId) {
+    currentPageId = pageId;
+    const idx = pageOrder.findIndex(p => p.id === pageId);
+    if (idx === -1) return;
+
+    const prev = idx > 0 ? pageOrder[idx - 1] : null;
+    const next = idx < pageOrder.length - 1 ? pageOrder[idx + 1] : null;
+
+    // Find target container
+    const viewId = pageId.startsWith('mod-') ? 'module' : pageId;
+    const container = document.getElementById('view-' + viewId);
+    if (!container) return;
+
+    // Remove existing nav if present
+    const existing = container.querySelector('.page-nav');
+    if (existing) existing.remove();
+
+    const nav = document.createElement('div');
+    nav.className = 'page-nav';
+
+    if (prev) {
+      nav.innerHTML += `<a class="page-nav-btn" href="#" onclick="event.preventDefault(); ${prev.action}">
+        <span class="nav-arrow">←</span>
+        <span><span class="nav-label">Previous</span><span class="nav-title">${prev.label}</span></span>
+      </a>`;
+    } else {
+      nav.innerHTML += '<div class="page-nav-spacer"></div>';
+    }
+
+    if (next) {
+      nav.innerHTML += `<a class="page-nav-btn" href="#" onclick="event.preventDefault(); ${next.action}" style="text-align:right;">
+        <span><span class="nav-label">Next</span><span class="nav-title">${next.label}</span></span>
+        <span class="nav-arrow">→</span>
+      </a>`;
+    } else {
+      nav.innerHTML += '<div class="page-nav-spacer"></div>';
+    }
+
+    container.appendChild(nav);
+  }
+
+  // ===== CLO ALIGNMENT TOGGLE =====
+  function toggleCLO(modNum, cloNum, el) {
+    const activeClass = 'active-' + cloNum;
+    const isActive = el.classList.contains(activeClass);
+    const check = el.querySelector('.clo-check');
+    if (isActive) {
+      el.classList.remove(activeClass);
+      check.textContent = '';
+    } else {
+      el.classList.add(activeClass);
+      check.textContent = '✓';
+    }
+  }
+
+  // ===== MODULE OVERVIEW: ADD OBJECTIVE =====
+  function addObjective(modNum) {
+    const list = document.getElementById('obj-list-' + modNum);
+    const count = list.querySelectorAll('.obj-entry').length + 1;
+    const entry = document.createElement('div');
+    entry.className = 'obj-entry';
+    entry.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
+    entry.innerHTML = `<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">${modNum}.${count}</span><input type="text" class="field-input" style="margin-bottom:0;" placeholder="What should students be able to do?" />`;
+    list.appendChild(entry);
+    entry.querySelector('input').focus();
+  }
+
+  function updateModTitle(modNum, value) {
+    const display = document.getElementById('mod-title-display-' + modNum);
+    if (display) {
+      if (value.trim()) {
+        display.textContent = value;
+        display.style.color = '#1a1a1a';
+        display.style.fontStyle = 'normal';
+      } else {
+        display.textContent = 'Untitled Module';
+        display.style.color = '#999';
+        display.style.fontStyle = 'italic';
+      }
+    }
+  }
+
+  // ===== SECTION COMPLETION =====
+  function toggleSectionComplete(section, btn) {
+    const key = 'worksheet-complete-' + courseId + '-' + section;
+    const isComplete = btn.classList.toggle('completed');
+    if (isComplete) {
+      btn.innerHTML = '<span class="complete-icon">✓</span> Completed';
+      localStorage.setItem(key, 'true');
+    } else {
+      btn.innerHTML = '<span class="complete-icon">○</span> Mark as Complete';
+      localStorage.removeItem(key);
+    }
+    // Update sidebar badge if applicable
+    updateSidebarBadge(section, isComplete);
+  }
+
+  function updateSidebarBadge(section, isComplete) {
+    const sidebarMap = { 'context': 'additional', 'materials': 'materials' };
+    const navId = sidebarMap[section];
+    if (!navId) return;
+    const navItem = document.querySelector('[onclick*="showView(\'' + navId + '\')"]');
+    if (!navItem) return;
+    const badge = navItem.querySelector('.badge');
+    if (!badge) return;
+    if (isComplete) {
+      badge.className = 'badge badge-done';
+      badge.textContent = '✓';
+    } else {
+      badge.className = 'badge badge-empty';
+      badge.textContent = '—';
+    }
+  }
+
+  // Restore completion state on load
+  document.addEventListener('DOMContentLoaded', function() {
+    ['context', 'materials'].forEach(function(section) {
+      const key = 'worksheet-complete-' + courseId + '-' + section;
+      if (localStorage.getItem(key) === 'true') {
+        const btnId = section === 'context' ? 'btn-complete-context' : 'btn-complete-materials';
+        const btn = document.getElementById(btnId);
+        if (btn) {
+          btn.classList.add('completed');
+          btn.innerHTML = '<span class="complete-icon">✓</span> Completed';
+          updateSidebarBadge(section, true);
+        }
+      }
+    });
+  });
+
+  // ===== ACTIVITY MANAGEMENT (delete, drag reorder, move to module) =====
+  function deleteActivity(btn) {
+    const block = btn.closest('.activity-block');
+    if (!block) return;
+    const name = block.querySelector('.activity-input')?.value || 'this activity';
+    if (confirm('Delete "' + name + '"?')) {
+      block.remove();
+    }
+  }
+
+  let draggedBlock = null;
+  function actDragStart(e) {
+    draggedBlock = e.target.closest('.activity-block');
+    if (!draggedBlock) return;
+    draggedBlock.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+  }
+  function actDragOver(e) {
+    e.preventDefault();
+    const block = e.target.closest('.activity-block');
+    if (block && block !== draggedBlock) {
+      block.classList.add('drag-over');
+    }
+  }
+  function actDragLeave(e) {
+    const block = e.target.closest('.activity-block');
+    if (block) block.classList.remove('drag-over');
+  }
+  function actDrop(e) {
+    e.preventDefault();
+    const target = e.target.closest('.activity-block');
+    if (!target || !draggedBlock || target === draggedBlock) return;
+    target.classList.remove('drag-over');
+    const parent = target.parentNode;
+    const blocks = [...parent.querySelectorAll('.activity-block')];
+    const dragIdx = blocks.indexOf(draggedBlock);
+    const targetIdx = blocks.indexOf(target);
+    if (dragIdx < targetIdx) {
+      parent.insertBefore(draggedBlock, target.nextSibling);
+    } else {
+      parent.insertBefore(draggedBlock, target);
+    }
+  }
+  function actDragEnd(e) {
+    if (draggedBlock) draggedBlock.classList.remove('dragging');
+    document.querySelectorAll('.activity-block.drag-over').forEach(b => b.classList.remove('drag-over'));
+    draggedBlock = null;
+  }
+
+  function toggleMoveMenu(btn) {
+    const menu = btn.querySelector('.move-menu');
+    // Close any other open menus
+    document.querySelectorAll('.move-menu.open').forEach(m => { if (m !== menu) m.classList.remove('open'); });
+    if (menu.classList.contains('open')) {
+      menu.classList.remove('open');
+      return;
+    }
+    // Build menu items for all modules except current
+    const currentMod = document.querySelector('#module-title')?.textContent?.match(/Module (\d+)/)?.[1] || '1';
+    menu.innerHTML = '';
+    for (let i = 1; i <= 7; i++) {
+      if (String(i) === currentMod) continue;
+      const title = document.getElementById('mod-title-display-' + i)?.textContent || 'Module ' + i;
+      const item = document.createElement('div');
+      item.className = 'move-menu-item';
+      item.textContent = 'Module ' + i + ': ' + title;
+      item.onclick = function(e) {
+        e.stopPropagation();
+        const block = btn.closest('.activity-block');
+        alert('Activity moved to Module ' + i + '. (In a future update, this will physically move the activity data to the target module.)');
+        block.remove();
+        menu.classList.remove('open');
+      };
+      menu.appendChild(item);
+    }
+    menu.classList.add('open');
+  }
+
+  // Close move menus on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.act-tool-btn')) {
+      document.querySelectorAll('.move-menu.open').forEach(m => m.classList.remove('open'));
+    }
+  });
+
+  // ===== AUTO-RESIZE TEXT INPUTS =====
+  function autoResize(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // Convert text inputs that may overflow to auto-resizing textareas
+  function convertInputToTextarea(input) {
+    const ta = document.createElement('textarea');
+    ta.rows = 1;
+    ta.className = input.className;
+    ta.value = input.value;
+    ta.placeholder = input.placeholder;
+    ta.style.cssText = input.style.cssText + '; resize:none; overflow:hidden; min-height:34px;';
+    // Copy data attributes
+    for (const attr of input.attributes) {
+      if (attr.name.startsWith('data-') || attr.name === 'oninput' || attr.name === 'onchange') {
+        ta.setAttribute(attr.name, attr.value);
+      }
+    }
+    input.replaceWith(ta);
+    autoResize(ta);
+    return ta;
+  }
+
+  // Listen globally for input on any textarea
+  document.addEventListener('input', function(e) {
+    if (e.target.tagName === 'TEXTAREA') {
+      autoResize(e.target);
+    }
+  });
+
+  // On page load, convert long-text inputs to textareas and auto-resize all
+  document.addEventListener('DOMContentLoaded', function() {
+    // Mark existing textareas (course context, descriptions, etc.) as multiline
+    document.querySelectorAll('textarea.field-input').forEach(function(ta) {
+      ta.classList.add('ta-multiline');
+    });
+    // Convert text inputs in objectives, module topics, and field groups to textareas
+    document.querySelectorAll('.obj-entry input[type="text"].field-input, .obj-list input[type="text"].field-input, .field-group > input[type="text"].field-input').forEach(function(input) {
+      convertInputToTextarea(input);
+    });
+    // Auto-resize all textareas
+    document.querySelectorAll('textarea').forEach(autoResize);
+
+    // Restore all saved form data (runs last to override defaults with user edits)
+    restoreAllFields();
+    // Re-resize after restore
+    setTimeout(function() { document.querySelectorAll('textarea').forEach(function(ta) { if (ta.offsetParent !== null) autoResize(ta); }); }, 100);
+  });
+
+  // Resize visible textareas whenever a view or card becomes visible
+  function resizeVisibleTextareas() {
+    setTimeout(function() { document.querySelectorAll('textarea').forEach(function(ta) { if (ta.offsetParent !== null) autoResize(ta); }); }, 50);
+  }
+
+  // Also resize when cards expand
+  document.addEventListener('click', function(e) {
+    if (e.target.closest('.card-header')) resizeVisibleTextareas();
+  });
+
+  // ===== CONTENT ATTACHMENT ACCORDION =====
+  function toggleContentAttach(header) {
+    header.querySelector('.ca-toggle').classList.toggle('open');
+    header.nextElementSibling.classList.toggle('open');
+  }
+
+  // ===== CONTENT ATTACHMENT TABS =====
+  function switchAttachTab(prefix, tab, btn) {
+    // Deactivate all tabs in this set
+    btn.parentElement.querySelectorAll('.content-attach-tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    // Hide all bodies in this attach block
+    const parent = btn.closest('.content-attach');
+    parent.querySelectorAll('.content-attach-body').forEach(b => b.classList.add('hidden'));
+    // Show the selected body
+    const target = document.getElementById(prefix + '-' + tab);
+    if (target) target.classList.remove('hidden');
+  }
+
+  function switchTemplate(prefix, type, btn) {
+    btn.parentElement.querySelectorAll('.template-type-btn').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    // Hide all template previews in this block
+    const parent = btn.closest('.content-attach-body');
+    parent.querySelectorAll('.template-preview').forEach(p => p.classList.add('hidden'));
+    const target = document.getElementById(prefix + '-tpl-' + type);
+    if (target) target.classList.remove('hidden');
+  }
+
+  function handleFileAttach(input, prefix) {
+    const file = input.files[0];
+    if (!file) return;
+    const container = document.getElementById(prefix + '-files');
+    const el = document.createElement('div');
+    el.className = 'attached-file';
+    el.innerHTML = `📎 ${file.name} <span style="color:#999; font-size:11px;">(${(file.size / 1024).toFixed(0)} KB)</span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>`;
+    container.appendChild(el);
+    input.value = ''; // reset so same file can be re-added
+  }
+
+  let materialCount = 1;
+  function autoExpand(el) {
+    el.style.height = 'auto';
+    el.style.height = el.scrollHeight + 'px';
+  }
+
+  // Auto-expand all textareas on load
+  document.addEventListener('DOMContentLoaded', function() {
+    document.querySelectorAll('.auto-expand').forEach(function(el) {
+      autoExpand(el);
+    });
+  });
+
+  function addCloEloPair() {
+    const container = document.getElementById('clo-elo-pairs');
+    const num = container.querySelectorAll('.clo-elo-row').length + 1;
+    const idx = num - 1;
+    const row = document.createElement('div');
+    row.className = 'clo-elo-row';
+    row.innerHTML = `
+      <div class="clo-elo-num">${num}</div>
+      <div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-${idx}" oninput="autoExpand(this)" placeholder="CLO ${num} — Students will learn to..."></textarea></div>
+      <div class="clo-elo-arrow">→</div>
+      <div class="clo-elo-field"><textarea class="field-input auto-expand" id="elo-${idx}" oninput="autoExpand(this)" placeholder="ELO ${num} — Students will be able to..."></textarea></div>`;
+    container.appendChild(row);
+  }
+
+  function addMaterial() {
+    materialCount++;
+    const id = 'mat-' + materialCount;
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;';
+    wrapper.innerHTML = `
+      <div style="display:flex; gap:12px; align-items:center; margin-bottom:8px;">
+        <select class="activity-input" style="width:140px; font-size:12px; padding:6px 8px;">
+          <option>Reading</option><option>Video</option><option>Audio</option><option>PDF</option><option>Lecture Slides</option><option>Website</option><option>Other</option>
+        </select>
+        <input type="text" class="activity-input" placeholder="Material title..." style="flex:1; font-size:12px;" />
+      </div>
+      <div class="content-attach-tabs">
+        <button class="content-attach-tab active" onclick="switchAttachTab('${id}','upload',this)">📁 Upload</button>
+        <button class="content-attach-tab" onclick="switchAttachTab('${id}','link',this)">🔗 Link</button>
+        <button class="content-attach-tab" onclick="switchAttachTab('${id}','template',this)">📝 Text Entry</button>
+      </div>
+      <div class="content-attach-body" id="${id}-upload">
+        <div class="upload-zone" onclick="this.querySelector('input').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, '${id}')" /></div>
+        <div id="${id}-files"></div>
+      </div>
+      <div class="content-attach-body hidden" id="${id}-link">
+        <div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>
+      </div>
+      <div class="content-attach-body hidden" id="${id}-template">
+        <textarea class="field-input" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;"></textarea>
+      </div>
+    `;
+    const addBtn = wrapper.parentElement || document.querySelector('#view-module .card:last-of-type .card-body .btn-add-row');
+    // Insert before the "+ Add material" button
+    event.target.parentElement.insertBefore(wrapper, event.target);
+  }
+
+  // Close dropdowns when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.obj-picker')) {
+      document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
+    }
+  });
+</script>
+
+</body>
+</html>
