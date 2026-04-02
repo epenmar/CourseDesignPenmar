@@ -51,3 +51,13 @@ v1.3.0,2026-04-02,pending,UX refinements and CLO-to-ELO split,"- Materials overv
 - CLO-to-ELO one-to-many split on objectives page
 - Add/remove individual ELOs per CLO with sub-labels (1a, 1b, etc.)
 - Updated accessibility tip wording for slide presentations"
+v1.4.0,2026-04-02,781de31,Dashboard overhaul,"- Fix: MNS 521 status corrected to On Track
+- Program and College columns added to course table
+- Column sorting on all headers (click to toggle)
+- Column filter dropdowns (program, college, session, status)
+- Summary cards resized to half-width (2x2 grid)
+- College resource cards: New College, Tech for Public Health, Health Solutions
+- Email template dropdown: Meeting Follow-Up, Check-In, Course Readiness, Blank
+- Google Calendar search links for course code and instructor
+- Next meeting display in detail panel
+- Program/College fields in Add Course modal"
