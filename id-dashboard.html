@@ -23,22 +23,23 @@
   .topnav-badge { background: #ffc627; color: #8c1d40; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
 
   /* ===== LAYOUT ===== */
-  .page { max-width: 1200px; margin: 0 auto; padding: 28px 32px 60px; }
+  .page { max-width: 1400px; margin: 0 auto; padding: 16px 24px 60px; }
 
   /* ===== SUMMARY + RESOURCES ROW ===== */
-  .dashboard-top { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; }
-  .summary-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 16px; }
-  .summary-card .label { font-size: 11px; color: #888; font-weight: 500; margin-bottom: 4px; }
-  .summary-card .value { font-size: 24px; font-weight: 700; }
-  .summary-card .sub { font-size: 11px; color: #666; margin-top: 2px; }
-  .resource-section { display: flex; flex-direction: column; gap: 10px; }
-  .resource-section h3 { font-size: 13px; font-weight: 600; color: #444; margin-bottom: 2px; }
-  .resource-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 14px 16px; flex: 1; }
-  .resource-card .rc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
-  .resource-card .rc-title { font-size: 13px; font-weight: 600; color: #8c1d40; }
-  .resource-card .rc-links { display: flex; flex-wrap: wrap; gap: 6px; }
-  .resource-card .rc-link { font-size: 11px; color: #666; text-decoration: none; padding: 3px 8px; background: #f5f5f0; border-radius: 4px; border: 1px solid #e8e5dd; }
+  .dashboard-top { display: grid; grid-template-columns: auto 1fr; gap: 16px; margin-bottom: 14px; align-items: start; }
+  .summary-row { display: flex; gap: 8px; }
+  .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 14px; min-width: 90px; }
+  .summary-card .label { font-size: 10px; color: #888; font-weight: 500; margin-bottom: 1px; }
+  .summary-card .value { font-size: 20px; font-weight: 700; }
+  .summary-card .sub { display: none; }
+  .resource-section { display: flex; gap: 8px; flex-wrap: wrap; align-items: start; }
+  .resource-section h3 { display: none; }
+  .resource-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 10px; flex: 1; min-width: 180px; }
+  .resource-card .rc-header { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+  .resource-card .rc-header span:first-child { font-size: 13px; }
+  .resource-card .rc-title { font-size: 11px; font-weight: 600; color: #8c1d40; }
+  .resource-card .rc-links { display: flex; flex-wrap: wrap; gap: 3px; }
+  .resource-card .rc-link { font-size: 10px; color: #666; text-decoration: none; padding: 2px 6px; background: #f5f5f0; border-radius: 3px; border: 1px solid #e8e5dd; }
   .resource-card .rc-link:hover { background: #fdf2f4; border-color: #8c1d40; color: #8c1d40; }
   .value-green { color: #2e7d32; }
   .value-orange { color: #e65100; }
@@ -134,17 +135,17 @@
   .btn-open-dev:hover { background: #6d1633; }
 
   /* ===== SECTION HEADER ===== */
-  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .section-header h2 { font-size: 20px; font-weight: 600; }
+  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .section-header h2 { font-size: 16px; font-weight: 600; }
 
   /* ===== UPCOMING ===== */
-  .upcoming-list { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
-  .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 16px; display: flex; align-items: flex-start; gap: 12px; }
-  .upcoming-date-box { background: #8c1d40; color: #fff; border-radius: 8px; padding: 8px; text-align: center; min-width: 52px; }
-  .upcoming-date-box .month { font-size: 10px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em; }
-  .upcoming-date-box .day { font-size: 20px; font-weight: 700; line-height: 1; }
-  .upcoming-info .upcoming-title { font-size: 13px; font-weight: 600; }
-  .upcoming-info .upcoming-course { font-size: 12px; color: #666; }
+  .upcoming-list { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+  .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; }
+  .upcoming-date-box { background: #8c1d40; color: #fff; border-radius: 6px; padding: 4px 6px; text-align: center; min-width: 40px; }
+  .upcoming-date-box .month { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
+  .upcoming-date-box .day { font-size: 15px; font-weight: 700; line-height: 1; }
+  .upcoming-info .upcoming-title { font-size: 11px; font-weight: 600; }
+  .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-card.urgent { border-color: #ef9a9a; background: #fff8f8; }
   .upcoming-card.urgent .upcoming-date-box { background: #c62828; }
   /* ===== MEETING CARDS ===== */
@@ -224,32 +225,32 @@
     <div class="resource-section">
       <h3>My College Resources</h3>
       <div class="resource-card">
-        <div class="rc-header"><span style="font-size:16px;">🏫</span><span class="rc-title">New College of Interdisciplinary Arts &amp; Sciences</span></div>
+        <div class="rc-header"><span>🏫</span><span class="rc-title">New College</span></div>
         <div class="rc-links">
-          <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Homepage</a>
+          <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Home</a>
           <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
-          <a class="rc-link" href="https://newcollege.asu.edu/degrees" target="_blank">Programs</a>
-          <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog Policies</a>
-          <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff Directory</a>
+          <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
+          <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
+          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
         </div>
       </div>
       <div class="resource-card">
-        <div class="rc-header"><span style="font-size:16px;">🔬</span><span class="rc-title">School of Technology for Public Health</span></div>
+        <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health</span></div>
         <div class="rc-links">
-          <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Homepage</a>
-          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">CHS Faculty</a>
-          <a class="rc-link" href="https://publichealthtech.asu.edu/degrees/ms-public-health-technology" target="_blank">MS Program</a>
-          <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">Accreditation</a>
+          <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
+          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
+          <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
+          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
         </div>
       </div>
       <div class="resource-card">
-        <div class="rc-header"><span style="font-size:16px;">🏥</span><span class="rc-title">Health Systems Transformation — College of Health Solutions</span></div>
+        <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions</span></div>
         <div class="rc-links">
-          <a class="rc-link" href="https://chs.asu.edu/" target="_blank">CHS Home</a>
-          <a class="rc-link" href="https://chs.asu.edu/all-faculty-directory" target="_blank">Faculty Directory</a>
-          <a class="rc-link" href="https://chs.asu.edu/degree-programs" target="_blank">Degree Programs</a>
-          <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online Programs</a>
-          <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog Policies</a>
+          <a class="rc-link" href="https://chs.asu.edu/" target="_blank">Home</a>
+          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
+          <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
+          <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
+          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
         </div>
       </div>
     </div>
@@ -383,69 +384,119 @@
   // ===== MERGE SYNCED DATA =====
   const synced = window.SYNCED_DATA || null;
 
+  // Helper: create a base course entry
+  function mkCourse(code, name, instructor, email, session, program, college, drive, opts) {
+    const o = opts || {};
+    const parts = instructor.split(/\s+/);
+    const initials = instructor === 'TBD' ? '?' : (parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : instructor.substring(0,2).toUpperCase());
+    const key = code.toLowerCase().replace(/[\s\/]+/g, '');
+    const slug = instructor === 'TBD' ? '' : parts[parts.length-1].toLowerCase();
+    const colors = ['#5c6bc0','#ef6c00','#26a69a','#7b1fa2','#1565c0','#c62828','#2e7d32','#f57c00','#00838f','#ad1457'];
+    return {
+      title: code + ' — ' + name,
+      subtitle: instructor + ' &bull; ' + (session || 'Session TBD'),
+      code: code, courseName: name,
+      program: program, college: college,
+      instructor: instructor, initials: initials, avatarColor: o.color || colors[Math.abs(key.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % colors.length],
+      session: session || '—', phase: o.phase || 'Not Started', progressLabel: (o.progress||0) + '% — ' + (o.phase || 'Not started'),
+      fillClass: o.progress > 0 ? (o.status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red',
+      lastActive: o.lastActive || 'No activity', lastActiveStale: o.lastActiveStale !== undefined ? o.lastActiveStale : true,
+      status: o.status || 'Not Started', statusClass: 'status-' + (o.status || 'Not Started').toLowerCase().replace(/\s+/g, '-'),
+      progress: o.progress || 0, progressColor: o.status === 'On Track' ? '#2e7d32' : (o.progress > 0 ? '#e65100' : '#999'),
+      qa: o.qa || '—', qaShort: o.qaShort || '—',
+      devLink: 'course-worksheet-v2.html?course=' + key,
+      instructorSlug: slug,
+      driveFolder: drive || '',
+      email: email || '', emailName: code,
+      id: o.id || 'Elisa Penmar',
+      modules: o.modules || [],
+      milestones: o.milestones || [],
+      notes: o.notes || null
+    };
+  }
+
   const courseData = {
-    mns521: {
-      title: 'MNS 521 — AI Technologies',
-      subtitle: 'Dariush Navabi &bull; Summer B 2026',
-      code: 'MNS 521', courseName: 'AI Technologies',
-      program: 'MNS', college: 'New College',
-      instructor: 'Dariush Navabi', initials: 'DN', avatarColor: '#5c6bc0',
-      session: "Summer B '26", phase: 'Assignments Review', progressLabel: '25% — Assignments Review',
-      fillClass: 'fill-green', lastActive: '3 days ago', lastActiveStale: false,
-      status: 'On Track', statusClass: 'status-on-track',
-      progress: 25, progressColor: '#2e7d32',
-      qa: 'Aug 1, 2026', qaShort: 'Aug 1',
-      devLink: 'course-worksheet-v2.html?course=mns521',
-      instructorSlug: 'dnavabi',
-      driveFolder: '', // Google Drive shared folder URL
-      email: 'dnavabi@asu.edu', emailName: 'MNS 521',
-      id: 'Elisa Penmar &amp; Tamara Mitchell',
-      modules: [
-        { name: 'Getting Started', desc: 'Course info, CLOs, ELOs', state: 'done', label: 'Complete' },
-        { name: 'Module 1', desc: 'Foundations of AI Modeling', state: 'done', label: 'Complete' },
-        { name: 'Module 2', desc: 'AI Problem Modeling', state: 'partial', label: 'In progress' },
-        { name: 'Module 3', desc: 'Learning as a Modeling Paradigm', state: 'empty', label: 'Not started' },
-        { name: 'Module 4', desc: 'AI System Integration', state: 'empty', label: 'Not started' },
-        { name: 'Module 5', desc: 'Ethical and Responsible AI', state: 'empty', label: 'Not started' },
-        { name: 'Module 6', desc: 'AI System Communication &amp; Design', state: 'empty', label: 'Not started' },
-        { name: 'Module 7', desc: 'Architecture, Eval &amp; Responsible Design', state: 'empty', label: 'Not started' },
-      ],
-      milestones: [
-        { date: 'Mar 30', label: 'Assignments Review', urgent: true, statusText: 'Due today' },
-        { date: 'Apr 8', label: 'Materials Review' },
-        { date: 'Apr 20', label: 'Module 1 Documents' },
-        { date: 'Aug 1', label: 'Final Walkthrough &amp; QA', bold: true },
-      ],
-      notes: { author: 'Elisa Penmar', date: 'Mar 19', text: 'Complete the assignment table. Need SME review on CLOs — Tamara flagged that Module 7 MLOs should target higher Bloom\'s levels (evaluate/create).' }
-    },
-    tph552: {
-      title: 'TPH 552 — Design &amp; Systems Engineering in Public Health Technology',
-      subtitle: 'Bogosian &bull; Session TBD',
-      code: 'TPH 552', courseName: 'Design & Systems Engineering in Public Health Technology',
-      program: 'TPH', college: 'Tech for Public Health',
-      instructor: 'Bogosian', initials: 'B', avatarColor: '#7b1fa2',
-      session: '—', phase: 'Course Outline', progressLabel: '15% — CLOs & ELOs defined',
-      fillClass: 'fill-orange', lastActive: 'No activity', lastActiveStale: true,
-      status: 'Not Started', statusClass: 'status-not-started',
-      progress: 15, progressColor: '#e65100',
-      qa: '—', qaShort: '—',
-      devLink: 'course-worksheet-v2.html?course=tph552',
-      instructorSlug: 'bogosian',
-      driveFolder: '',
-      email: 'bogosian@asu.edu', emailName: 'TPH 552',
-      id: 'Tamara Mitchell',
-      modules: [
-        { name: 'Introduction: Systems Design & Engineering', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
-        { name: 'Sense-Making Techniques & Reporting', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
-        { name: 'Module 3', desc: 'TBD', state: 'empty', label: 'Not started' },
-        { name: 'Module 4', desc: 'TBD', state: 'empty', label: 'Not started' },
-        { name: 'Module 5', desc: 'TBD', state: 'empty', label: 'Not started' },
-        { name: 'Module 6', desc: 'TBD', state: 'empty', label: 'Not started' },
-        { name: 'Module 7', desc: 'TBD', state: 'empty', label: 'Not started' },
-      ],
-      milestones: [],
-      notes: { author: 'Tamara Mitchell', date: 'Mar 10', text: '7 CLOs and 9 ELOs defined (with CEPH competency alignments). Module 1 & 2 topics and MLOs drafted. Modules 3-7 pending. No session assigned yet.' }
-    },
+    mns521: mkCourse('MNS 521', 'AI Technologies', 'Dariush Navabi', 'Dariush.Navabi@asu.edu', "Spring B '27", 'Bio Data Science MS', 'New College',
+      'https://drive.google.com/drive/u/0/folders/1cyidt-HEfMzUBDeR7NvyJnHEsISs_RPv',
+      { status: 'On Track', progress: 25, phase: 'Assignments Review', lastActive: 'Today', lastActiveStale: false, color: '#5c6bc0',
+        id: 'Elisa Penmar &amp; Tamara Mitchell',
+        modules: [
+          { name: 'Getting Started', desc: 'Course info, CLOs, ELOs', state: 'done', label: 'Complete' },
+          { name: 'Module 1', desc: 'Foundations of AI Modeling', state: 'done', label: 'Complete' },
+          { name: 'Module 2', desc: 'AI Problem Modeling', state: 'partial', label: 'In progress' },
+          { name: 'Module 3', desc: 'Learning as a Modeling Paradigm', state: 'empty', label: 'Not started' },
+          { name: 'Module 4', desc: 'AI System Integration', state: 'empty', label: 'Not started' },
+          { name: 'Module 5', desc: 'Ethical and Responsible AI', state: 'empty', label: 'Not started' },
+          { name: 'Module 6', desc: 'AI System Communication & Design', state: 'empty', label: 'Not started' },
+          { name: 'Module 7', desc: 'Architecture, Eval & Responsible Design', state: 'empty', label: 'Not started' },
+        ],
+        milestones: [
+          { date: 'Mar 30', label: 'Assignments Review', urgent: true, statusText: 'Past due' },
+          { date: 'Apr 8', label: 'Materials Review' },
+          { date: 'Apr 20', label: 'Module 1 Documents' },
+          { date: 'Aug 1', label: 'Final Walkthrough & QA', bold: true },
+        ],
+        notes: { author: 'Elisa Penmar', date: 'Mar 31', text: 'Assignment table pending from Dariush. API token research for Harmonize. Platform decided: Harmonize over YellowDig. Next meeting Apr 2 for assignment review.' }
+      }),
+    mns522: mkCourse('MNS 522', 'Python for Scientific Computing', 'Dariush Navabi', 'dnavabi@asu.edu', "Fall A '26", 'Bio Data Science MS', 'New College',
+      'https://drive.google.com/drive/u/0/folders/15zc1HTfls3jnbuAk8XFbMiXncoFPMAXP'),
+    lsc598: mkCourse('LSC 598', 'Geospatial Data Science', 'John Bailey', 'johnbailey@asu.edu', "Spring A '27", 'Bio Data Science MS', 'New College',
+      'https://drive.google.com/drive/u/0/folders/1BGor6I6BEjCFMUQUCb0u2l50Cr0FC_Vo'),
+    lsc598gen: mkCourse('LSC 598/STP 494', 'Data Science for Genomics', 'Fahad Mostafa', 'Fahad.Mostafa@asu.edu', "Fall B '26", 'Bio Data Science MS', 'New College',
+      'https://drive.google.com/drive/u/0/folders/1eJ7xrMaVGUGLyL5A6W2RAxV-BIORL2HM'),
+    bst501: mkCourse('BST 501', 'Biostatistics for Research and Practice', 'Chong Lee', 'Chong.Lee@asu.edu', "Fall A '26", 'Biostatistics MS', 'Health Solutions',
+      'https://drive.google.com/drive/u/0/folders/1UpZhMoNugwOYRlAyKDlrTtUDFhFgCjMW'),
+    bst515: mkCourse('BST 515', 'Biostatistics in Medicine and Informatics', 'TBD', '', "Fall B '26", 'PH Tech MPH', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/10KAcmfKbgUXRNeDZZovbywLn8AjdGhRq'),
+    bst605: mkCourse('BST 605', 'Biostatistical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall A '26", 'Biostatistics MS', 'Health Solutions',
+      'https://drive.google.com/drive/u/0/folders/1TWmWxFDcvxFu7-ys8Q3lYLY1UU1JJYBA',
+      { status: 'On Track', progress: 33, phase: 'CLOs & ELOs', lastActive: '13 days ago', lastActiveStale: false, qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
+    bst606: mkCourse('BST 606', 'Applied Clinical Trial Design', 'Yunro Chung', 'yunro.chung@asu.edu', "Fall B '26", 'Biostatistics MS', 'Health Solutions',
+      'https://drive.google.com/drive/u/0/folders/1GOZ9ld1k3J-VRnI-EMg_TjcSordHDa1O',
+      { status: 'On Track', progress: 40, phase: 'Course Info', lastActive: '3 days ago', lastActiveStale: false, qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
+    bst609: mkCourse('BST 609', 'Categorical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall B '26", 'Biostatistics MS', 'Health Solutions',
+      'https://drive.google.com/drive/u/0/folders/1OvoqhBq2-Na0ShOLCFvtk_-Q7vpODd4a'),
+    bst693: mkCourse('BST 693', 'Applied Project', 'Zhongxue Chen', 'zchen424@asu.edu', "Spring A '27", 'Biostatistics MS', 'Health Solutions',
+      'https://drive.google.com/drive/u/0/folders/1tt7_IumoAeNBHOrAtSE3umArOK2RLAY7'),
+    asb554: mkCourse('ASB 554', 'One Health', 'India Schneider-Crease', 'IndiaSC@asu.edu', "Spring B '28", 'PH Tech MPH', 'Tech for Public Health', ''),
+    tph501: mkCourse('TPH 501', 'Foundations of Public Health I', 'Josh Anbar', 'Joshua.Anbar@asu.edu', "Fall A '26", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1HmTIMCOqFv0CzGJuWruLEwDyI8bRGRF8'),
+    tph502: mkCourse('TPH 502', 'Foundations of Public Health II', 'Jordan Miller', 'Jordan.Anne.Miller@asu.edu', "Spring A '27", 'PH Tech MPH', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1gyDNYxTVzErBZN6DmiF7XNGtMSoXk8rw'),
+    tph550: mkCourse('TPH 550', 'Data Science for Public Health', 'Josh Loughman & Susan Robinson', 'Joshua.Loughman@asu.edu', "Fall A '26", 'PH Tech MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1kiz2d_luY4pf4A5a1g25CwTJu2fDSuDg'),
+    tph552: mkCourse('TPH 552', 'Systems Design & Engineering in Public Health', 'Biana Bogosian', 'biayna.bogosian@asu.edu', "Summer C '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1vo1ORbehrm6woHYQXvJ1X4jJbNm_zWZy',
+      { progress: 15, phase: 'Course Outline',
+        modules: [
+          { name: 'Systems Design & Engineering', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
+          { name: 'Sense-Making Techniques & Reporting', desc: 'Topics & MLOs defined', state: 'partial', label: 'MLOs defined' },
+          { name: 'Module 3', desc: 'TBD', state: 'empty', label: 'Not started' },
+          { name: 'Module 4', desc: 'TBD', state: 'empty', label: 'Not started' },
+          { name: 'Module 5', desc: 'TBD', state: 'empty', label: 'Not started' },
+          { name: 'Module 6', desc: 'TBD', state: 'empty', label: 'Not started' },
+          { name: 'Module 7', desc: 'TBD', state: 'empty', label: 'Not started' },
+        ],
+        notes: { author: 'Elisa Penmar', date: 'Mar 10', text: '7 CLOs and 9 ELOs defined (CEPH competency alignments). Module 1 & 2 topics/MLOs drafted. Modules 3-7 pending.' }
+      }),
+    tph553: mkCourse('TPH 553', 'Health Technology and Equity', 'TBD', '', "Spring B '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1JtpaB3fBWWJO2yNsFgbApqrcewSXZ3cm'),
+    tph554: mkCourse('TPH 554', 'AI and ML for Public Health', 'Steffen Eikenberry', 'Steffen.Eikenberry@asu.edu', "Spring B '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1xNRGEn6IeqmmdKi1eq9PFvHxWpzM55lH'),
+    tph555: mkCourse('TPH 555', 'Health Communication, Behavior & Technology', 'Rodney Joseph & Dave Keating', 'Rodney.Joseph@asu.edu', "Spring A '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/13o4MamkKPWKabxL4w60AhiU306BLdhPQ'),
+    tph556: mkCourse('TPH 556', 'PH Tech Entrepreneurship & Leadership', 'TBD', '', "Spring A '27", 'PH Tech MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1J8wC7vG5CMr2Ed_e1T3WMSiRZHKZemFg'),
+    tph557: mkCourse('TPH 557', 'PH Tech Ethics, Policy and Law', 'Rachel Gur-Arie', 'rgurarie@asu.edu', "Fall B '26", 'PH Tech MPH/MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/10ejlJ0iRJDSgiGtpoqNAoo2PlgQgyyPq'),
+    tph580: mkCourse('TPH 580', 'Practicum', 'TBD', '', "Summer C '27", 'PH Tech MPH', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1R3cnWJ8yGVWccOqdAQaBGPIIhlXwxSgY'),
+    tph585: mkCourse('TPH 585', 'Capstone', 'TBD', '', "Spring C '28", 'PH Tech MPH', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/134yMBm5ypUHTK923pnt6WcHnS2s0vjh1'),
+    tph591: mkCourse('TPH 591', 'Entrepreneurship & Leadership for PH', 'Jyoti Pathak', 'pathakj@asu.edu', "Fall B '27", 'PH Tech MPH', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1FtXw2-UDPXsx8EYkCSonyVuYQzXIO5Gx'),
+    tph593: mkCourse('TPH 593', 'Applied Project', 'TBD', '', "Summer C '27", 'PH Tech MS', 'Tech for Public Health',
+      'https://drive.google.com/drive/u/0/folders/1o-UhdJZcCxrlUmNuqPnARfRcUagVxD_U'),
   };
 
   // ===== LOAD USER-CREATED COURSES FROM LOCALSTORAGE =====
@@ -520,9 +571,13 @@
         }
       });
     }
-    // Only show upcoming (not past), limit to 6
-    const today = new Date().toISOString().split('T')[0];
-    const upcoming = deadlines.filter(d => !d.date || d.date >= today).slice(0, 6);
+    // Only show next 2 weeks, limit to 6
+    const today = new Date();
+    const twoWeeks = new Date(today);
+    twoWeeks.setDate(twoWeeks.getDate() + 14);
+    const todayStr = today.toISOString().split('T')[0];
+    const twoWeeksStr = twoWeeks.toISOString().split('T')[0];
+    const upcoming = deadlines.filter(d => d.date && d.date >= todayStr && d.date <= twoWeeksStr).slice(0, 6);
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
       el.innerHTML = '<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines.</div>';
@@ -667,8 +722,7 @@
       const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
       const worksheetUrl = baseUrl + c.devLink + '&user=' + c.instructorSlug;
       const subject = encodeURIComponent('Your ' + c.emailName + ' Course Development Worksheet');
-      const body = encodeURIComponent(
-        'Hi ' + c.instructor + ',\n\n' +
+      let bodyText = 'Hi ' + c.instructor.split(/\s*&\s*/)[0].split(/\s+/)[0] + ',\n\n' +
         'Here is your personalized link to the ' + c.emailName + ' course development worksheet:\n\n' +
         worksheetUrl + '\n\n' +
         'You can use this link to:\n' +
@@ -676,10 +730,13 @@
         '• Leave comments and feedback on any section\n' +
         '• Highlight specific text to start a discussion\n' +
         '• Track development milestones and timeline\n\n' +
-        'Your work will be auto-saved. Please bookmark this link for easy access.\n\n' +
-        'Best,\n' +
-        (courseData[Object.keys(courseData)[0]]?.id?.replace(/&amp;/g, '&') || 'Your Instructional Design Team')
-      );
+        'Your work will be auto-saved. Please bookmark this link for easy access.\n\n';
+      if (c.driveFolder) {
+        bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
+        'Note: Documents you upload through the web app will automatically appear in this Drive folder. However, files added directly to Drive will not sync back to the web app — please use the worksheet upload feature for any materials you want tracked in the development tool.\n\n';
+      }
+      bodyText += 'Best,\nElisa';
+      const body = encodeURIComponent(bodyText);
       html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none;">🔗 Send Worksheet Link</a>`;
     }
     html += `</div></div>`;
