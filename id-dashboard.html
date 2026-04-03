@@ -21,6 +21,12 @@
   .topnav-right { display: flex; align-items: center; gap: 16px; }
   .topnav-user { font-size: 13px; opacity: 0.8; }
   .topnav-badge { background: #ffc627; color: #8c1d40; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
+  .sync-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.2s; }
+  .sync-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
+  .sync-btn.syncing { opacity: 0.6; pointer-events: none; }
+  .sync-btn .sync-icon { display: inline-block; transition: transform 0.3s; }
+  .sync-btn.syncing .sync-icon { animation: spin 1s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
 
   /* ===== LAYOUT ===== */
   .page { max-width: 1400px; margin: 0 auto; padding: 16px 24px 60px; }
@@ -225,11 +231,6 @@
   .gcal-link { font-size: 11px; color: #8c1d40; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
   .gcal-link:hover { text-decoration: underline; }
 
-  /* ===== SYNC INDICATOR ===== */
-  .sync-bar { display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 6px 32px; background: #f0ede5; font-size: 11px; color: #999; }
-  .sync-dot { width: 6px; height: 6px; border-radius: 50%; background: #4caf50; }
-  .sync-dot.stale { background: #ffc627; }
-  .sync-dot.none { background: #ccc; }
 </style>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
 </head>
@@ -242,11 +243,9 @@
   </div>
   <div class="topnav-right">
     <span class="topnav-badge" id="attention-badge">2 need attention</span>
+    <button class="sync-btn" id="sync-btn" onclick="triggerSync()" title="Sync calendar & notes"><span class="sync-icon">↻</span> Sync</button>
     <span class="topnav-user">Elisa Penmar</span>
   </div>
-</div>
-<div class="sync-bar" id="sync-bar">
-  <span class="sync-dot none"></span> <span id="sync-label">No sync data — using defaults</span>
 </div>
 
 <div class="page">
@@ -656,6 +655,16 @@
       }
     }
 
+    // Check calendarMeetings (from sync-calendar.js)
+    if (c.calendarMeetings && c.calendarMeetings.length > 0) {
+      for (const cm of c.calendarMeetings) {
+        const cmd = new Date(cm.date + 'T00:00:00').getTime();
+        if (Math.abs(cmd - target) <= range) {
+          return { time: cm.time || null, label: cm.label || 'Calendar meeting' };
+        }
+      }
+    }
+
     // Check milestones that look like meetings
     if (c.milestones) {
       for (const ms of c.milestones) {
@@ -814,26 +823,6 @@
     applyColumnVisibility();
   }
 
-  // ===== RENDER SYNC STATUS =====
-  function renderSyncStatus() {
-    if (synced && synced.syncedAt) {
-      const dt = new Date(synced.syncedAt);
-      const diff = Math.floor((new Date() - dt) / 3600000);
-      const dot = document.querySelector('.sync-dot');
-      const label = document.getElementById('sync-label');
-      if (diff < 1) {
-        dot.className = 'sync-dot';
-        label.textContent = 'Synced from Granola just now';
-      } else if (diff < 24) {
-        dot.className = 'sync-dot';
-        label.textContent = 'Synced from Granola ' + diff + 'h ago';
-      } else {
-        dot.className = 'sync-dot stale';
-        label.textContent = 'Synced from Granola ' + Math.floor(diff/24) + 'd ago — run /sync-dashboard to refresh';
-      }
-    }
-  }
-
   // ===== COLUMN VISIBILITY =====
   const allColumns = [
     { key: 'code', label: 'Course', idx: 0 },
@@ -922,7 +911,42 @@
   renderSummary();
   renderUpcoming();
   renderTable();
-  renderSyncStatus();
+
+  // ===== LIVE SYNC =====
+  // Fetches fresh data from local sync server (Outlook calendar + Obsidian notes)
+  // Falls back silently to static dashboard-data.js if server isn't running
+  function triggerSync(force) {
+    const btn = document.getElementById('sync-btn');
+    btn.classList.add('syncing');
+    const url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
+    fetch(url, { signal: AbortSignal.timeout(20000) })
+      .then(r => r.ok ? r.json() : Promise.reject('not ok'))
+      .then(fresh => {
+        if (!fresh || !fresh.courses) return;
+        Object.keys(fresh.courses).forEach(id => {
+          if (!courseData[id]) return;
+          const s = fresh.courses[id];
+          if (s.notes) courseData[id].notes = s.notes;
+          if (s.lastActiveDate) {
+            const diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
+            courseData[id].lastActive = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : diff < 14 ? diff + ' days ago' : (s.lastActive || diff + ' days ago');
+            courseData[id].lastActiveStale = diff > 14;
+          }
+          if (s.milestones) courseData[id].milestones = s.milestones;
+          if (s.meetings) courseData[id].meetings = s.meetings;
+          if (s.actionItems) courseData[id].actionItems = s.actionItems;
+          if (s.nextMeeting) courseData[id].nextMeeting = s.nextMeeting;
+          if (s.calendarMeetings) courseData[id].calendarMeetings = s.calendarMeetings;
+        });
+        if (fresh.upcomingDeadlines) window.SYNCED_DATA = fresh;
+        renderSummary();
+        renderUpcoming();
+        renderTable();
+      })
+      .catch(() => {})
+      .finally(() => btn.classList.remove('syncing'));
+  }
+  triggerSync(); // sync on page load
 
   // ===== RENDER DETAIL PANEL =====
   function renderDetail(id) {

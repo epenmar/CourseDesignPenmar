@@ -89,8 +89,8 @@
   .timeline-table th { text-align: left; padding: 8px 12px; background: #f5f5f0; border: 1px solid #e0ddd5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
   .timeline-table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: middle; }
   .timeline-table tr.done td { color: #999; background: #fafaf7; }
-  .timeline-table tr.done td:first-child { text-decoration: line-through; color: #999; }
-  .timeline-table tr.done td:first-child a { text-decoration: line-through; color: #999; }
+  .timeline-table tr.done td:first-child { color: #999; }
+  .timeline-table tr.done td:first-child a { color: #999; }
   .timeline-table tr.current td { background: #fef9f0; font-weight: 500; }
   .timeline-table .date-input { padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 4px; font-size: 13px; font-family: 'Inter', sans-serif; width: 130px; }
   .timeline-table .date-input:focus { outline: none; border-color: #8c1d40; }
@@ -522,6 +522,22 @@
                 </label>
                 <div style="font-size:11px; color:#999; margin-top:4px;">If unchecked, timeline will not include June–August work weeks.</div>
               </div>
+            </div>
+
+            <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+              <label style="font-size:12px; font-weight:600; color:#666;">Shift remaining dates:</label>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <button class="btn-sm" onclick="pushDates(-1)" title="Pull 1 week earlier" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">← 1 wk</button>
+                <button class="btn-sm" onclick="pushDates(1)" title="Push 1 week later" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">1 wk →</button>
+                <button class="btn-sm" onclick="pushDates(2)" title="Push 2 weeks later" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">2 wks →</button>
+              </div>
+              <span style="color:#ccc;">|</span>
+              <div style="display:flex; align-items:center; gap:4px;">
+                <input type="number" id="push-custom" value="1" min="1" max="52" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid #ddd; border-radius:4px; text-align:center;" />
+                <button class="btn-sm" onclick="pushDates(parseInt(document.getElementById('push-custom').value)||1)" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">Push →</button>
+              </div>
+              <span style="color:#ccc;">|</span>
+              <button class="btn-sm" onclick="resetTimelineDates()" title="Reset to auto-calculated dates" style="padding:4px 10px; font-size:12px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#999;">↺ Reset</button>
             </div>
 
             <table class="timeline-table" id="timeline-table">
@@ -1042,7 +1058,7 @@
       driveFolder: '', // Paste Google Drive shared folder URL here
       sessionValue: '2026-07-01',
       moduleCount: 7,
-      milestonesCompleted: 2, // ELOs/CLOs and MLOs/Topics done
+      milestonesCompleted: 3, // ELOs/CLOs, MLOs/Topics, and Assignments Review done
       qaDate: '2026-08-01',
       // Actual dates from the course planning worksheet
       milestoneDates: [
@@ -1799,7 +1815,8 @@
 
     // Fixed dates
     const qaDate = activeCourse.qaDate ? new Date(activeCourse.qaDate + 'T00:00:00') : (function() { const d = new Date(launch); d.setDate(d.getDate() - 28); return d; })();
-    const liveDate = mondayBefore(launch);
+    // Students get access ~3 days before session starts
+    const liveDate = new Date(launch); liveDate.setDate(liveDate.getDate() - 3);
 
     // Use explicit dates if available, otherwise calculate backwards from QA
     const totalMilestones = milestones.length;
@@ -1819,6 +1836,15 @@
             cursor.setDate(cursor.getDate() - 7);
           }
         }
+      }
+    }
+
+    // Apply saved date overrides from localStorage
+    const savedDates = loadField('timelineDates') || {};
+    for (const [idx, val] of Object.entries(savedDates)) {
+      const i = parseInt(idx);
+      if (i >= 0 && i < totalMilestones && val) {
+        dates[i] = new Date(val + 'T00:00:00');
       }
     }
 
@@ -1871,14 +1897,29 @@
     const launchFmt = fmt(launch);
     const launchPretty = launch.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
-    html += `<tr class="current" style="background:#fef3e8;">
+    // Compute relative status for fixed dates
+    const now = new Date();
+    function relStatus(d) {
+      const days = Math.round((d - now) / 86400000);
+      if (days < 0) return { label: '✓ Done', color: '#4caf50' };
+      if (days <= 7) return { label: 'This week', color: '#e65100' };
+      if (days <= 14) return { label: 'In 2 weeks', color: '#e65100' };
+      if (days <= 30) return { label: 'In ' + Math.ceil(days/7) + ' weeks', color: '#999' };
+      const months = Math.round(days / 30);
+      return { label: 'In ~' + months + ' month' + (months > 1 ? 's' : ''), color: '#999' };
+    }
+    const qaStatus = relStatus(qaDate);
+    const liveStatus = relStatus(liveDate);
+    const qaHighlight = qaStatus.color === '#e65100' ? 'background:#fef3e8;' : '';
+
+    html += `<tr style="${qaHighlight}">
       <td><strong>${qaPretty} — Final Walkthrough and QA Check</strong></td>
       <td><input type="date" class="date-input" value="${qaFmt}" /></td>
-      <td style="font-size:12px; color:#e65100;">Upcoming</td></tr>`;
+      <td style="font-size:12px; color:${qaStatus.color}">${qaStatus.label}</td></tr>`;
     html += `<tr>
-      <td><strong>${livePretty} — Live Course Shell i-course</strong></td>
+      <td><strong>${livePretty} — Student Access / Live Course Shell</strong></td>
       <td><input type="date" class="date-input" value="${liveFmt}" /></td>
-      <td style="font-size:12px; color:#999;">—</td></tr>`;
+      <td style="font-size:12px; color:${liveStatus.color}">${liveStatus.label}</td></tr>`;
     html += `<tr style="background:#f5f5f0;">
       <td><strong>🎓 Session begins — ${launchPretty}</strong></td>
       <td><strong>${launchPretty}</strong></td>
@@ -1931,6 +1972,31 @@
     const dates = loadField('timelineDates') || {};
     dates[index] = value;
     saveField('timelineDates', dates);
+  }
+
+  // Push all remaining (non-done) milestone dates by N weeks
+  function pushDates(weeks) {
+    const completed = activeCourse.milestonesCompleted || 0;
+    const dateInputs = document.querySelectorAll('#timeline-body .date-input');
+    const saved = loadField('timelineDates') || {};
+    const shiftMs = weeks * 7 * 86400000;
+
+    for (let i = completed; i < milestones.length; i++) {
+      const input = dateInputs[i];
+      if (!input || !input.value) continue;
+      const d = new Date(input.value + 'T00:00:00');
+      d.setTime(d.getTime() + shiftMs);
+      const newVal = fmt(d);
+      saved[i] = newVal;
+    }
+    saveField('timelineDates', saved);
+    recalcTimeline();
+  }
+
+  // Reset all date overrides and recalculate from session
+  function resetTimelineDates() {
+    saveField('timelineDates', {});
+    recalcTimeline();
   }
 
   // ===== GLOBAL PERSISTENCE ENGINE =====
