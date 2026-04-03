@@ -186,12 +186,20 @@
   .col-toggle-menu input[type="checkbox"] { accent-color: #8c1d40; }
 
   /* ===== RESOURCE ACCORDION ===== */
-  .resource-accordion { cursor: pointer; display: flex; align-items: center; gap: 6px; background: none; border: 1px solid #e0ddd5; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; }
+  .resource-accordion { cursor: pointer; display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; }
   .resource-accordion:hover { background: #fdf2f4; }
   .resource-accordion .ra-arrow { transition: transform 0.2s; font-size: 10px; }
   .resource-accordion .ra-arrow.open { transform: rotate(180deg); }
   .resource-body { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
-  .resource-body.open { max-height: 200px; }
+  .resource-body.open { max-height: 400px; }
+  .rc-add-btn { font-size: 10px; color: #999; background: none; border: 1px dashed #ccc; border-radius: 3px; padding: 1px 6px; cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 2px; }
+  .rc-add-btn:hover { border-color: #8c1d40; color: #8c1d40; }
+  .rc-add-form { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
+  .rc-add-form input { font-size: 10px; padding: 3px 6px; border: 1px solid #e0ddd5; border-radius: 4px; font-family: 'Inter', sans-serif; width: 80px; }
+  .rc-add-form input:focus { outline: none; border-color: #8c1d40; }
+  .rc-add-form button { font-size: 10px; padding: 3px 8px; border: none; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .rc-add-save { background: #8c1d40; color: #fff; }
+  .rc-add-cancel { background: #eee; color: #666; }
 
   /* ===== EMAIL DROPDOWN ===== */
   .email-dropdown-wrap { position: relative; display: inline-block; }
@@ -244,39 +252,60 @@
   <div class="dashboard-top">
     <div class="summary-row" id="summary-row"></div>
     <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
-      <button class="resource-accordion" onclick="var b=document.getElementById('resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
-        📚 College Resources <span class="ra-arrow">▾</span>
-      </button>
-      <div class="resource-body" id="resource-body">
+      <div style="display:flex; gap:6px; flex-wrap:wrap;">
+        <button class="resource-accordion" onclick="var b=document.getElementById('uni-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+          🏛 University Resources <span class="ra-arrow">▾</span>
+        </button>
+        <button class="resource-accordion" onclick="var b=document.getElementById('college-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+          🏫 College Resources <span class="ra-arrow">▾</span>
+        </button>
+      </div>
+      <div class="resource-body" id="uni-resource-body">
         <div class="resource-section" style="margin-top:4px;">
-          <div class="resource-card">
+          <div class="resource-card" data-rc-id="university">
+            <div class="rc-header"><span>🏛</span><span class="rc-title">ASU University-Wide</span></div>
+            <div class="rc-links" id="rc-links-university">
+              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR Accreditation</a>
+              <a class="rc-link" href="https://asuonline.asu.edu/" target="_blank">ASU Online</a>
+              <a class="rc-link" href="https://catalog.asu.edu/" target="_blank">Course Catalog</a>
+              <a class="rc-link" href="https://uto.asu.edu/canvas" target="_blank">Canvas/LMS</a>
+              <a class="rc-link" href="https://accessibility.asu.edu/" target="_blank">Accessibility</a>
+              <a class="rc-link" href="https://uoeee.asu.edu/" target="_blank">Universal Design</a>
+            </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('university')">+ Add Link</button>
+          </div>
+        </div>
+      </div>
+      <div class="resource-body" id="college-resource-body">
+        <div class="resource-section" style="margin-top:4px;">
+          <div class="resource-card" data-rc-id="new-college">
             <div class="rc-header"><span>🏫</span><span class="rc-title">New College</span></div>
-            <div class="rc-links">
+            <div class="rc-links" id="rc-links-new-college">
               <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
               <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
-              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
             </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('new-college')">+ Add Link</button>
           </div>
-          <div class="resource-card">
+          <div class="resource-card" data-rc-id="tph">
             <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health</span></div>
-            <div class="rc-links">
+            <div class="rc-links" id="rc-links-tph">
               <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
-              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
             </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('tph')">+ Add Link</button>
           </div>
-          <div class="resource-card">
+          <div class="resource-card" data-rc-id="chs">
             <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions</span></div>
-            <div class="rc-links">
+            <div class="rc-links" id="rc-links-chs">
               <a class="rc-link" href="https://chs.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
-              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
             </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('chs')">+ Add Link</button>
           </div>
         </div>
       </div>
@@ -1233,6 +1262,73 @@
     document.getElementById('nc-modules').value = '7';
     document.getElementById('nc-id').value = 'Elisa Penmar';
   }
+
+  // ===== RESOURCE LINK MANAGEMENT =====
+  function getCustomLinks() {
+    try { return JSON.parse(localStorage.getItem('dashboard_custom_links') || '{}'); } catch(e) { return {}; }
+  }
+
+  function saveCustomLinks(links) {
+    localStorage.setItem('dashboard_custom_links', JSON.stringify(links));
+  }
+
+  function showAddLinkForm(cardId) {
+    const container = document.getElementById('rc-links-' + cardId);
+    if (!container || container.querySelector('.rc-add-form')) return;
+    const form = document.createElement('div');
+    form.className = 'rc-add-form';
+    form.innerHTML = `<input type="text" placeholder="Label" id="rc-new-label-${cardId}" />` +
+      `<input type="text" placeholder="URL" id="rc-new-url-${cardId}" style="width:120px;" />` +
+      `<button class="rc-add-save" onclick="saveNewLink('${cardId}')">Add</button>` +
+      `<button class="rc-add-cancel" onclick="this.parentElement.remove()">Cancel</button>`;
+    container.parentElement.insertBefore(form, container.parentElement.querySelector('.rc-add-btn').nextSibling);
+    document.getElementById('rc-new-label-' + cardId).focus();
+  }
+
+  function saveNewLink(cardId) {
+    const label = document.getElementById('rc-new-label-' + cardId).value.trim();
+    const url = document.getElementById('rc-new-url-' + cardId).value.trim();
+    if (!label || !url) return;
+    const fullUrl = url.match(/^https?:\/\//) ? url : 'https://' + url;
+    const links = getCustomLinks();
+    if (!links[cardId]) links[cardId] = [];
+    links[cardId].push({ label, url: fullUrl });
+    saveCustomLinks(links);
+    renderCustomLinks(cardId);
+    const form = document.querySelector(`#rc-links-${cardId}`).parentElement.querySelector('.rc-add-form');
+    if (form) form.remove();
+  }
+
+  function removeCustomLink(cardId, idx) {
+    const links = getCustomLinks();
+    if (links[cardId]) {
+      links[cardId].splice(idx, 1);
+      if (links[cardId].length === 0) delete links[cardId];
+      saveCustomLinks(links);
+      renderCustomLinks(cardId);
+    }
+  }
+
+  function renderCustomLinks(cardId) {
+    const container = document.getElementById('rc-links-' + cardId);
+    if (!container) return;
+    // Remove existing custom links
+    container.querySelectorAll('.rc-link-custom').forEach(el => el.remove());
+    const links = getCustomLinks();
+    if (links[cardId]) {
+      links[cardId].forEach((lnk, idx) => {
+        const wrap = document.createElement('span');
+        wrap.className = 'rc-link-custom';
+        wrap.style.cssText = 'display:inline-flex; align-items:center; gap:1px;';
+        wrap.innerHTML = `<a class="rc-link" href="${lnk.url}" target="_blank">${lnk.label}</a>` +
+          `<button onclick="removeCustomLink('${cardId}',${idx})" style="background:none; border:none; color:#c62828; font-size:9px; cursor:pointer; padding:0 2px;" title="Remove">✕</button>`;
+        container.appendChild(wrap);
+      });
+    }
+  }
+
+  // Load custom links on init
+  ['university','new-college','tph','chs'].forEach(renderCustomLinks);
 </script>
 
 </body>
