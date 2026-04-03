@@ -713,6 +713,90 @@
     }
   }
 
+  // ===== COLUMN VISIBILITY =====
+  const allColumns = [
+    { key: 'code', label: 'Course', idx: 0 },
+    { key: 'instructor', label: 'Instructor', idx: 1 },
+    { key: 'program', label: 'Program', idx: 2 },
+    { key: 'college', label: 'College', idx: 3 },
+    { key: 'session', label: 'Session', idx: 4 },
+    { key: 'progress', label: 'Progress', idx: 5 },
+    { key: 'phase', label: 'Phase', idx: 6 },
+    { key: 'status', label: 'Status', idx: 7 },
+    { key: 'qa', label: 'QA Date', idx: 8 },
+    { key: 'lastActive', label: 'Last Active', idx: 9 }
+  ];
+  const defaultHidden = ['program', 'college', 'phase'];
+  let hiddenCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null') || defaultHidden;
+
+  function applyColumnVisibility() {
+    const ths = document.querySelectorAll('.course-table thead th');
+    const rows = document.querySelectorAll('.course-table tbody tr');
+    allColumns.forEach(col => {
+      const hidden = hiddenCols.includes(col.key);
+      if (ths[col.idx]) ths[col.idx].style.display = hidden ? 'none' : '';
+      rows.forEach(row => {
+        const tds = row.querySelectorAll('td');
+        if (tds[col.idx]) tds[col.idx].style.display = hidden ? 'none' : '';
+      });
+    });
+  }
+
+  function toggleColumn(key) {
+    const idx = hiddenCols.indexOf(key);
+    if (idx >= 0) hiddenCols.splice(idx, 1);
+    else hiddenCols.push(key);
+    localStorage.setItem('dashboard_hidden_cols', JSON.stringify(hiddenCols));
+    applyColumnVisibility();
+  }
+
+  function renderColumnToggle() {
+    let html = `<div class="col-toggle-wrap">
+      <button class="col-toggle-btn" onclick="event.stopPropagation(); document.getElementById('col-toggle-menu').classList.toggle('open');">⚙ Columns ▾</button>
+      <div class="col-toggle-menu" id="col-toggle-menu">`;
+    allColumns.forEach(col => {
+      const checked = !hiddenCols.includes(col.key) ? ' checked' : '';
+      html += `<label onclick="event.stopPropagation();"><input type="checkbox"${checked} onchange="toggleColumn('${col.key}')"> ${col.label}</label>`;
+    });
+    html += `</div></div>`;
+    return html;
+  }
+
+  // Close column toggle when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.col-toggle-wrap')) {
+      const m = document.getElementById('col-toggle-menu');
+      if (m) m.classList.remove('open');
+    }
+  });
+
+  // ===== COLUMN FILTERS =====
+  function renderColumnFilters() {
+    const programs = new Set();
+    const colleges = new Set();
+    const sessions = new Set();
+    const statuses = new Set();
+    Object.values(courseData).forEach(c => {
+      if (c.program) programs.add(c.program);
+      if (c.college) colleges.add(c.college);
+      if (c.session && c.session !== '—') sessions.add(c.session);
+      statuses.add(c.status);
+    });
+    const makeOpts = (set, label) => {
+      let html = `<option value="">All ${label}</option>`;
+      [...set].sort().forEach(v => { html += `<option value="${v}">${v}</option>`; });
+      return html;
+    };
+    document.getElementById('col-filter-row').innerHTML =
+      `<label>Filter:</label>` +
+      `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
+      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges')}</select>` +
+      `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
+      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>` +
+      renderColumnToggle();
+    applyColumnVisibility();
+  }
+
   // ===== INIT =====
   renderSummary();
   renderUpcoming();
@@ -1004,90 +1088,6 @@
 
   renderFilters();
   renderColumnFilters();
-
-  // ===== COLUMN VISIBILITY =====
-  const allColumns = [
-    { key: 'code', label: 'Course', idx: 0 },
-    { key: 'instructor', label: 'Instructor', idx: 1 },
-    { key: 'program', label: 'Program', idx: 2 },
-    { key: 'college', label: 'College', idx: 3 },
-    { key: 'session', label: 'Session', idx: 4 },
-    { key: 'progress', label: 'Progress', idx: 5 },
-    { key: 'phase', label: 'Phase', idx: 6 },
-    { key: 'status', label: 'Status', idx: 7 },
-    { key: 'qa', label: 'QA Date', idx: 8 },
-    { key: 'lastActive', label: 'Last Active', idx: 9 }
-  ];
-  const defaultHidden = ['program', 'college', 'phase'];
-  let hiddenCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null') || defaultHidden;
-
-  function applyColumnVisibility() {
-    const ths = document.querySelectorAll('.course-table thead th');
-    const rows = document.querySelectorAll('.course-table tbody tr');
-    allColumns.forEach(col => {
-      const hidden = hiddenCols.includes(col.key);
-      if (ths[col.idx]) ths[col.idx].style.display = hidden ? 'none' : '';
-      rows.forEach(row => {
-        const tds = row.querySelectorAll('td');
-        if (tds[col.idx]) tds[col.idx].style.display = hidden ? 'none' : '';
-      });
-    });
-  }
-
-  function toggleColumn(key) {
-    const idx = hiddenCols.indexOf(key);
-    if (idx >= 0) hiddenCols.splice(idx, 1);
-    else hiddenCols.push(key);
-    localStorage.setItem('dashboard_hidden_cols', JSON.stringify(hiddenCols));
-    applyColumnVisibility();
-  }
-
-  function renderColumnToggle() {
-    let html = `<div class="col-toggle-wrap">
-      <button class="col-toggle-btn" onclick="event.stopPropagation(); document.getElementById('col-toggle-menu').classList.toggle('open');">⚙ Columns ▾</button>
-      <div class="col-toggle-menu" id="col-toggle-menu">`;
-    allColumns.forEach(col => {
-      const checked = !hiddenCols.includes(col.key) ? ' checked' : '';
-      html += `<label onclick="event.stopPropagation();"><input type="checkbox"${checked} onchange="toggleColumn('${col.key}')"> ${col.label}</label>`;
-    });
-    html += `</div></div>`;
-    return html;
-  }
-
-  // Close column toggle when clicking outside
-  document.addEventListener('click', function(e) {
-    if (!e.target.closest('.col-toggle-wrap')) {
-      const m = document.getElementById('col-toggle-menu');
-      if (m) m.classList.remove('open');
-    }
-  });
-
-  // ===== COLUMN FILTERS =====
-  function renderColumnFilters() {
-    const programs = new Set();
-    const colleges = new Set();
-    const sessions = new Set();
-    const statuses = new Set();
-    Object.values(courseData).forEach(c => {
-      if (c.program) programs.add(c.program);
-      if (c.college) colleges.add(c.college);
-      if (c.session && c.session !== '—') sessions.add(c.session);
-      statuses.add(c.status);
-    });
-    const makeOpts = (set, label) => {
-      let html = `<option value="">All ${label}</option>`;
-      [...set].sort().forEach(v => { html += `<option value="${v}">${v}</option>`; });
-      return html;
-    };
-    document.getElementById('col-filter-row').innerHTML =
-      `<label>Filter:</label>` +
-      `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
-      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges')}</select>` +
-      `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
-      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>` +
-      renderColumnToggle();
-    applyColumnVisibility();
-  }
 
   function applyColumnFilters() {
     const fp = document.getElementById('filter-program')?.value || '';
