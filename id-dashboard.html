@@ -151,6 +151,9 @@
   .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-card.urgent { border-color: #ef9a9a; background: #fff8f8; }
   .upcoming-card.urgent .upcoming-date-box { background: #c62828; }
+  .upcoming-meeting-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-top: 2px; display: inline-block; }
+  .upcoming-meeting-tag.has-meeting { background: #e8f5e9; color: #2e7d32; }
+  .upcoming-meeting-tag.no-meeting { background: #fff3e0; color: #e65100; }
   /* ===== MEETING CARDS ===== */
   .meeting-card { background: #f9f9f6; border: 1px solid #e8e5dd; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
   .meeting-card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
@@ -618,38 +621,88 @@
 
   // ===== RENDER UPCOMING DEADLINES =====
   function renderUpcoming() {
-    let deadlines = [];
+    let raw = [];
     if (synced && synced.upcomingDeadlines) {
-      deadlines = synced.upcomingDeadlines;
+      raw = synced.upcomingDeadlines;
     } else {
-      // Fallback: build from courseData milestones
       Object.values(courseData).forEach(c => {
         if (c.milestones) {
           c.milestones.slice(0, 2).forEach(m => {
-            deadlines.push({ title: m.label, course: c.title, urgent: !!m.urgent, date: m.date });
+            raw.push({ title: m.label, course: c.title, urgent: !!m.urgent, date: m.date });
           });
         }
       });
     }
-    // Only show next 2 weeks, limit to 6
+
+    // Only show next 2 weeks
     const today = new Date();
     const twoWeeks = new Date(today);
     twoWeeks.setDate(twoWeeks.getDate() + 14);
     const todayStr = today.toISOString().split('T')[0];
     const twoWeeksStr = twoWeeks.toISOString().split('T')[0];
-    const upcoming = deadlines.filter(d => d.date && d.date >= todayStr && d.date <= twoWeeksStr).slice(0, 6);
+    const inRange = raw.filter(d => d.date && d.date >= todayStr && d.date <= twoWeeksStr);
+
+    // Classify each entry as a meeting or a deadline
+    const isMeeting = (t) => /meeting|follow.?up|check.?in|sync|call/i.test(t);
+
+    // Group by date+course, merge meetings into deadlines
+    const grouped = {};
+    inRange.forEach(d => {
+      const key = d.date + '||' + d.course;
+      if (!grouped[key]) grouped[key] = { deadlines: [], meetings: [] };
+      if (isMeeting(d.title)) grouped[key].meetings.push(d);
+      else grouped[key].deadlines.push(d);
+    });
+
+    // Build merged cards
+    const merged = [];
+    Object.values(grouped).forEach(g => {
+      if (g.deadlines.length > 0) {
+        // Show each deadline, attach any meetings on the same date+course
+        g.deadlines.forEach(d => {
+          merged.push({ ...d, meetingInfo: g.meetings.length > 0 ? g.meetings[0].title : null });
+        });
+      } else {
+        // Standalone meeting with no deadline — still show it
+        g.meetings.forEach(m => {
+          merged.push({ ...m, meetingInfo: m.title, isMeetingOnly: true });
+        });
+      }
+    });
+
+    // Sort by date, limit
+    merged.sort((a, b) => a.date.localeCompare(b.date));
+    const upcoming = merged.slice(0, 6);
+
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
-      el.innerHTML = '<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines.</div>';
+      el.innerHTML = '<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines in the next 2 weeks.</div>';
       return;
     }
     el.innerHTML = upcoming.map(d => {
       const dt = d.date ? new Date(d.date + 'T00:00:00') : null;
       const month = d.month || (dt ? dt.toLocaleDateString('en-US', {month:'short'}) : '—');
       const day = d.day || (dt ? dt.getDate() : '—');
+      let meetingTag = '';
+      if (d.isMeetingOnly) {
+        // Pure meeting, no deadline
+        meetingTag = `<div class="upcoming-meeting-tag has-meeting">Meeting only</div>`;
+      } else if (d.meetingInfo) {
+        // Deadline with a meeting scheduled
+        const timeMatch = d.meetingInfo.match(/\(([^)]+)\)/);
+        const timeStr = timeMatch ? ' at ' + timeMatch[1] : '';
+        meetingTag = `<div class="upcoming-meeting-tag has-meeting">Meeting scheduled${timeStr}</div>`;
+      } else {
+        // Deadline with no meeting
+        meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
+      }
       return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}">
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
-        <div class="upcoming-info"><div class="upcoming-title">${d.title}</div><div class="upcoming-course">${d.course}</div></div>
+        <div class="upcoming-info">
+          <div class="upcoming-title">${d.title}</div>
+          <div class="upcoming-course">${d.course}</div>
+          ${meetingTag}
+        </div>
       </div>`;
     }).join('');
   }
