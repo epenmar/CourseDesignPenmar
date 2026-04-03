@@ -413,9 +413,16 @@
 <div class="app">
   <!-- SIDEBAR -->
   <div class="sidebar">
-    <div class="sidebar-header">
-      <h2>COURSE DEVELOPMENT</h2>
-      <div class="course-name">MNS 521 — AI Technologies</div>
+    <div class="sidebar-header" style="position:relative;">
+      <div style="display:flex; align-items:start; justify-content:space-between;">
+        <div>
+          <h2>COURSE DEVELOPMENT</h2>
+          <div class="course-name">MNS 521 — AI Technologies</div>
+        </div>
+        <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())" style="margin-top:2px;">
+          💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
+        </button>
+      </div>
     </div>
 
     <div class="nav-section">
@@ -2386,7 +2393,33 @@
 
   // ===== VIEW SWITCHING =====
   const views = ['dashboard','module','module-overview','assignments-overview','materials-overview','course-info','objectives','additional','materials','preview'];
+  let currentViewId = 'dashboard';
+
+  function getCurrentSection() {
+    var sectionMap = {
+      'dashboard': 'dashboard', 'course-info': 'course-info', 'objectives': 'clos-elos',
+      'additional': 'additional', 'materials': 'textbooks', 'module-overview': 'module-overview',
+      'assignments-overview': 'assignments-overview', 'materials-overview': 'materials-overview',
+      'module': 'module-' + currentModuleNum, 'preview': 'preview'
+    };
+    return sectionMap[currentViewId] || currentViewId;
+  }
+
+  function updateGlobalCommentBtn() {
+    var countEl = document.getElementById('global-comment-count');
+    if (!countEl) return;
+    var section = getCurrentSection();
+    var count = (window._commentCache || []).filter(function(c) { return c.section_id === section && !c.resolved; }).length;
+    if (count > 0) {
+      countEl.textContent = count;
+      countEl.style.display = '';
+    } else {
+      countEl.style.display = 'none';
+    }
+  }
+
   function showView(viewId) {
+    currentViewId = viewId;
     views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
     const target = document.getElementById('view-'+viewId);
     if(target) {
@@ -2408,6 +2441,7 @@
     if (viewId === 'assignments-overview') renderAssignmentsOverview();
     if (viewId === 'materials-overview') renderMaterialsOverview();
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
+    updateGlobalCommentBtn();
   }
 
   let currentModuleNum = 1;
@@ -4519,18 +4553,13 @@
   }
 
   function updateCommentCounts() {
-    document.querySelectorAll('.comment-btn').forEach(btn => {
-      const section = btn.dataset.section;
-      const cached = commentCache[section];
-      const countEl = btn.querySelector('.comment-count');
-      if (cached && cached.length > 0 && countEl) {
-        const unresolvedCount = cached.filter(c => !c.resolved).length;
-        countEl.textContent = unresolvedCount;
-        countEl.style.display = unresolvedCount > 0 ? 'inline' : 'none';
-      } else if (countEl) {
-        countEl.style.display = 'none';
-      }
+    // Build flat list for global button
+    var allComments = [];
+    Object.keys(commentCache).forEach(function(section) {
+      (commentCache[section] || []).forEach(function(c) { allComments.push(c); });
     });
+    window._commentCache = allComments;
+    updateGlobalCommentBtn();
   }
 
   // ===== INLINE TEXT HIGHLIGHTING =====
@@ -4850,51 +4879,10 @@
     } catch(e) { console.error('Failed to load highlights:', e); }
   }
 
-  // ===== INJECT COMMENT BUTTONS =====
+  // ===== COMMENT BUTTON (global, in sidebar header) =====
   function injectCommentButtons() {
-    const sections = [
-      { viewId: 'view-dashboard', sectionId: 'dashboard-timeline', label: 'Timeline' },
-      { viewId: 'view-course-info', sectionId: 'course-info', label: 'Course Info' },
-      { viewId: 'view-textbooks', sectionId: 'textbooks', label: 'Textbooks' },
-      { viewId: 'view-course-context', sectionId: 'course-context', label: 'Course Context' },
-      { viewId: 'view-clo-elo', sectionId: 'clos-elos', label: 'ELOs & CLOs' },
-      { viewId: 'view-module-overview', sectionId: 'module-overview', label: 'Module Overview' },
-    ];
-
-    sections.forEach(s => {
-      const view = document.getElementById(s.viewId);
-      if (!view) return;
-      const h1 = view.querySelector('h1');
-      if (!h1 || h1.querySelector('.comment-btn')) return;
-      const btn = document.createElement('button');
-      btn.className = 'comment-btn';
-      btn.dataset.section = s.sectionId;
-      btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
-      btn.title = 'Comments on ' + s.label;
-      btn.onclick = function() { openCommentPanel(s.sectionId); };
-      h1.style.display = 'flex';
-      h1.style.alignItems = 'center';
-      h1.style.gap = '12px';
-      h1.appendChild(btn);
-    });
-
-    const moduleView = document.getElementById('view-module');
-    if (moduleView) {
-      const h1 = moduleView.querySelector('h1');
-      if (h1 && !h1.querySelector('.comment-btn')) {
-        const btn = document.createElement('button');
-        btn.className = 'comment-btn';
-        btn.id = 'module-comment-btn';
-        btn.dataset.section = 'module-1';
-        btn.innerHTML = '💬 <span class="comment-count" style="display:none;">0</span>';
-        btn.title = 'Comments on this module';
-        btn.onclick = function() { openCommentPanel(this.dataset.section); };
-        h1.style.display = 'flex';
-        h1.style.alignItems = 'center';
-        h1.style.gap = '12px';
-        h1.appendChild(btn);
-      }
-    }
+    // Comment button is now in the sidebar header — just update the count
+    updateGlobalCommentBtn();
   }
 
   async function loadAllCommentCounts() {
