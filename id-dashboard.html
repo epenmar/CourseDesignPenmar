@@ -739,11 +739,11 @@
       } else {
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
-      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="renderDetail('${d.courseId}'); document.getElementById('detail-panel').classList.add('open');"` : ''}>
+      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="renderDetail('${d.courseId}'); document.getElementById('detail-overlay').classList.add('open');"` : ''}>
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.title}</div>
-          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); renderDetail('${d.courseId}'); document.getElementById('detail-panel').classList.add('open');" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
+          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); renderDetail('${d.courseId}'); document.getElementById('detail-overlay').classList.add('open');" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
           ${meetingTag}
         </div>
       </div>`;
