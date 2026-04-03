@@ -149,7 +149,8 @@
 
   /* ===== UPCOMING ===== */
   .upcoming-list { display: flex; gap: 8px; flex-wrap: wrap; }
-  .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; }
+  .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; cursor: pointer; transition: border-color 0.15s; }
+  .upcoming-card:hover { border-color: #8c1d40; }
   .upcoming-date-box { background: #8c1d40; color: #fff; border-radius: 6px; padding: 4px 6px; text-align: center; min-width: 40px; }
   .upcoming-date-box .month { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
   .upcoming-date-box .day { font-size: 15px; font-weight: 700; line-height: 1; }
@@ -738,7 +739,7 @@
       } else {
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
-      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}">
+      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="renderDetail('${d.courseId}'); document.getElementById('detail-panel').classList.add('open');"` : ''}>
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.title}</div>
