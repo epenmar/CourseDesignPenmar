@@ -910,6 +910,44 @@
     applyColumnVisibility();
   }
 
+  // ===== ENSURE WORKSHEET CONFIGS EXIST =====
+  // Pre-built courses need worksheet entries in localStorage so the worksheet page can load them
+  (function ensureWorksheetConfigs() {
+    const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    let changed = false;
+    Object.keys(courseData).forEach(key => {
+      const c = courseData[key];
+      if (saved[key] && saved[key]._worksheet) return; // already has worksheet config
+      if (!saved[key]) saved[key] = {};
+      const modCount = c.modules ? c.modules.length : 7;
+      saved[key]._worksheet = {
+        code: c.code, name: c.courseName,
+        fullTitle: c.code + ' — ' + c.courseName,
+        instructor: c.instructor, email: c.email || '', office: '',
+        session: c.session || 'TBD', sessionShort: c.session || 'Session TBD',
+        credits: '', prerequisites: '', sectionLines: '', enrollmentCap: '',
+        id: c.id || 'Elisa Penmar', textbook: '',
+        driveFolder: c.driveFolder || '',
+        sessionValue: null,
+        moduleCount: modCount,
+        milestonesCompleted: 0,
+        qaDate: c.qa && c.qa !== '—' ? c.qa : null,
+        clos: [], elos: [],
+        modules: Array.from({length: modCount}, (_, i) => ({ title: 'Module ' + (i+1), num: i+1, mlos: [] })),
+        users: (function() {
+          const u = {};
+          if (c.instructor && c.instructor !== 'TBD') {
+            const slug = c.instructor.split(/\s+/).pop().toLowerCase();
+            u[slug] = { name: c.instructor, role: 'instructor' };
+          }
+          return u;
+        })()
+      };
+      changed = true;
+    });
+    if (changed) localStorage.setItem('user_courses', JSON.stringify(saved));
+  })();
+
   // ===== INIT =====
   renderSummary();
   renderUpcoming();
