@@ -1930,8 +1930,8 @@
     const ms = [
       { label: 'ELOs and CLOs Review', section: 'objectives', action: "showView('objectives')" },
       { label: 'Module MLOs and Topics Review', section: 'module-overview', action: "showView('module-overview')" },
-      { label: 'Assignments Review', section: 'assignments', action: "showModule(1)" },
-      { label: 'Materials Review', section: 'materials', action: "showView('materials')" },
+      { label: 'Assignments Review', section: 'assignments-overview', action: "showView('assignments-overview')" },
+      { label: 'Materials Review', section: 'materials-overview', action: "showView('materials-overview')" },
     ];
     for (let i = 1; i <= course.moduleCount; i++) {
       ms.push({ label: 'Module ' + i, section: 'mod-' + i, action: "showModule(" + i + ")" });
