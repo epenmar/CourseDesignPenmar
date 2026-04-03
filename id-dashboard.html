@@ -917,19 +917,21 @@
   // Fetches fresh data from local sync server (Outlook calendar + Obsidian notes)
   // Falls back silently to static dashboard-data.js if server isn't running
   function triggerSync(force) {
-    const btn = document.getElementById('sync-btn');
-    btn.classList.add('syncing');
-    const url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
-    fetch(url, { signal: AbortSignal.timeout(20000) })
-      .then(r => r.ok ? r.json() : Promise.reject('not ok'))
-      .then(fresh => {
+    var btn = document.getElementById('sync-btn');
+    if (btn) btn.classList.add('syncing');
+    var url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
+    var controller = new AbortController();
+    var timer = setTimeout(function() { controller.abort(); }, 15000);
+    fetch(url, { signal: controller.signal })
+      .then(function(r) { return r.ok ? r.json() : Promise.reject('not ok'); })
+      .then(function(fresh) {
         if (!fresh || !fresh.courses) return;
-        Object.keys(fresh.courses).forEach(id => {
+        Object.keys(fresh.courses).forEach(function(id) {
           if (!courseData[id]) return;
-          const s = fresh.courses[id];
+          var s = fresh.courses[id];
           if (s.notes) courseData[id].notes = s.notes;
           if (s.lastActiveDate) {
-            const diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
+            var diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
             courseData[id].lastActive = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : diff < 14 ? diff + ' days ago' : (s.lastActive || diff + ' days ago');
             courseData[id].lastActiveStale = diff > 14;
           }
@@ -944,10 +946,10 @@
         renderUpcoming();
         renderTable();
       })
-      .catch(() => {})
-      .finally(() => btn.classList.remove('syncing'));
+      .catch(function() {})
+      .finally(function() { clearTimeout(timer); if (btn) btn.classList.remove('syncing'); });
   }
-  triggerSync(); // sync on page load
+  try { triggerSync(); } catch(e) {} // sync on page load, never block initial render
 
   // ===== RENDER DETAIL PANEL =====
   function renderDetail(id) {
