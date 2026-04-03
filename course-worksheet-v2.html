@@ -2824,7 +2824,7 @@
           html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
           html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
+          html += '<textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; min-height:28px; resize:none; overflow:hidden; font-size:12px; line-height:1.4;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.due) + '</textarea>';
           html += '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button>';
           html += '</div>';
           // Inline content expansion
@@ -2856,7 +2856,7 @@
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
-          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
@@ -2918,6 +2918,8 @@
           html += '<select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="width:110px; font-size:11px; padding:4px 6px; flex-shrink:0;">' + buildTypeOptions(mat.type) + '</select>';
           // Title input - responsive
           html += '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" placeholder="Material title..." style="flex:1; min-width:120px; font-size:12px;" oninput="syncOverviewMaterial(this)" />';
+          // Objectives picker
+          html += buildObjPickerHtml('ovm-' + mat.id, mat.objectives || [], m);
           // Inline content toggle
           html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.material-item\').nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>';
           // Delete button
@@ -2950,16 +2952,17 @@
 
     // Table view — fully editable
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:100px;">Type</th><th>Title</th><th style="width:180px;">Objectives</th><th style="width:40px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
+        thtml += '<tbody data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
-          thtml += '<tr data-material-id="' + mat.id + '" data-module-num="' + m + '">';
-          thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
+          thtml += '<tr draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
+          thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
-          thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
@@ -2967,8 +2970,9 @@
           thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No materials</td></tr>';
         }
         thtml += '<tr><td></td><td colspan="4"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
+        thtml += '</tbody>';
       }
-      thtml += '</tbody></table>';
+      thtml += '</table>';
       tableContainer.innerHTML = thtml;
     }
   }
@@ -3061,6 +3065,15 @@
   function overviewDragOver(e) {
     e.preventDefault();
     e.currentTarget.classList.add('drag-over');
+    // Auto-expand collapsed accordion on drag hover
+    if (e.currentTarget.classList.contains('collapsed')) {
+      e.currentTarget.classList.remove('collapsed');
+      var toggle = e.currentTarget.previousElementSibling;
+      if (toggle) {
+        var arrow = toggle.querySelector('.card-toggle');
+        if (arrow) arrow.classList.add('open');
+      }
+    }
   }
 
   function overviewDragLeave(e) {
@@ -3074,34 +3087,87 @@
 
     var targetModule = parseInt(e.currentTarget.getAttribute('data-drop-module'));
     var sourceModule = overviewDragData.sourceModule;
-    if (!targetModule || targetModule === sourceModule) return;
+    if (!targetModule) return;
+
+    // Find the element being dropped onto for position detection
+    var targetEl = e.target.closest('[data-activity-id], [data-material-id]');
+    var targetId = targetEl ? (targetEl.getAttribute('data-activity-id') || targetEl.getAttribute('data-material-id')) : null;
 
     if (overviewDragData.type === 'assignments' && overviewDragData.activityId) {
-      // Move activity between modules
       var sourceList = courseActivities[sourceModule] || [];
       var idx = sourceList.findIndex(function(a) { return a.id === overviewDragData.activityId; });
       if (idx === -1) return;
-      var item = sourceList.splice(idx, 1)[0];
-      // Clear module-level objectives — they don't apply to the new module
-      item.objectives = [];
-      if (!courseActivities[targetModule]) courseActivities[targetModule] = [];
-      courseActivities[targetModule].push(item);
-      saveActivityData();
-      var openA = getOpenOverviewModules('assignments-overview-cards');
-      openA[targetModule] = true;
-      renderAssignmentsOverview(openA);
+
+      if (targetModule === sourceModule) {
+        // Reorder within same module
+        var targetIdx = -1;
+        if (targetId) {
+          targetIdx = sourceList.findIndex(function(a) { return a.id === targetId; });
+        }
+        if (targetIdx === -1 || targetIdx === idx) return;
+        var item = sourceList.splice(idx, 1)[0];
+        // Adjust target index after removal
+        if (idx < targetIdx) targetIdx--;
+        sourceList.splice(targetIdx, 0, item);
+        saveActivityData();
+        var openA = getOpenOverviewModules('assignments-overview-cards');
+        renderAssignmentsOverview(openA);
+      } else {
+        // Move activity between modules
+        var item = sourceList.splice(idx, 1)[0];
+        item.objectives = [];
+        if (!courseActivities[targetModule]) courseActivities[targetModule] = [];
+        // Insert at target position if dropping onto specific item
+        var insertIdx = -1;
+        if (targetId) {
+          insertIdx = courseActivities[targetModule].findIndex(function(a) { return a.id === targetId; });
+        }
+        if (insertIdx >= 0) {
+          courseActivities[targetModule].splice(insertIdx, 0, item);
+        } else {
+          courseActivities[targetModule].push(item);
+        }
+        saveActivityData();
+        var openA = getOpenOverviewModules('assignments-overview-cards');
+        openA[targetModule] = true;
+        renderAssignmentsOverview(openA);
+      }
     } else if (overviewDragData.type === 'materials-ov' && overviewDragData.materialId) {
-      // Move material between modules
       var sourceList = courseMaterials[sourceModule] || [];
       var idx = sourceList.findIndex(function(m) { return m.id === overviewDragData.materialId; });
       if (idx === -1) return;
-      var item = sourceList.splice(idx, 1)[0];
-      if (!courseMaterials[targetModule]) courseMaterials[targetModule] = [];
-      courseMaterials[targetModule].push(item);
-      saveActivityData();
-      var openM = getOpenOverviewModules('materials-overview-cards');
-      openM[targetModule] = true;
-      renderMaterialsOverview(openM);
+
+      if (targetModule === sourceModule) {
+        // Reorder within same module
+        var targetIdx = -1;
+        if (targetId) {
+          targetIdx = sourceList.findIndex(function(m) { return m.id === targetId; });
+        }
+        if (targetIdx === -1 || targetIdx === idx) return;
+        var item = sourceList.splice(idx, 1)[0];
+        if (idx < targetIdx) targetIdx--;
+        sourceList.splice(targetIdx, 0, item);
+        saveActivityData();
+        var openM = getOpenOverviewModules('materials-overview-cards');
+        renderMaterialsOverview(openM);
+      } else {
+        // Move material between modules
+        var item = sourceList.splice(idx, 1)[0];
+        if (!courseMaterials[targetModule]) courseMaterials[targetModule] = [];
+        var insertIdx = -1;
+        if (targetId) {
+          insertIdx = courseMaterials[targetModule].findIndex(function(m) { return m.id === targetId; });
+        }
+        if (insertIdx >= 0) {
+          courseMaterials[targetModule].splice(insertIdx, 0, item);
+        } else {
+          courseMaterials[targetModule].push(item);
+        }
+        saveActivityData();
+        var openM = getOpenOverviewModules('materials-overview-cards');
+        openM[targetModule] = true;
+        renderMaterialsOverview(openM);
+      }
     }
   }
 
