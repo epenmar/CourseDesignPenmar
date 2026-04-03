@@ -227,11 +227,13 @@ function matchNoteToCourses(note) {
     if (courseId) courses.add(courseId);
   }
 
-  // Also match via title + filename keywords
-  const text = (note.title || '').toLowerCase() + ' ' + path.basename(note.filePath).toLowerCase();
-  for (const [courseId, keywords] of Object.entries(COURSE_KEYWORDS)) {
-    for (const kw of keywords) {
-      if (text.includes(kw.toLowerCase())) { courses.add(courseId); break; }
+  // Only fall back to keyword matching if no project links matched
+  if (courses.size === 0) {
+    const text = (note.title || '').toLowerCase() + ' ' + path.basename(note.filePath).toLowerCase();
+    for (const [courseId, keywords] of Object.entries(COURSE_KEYWORDS)) {
+      for (const kw of keywords) {
+        if (text.includes(kw.toLowerCase())) { courses.add(courseId); break; }
+      }
     }
   }
 

@@ -996,7 +996,7 @@
     html += `</div></div>`;
 
     // Stats
-    html += `<div class="detail-stat-row">
+    html += `<div class="detail-stat-row" style="margin-top:16px;">
       <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
       <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
     </div>`;
@@ -1007,17 +1007,40 @@
       <div style="font-size:14px; font-weight:600; color:#8c1d40; margin-top:2px;">${c.id}</div>
     </div>`;
 
-    // Module status
-    if (c.modules.length > 0) {
-      html += `<div class="detail-section"><h3>Module Status</h3><ul class="module-checklist">`;
-      c.modules.forEach(m => {
-        const si = stateIcons[m.state];
-        html += `<li><span class="mc-icon ${si.cls}">${si.icon}</span> <strong>${m.name}</strong> — ${m.desc} <span style="margin-left:auto; font-size:11px; color:${stateColors[m.state]};">${m.label}</span></li>`;
-      });
-      html += `</ul></div>`;
-    } else {
-      html += `<div class="detail-section"><h3>Module Status</h3><div style="padding:16px; background:#f5f5f0; border-radius:8px; font-size:13px; color:#999; text-align:center;">No modules defined yet. Development has not started.</div></div>`;
-    }
+    // Development status — mirrors milestone progression
+    html += `<div class="detail-section"><h3>Development Status</h3>`;
+    const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
+    const msStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+    const devMilestones = [
+      'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
+    ];
+    const modCount = c.modules.length || 7;
+    for (let i = 1; i <= modCount; i++) devMilestones.push('Module ' + i);
+    devMilestones.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
+
+    html += `<ul class="module-checklist">`;
+    devMilestones.forEach((label, i) => {
+      let state, statusLabel, statusColor;
+      const ms = msStatus && msStatus[i];
+      if (ms && ms.status === 'done') {
+        state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
+      } else if (ms && ms.status === 'meeting') {
+        state = 'partial'; statusLabel = '📅 ' + (ms.meetingLabel || 'Meeting'); statusColor = '#1565c0';
+      } else {
+        // Fall back to milestones completed count from worksheet config
+        const completed = (syncedCourse && msStatus) ? msStatus.filter(s => s && s.status === 'done').length : 0;
+        if (i < completed) {
+          state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
+        } else if (i === completed) {
+          state = 'partial'; statusLabel = 'In progress'; statusColor = '#e65100';
+        } else {
+          state = 'empty'; statusLabel = '—'; statusColor = '#999';
+        }
+      }
+      const si = stateIcons[state];
+      html += `<li><span class="mc-icon ${si.cls}">${si.icon}</span> <strong>${label}</strong> <span style="margin-left:auto; font-size:11px; color:${statusColor};">${statusLabel}</span></li>`;
+    });
+    html += `</ul></div>`;
 
     // Milestones
     if (c.milestones.length > 0) {
