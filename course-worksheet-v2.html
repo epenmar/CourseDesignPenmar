@@ -419,6 +419,10 @@
           <h2>COURSE DEVELOPMENT</h2>
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
+        <div style="display:flex; gap:2px; margin-right:4px;">
+          <button class="comment-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="padding:4px 6px; font-size:13px;">↩</button>
+          <button class="comment-btn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" style="padding:4px 6px; font-size:13px;">↪</button>
+        </div>
         <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())" style="margin-top:2px;">
           💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
         </button>
@@ -588,8 +592,8 @@
         </div>
 
         <div class="view-toggle">
-          <button class="view-btn active" onclick="switchOverviewMode('module-overview','card',this)">📋 Card View</button>
-          <button class="view-btn" onclick="switchOverviewMode('module-overview','table',this)">📊 Table View</button>
+          <button class="view-btn active" onclick="switchOverviewMode('module','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('module','table',this)">📊 Table View</button>
         </div>
         <div id="module-overview-cards">
           <!-- Dynamically rendered module cards -->
@@ -1197,6 +1201,122 @@
   let courseMaterials = {};
   let activityCounter = 100;
   let materialCount = 100;
+
+  // ===== UNDO / REDO =====
+  var undoStack = [];
+  var redoStack = [];
+  var MAX_UNDO = 50;
+  var undoDebounceTimer = null;
+  var undoCapturedForCurrentEdit = false;
+
+  function captureUndoState(label) {
+    undoStack.push({
+      label: label || 'edit',
+      activities: JSON.parse(JSON.stringify(courseActivities)),
+      materials: JSON.parse(JSON.stringify(courseMaterials)),
+      clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
+      flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
+      alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
+      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+    });
+    if (undoStack.length > MAX_UNDO) undoStack.shift();
+    redoStack = []; // clear redo on new action
+  }
+
+  function undo() {
+    if (undoStack.length === 0) return;
+    // Save current state to redo
+    redoStack.push({
+      label: 'redo',
+      activities: JSON.parse(JSON.stringify(courseActivities)),
+      materials: JSON.parse(JSON.stringify(courseMaterials)),
+      clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
+      flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
+      alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
+      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+    });
+    var state = undoStack.pop();
+    restoreState(state);
+  }
+
+  function redo() {
+    if (redoStack.length === 0) return;
+    undoStack.push({
+      label: 'undo',
+      activities: JSON.parse(JSON.stringify(courseActivities)),
+      materials: JSON.parse(JSON.stringify(courseMaterials)),
+      clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
+      flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
+      alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
+      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+    });
+    var state = redoStack.pop();
+    restoreState(state);
+  }
+
+  function restoreState(state) {
+    courseActivities = state.activities;
+    courseMaterials = state.materials;
+    activeCourse.clos = state.clos;
+    activeCourse.flatElos = state.flatElos;
+    activeCourse.cloEloAlignment = state.alignment;
+    if (state.moduleOverviewData !== null) {
+      saveField('moduleOverviewData', state.moduleOverviewData);
+      // Also update activeCourse.modules from saved data
+      var savedMods = state.moduleOverviewData;
+      if (savedMods && activeCourse.modules) {
+        Object.keys(savedMods).forEach(function(k) {
+          var idx = parseInt(k) - 1;
+          if (activeCourse.modules[idx] && savedMods[k]) {
+            if (savedMods[k].mlos) activeCourse.modules[idx].mlos = savedMods[k].mlos;
+            if (savedMods[k].topic) activeCourse.modules[idx].title = savedMods[k].topic;
+          }
+        });
+      }
+    }
+    // Persist
+    saveActivityData();
+    saveObjectivesState();
+    // Re-render everything
+    renderAllViews();
+  }
+
+  function renderAllViews() {
+    renderEloList();
+    renderCloList();
+    renderAlignmentMatrix();
+    renderModuleOverviewRef();
+    renderModuleOverviewCards();
+    renderCourseObjectivesAccordion();
+    // Only re-render overview pages if their containers exist in DOM
+    if (document.getElementById('assignments-overview-cards')) {
+      renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
+    }
+    if (document.getElementById('materials-overview-cards')) {
+      renderMaterialsOverview(getOpenOverviewModules('materials-overview-cards'));
+    }
+  }
+
+  function captureUndoOnEdit(label) {
+    if (!undoCapturedForCurrentEdit) {
+      captureUndoState(label);
+      undoCapturedForCurrentEdit = true;
+    }
+    clearTimeout(undoDebounceTimer);
+    undoDebounceTimer = setTimeout(function() {
+      undoCapturedForCurrentEdit = false;
+    }, 2000);
+  }
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+      e.preventDefault();
+      undo();
+    } else if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+      e.preventDefault();
+      redo();
+    }
+  });
 
   function initDataModel() {
     const savedActs = loadField('courseActivities');
@@ -1864,6 +1984,7 @@
   }
 
   function saveModuleOverview() {
+    captureUndoOnEdit('edit module');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
       const cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
@@ -2979,6 +3100,7 @@
 
   // Sync overview edits back to data model
   function syncOverviewActivity(el) {
+    captureUndoOnEdit('edit activity');
     var actId = el.getAttribute('data-activity-id');
     var modNum = parseInt(el.getAttribute('data-module-num'));
     var field = el.getAttribute('data-field');
@@ -2992,6 +3114,7 @@
   }
 
   function syncOverviewMaterial(el) {
+    captureUndoOnEdit('edit material');
     var matId = el.getAttribute('data-material-id');
     var modNum = parseInt(el.getAttribute('data-module-num'));
     var field = el.getAttribute('data-field');
@@ -3018,6 +3141,7 @@
   }
 
   function addActivityToModule(modNum) {
+    captureUndoState('add activity');
     var openModules = getOpenOverviewModules('assignments-overview-cards');
     openModules[modNum] = true; // ensure the module we're adding to stays open
     activityCounter++;
@@ -3029,6 +3153,7 @@
   }
 
   function addMaterialToModule(modNum) {
+    captureUndoState('add material');
     var openModules = getOpenOverviewModules('materials-overview-cards');
     openModules[modNum] = true;
     materialCount++;
@@ -3084,6 +3209,7 @@
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
     if (!overviewDragData) return;
+    captureUndoState('drag move');
 
     var targetModule = parseInt(e.currentTarget.getAttribute('data-drop-module'));
     var sourceModule = overviewDragData.sourceModule;
@@ -3341,6 +3467,7 @@
 
   // ===== MODULE OVERVIEW: ADD OBJECTIVE =====
   function addObjective(modNum) {
+    captureUndoState('add MLO');
     const list = document.getElementById('obj-list-' + modNum);
     const count = list.querySelectorAll('.obj-entry').length + 1;
     const entry = document.createElement('div');
@@ -3450,6 +3577,7 @@
   }
 
   function deleteOverviewActivity(actId, modNum) {
+    captureUndoState('delete activity');
     var acts = courseActivities[modNum] || [];
     var act = acts.find(function(a) { return a.id === actId; });
     var nameStr = act && act.name ? act.name : 'this activity';
@@ -3463,6 +3591,7 @@
   }
 
   function deleteOverviewMaterial(matId, modNum) {
+    captureUndoState('delete material');
     if (confirm('Delete this material?')) {
       if (courseMaterials[modNum]) {
         courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
@@ -4100,6 +4229,7 @@
 
   // ===== OBJECTIVES CRUD FUNCTIONS =====
   function addClo() {
+    captureUndoState('add CLO');
     saveCloState();
     activeCourse.clos.push('');
     renderCloList();
@@ -4108,6 +4238,7 @@
   }
 
   function removeClo(idx) {
+    captureUndoState('remove CLO');
     saveCloState();
     activeCourse.clos.splice(idx, 1);
     if (activeCourse.cloEloAlignment) activeCourse.cloEloAlignment.splice(idx, 1);
@@ -4118,6 +4249,7 @@
   }
 
   function addElo() {
+    captureUndoState('add ELO');
     saveEloState();
     migrateToDecoupledObjectives();
     activeCourse.flatElos.push('');
@@ -4127,6 +4259,7 @@
   }
 
   function removeElo(idx) {
+    captureUndoState('remove ELO');
     saveEloState();
     activeCourse.flatElos.splice(idx, 1);
     if (activeCourse.cloEloAlignment) {
