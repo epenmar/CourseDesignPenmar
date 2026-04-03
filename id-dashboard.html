@@ -131,7 +131,7 @@
   .dt-label { flex: 1; }
   .dt-status { font-size: 11px; }
 
-  .btn-open-dev { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+  .btn-open-dev { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .btn-open-dev:hover { background: #6d1633; }
 
   /* ===== SECTION HEADER ===== */
@@ -192,7 +192,7 @@
 
   /* ===== EMAIL DROPDOWN ===== */
   .email-dropdown-wrap { position: relative; display: inline-block; }
-  .email-dropdown-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: #fff; color: #8c1d40; border: 1.5px solid #8c1d40; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; }
+  .email-dropdown-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 16px; background: #fff; color: #8c1d40; border: 1.5px solid #8c1d40; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; }
   .email-dropdown-btn:hover { background: #fdf2f4; }
   .email-dropdown-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 260px; z-index: 10; margin-top: 4px; }
   .email-dropdown-menu.open { display: block; }
@@ -733,12 +733,12 @@
     html += `<div class="detail-header">
       <h2>${c.title}</h2>
       <p>${c.subtitle} &bull; <span class="status-pill ${c.statusClass}">${c.status}</span></p>
-      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap;">`;
+      <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
     if (c.devLink) {
-      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none;">📄 Open Instructor Development</a>`;
+      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor Development</a>`;
     }
     if (c.driveFolder) {
-      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none;">📂 Google Drive</a>`;
+      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;">📂 Google Drive</a>`;
     }
     if (c.email) {
       html += buildEmailDropdown(id, c);
@@ -762,7 +762,7 @@
       }
       bodyText += 'Best,\nElisa';
       const body = encodeURIComponent(bodyText);
-      html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none;">🔗 Send Worksheet Link</a>`;
+      html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
     html += `</div></div>`;
 
