@@ -620,6 +620,59 @@
   }
 
   // ===== RENDER UPCOMING DEADLINES =====
+
+  // Build a lookup: course title substring → courseData key
+  function findCourseByTitle(courseStr) {
+    for (const [id, c] of Object.entries(courseData)) {
+      if (courseStr.includes(c.code)) return id;
+    }
+    return null;
+  }
+
+  // Check if a course has a meeting near a given date (within ±2 days)
+  function findMeetingNearDate(courseId, dateStr) {
+    const c = courseData[courseId];
+    if (!c) return null;
+    const target = new Date(dateStr + 'T00:00:00').getTime();
+    const range = 2 * 86400000; // ±2 days
+
+    // Check nextMeeting from synced data
+    if (c.nextMeeting && c.nextMeeting.date) {
+      const nd = new Date(c.nextMeeting.date + 'T00:00:00').getTime();
+      if (Math.abs(nd - target) <= range) {
+        return { time: c.nextMeeting.time || null, label: c.nextMeeting.label || 'Meeting' };
+      }
+    }
+
+    // Check meetings array from synced data
+    if (c.meetings && c.meetings.length > 0) {
+      for (const m of c.meetings) {
+        // m.date is like "Apr 2, 2026" — parse it
+        const md = new Date(m.date).getTime();
+        if (!isNaN(md) && Math.abs(md - target) <= range) {
+          const timeMatch = m.title.match(/\((\d{1,2}:\d{2}\s*[AP]M)\)/i);
+          return { time: timeMatch ? timeMatch[1] : null, label: m.title };
+        }
+      }
+    }
+
+    // Check milestones that look like meetings
+    if (c.milestones) {
+      for (const ms of c.milestones) {
+        if (/meeting|follow.?up|check.?in/i.test(ms.label) && ms.date) {
+          // ms.date is short form like "Apr 17" — try to parse with current year
+          const parsed = new Date(ms.date + ', ' + new Date().getFullYear());
+          if (!isNaN(parsed.getTime()) && Math.abs(parsed.getTime() - target) <= range) {
+            const timeMatch = ms.label.match(/\((\d{1,2}:\d{2}\s*[AP]M)\)/i);
+            return { time: timeMatch ? timeMatch[1] : null, label: ms.label };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
   function renderUpcoming() {
     let raw = [];
     if (synced && synced.upcomingDeadlines) {
@@ -645,34 +698,19 @@
     // Classify each entry as a meeting or a deadline
     const isMeeting = (t) => /meeting|follow.?up|check.?in|sync|call/i.test(t);
 
-    // Group by date+course, merge meetings into deadlines
-    const grouped = {};
-    inRange.forEach(d => {
-      const key = d.date + '||' + d.course;
-      if (!grouped[key]) grouped[key] = { deadlines: [], meetings: [] };
-      if (isMeeting(d.title)) grouped[key].meetings.push(d);
-      else grouped[key].deadlines.push(d);
+    // Filter out standalone meeting entries — they'll be detected via courseData
+    const deadlinesOnly = inRange.filter(d => !isMeeting(d.title));
+
+    // For each deadline, check if there's a meeting near that date for the same course
+    const cards = deadlinesOnly.map(d => {
+      const courseId = findCourseByTitle(d.course);
+      const meeting = courseId ? findMeetingNearDate(courseId, d.date) : null;
+      return { ...d, meetingInfo: meeting };
     });
 
-    // Build merged cards
-    const merged = [];
-    Object.values(grouped).forEach(g => {
-      if (g.deadlines.length > 0) {
-        // Show each deadline, attach any meetings on the same date+course
-        g.deadlines.forEach(d => {
-          merged.push({ ...d, meetingInfo: g.meetings.length > 0 ? g.meetings[0].title : null });
-        });
-      } else {
-        // Standalone meeting with no deadline — still show it
-        g.meetings.forEach(m => {
-          merged.push({ ...m, meetingInfo: m.title, isMeetingOnly: true });
-        });
-      }
-    });
-
-    // Sort by date, limit
-    merged.sort((a, b) => a.date.localeCompare(b.date));
-    const upcoming = merged.slice(0, 6);
+    // Sort by date, limit to 6
+    cards.sort((a, b) => a.date.localeCompare(b.date));
+    const upcoming = cards.slice(0, 6);
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
@@ -684,16 +722,10 @@
       const month = d.month || (dt ? dt.toLocaleDateString('en-US', {month:'short'}) : '—');
       const day = d.day || (dt ? dt.getDate() : '—');
       let meetingTag = '';
-      if (d.isMeetingOnly) {
-        // Pure meeting, no deadline
-        meetingTag = `<div class="upcoming-meeting-tag has-meeting">Meeting only</div>`;
-      } else if (d.meetingInfo) {
-        // Deadline with a meeting scheduled
-        const timeMatch = d.meetingInfo.match(/\(([^)]+)\)/);
-        const timeStr = timeMatch ? ' at ' + timeMatch[1] : '';
+      if (d.meetingInfo) {
+        const timeStr = d.meetingInfo.time ? ' at ' + d.meetingInfo.time : '';
         meetingTag = `<div class="upcoming-meeting-tag has-meeting">Meeting scheduled${timeStr}</div>`;
       } else {
-        // Deadline with no meeting
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
       return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}">
