@@ -713,9 +713,9 @@
 
     // For each deadline, check if there's a meeting near that date for the same course
     const cards = deadlinesOnly.map(d => {
-      const courseId = findCourseByTitle(d.course);
-      const meeting = courseId ? findMeetingNearDate(courseId, d.date) : null;
-      return { ...d, meetingInfo: meeting };
+      const cid = findCourseByTitle(d.course);
+      const meeting = cid ? findMeetingNearDate(cid, d.date) : null;
+      return { ...d, meetingInfo: meeting, courseId: cid };
     });
 
     // Sort by date, limit to 6
@@ -742,7 +742,7 @@
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.title}</div>
-          <div class="upcoming-course">${courseId ? `<a href="#" onclick="event.preventDefault(); renderDetail('${courseId}'); document.getElementById('detail-panel').classList.add('open');" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
+          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); renderDetail('${d.courseId}'); document.getElementById('detail-panel').classList.add('open');" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
           ${meetingTag}
         </div>
       </div>`;
