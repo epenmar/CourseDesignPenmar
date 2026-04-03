@@ -147,6 +147,7 @@
   .move-menu-item { padding: 8px 14px; font-size: 12px; cursor: pointer; white-space: nowrap; }
   .move-menu-item:hover { background: #fef3e8; color: #8c1d40; }
   [data-drop-zone].drag-over { background: #fef9f0; border: 2px dashed #ffc627; border-radius: 8px; }
+  tbody[data-drop-zone].drag-over { border-radius: 0; }
   .material-item { transition: border-color 0.15s; }
   .material-item.dragging { opacity: 0.5; border-color: #8c1d40 !important; }
   .activity-row { display: grid; grid-template-columns: 2fr 3fr 80px 100px; gap: 12px; align-items: start; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
@@ -2853,14 +2854,15 @@
 
     // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:24px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:24px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
         var mod = modules[m - 1];
         var acts = courseActivities[m] || [];
+        thtml += '<tbody data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
-          thtml += '<tr class="activity-block" data-activity-id="' + act.id + '" data-module-num="' + m + '">';
-          thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
+          thtml += '<tr class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
@@ -2872,8 +2874,9 @@
           thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
         thtml += '<tr><td></td><td colspan="5"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
+        thtml += '</tbody>';
       }
-      thtml += '</tbody></table>';
+      thtml += '</table>';
       tableContainer.innerHTML = thtml;
     }
   }
@@ -3088,6 +3091,8 @@
       var idx = sourceList.findIndex(function(a) { return a.id === overviewDragData.activityId; });
       if (idx === -1) return;
       var item = sourceList.splice(idx, 1)[0];
+      // Clear module-level objectives — they don't apply to the new module
+      item.objectives = [];
       if (!courseActivities[targetModule]) courseActivities[targetModule] = [];
       courseActivities[targetModule].push(item);
       saveActivityData();
