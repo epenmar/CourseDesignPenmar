@@ -55,8 +55,8 @@
   .filter-search:focus { outline: none; border-color: #8c1d40; }
 
   /* ===== COURSE TABLE ===== */
-  .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
-  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #fff; cursor: pointer; user-select: none; white-space: nowrap; }
+  .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; border: 1px solid #e8e5dd; border-radius: 8px; overflow: hidden; }
+  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
   .course-table thead th:hover { color: #8c1d40; }
   .course-table thead th .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.4; }
   .course-table thead th.sorted .sort-arrow { opacity: 1; color: #8c1d40; }
@@ -137,7 +137,7 @@
   /* ===== SECTION CONTAINERS ===== */
   .dash-section { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
   .dash-section.upcoming { border-left: 4px solid #8c1d40; }
-  .dash-section.courses { border-left: 4px solid #ffc627; }
+  .dash-section.courses { border-left: 4px solid #ffc627; overflow-x: auto; }
   .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
   .section-header h2 { font-size: 15px; font-weight: 700; color: #1a1a1a; }
 
