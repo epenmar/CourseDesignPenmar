@@ -397,7 +397,7 @@
   /* ===== INLINE HIGHLIGHTS ===== */
   .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
   .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
-  .inline-highlight.resolved { border-bottom-color: #ccc; }
+  .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
   .highlight-tooltip:hover { background: #6d1633; }
@@ -833,26 +833,31 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header" onclick="toggleCard(this)">
-            <div class="card-title"><span class="status-dot dot-partial"></span> Course Learning Outcomes (CLOs) and Expected Learning Outcomes (ELOs) Connections</div>
-            <span class="card-toggle open">▾</span>
+        <div id="objectives-clos">
+          <div class="card" style="padding:16px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="margin:0; font-size:14px;">Course Learning Outcomes (CLOs)</h4>
+              <button class="elo-add-btn" onclick="addClo()">+ Add CLO</button>
+            </div>
+            <div id="clo-list"></div>
           </div>
-          <div class="card-body">
-            <div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; margin-bottom:12px; padding:0 8px;">
-              <div></div>
-              <div style="padding:8px 12px; background:#f5f5f0; border:1px solid #e0ddd5; border-radius:8px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.04em;">
-                CLO — "Students will learn to..."
-              </div>
-              <div></div>
-              <div style="padding:8px 12px; background:#f5f5f0; border:1px solid #e0ddd5; border-radius:8px; font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.04em;">
-                ELO(s) — "Students will be able to..."
-              </div>
+        </div>
+
+        <div id="objectives-elos">
+          <div class="card" style="padding:16px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="margin:0; font-size:14px;">Enabling Learning Outcomes (ELOs)</h4>
+              <button class="elo-add-btn" onclick="addElo()">+ Add ELO</button>
             </div>
-            <div class="clo-elo-pairs" id="clo-elo-pairs">
-              <!-- Dynamically rendered from course config -->
-            </div>
-            <button class="btn-add-row" onclick="addCloEloPair()">+ Add CLO / ELO pair</button>
+            <div id="elo-list"></div>
+          </div>
+        </div>
+
+        <div id="objectives-alignment">
+          <div class="card" style="padding:16px;">
+            <h4 style="margin:0 0 12px; font-size:14px;">Alignment Matrix</h4>
+            <p style="font-size:12px; color:#666; margin-bottom:12px;">Check which ELOs support each CLO. An ELO can support multiple CLOs.</p>
+            <div id="alignment-matrix" style="overflow-x:auto;"></div>
           </div>
         </div>
       </div>
@@ -1093,6 +1098,8 @@
         ['Critically evaluate AI technologies for fairness, transparency, and societal impact'],
         ['Communicate AI system designs and tradeoffs to technical and non-technical audiences'],
       ],
+      flatElos: [],       // 1D flat list of all ELOs (populated by migration)
+      cloEloAlignment: [], // 2D array: alignment[cloIdx][eloIdx] = true/false
       users: {
         dnavabi: { name: 'Dariush Navabi', role: 'instructor' },
         epenmar: { name: 'Elisa Penmar', role: 'id' },
@@ -1496,8 +1503,19 @@
     const backLink = document.querySelector('.breadcrumb a');
     if (backLink) backLink.href = 'id-dashboard.html';
 
-    // ===== RENDER CLO/ELO PAIRS (Objectives View) =====
-    renderCloEloPairs();
+    // ===== LOAD SAVED OBJECTIVES DATA =====
+    const savedFlatElos = loadField('flatElos');
+    if (savedFlatElos) activeCourse.flatElos = savedFlatElos;
+    const savedAlignment = loadField('cloEloAlignment');
+    if (savedAlignment) activeCourse.cloEloAlignment = savedAlignment;
+    const savedClos = loadField('clos');
+    if (savedClos) activeCourse.clos = savedClos;
+
+    // ===== RENDER CLO/ELO SECTIONS (Objectives View) =====
+    migrateToDecoupledObjectives();
+    renderCloList();
+    renderEloList();
+    renderAlignmentMatrix();
 
     // ===== RENDER MODULE OVERVIEW CLO/ELO REFERENCE =====
     renderModuleOverviewRef();
@@ -1506,19 +1524,56 @@
     renderModuleOverviewCards();
   });
 
-  // ===== RENDER CLO/ELO PAIRS =====
-  // Helper: normalize elos — migrate flat array to array-of-arrays
+  // ===== OBJECTIVES: MIGRATION, RENDER, AND CRUD =====
+
+  // Helper: normalize elos — migrate flat array to array-of-arrays (kept for backward compat)
   function normalizeElos(elos) {
     if (!elos || elos.length === 0) return [];
-    // If first element is a string, it's old flat format — convert
     if (typeof elos[0] === 'string') {
       return elos.map(function(e) { return [e]; });
     }
     return elos;
   }
 
-  // Helper: get flat list of all ELOs with labels like "ELO 1a", "ELO 1b", "ELO 2"
+  // Migrate old paired CLO/ELO structure to decoupled format
+  function migrateToDecoupledObjectives() {
+    if (activeCourse._objectivesMigrated) return;
+    // If we already have flatElos loaded from storage, just mark migrated
+    if (activeCourse.flatElos && activeCourse.flatElos.length > 0) {
+      activeCourse._objectivesMigrated = true;
+      return;
+    }
+    // Flatten old 2D elos to 1D list and build alignment matrix
+    const oldElos = normalizeElos(activeCourse.elos || []);
+    const flatElos = [];
+    const alignment = [];
+
+    for (let i = 0; i < (activeCourse.clos || []).length; i++) {
+      alignment[i] = [];
+      const group = oldElos[i] || [];
+      for (let j = 0; j < group.length; j++) {
+        if (group[j] && group[j].trim()) {
+          const eloIdx = flatElos.length;
+          flatElos.push(group[j]);
+          alignment[i][eloIdx] = true;
+        }
+      }
+    }
+
+    activeCourse.flatElos = flatElos;
+    activeCourse.cloEloAlignment = alignment;
+    activeCourse._objectivesMigrated = true;
+  }
+
+  // Helper: get flat list of all ELOs with labels
   function getElosFlat() {
+    migrateToDecoupledObjectives();
+    if (activeCourse.flatElos && activeCourse.flatElos.length > 0) {
+      return activeCourse.flatElos.map(function(text, i) {
+        return { label: 'ELO ' + (i + 1), text: text };
+      });
+    }
+    // Fallback to old 2D structure
     var elos = normalizeElos(activeCourse.elos || []);
     var flat = [];
     for (var i = 0; i < elos.length; i++) {
@@ -1533,82 +1588,120 @@
     return flat;
   }
 
+  // Backward compat wrapper — calls the three new render functions
   function renderCloEloPairs() {
-    const container = document.getElementById('clo-elo-pairs');
+    renderCloList();
+    renderEloList();
+    renderAlignmentMatrix();
+  }
+
+  function renderCloList() {
+    const container = document.getElementById('clo-list');
     if (!container) return;
     const clos = activeCourse.clos || [];
-    const elos = normalizeElos(activeCourse.elos || []);
-    const count = Math.max(clos.length, elos.length, 1);
     let html = '';
-    for (let i = 0; i < count; i++) {
-      const eloGroup = elos[i] || [''];
-      html += '<div class="clo-elo-row">';
-      html += '<div class="clo-elo-num">' + (i + 1) + '</div>';
-      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-' + i + '" oninput="autoExpand(this)">' + (clos[i] || '') + '</textarea></div>';
-      html += '<div class="clo-elo-arrow">→</div>';
-      html += '<div class="clo-elo-field clo-elo-multi">';
-      for (let j = 0; j < eloGroup.length; j++) {
-        const eloLabel = eloGroup.length > 1 ? String.fromCharCode(97 + j) : '';
-        html += '<div class="elo-entry">';
-        if (eloGroup.length > 1) {
-          html += '<span class="elo-sub-label">' + (i + 1) + String.fromCharCode(97 + j) + '</span>';
-        }
-        html += '<textarea class="field-input auto-expand" id="elo-' + i + '-' + j + '" oninput="autoExpand(this)" placeholder="ELO ' + (i + 1) + eloLabel + ' — Students will be able to...">' + (eloGroup[j] || '') + '</textarea>';
-        if (eloGroup.length > 1) {
-          html += '<button class="elo-remove-btn" title="Remove this ELO" onclick="removeEloFromClo(' + i + ',' + j + ')">✕</button>';
-        }
-        html += '</div>';
-      }
-      html += '<button class="elo-add-btn" onclick="addEloToClo(' + i + ')">+ Add ELO</button>';
-      html += '</div>';
-      html += '</div>';
-    }
-    if (count === 0) {
-      html += '<div class="clo-elo-row">';
-      html += '<div class="clo-elo-num">1</div>';
-      html += '<div class="clo-elo-field"><textarea class="field-input auto-expand" id="clo-0" oninput="autoExpand(this)" placeholder="Enter a Course Learning Outcome..."></textarea></div>';
-      html += '<div class="clo-elo-arrow">→</div>';
-      html += '<div class="clo-elo-field clo-elo-multi">';
-      html += '<div class="elo-entry"><textarea class="field-input auto-expand" id="elo-0-0" oninput="autoExpand(this)" placeholder="ELO 1 — Students will be able to..."></textarea></div>';
-      html += '<button class="elo-add-btn" onclick="addEloToClo(0)">+ Add ELO</button>';
-      html += '</div>';
-      html += '</div>';
-    }
+    clos.forEach(function(clo, i) {
+      html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        '<span class="clo-elo-num" style="flex-shrink:0;">' + (i+1) + '</span>' +
+        '<textarea class="clo-elo-field" id="clo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveCloState()">' + escapeHtml(clo) + '</textarea>' +
+        '<button class="elo-remove-btn" onclick="removeClo(' + i + ')" title="Remove CLO" style="flex-shrink:0;">×</button>' +
+        '</div>';
+    });
+    if (clos.length === 0) html = '<div style="color:#999; font-size:13px; padding:8px;">No CLOs defined yet. Click "+ Add CLO" to start.</div>';
     container.innerHTML = html;
-    container.querySelectorAll('textarea').forEach(function(ta) { if (typeof autoResize === 'function') autoResize(ta); });
+  }
+
+  function renderEloList() {
+    const container = document.getElementById('elo-list');
+    if (!container) return;
+    migrateToDecoupledObjectives();
+    const elos = activeCourse.flatElos || [];
+    let html = '';
+    elos.forEach(function(elo, i) {
+      html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        '<span class="clo-elo-num" style="flex-shrink:0; background:#ffc627; color:#333;">' + (i+1) + '</span>' +
+        '<textarea class="clo-elo-field" id="elo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveEloState()">' + escapeHtml(elo) + '</textarea>' +
+        '<button class="elo-remove-btn" onclick="removeElo(' + i + ')" title="Remove ELO" style="flex-shrink:0;">×</button>' +
+        '</div>';
+    });
+    if (elos.length === 0) html = '<div style="color:#999; font-size:13px; padding:8px;">No ELOs defined yet. Click "+ Add ELO" to start.</div>';
+    container.innerHTML = html;
+  }
+
+  function renderAlignmentMatrix() {
+    const container = document.getElementById('alignment-matrix');
+    if (!container) return;
+    migrateToDecoupledObjectives();
+    const clos = activeCourse.clos || [];
+    const elos = activeCourse.flatElos || [];
+    const alignment = activeCourse.cloEloAlignment || [];
+
+    if (clos.length === 0 || elos.length === 0) {
+      container.innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">Define both CLOs and ELOs above to see the alignment matrix.</div>';
+      return;
+    }
+
+    let html = '<table style="border-collapse:collapse; font-size:12px; width:100%;">';
+    // Header row with ELO numbers
+    html += '<thead><tr><th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; min-width:120px;"></th>';
+    elos.forEach(function(elo, j) {
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#fef9f0; text-align:center; min-width:60px; font-weight:500;" title="' + escapeHtml(elo) + '">ELO ' + (j+1) + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    // One row per CLO
+    clos.forEach(function(clo, i) {
+      html += '<tr><td style="padding:8px 12px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40;" title="' + escapeHtml(clo) + '">CLO ' + (i+1) + '</td>';
+      elos.forEach(function(elo, j) {
+        const checked = alignment[i] && alignment[i][j];
+        html += '<td style="padding:4px; border:1px solid #e0ddd5; text-align:center;">' +
+          '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleAlignment(' + i + ',' + j + ',this.checked)" style="width:18px; height:18px; cursor:pointer; accent-color:#8c1d40;" />' +
+          '</td>';
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
   }
 
   function renderModuleOverviewRef() {
     const container = document.getElementById('module-overview-clo-ref');
     if (!container) return;
+    migrateToDecoupledObjectives();
     const clos = activeCourse.clos || [];
-    const elos = normalizeElos(activeCourse.elos || []);
-    const count = Math.max(clos.length, elos.length);
+    const flatElos = activeCourse.flatElos || [];
+    const alignment = activeCourse.cloEloAlignment || [];
 
     let html = '';
     html += '<div style="display:grid; grid-template-columns:28px 1fr 24px 1fr; gap:8px; padding:0; margin-bottom:8px;">';
     html += '<div></div>';
     html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">CLO — "Students will learn to..."</div>';
     html += '<div></div>';
-    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">ELO(s) — "Students will be able to..."</div>';
+    html += '<div style="padding:6px 10px; background:#e8f5e9; border-radius:6px; font-size:11px; font-weight:600; color:#2e7d32; text-transform:uppercase; letter-spacing:0.04em;">Aligned ELO(s) — "Students will be able to..."</div>';
     html += '</div>';
 
-    if (count === 0) {
-      html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No CLOs or ELOs defined yet. Go to the CLOs & ELOs page to add them.</div>';
+    if (clos.length === 0) {
+      html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No CLOs defined yet. Go to the CLOs & ELOs page to add them.</div>';
     } else {
       html += '<div style="display:flex; flex-direction:column; gap:6px;">';
-      for (let i = 0; i < count; i++) {
+      for (let i = 0; i < clos.length; i++) {
         const border = i > 0 ? ' border-top:1px solid #e8e5dd;' : '';
-        const eloGroup = elos[i] || [];
+        // Find aligned ELOs for this CLO from the alignment matrix
         let eloHtml = '';
-        if (eloGroup.length === 0) {
-          eloHtml = '<em style="color:#999">Not defined</em>';
-        } else if (eloGroup.length === 1) {
-          eloHtml = '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;">' + (eloGroup[0] || '<em style="color:#999">Not defined</em>') + '</span>';
+        const alignedElos = [];
+        for (let j = 0; j < flatElos.length; j++) {
+          if (alignment[i] && alignment[i][j]) {
+            alignedElos.push({ idx: j, text: flatElos[j] });
+          }
+        }
+        if (alignedElos.length === 0) {
+          eloHtml = '<em style="color:#999">No ELOs aligned</em>';
+        } else if (alignedElos.length === 1) {
+          eloHtml = '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">ELO ' + (alignedElos[0].idx+1) + '.</span>' + (alignedElos[0].text || '') + '</span>';
         } else {
           eloHtml = '<div style="display:flex; flex-direction:column; gap:4px;">';
-          for (let j = 0; j < eloGroup.length; j++) {
-            eloHtml += '<div style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">' + (i+1) + String.fromCharCode(97+j) + '.</span>' + (eloGroup[j] || '') + '</div>';
+          for (let k = 0; k < alignedElos.length; k++) {
+            eloHtml += '<div style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">ELO ' + (alignedElos[k].idx+1) + '.</span>' + (alignedElos[k].text || '') + '</div>';
           }
           eloHtml += '</div>';
         }
@@ -2005,7 +2098,7 @@
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
       // Sync CLO/ELO textareas back to activeCourse data model
-      if (document.getElementById('clo-elo-pairs')) saveCloEloState();
+      if (document.getElementById('clo-list')) { saveCloState(); saveEloState(); }
       const allData = {};
       // Save all inputs and textareas with values (exclude comment panel elements)
       document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
@@ -2707,7 +2800,7 @@
 
     // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
-      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Objectives</th><th>Activity</th><th>Points</th><th>Due</th><th style="width:50px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Module</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:40px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mod = modules[m - 1];
         var acts = courseActivities[m] || [];
@@ -2716,7 +2809,7 @@
           thtml += '<tr class="activity-block" data-activity-id="' + act.id + '" data-module-num="' + m + '">';
           thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
-          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%;" /></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.due) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
@@ -2810,7 +2903,7 @@
 
     // Table view — fully editable
     if (tableContainer) {
-      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Type</th><th>Title</th><th style="width:50px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Module</th><th style="width:100px;">Type</th><th>Title</th><th style="width:180px;">Objectives</th><th style="width:40px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
         for (var i = 0; i < mats.length; i++) {
@@ -2818,14 +2911,15 @@
           thtml += '<tr data-material-id="' + mat.id + '" data-module-num="' + m + '">';
           thtml += '<td style="font-weight:600; color:#8c1d40;">M' + m + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
-          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" value="' + escapeHtml(mat.title) + '" oninput="syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%;" /></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
+          thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
         if (mats.length === 0) {
-          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="3" style="color:#999; font-style:italic;">No materials</td></tr>';
+          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No materials</td></tr>';
         }
-        thtml += '<tr><td></td><td colspan="3"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
+        thtml += '<tr><td></td><td colspan="4"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
@@ -2887,7 +2981,7 @@
     var openModules = getOpenOverviewModules('materials-overview-cards');
     openModules[modNum] = true;
     materialCount++;
-    var newMat = { id: 'mat-' + materialCount, type: 'Reading', title: '', links: [], richText: '' };
+    var newMat = { id: 'mat-' + materialCount, type: 'Reading', title: '', links: [], richText: '', objectives: [] };
     if (!courseMaterials[modNum]) courseMaterials[modNum] = [];
     courseMaterials[modNum].push(newMat);
     saveActivityData();
@@ -3029,6 +3123,20 @@
         const act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
         if (act) {
           act.objectives = selected;
+          saveActivityData();
+        }
+      }
+    }
+
+    // Update data model if this is a material picker
+    const matRow = dd.closest('[data-material-id]');
+    if (matRow) {
+      var rawMatId = matRow.getAttribute('data-material-id');
+      const modNum = parseInt(matRow.getAttribute('data-module-num'));
+      if (rawMatId && modNum && courseMaterials[modNum]) {
+        const mat = courseMaterials[modNum].find(function(m) { return m.id === rawMatId; });
+        if (mat) {
+          mat.objectives = selected;
           saveActivityData();
         }
       }
@@ -3875,55 +3983,97 @@
     });
   });
 
-  function addCloEloPair() {
-    // Save current state before re-render
-    saveCloEloState();
-    const clos = activeCourse.clos || [];
-    const elos = normalizeElos(activeCourse.elos || []);
-    clos.push('');
-    elos.push(['']);
-    activeCourse.clos = clos;
-    activeCourse.elos = elos;
-    renderCloEloPairs();
+  // ===== OBJECTIVES CRUD FUNCTIONS =====
+  function addClo() {
+    saveCloState();
+    activeCourse.clos.push('');
+    renderCloList();
+    renderAlignmentMatrix();
+    setTimeout(function() { var el = document.getElementById('clo-' + (activeCourse.clos.length - 1)); if (el) el.focus(); }, 50);
   }
 
-  function addEloToClo(cloIdx) {
-    saveCloEloState();
-    var elos = normalizeElos(activeCourse.elos || []);
-    while (elos.length <= cloIdx) elos.push(['']);
-    elos[cloIdx].push('');
-    activeCourse.elos = elos;
-    renderCloEloPairs();
+  function removeClo(idx) {
+    saveCloState();
+    activeCourse.clos.splice(idx, 1);
+    if (activeCourse.cloEloAlignment) activeCourse.cloEloAlignment.splice(idx, 1);
+    saveObjectivesState();
+    renderCloList();
+    renderAlignmentMatrix();
+    renderModuleOverviewRef();
   }
 
-  function removeEloFromClo(cloIdx, eloIdx) {
-    saveCloEloState();
-    var elos = normalizeElos(activeCourse.elos || []);
-    if (elos[cloIdx] && elos[cloIdx].length > 1) {
-      elos[cloIdx].splice(eloIdx, 1);
-      activeCourse.elos = elos;
-      renderCloEloPairs();
+  function addElo() {
+    saveEloState();
+    migrateToDecoupledObjectives();
+    activeCourse.flatElos.push('');
+    renderEloList();
+    renderAlignmentMatrix();
+    setTimeout(function() { var el = document.getElementById('elo-' + (activeCourse.flatElos.length - 1)); if (el) el.focus(); }, 50);
+  }
+
+  function removeElo(idx) {
+    saveEloState();
+    activeCourse.flatElos.splice(idx, 1);
+    if (activeCourse.cloEloAlignment) {
+      activeCourse.cloEloAlignment.forEach(function(row) { if (row) row.splice(idx, 1); });
     }
+    saveObjectivesState();
+    renderEloList();
+    renderAlignmentMatrix();
   }
 
-  // Save CLO/ELO textarea values back to activeCourse before re-render
-  function saveCloEloState() {
+  function saveCloState() {
     var clos = activeCourse.clos || [];
-    var elos = normalizeElos(activeCourse.elos || []);
-    var count = Math.max(clos.length, elos.length);
-    for (var i = 0; i < count; i++) {
-      var cloEl = document.getElementById('clo-' + i);
-      if (cloEl) clos[i] = cloEl.value;
-      var eloGroup = elos[i] || [''];
-      for (var j = 0; j < eloGroup.length; j++) {
-        var eloEl = document.getElementById('elo-' + i + '-' + j);
-        if (eloEl) eloGroup[j] = eloEl.value;
-      }
-      elos[i] = eloGroup;
+    for (var i = 0; i < clos.length; i++) {
+      var el = document.getElementById('clo-' + i);
+      if (el) clos[i] = el.value;
     }
-    activeCourse.clos = clos;
-    activeCourse.elos = elos;
+    saveObjectivesState();
   }
+
+  function saveEloState() {
+    migrateToDecoupledObjectives();
+    var elos = activeCourse.flatElos || [];
+    for (var i = 0; i < elos.length; i++) {
+      var el = document.getElementById('elo-' + i);
+      if (el) elos[i] = el.value;
+    }
+    saveObjectivesState();
+  }
+
+  function toggleAlignment(cloIdx, eloIdx, checked) {
+    migrateToDecoupledObjectives();
+    if (!activeCourse.cloEloAlignment[cloIdx]) activeCourse.cloEloAlignment[cloIdx] = [];
+    activeCourse.cloEloAlignment[cloIdx][eloIdx] = checked;
+    saveObjectivesState();
+  }
+
+  function saveObjectivesState() {
+    // Save all objectives data to localStorage
+    saveField('clos', activeCourse.clos);
+    saveField('flatElos', activeCourse.flatElos);
+    saveField('cloEloAlignment', activeCourse.cloEloAlignment);
+    // Also maintain backward compat: rebuild elos 2D array from alignment
+    var elos2d = [];
+    var clos = activeCourse.clos || [];
+    var flatElos = activeCourse.flatElos || [];
+    var alignment = activeCourse.cloEloAlignment || [];
+    for (var i = 0; i < clos.length; i++) {
+      elos2d[i] = [];
+      for (var j = 0; j < flatElos.length; j++) {
+        if (alignment[i] && alignment[i][j]) {
+          elos2d[i].push(flatElos[j]);
+        }
+      }
+      if (elos2d[i].length === 0) elos2d[i].push('');
+    }
+    activeCourse.elos = elos2d;
+    saveField('elos', elos2d);
+  }
+
+  // Backward compat stubs for old function names
+  function addCloEloPair() { addClo(); }
+  function saveCloEloState() { saveCloState(); saveEloState(); }
 
   function addMaterial() {
     materialCount++;
@@ -4239,9 +4389,13 @@
     if (!supabaseClient) return;
     try {
       await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
-      // Also update the highlight mark styling
-      const mark = document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]');
-      if (mark) mark.classList.add('resolved');
+      // Remove highlight from the text — unwrap the mark element
+      document.querySelectorAll('.inline-highlight[data-comment-id="' + commentId + '"]').forEach(mark => {
+        const parent = mark.parentNode;
+        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+        parent.removeChild(mark);
+        parent.normalize(); // merge adjacent text nodes
+      });
       if (currentHighlightCommentId) {
         await loadComments(currentCommentSection, currentHighlightCommentId);
       } else if (currentCommentSection) {
@@ -4557,6 +4711,7 @@
 
       data.forEach(function(comment) {
         if (!comment.highlight_anchor) return;
+        if (comment.resolved) return; // don't restore resolved highlights
         const anchor = comment.highlight_anchor;
         try {
           const container = document.querySelector(anchor.containerSelector);

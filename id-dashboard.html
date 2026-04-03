@@ -739,11 +739,11 @@
       } else {
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
-      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="renderDetail('${d.courseId}'); document.getElementById('detail-overlay').classList.add('open');"` : ''}>
+      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.title}</div>
-          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); renderDetail('${d.courseId}'); document.getElementById('detail-overlay').classList.add('open');" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
+          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
           ${meetingTag}
         </div>
       </div>`;
@@ -751,6 +751,7 @@
   }
 
   // ===== RENDER COURSE TABLE =====
+  let activeStatusFilter = 'all';
   let sortField = null;
   let sortAsc = true;
 
@@ -1213,13 +1214,8 @@
   function filterCourses(status, btn) {
     document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
-    document.querySelectorAll('.course-table tbody tr').forEach(row => {
-      if (status === 'all' || row.dataset.status === status) {
-        row.style.display = '';
-      } else {
-        row.style.display = 'none';
-      }
-    });
+    activeStatusFilter = status;
+    applyAllFilters();
   }
 
   function openDetail(courseId) {
@@ -1252,29 +1248,36 @@
   }
 
   function searchCourses(q) {
-    q = q.toLowerCase();
-    document.querySelectorAll('.course-table tbody tr').forEach(row => {
-      row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
-    });
+    applyAllFilters();
   }
 
   renderFilters();
   renderColumnFilters();
 
-  function applyColumnFilters() {
+  function applyAllFilters() {
+    const searchEl = document.querySelector('.filter-search');
+    const searchQ = searchEl ? searchEl.value.toLowerCase() : '';
     const fp = document.getElementById('filter-program')?.value || '';
     const fc = document.getElementById('filter-college')?.value || '';
     const fs = document.getElementById('filter-session')?.value || '';
     const fst = document.getElementById('filter-status')?.value || '';
+
     document.querySelectorAll('.course-table tbody tr').forEach(row => {
       const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
       if (!id || !courseData[id]) return;
       const c = courseData[id];
-      const show = (!fp || c.program === fp) && (!fc || c.college === fc) &&
-        (!fs || c.session === fs) && (!fst || c.status === fst);
+      const show =
+        (activeStatusFilter === 'all' || row.dataset.status === activeStatusFilter) &&
+        (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
+        (!fp || c.program === fp) &&
+        (!fc || c.college === fc) &&
+        (!fs || c.session === fs) &&
+        (!fst || c.status === fst);
       row.style.display = show ? '' : 'none';
     });
   }
+
+  function applyColumnFilters() { applyAllFilters(); }
 
   // ===== ADD COURSE MODAL =====
   function openAddCourseModal() {
