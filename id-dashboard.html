@@ -172,6 +172,24 @@
   .col-filter { padding: 5px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: #fff; color: #444; cursor: pointer; }
   .col-filter:focus { outline: none; border-color: #8c1d40; }
 
+  /* ===== COLUMN VISIBILITY TOGGLE ===== */
+  .col-toggle-wrap { position: relative; display: inline-block; }
+  .col-toggle-btn { padding: 5px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: #fff; color: #444; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .col-toggle-btn:hover { border-color: #8c1d40; color: #8c1d40; }
+  .col-toggle-menu { display: none; position: absolute; top: 100%; left: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); min-width: 180px; z-index: 50; margin-top: 4px; padding: 6px 0; }
+  .col-toggle-menu.open { display: block; }
+  .col-toggle-menu label { display: flex; align-items: center; gap: 8px; padding: 6px 14px; font-size: 12px; cursor: pointer; color: #444; }
+  .col-toggle-menu label:hover { background: #fdf2f4; }
+  .col-toggle-menu input[type="checkbox"] { accent-color: #8c1d40; }
+
+  /* ===== RESOURCE ACCORDION ===== */
+  .resource-accordion { cursor: pointer; display: flex; align-items: center; gap: 6px; background: none; border: 1px solid #e0ddd5; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; }
+  .resource-accordion:hover { background: #fdf2f4; }
+  .resource-accordion .ra-arrow { transition: transform 0.2s; font-size: 10px; }
+  .resource-accordion .ra-arrow.open { transform: rotate(180deg); }
+  .resource-body { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
+  .resource-body.open { max-height: 200px; }
+
   /* ===== EMAIL DROPDOWN ===== */
   .email-dropdown-wrap { position: relative; display: inline-block; }
   .email-dropdown-btn { display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background: #fff; color: #8c1d40; border: 1.5px solid #8c1d40; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; text-decoration: none; }
@@ -222,35 +240,41 @@
   <!-- SUMMARY + RESOURCES -->
   <div class="dashboard-top">
     <div class="summary-row" id="summary-row"></div>
-    <div class="resource-section">
-      <h3>My College Resources</h3>
-      <div class="resource-card">
-        <div class="rc-header"><span>🏫</span><span class="rc-title">New College</span></div>
-        <div class="rc-links">
-          <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Home</a>
-          <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
-          <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
-          <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
-          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
-        </div>
-      </div>
-      <div class="resource-card">
-        <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health</span></div>
-        <div class="rc-links">
-          <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
-          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
-          <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
-          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
-        </div>
-      </div>
-      <div class="resource-card">
-        <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions</span></div>
-        <div class="rc-links">
-          <a class="rc-link" href="https://chs.asu.edu/" target="_blank">Home</a>
-          <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
-          <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
-          <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
-          <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
+    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+      <button class="resource-accordion" onclick="var b=document.getElementById('resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+        📚 College Resources <span class="ra-arrow">▾</span>
+      </button>
+      <div class="resource-body" id="resource-body">
+        <div class="resource-section" style="margin-top:4px;">
+          <div class="resource-card">
+            <div class="rc-header"><span>🏫</span><span class="rc-title">New College</span></div>
+            <div class="rc-links">
+              <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Home</a>
+              <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
+              <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
+              <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
+              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
+            </div>
+          </div>
+          <div class="resource-card">
+            <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health</span></div>
+            <div class="rc-links">
+              <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
+              <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
+              <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
+              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
+            </div>
+          </div>
+          <div class="resource-card">
+            <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions</span></div>
+            <div class="rc-links">
+              <a class="rc-link" href="https://chs.asu.edu/" target="_blank">Home</a>
+              <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
+              <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
+              <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
+              <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR</a>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -666,6 +690,7 @@
     });
     tbody.innerHTML = html;
     applyColumnFilters();
+    applyColumnVisibility();
   }
 
   // ===== RENDER SYNC STATUS =====
@@ -980,6 +1005,63 @@
   renderFilters();
   renderColumnFilters();
 
+  // ===== COLUMN VISIBILITY =====
+  const allColumns = [
+    { key: 'code', label: 'Course', idx: 0 },
+    { key: 'instructor', label: 'Instructor', idx: 1 },
+    { key: 'program', label: 'Program', idx: 2 },
+    { key: 'college', label: 'College', idx: 3 },
+    { key: 'session', label: 'Session', idx: 4 },
+    { key: 'progress', label: 'Progress', idx: 5 },
+    { key: 'phase', label: 'Phase', idx: 6 },
+    { key: 'status', label: 'Status', idx: 7 },
+    { key: 'qa', label: 'QA Date', idx: 8 },
+    { key: 'lastActive', label: 'Last Active', idx: 9 }
+  ];
+  const defaultHidden = ['program', 'college', 'phase'];
+  let hiddenCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null') || defaultHidden;
+
+  function applyColumnVisibility() {
+    const ths = document.querySelectorAll('.course-table thead th');
+    const rows = document.querySelectorAll('.course-table tbody tr');
+    allColumns.forEach(col => {
+      const hidden = hiddenCols.includes(col.key);
+      if (ths[col.idx]) ths[col.idx].style.display = hidden ? 'none' : '';
+      rows.forEach(row => {
+        const tds = row.querySelectorAll('td');
+        if (tds[col.idx]) tds[col.idx].style.display = hidden ? 'none' : '';
+      });
+    });
+  }
+
+  function toggleColumn(key) {
+    const idx = hiddenCols.indexOf(key);
+    if (idx >= 0) hiddenCols.splice(idx, 1);
+    else hiddenCols.push(key);
+    localStorage.setItem('dashboard_hidden_cols', JSON.stringify(hiddenCols));
+    applyColumnVisibility();
+  }
+
+  function renderColumnToggle() {
+    let html = `<div class="col-toggle-wrap">
+      <button class="col-toggle-btn" onclick="event.stopPropagation(); document.getElementById('col-toggle-menu').classList.toggle('open');">⚙ Columns ▾</button>
+      <div class="col-toggle-menu" id="col-toggle-menu">`;
+    allColumns.forEach(col => {
+      const checked = !hiddenCols.includes(col.key) ? ' checked' : '';
+      html += `<label onclick="event.stopPropagation();"><input type="checkbox"${checked} onchange="toggleColumn('${col.key}')"> ${col.label}</label>`;
+    });
+    html += `</div></div>`;
+    return html;
+  }
+
+  // Close column toggle when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.col-toggle-wrap')) {
+      const m = document.getElementById('col-toggle-menu');
+      if (m) m.classList.remove('open');
+    }
+  });
+
   // ===== COLUMN FILTERS =====
   function renderColumnFilters() {
     const programs = new Set();
@@ -1002,7 +1084,9 @@
       `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
       `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges')}</select>` +
       `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
-      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>`;
+      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>` +
+      renderColumnToggle();
+    applyColumnVisibility();
   }
 
   function applyColumnFilters() {
