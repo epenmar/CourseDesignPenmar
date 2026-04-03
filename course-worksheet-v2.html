@@ -435,7 +435,7 @@
         <span class="badge badge-empty">—</span>
       </div>
       <div class="nav-item" onclick="showView('objectives')">
-        <span class="icon">🎯</span> CLOs &amp; ELOs
+        <span class="icon">🎯</span> ELOs &amp; CLOs
         <span class="badge badge-done">6/6</span>
       </div>
 
@@ -570,7 +570,7 @@
           <div class="card-header" onclick="toggleCard(this)">
             <div class="card-title">
               <span style="font-size:16px;">🎯</span> Course Objectives Reference
-              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">CLOs &amp; ELOs for alignment</span>
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">ELOs &amp; CLOs for alignment</span>
             </div>
             <span class="card-toggle open">▾</span>
           </div>
@@ -753,10 +753,10 @@
         </div>
       </div>
 
-      <!-- ===== CLOs & ELOs ===== -->
+      <!-- ===== ELOs & CLOs ===== -->
       <div id="view-objectives" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Course Learning Outcomes</h1>
-        <p style="color:#666; font-size:13px; margin-bottom:20px;">Define what students will learn — <strong>Course Learning Outcomes (CLOs)</strong> and <strong>Expected Learning Outcomes (ELOs)</strong>.</p>
+        <p style="color:#666; font-size:13px; margin-bottom:20px;">Define what students will do and learn — start with <strong>Enabling Learning Outcomes (ELOs)</strong>, then derive <strong>Course Learning Outcomes (CLOs)</strong>.</p>
 
         <!-- Always-visible tip -->
         <div class="callout callout-info" style="margin-bottom:12px;">
@@ -833,16 +833,6 @@
           </div>
         </div>
 
-        <div id="objectives-clos">
-          <div class="card" style="padding:16px; margin-bottom:16px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <h4 style="margin:0; font-size:14px;">Course Learning Outcomes (CLOs)</h4>
-              <button class="elo-add-btn" onclick="addClo()">+ Add CLO</button>
-            </div>
-            <div id="clo-list"></div>
-          </div>
-        </div>
-
         <div id="objectives-elos">
           <div class="card" style="padding:16px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
@@ -853,9 +843,22 @@
           </div>
         </div>
 
+        <div id="objectives-clos">
+          <div class="card" style="padding:16px; margin-bottom:16px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="margin:0; font-size:14px;">Course Learning Outcomes (CLOs)</h4>
+              <button class="elo-add-btn" onclick="addClo()">+ Add CLO</button>
+            </div>
+            <div id="clo-list"></div>
+          </div>
+        </div>
+
         <div id="objectives-alignment">
           <div class="card" style="padding:16px;">
-            <h4 style="margin:0 0 12px; font-size:14px;">Alignment Matrix</h4>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h4 style="margin:0; font-size:14px;">Alignment Matrix</h4>
+              <button class="elo-add-btn" onclick="aiSuggestAlignment()" id="ai-align-btn" style="display:flex; align-items:center; gap:4px;">✨ AI Suggest</button>
+            </div>
             <p style="font-size:12px; color:#666; margin-bottom:12px;">Check which ELOs support each CLO. An ELO can support multiple CLOs.</p>
             <div id="alignment-matrix" style="overflow-x:auto;"></div>
           </div>
@@ -1511,10 +1514,10 @@
     const savedClos = loadField('clos');
     if (savedClos) activeCourse.clos = savedClos;
 
-    // ===== RENDER CLO/ELO SECTIONS (Objectives View) =====
+    // ===== RENDER ELO/CLO SECTIONS (Objectives View) =====
     migrateToDecoupledObjectives();
-    renderCloList();
     renderEloList();
+    renderCloList();
     renderAlignmentMatrix();
 
     // ===== RENDER MODULE OVERVIEW CLO/ELO REFERENCE =====
@@ -1637,7 +1640,7 @@
     const alignment = activeCourse.cloEloAlignment || [];
 
     if (clos.length === 0 || elos.length === 0) {
-      container.innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">Define both CLOs and ELOs above to see the alignment matrix.</div>';
+      container.innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">Define both ELOs and CLOs above to see the alignment matrix.</div>';
       return;
     }
 
@@ -1681,7 +1684,7 @@
     html += '</div>';
 
     if (clos.length === 0) {
-      html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No CLOs defined yet. Go to the CLOs & ELOs page to add them.</div>';
+      html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No CLOs defined yet. Go to the ELOs & CLOs page to add them.</div>';
     } else {
       html += '<div style="display:flex; flex-direction:column; gap:6px;">';
       for (let i = 0; i < clos.length; i++) {
@@ -2209,7 +2212,11 @@
     if (pendingMessage) {
       const msg = pendingMessage;
       pendingMessage = null;
-      doSendAIMessage(msg);
+      if (msg === '__alignment__') {
+        aiSuggestAlignment();
+      } else {
+        doSendAIMessage(msg);
+      }
     }
   }
 
@@ -2379,7 +2386,7 @@
       target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / CLOs & ELOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -3154,7 +3161,7 @@
       { id: 'course-info', label: 'Course Info', action: "showView('course-info')" },
       { id: 'materials', label: 'Textbooks & Materials', action: "showView('materials')" },
       { id: 'additional', label: 'Course Context Q&A', action: "showView('additional')" },
-      { id: 'objectives', label: 'CLOs & ELOs', action: "showView('objectives')" },
+      { id: 'objectives', label: 'ELOs & CLOs', action: "showView('objectives')" },
       { id: 'module-overview', label: 'Module Overview', action: "showView('module-overview')" },
       { id: 'assignments-overview', label: 'Assignments Overview', action: "showView('assignments-overview')" },
       { id: 'materials-overview', label: 'Materials Overview', action: "showView('materials-overview')" },
@@ -4048,6 +4055,77 @@
     saveObjectivesState();
   }
 
+  async function aiSuggestAlignment() {
+    const clos = (activeCourse.clos || []).filter(function(s) { return s; });
+    const elos = (activeCourse.flatElos || []).filter(function(s) { return s; });
+    if (clos.length === 0 || elos.length === 0) {
+      alert('Define both ELOs and CLOs first.');
+      return;
+    }
+    if (!getApiKey()) {
+      pendingMessage = '__alignment__';
+      showApiKeyModal();
+      return;
+    }
+    var btn = document.getElementById('ai-align-btn');
+    var origText = btn.innerHTML;
+    btn.innerHTML = '⏳ Analyzing...';
+    btn.disabled = true;
+
+    var prompt = 'You are an instructional design alignment expert. Given the CLOs and ELOs below, determine which ELOs support each CLO.\n\n';
+    prompt += 'CLOs:\n';
+    clos.forEach(function(c, i) { prompt += (i+1) + '. ' + c + '\n'; });
+    prompt += '\nELOs:\n';
+    elos.forEach(function(e, i) { prompt += (i+1) + '. ' + e + '\n'; });
+    prompt += '\nReturn ONLY a JSON array of arrays. Each inner array corresponds to a CLO (by index, 0-based) and contains the 0-based indices of ELOs that support it.\n';
+    prompt += 'Example for 3 CLOs and 5 ELOs: [[0,2],[1,3,4],[2]]\n';
+    prompt += 'Consider semantic alignment — an ELO supports a CLO when the skill or knowledge in the ELO directly enables or demonstrates the learning described in the CLO. An ELO can support multiple CLOs. Return ONLY the JSON array, no explanation.';
+
+    try {
+      var response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': getApiKey(),
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 512,
+          messages: [{ role: 'user', content: prompt }]
+        })
+      });
+      if (!response.ok) throw new Error('API error ' + response.status);
+      var data = await response.json();
+      var text = data.content[0].text.trim();
+      // Extract JSON array from response
+      var match = text.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error('Could not parse AI response');
+      var matrix = JSON.parse(match[0]);
+
+      // Apply suggestions — set alignment but don't uncheck existing ones
+      migrateToDecoupledObjectives();
+      for (var i = 0; i < matrix.length && i < clos.length; i++) {
+        if (!activeCourse.cloEloAlignment[i]) activeCourse.cloEloAlignment[i] = [];
+        var eloIndices = matrix[i] || [];
+        for (var j = 0; j < eloIndices.length; j++) {
+          var eIdx = eloIndices[j];
+          if (eIdx >= 0 && eIdx < elos.length) {
+            activeCourse.cloEloAlignment[i][eIdx] = true;
+          }
+        }
+      }
+      saveObjectivesState();
+      renderAlignmentMatrix();
+    } catch (err) {
+      alert('AI suggestion failed: ' + err.message);
+    } finally {
+      btn.innerHTML = origText;
+      btn.disabled = false;
+    }
+  }
+
   function saveObjectivesState() {
     // Save all objectives data to localStorage
     saveField('clos', activeCourse.clos);
@@ -4765,7 +4843,7 @@
       { viewId: 'view-course-info', sectionId: 'course-info', label: 'Course Info' },
       { viewId: 'view-textbooks', sectionId: 'textbooks', label: 'Textbooks' },
       { viewId: 'view-course-context', sectionId: 'course-context', label: 'Course Context' },
-      { viewId: 'view-clo-elo', sectionId: 'clos-elos', label: 'CLOs & ELOs' },
+      { viewId: 'view-clo-elo', sectionId: 'clos-elos', label: 'ELOs & CLOs' },
       { viewId: 'view-module-overview', sectionId: 'module-overview', label: 'Module Overview' },
     ];
 
