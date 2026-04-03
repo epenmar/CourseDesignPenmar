@@ -756,8 +756,8 @@
 
       <!-- ===== ELOs & CLOs ===== -->
       <div id="view-objectives" style="display:none;">
-        <h1 style="font-size:22px; margin-bottom:4px;">Course Learning Outcomes</h1>
-        <p style="color:#666; font-size:13px; margin-bottom:20px;">Define what students will do and learn — start with <strong>Enabling Learning Outcomes (ELOs)</strong>, then derive <strong>Course Learning Outcomes (CLOs)</strong>.</p>
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Level Objectives</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:20px;">Define what students will do and learn — start with <strong>Expected Learning Outcomes (ELOs)</strong>, then derive <strong>Course Level Objectives (CLOs)</strong>.</p>
 
         <!-- Always-visible tip -->
         <div class="callout callout-info" style="margin-bottom:12px;">
@@ -775,7 +775,7 @@
           </div>
           <div class="card-body collapsed">
             <p style="font-size:13px; color:#555; line-height:1.6; margin-bottom:16px;">
-              Learning objectives are organized into six levels of cognitive complexity — from recalling facts up to creating original work. Use this to pick the right verb for the level of thinking you're asking students to do. <strong>CLOs (Course Learning Outcomes)</strong> typically target lower-to-mid levels (understand, apply). <strong>ELOs (Expected Learning Outcomes)</strong> should use higher levels (apply, analyze, evaluate, create). <strong>MLOs (Module Learning Outcomes)</strong> can span any level depending on the module.
+              Learning objectives are organized into six levels of cognitive complexity — from recalling facts up to creating original work. Use this to pick the right verb for the level of thinking you're asking students to do. <strong>CLOs (Course Level Objectives)</strong> typically target lower-to-mid levels (understand, apply). <strong>ELOs (Expected Learning Outcomes)</strong> should use higher levels (apply, analyze, evaluate, create). <strong>MLOs (Module Learning Outcomes)</strong> can span any level depending on the module.
             </p>
 
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
@@ -837,7 +837,7 @@
         <div id="objectives-elos">
           <div class="card" style="padding:16px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <h4 style="margin:0; font-size:14px;">Enabling Learning Outcomes (ELOs)</h4>
+              <h4 style="margin:0; font-size:14px;">Expected Learning Outcomes (ELOs)</h4>
               <button class="elo-add-btn" onclick="addElo()">+ Add ELO</button>
             </div>
             <div id="elo-list"></div>
@@ -847,7 +847,7 @@
         <div id="objectives-clos">
           <div class="card" style="padding:16px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
-              <h4 style="margin:0; font-size:14px;">Course Learning Outcomes (CLOs)</h4>
+              <h4 style="margin:0; font-size:14px;">Course Level Objectives (CLOs)</h4>
               <button class="elo-add-btn" onclick="addClo()">+ Add CLO</button>
             </div>
             <div id="clo-list"></div>
@@ -926,7 +926,7 @@
           <p><strong>Instructor:</strong> Dariush Navabi (dnavabi@asu.edu)</p>
           <p><strong>Instructional Designer:</strong> Elisa Penmar</p>
           <p><strong>Credits:</strong> 3 &bull; <strong>Prerequisites:</strong> None</p>
-          <h2>Course Learning Outcomes</h2>
+          <h2>Course Level Objectives</h2>
           <h3>CLOs — Students will learn to:</h3>
           <p>1. Understand the evolution and core differences between major AI paradigms</p>
           <p>2. Identify appropriate abstractions and modeling techniques for AI solutions</p>
@@ -2335,7 +2335,7 @@
     prompt += 'Session: ' + ctx.session + '\n\n';
 
     if (ctx.clos.length > 0) {
-      prompt += 'Course Learning Outcomes (CLOs) - what students will learn to understand:\n';
+      prompt += 'Course Level Objectives (CLOs) - what students will learn to understand:\n';
       ctx.clos.forEach(function(c, i) { if (c) prompt += (i+1) + '. ' + c + '\n'; });
       prompt += '\n';
     }
@@ -2650,13 +2650,13 @@
     if (clos.length === 0 && elos.length === 0) { container.innerHTML = ''; return; }
 
     var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
-    html += '<h3>Course Learning Objectives (CLOs) &amp; Expected Learning Outcomes (ELOs)</h3>';
+    html += '<h3>Course Level Objectives (CLOs) &amp; Expected Learning Outcomes (ELOs)</h3>';
     html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
     html += '</div>';
     html += '<div class="course-obj-accordion-body">';
 
     if (clos.length > 0) {
-      html += '<div style="margin-bottom:12px;"><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Course Learning Objectives</div>';
+      html += '<div style="margin-bottom:12px;"><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Course Level Objectives</div>';
       html += '<ul class="course-obj-list">';
       for (var i = 0; i < clos.length; i++) {
         html += '<li><span class="obj-num">CLO ' + (i + 1) + '</span><span>' + escapeHtml(clos[i]) + '</span></li>';
