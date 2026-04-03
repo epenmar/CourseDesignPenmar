@@ -607,7 +607,7 @@
       <div id="view-assignments-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Assignments Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All activities and assignments across all modules. Drag between modules to reorganize.</p>
-        <div id="course-objectives-accordion" class="course-obj-accordion"></div>
+        <div id="elo-accordion-assignments" class="course-obj-accordion"></div>
         <div class="view-toggle">
           <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
           <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
@@ -620,6 +620,7 @@
       <div id="view-materials-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Materials Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All learning materials across all modules. Drag between modules to reorganize.</p>
+        <div id="elo-accordion-materials" class="course-obj-accordion"></div>
         <div class="view-toggle">
           <button class="view-btn active" onclick="switchOverviewMode('materials','card',this)">📋 Card View</button>
           <button class="view-btn" onclick="switchOverviewMode('materials','table',this)">📊 Table View</button>
@@ -2638,37 +2639,31 @@
 
   // Render Course Objectives accordion at top of assignments overview
   function renderCourseObjectivesAccordion() {
-    var container = document.getElementById('course-objectives-accordion');
-    if (!container) return;
-    var clos = activeCourse.clos || [];
-    var elos = normalizeElos(activeCourse.elos || []);
-    if (clos.length === 0 && elos.length === 0) { container.innerHTML = ''; return; }
-
-    var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
-    html += '<h3>Course Level Objectives (CLOs) &amp; Expected Learning Outcomes (ELOs)</h3>';
-    html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
-    html += '</div>';
-    html += '<div class="course-obj-accordion-body">';
-
-    if (clos.length > 0) {
-      html += '<div style="margin-bottom:12px;"><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Course Level Objectives</div>';
-      html += '<ul class="course-obj-list">';
-      for (var i = 0; i < clos.length; i++) {
-        html += '<li><span class="obj-num">CLO ' + (i + 1) + '</span><span>' + escapeHtml(clos[i]) + '</span></li>';
-      }
-      html += '</ul></div>';
-    }
+    var containers = [
+      document.getElementById('elo-accordion-assignments'),
+      document.getElementById('elo-accordion-materials')
+    ];
+    migrateToDecoupledObjectives();
+    var flatElos = activeCourse.flatElos || [];
     var elosFlat = getElosFlat();
-    if (elosFlat.length > 0) {
-      html += '<div><div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.04em;">Expected Learning Outcomes</div>';
+
+    containers.forEach(function(container) {
+      if (!container) return;
+      if (elosFlat.length === 0) { container.innerHTML = ''; return; }
+
+      var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
+      html += '<h3>Expected Learning Outcomes (ELOs)</h3>';
+      html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
+      html += '</div>';
+      html += '<div class="course-obj-accordion-body">';
       html += '<ul class="course-obj-list">';
       for (var i = 0; i < elosFlat.length; i++) {
         html += '<li><span class="obj-num">' + elosFlat[i].label + '</span><span>' + escapeHtml(elosFlat[i].text) + '</span></li>';
       }
-      html += '</ul></div>';
-    }
-    html += '</div>';
-    container.innerHTML = html;
+      html += '</ul>';
+      html += '</div>';
+      container.innerHTML = html;
+    });
   }
 
   // Build MLO accordion HTML for a module card
@@ -2880,6 +2875,7 @@
     var cardsContainer = document.getElementById('materials-overview-cards');
     var tableContainer = document.getElementById('materials-overview-table');
     if (!cardsContainer) return;
+    renderCourseObjectivesAccordion();
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
     var matTypes = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
@@ -4193,8 +4189,9 @@
     }
     activeCourse.elos = elos2d;
     saveField('elos', elos2d);
-    // Keep Module Overview ELO reference in sync
+    // Keep Module Overview and overview accordions in sync
     renderModuleOverviewRef();
+    renderCourseObjectivesAccordion();
   }
 
   // Backward compat stubs for old function names
