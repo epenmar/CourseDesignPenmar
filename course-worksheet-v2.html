@@ -2853,7 +2853,7 @@
 
     // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Module</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:40px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:40px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mod = modules[m - 1];
         var acts = courseActivities[m] || [];
@@ -2956,7 +2956,7 @@
 
     // Table view — fully editable
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Module</th><th style="width:100px;">Type</th><th>Title</th><th style="width:180px;">Objectives</th><th style="width:40px;"></th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:100px;">Type</th><th>Title</th><th style="width:180px;">Objectives</th><th style="width:40px;"></th></tr></thead><tbody>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
         for (var i = 0; i < mats.length; i++) {
