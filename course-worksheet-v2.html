@@ -1925,12 +1925,23 @@
     if (!openModules) {
       openModules = {};
       var existingCards = container.querySelectorAll('.card[data-mod-num]');
-      existingCards.forEach(function(card) {
-        var body = card.querySelector('.card-body');
-        if (body && !body.classList.contains('collapsed')) openModules[card.getAttribute('data-mod-num')] = true;
-      });
-      // Only default to module 1 open on very first render (no cards in DOM yet)
-      if (existingCards.length === 0 && Object.keys(openModules).length === 0) openModules['1'] = true;
+      if (existingCards.length > 0) {
+        existingCards.forEach(function(card) {
+          var body = card.querySelector('.card-body');
+          if (body && !body.classList.contains('collapsed')) openModules[card.getAttribute('data-mod-num')] = true;
+        });
+      } else {
+        // First render — check saved accordion states
+        var saved = loadField('accordionStates') || {};
+        var foundSaved = false;
+        for (var k in saved) {
+          if (k.indexOf('mod-card-') === 0) {
+            var num = k.replace('mod-card-', '');
+            if (saved[k]) { openModules[num] = true; foundSaved = true; }
+          }
+        }
+        if (!foundSaved) openModules['1'] = true;
+      }
     }
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || 7;
@@ -3540,11 +3551,33 @@
 
     // Card view
     var html = '';
+    // If no openModules passed, check saved accordion states
+    if (!openModules) {
+      openModules = {};
+      var savedStates = loadField('accordionStates') || {};
+      var foundAny = false;
+      for (var k in savedStates) {
+        if (k.indexOf('view-assignments-overview-card-') === 0) {
+          // Extract module index from card index
+          foundAny = true;
+        }
+      }
+      // Use getOpenOverviewModules if cards exist in DOM
+      var existingCards = cardsContainer.querySelectorAll('.card[data-overview-module]');
+      if (existingCards.length > 0) {
+        existingCards.forEach(function(c) {
+          var body = c.querySelector('.card-body');
+          if (body && !body.classList.contains('collapsed')) openModules[c.getAttribute('data-overview-module')] = true;
+        });
+      } else if (!foundAny) {
+        openModules[1] = true; // Default on very first render
+      }
+    }
     for (var m = 1; m <= modCount; m++) {
       var mod = modules[m - 1];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var acts = courseActivities[m] || [];
-      var isOpen = openModules ? !!openModules[m] : (m === 1);
+      var isOpen = !!openModules[m];
       var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
@@ -3645,11 +3678,23 @@
 
     // Card view
     var html = '';
+    if (!openModules) {
+      openModules = {};
+      var existingMatCards = cardsContainer.querySelectorAll('.card[data-overview-module]');
+      if (existingMatCards.length > 0) {
+        existingMatCards.forEach(function(c) {
+          var body = c.querySelector('.card-body');
+          if (body && !body.classList.contains('collapsed')) openModules[c.getAttribute('data-overview-module')] = true;
+        });
+      } else {
+        openModules[1] = true;
+      }
+    }
     for (var m = 1; m <= modCount; m++) {
       var mod = modules[m - 1];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var mats = courseMaterials[m] || [];
-      var isOpen = openModules ? !!openModules[m] : (m === 1);
+      var isOpen = !!openModules[m];
       var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
@@ -3936,6 +3981,55 @@
   }
 
   var _suppressCardToggle = false;
+  function getCardId(h) {
+    var card = h.closest('.card');
+    if (!card) return null;
+    // Use data-card-id if present, or data-mod-num for module cards
+    if (card.dataset.cardId) return card.dataset.cardId;
+    if (card.dataset.modNum) return 'mod-card-' + card.dataset.modNum;
+    // For static cards, use view ID + card index
+    var view = card.closest('[id^="view-"]');
+    var viewId = view ? view.id : 'global';
+    var siblings = (view || document).querySelectorAll('.card');
+    for (var i = 0; i < siblings.length; i++) {
+      if (siblings[i] === card) return viewId + '-card-' + i;
+    }
+    return null;
+  }
+
+  function saveAccordionStates() {
+    var states = loadField('accordionStates') || {};
+    document.querySelectorAll('.card').forEach(function(card) {
+      var header = card.querySelector('.card-header');
+      var body = card.querySelector('.card-body');
+      if (!header || !body) return;
+      var id = getCardId(header);
+      if (id) states[id] = !body.classList.contains('collapsed');
+    });
+    saveField('accordionStates', states);
+  }
+
+  function restoreAccordionStates() {
+    var states = loadField('accordionStates');
+    if (!states) return;
+    document.querySelectorAll('.card').forEach(function(card) {
+      var header = card.querySelector('.card-header');
+      var body = card.querySelector('.card-body');
+      if (!header || !body) return;
+      var id = getCardId(header);
+      if (id && states[id] !== undefined) {
+        var toggle = header.querySelector('.card-toggle');
+        if (states[id]) {
+          body.classList.remove('collapsed');
+          if (toggle) toggle.classList.add('open');
+        } else {
+          body.classList.add('collapsed');
+          if (toggle) toggle.classList.remove('open');
+        }
+      }
+    });
+  }
+
   function toggleCard(h) {
     if (_suppressCardToggle) { _suppressCardToggle = false; return; }
     const body = h.nextElementSibling;
@@ -3944,6 +4038,7 @@
     if (!body.classList.contains('collapsed')) {
       body.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
     }
+    saveAccordionStates();
   }
 
   function toggleAI() {
@@ -4420,6 +4515,8 @@
 
     // Restore all saved form data (runs last to override defaults with user edits)
     restoreAllFields();
+    // Restore accordion open/closed states from localStorage
+    restoreAccordionStates();
     // Init module reorder drag-drop (once, uses event delegation)
     initModuleDragDrop();
     // Re-resize after restore
