@@ -3759,12 +3759,25 @@
   // ===== MODULE OVERVIEW: ADD OBJECTIVE =====
   function addObjective(modNum) {
     captureUndoState('add MLO');
-    // Save current state from card inputs, then add empty MLO and re-render
-    saveModuleOverview();
-    var savedMods = loadField('moduleOverviewData') || {};
-    if (!savedMods[modNum]) savedMods[modNum] = {};
-    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
-    mlos = mlos.slice();
+    // Synchronously read current MLOs from DOM before re-rendering
+    clearTimeout(saveTimer);
+    var savedMods = {};
+    document.querySelectorAll('#module-overview-cards .card[data-mod-num]').forEach(function(card) {
+      var mn = parseInt(card.getAttribute('data-mod-num'));
+      var topicInput = card.querySelector('[data-mod-topic]');
+      var cardMlos = [];
+      card.querySelectorAll('.obj-entry input').forEach(function(inp) {
+        if (inp.value.trim()) cardMlos.push(inp.value.trim());
+      });
+      savedMods[mn] = { topic: topicInput ? topicInput.value : '', mlos: cardMlos };
+      if (activeCourse.modules && activeCourse.modules[mn - 1]) {
+        activeCourse.modules[mn - 1].mlos = cardMlos;
+        if (topicInput) activeCourse.modules[mn - 1].title = topicInput.value;
+      }
+    });
+    saveField('moduleOverviewData', savedMods);
+    // Now add empty MLO
+    var mlos = savedMods[modNum] ? savedMods[modNum].mlos.slice() : [];
     mlos.push('');
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
