@@ -1821,6 +1821,8 @@
     container.innerHTML = html;
   }
 
+  var eloEditMode = false;
+
   function renderModuleOverviewRef() {
     const container = document.getElementById('module-overview-clo-ref');
     if (!container) return;
@@ -1832,15 +1834,33 @@
     if (flatElos.length === 0) {
       html += '<div style="padding:16px; text-align:center; color:#999; font-size:13px;">No ELOs defined yet. Go to the ELOs & CLOs page to add them.</div>';
     } else {
+      // Edit toggle button
+      html += '<div style="display:flex; justify-content:flex-end; margin-bottom:6px;">';
+      if (eloEditMode) {
+        html += '<button onclick="toggleEloEditMode()" style="border:1px solid #8c1d40; background:#8c1d40; color:#fff; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer;">Done Editing</button>';
+      } else {
+        html += '<button onclick="toggleEloEditMode()" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer;">✏️ Edit ELOs</button>';
+      }
+      html += '</div>';
+
       html += '<div style="display:flex; flex-direction:column; gap:6px;">';
       for (let i = 0; i < flatElos.length; i++) {
         const border = i > 0 ? ' border-top:1px solid #e8e5dd;' : '';
         html += '<div style="display:flex; align-items:start; gap:10px; padding:6px 0;' + border + '">';
         html += '<span style="display:inline-flex; align-items:center; justify-content:center; min-width:28px; height:28px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + (i+1) + '</span>';
-        html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">ELO ' + (i+1) + '.</span>' + escapeHtml(flatElos[i] || '') + '</span>';
+        if (eloEditMode) {
+          html += '<textarea class="activity-input" id="modref-elo-' + i + '" oninput="saveModRefElo(' + i + ', this.value); autoGrowTextarea(this)" style="flex:1; border:1px solid #e0ddd5; background:#fff; border-radius:4px; padding:6px 8px; font-size:13px; font-family:Inter,sans-serif; resize:none; overflow:hidden; min-height:20px; line-height:1.4;">' + escapeHtml(flatElos[i] || '') + '</textarea>';
+          html += '<button onclick="removeModRefElo(' + i + ')" style="flex-shrink:0; border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:2px 4px;" title="Remove ELO">&times;</button>';
+        } else {
+          html += '<span style="font-size:13px; overflow-wrap:break-word; word-wrap:break-word; min-width:0;"><span style="font-weight:600; color:#8c1d40; font-size:11px; margin-right:4px;">ELO ' + (i+1) + '.</span>' + escapeHtml(flatElos[i] || '') + '</span>';
+        }
         html += '</div>';
       }
       html += '</div>';
+
+      if (eloEditMode) {
+        html += '<button onclick="addModRefElo()" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:12px; font-weight:600; padding:6px 0; margin-top:4px;">+ Add ELO</button>';
+      }
     }
 
     html += '<div style="margin-top:12px; font-size:12px; color:#888; border-top:1px solid #e0e8e0; padding-top:10px;">';
@@ -1848,6 +1868,50 @@
     html += '</div>';
 
     container.innerHTML = html;
+
+    if (eloEditMode) {
+      requestAnimationFrame(function() {
+        container.querySelectorAll('textarea').forEach(function(ta) { autoGrowTextarea(ta); });
+      });
+    }
+  }
+
+  function toggleEloEditMode() {
+    eloEditMode = !eloEditMode;
+    renderModuleOverviewRef();
+  }
+
+  function saveModRefElo(idx, value) {
+    captureUndoOnEdit('edit ELO');
+    if (!activeCourse.flatElos) activeCourse.flatElos = [];
+    activeCourse.flatElos[idx] = value;
+    saveObjectivesState();
+  }
+
+  function removeModRefElo(idx) {
+    captureUndoState('remove ELO');
+    if (!activeCourse.flatElos) return;
+    activeCourse.flatElos.splice(idx, 1);
+    // Also update alignment matrix — remove column
+    if (activeCourse.cloEloAlignment) {
+      activeCourse.cloEloAlignment.forEach(function(row) {
+        if (row) row.splice(idx, 1);
+      });
+    }
+    saveObjectivesState();
+    renderModuleOverviewRef();
+  }
+
+  function addModRefElo() {
+    captureUndoState('add ELO');
+    if (!activeCourse.flatElos) activeCourse.flatElos = [];
+    activeCourse.flatElos.push('');
+    saveObjectivesState();
+    renderModuleOverviewRef();
+    requestAnimationFrame(function() {
+      var el = document.getElementById('modref-elo-' + (activeCourse.flatElos.length - 1));
+      if (el) el.focus();
+    });
   }
 
   // ===== RENDER MODULE OVERVIEW CARDS =====
@@ -1948,7 +2012,7 @@
         // First row: module label + topic span full MLO rows
         thtml += '<tr data-mod="' + modNum + '">';
         thtml += '<td rowspan="' + (mloCount + 1) + '" style="font-weight:600; color:#8c1d40; vertical-align:top; text-align:center; background:#fafaf7;">M' + modNum + '</td>';
-        thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top; background:#fafaf7;"><textarea class="activity-input" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; min-height:28px; line-height:1.4; font-family:Inter,sans-serif;">' + escapeHtml(topic) + '</textarea></td>';
+        thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top; background:#fff;"><textarea class="activity-input" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; min-height:28px; line-height:1.4; font-family:Inter,sans-serif;">' + escapeHtml(topic) + '</textarea></td>';
         // MLO rows
         if (mlos.length > 0) {
           for (var j = 0; j < mlos.length; j++) {
@@ -2947,6 +3011,8 @@
     if (viewId === 'assignments-overview') renderAssignmentsOverview();
     if (viewId === 'materials-overview') renderMaterialsOverview();
     if (viewId === 'preview') renderPreview();
+    if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
+    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
   }
