@@ -1898,44 +1898,193 @@
     // Module overview table view
     var tableContainer = document.getElementById('module-overview-table');
     if (tableContainer) {
-      var thtml = '<table class="timeline-table"><thead><tr><th>Module</th><th>Topic</th><th>Objectives (MLOs)</th></tr></thead><tbody>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr>' +
+        '<th style="width:40px;">Mod</th>' +
+        '<th style="width:140px;">Topic</th>' +
+        '<th>Objectives (MLOs)</th>' +
+        '</tr></thead><tbody>';
       for (var m = 0; m < modCount; m++) {
         var modNum = m + 1;
         var modData = modules[m] || {};
         var savedMod = savedMods[modNum] || {};
         var topic = savedMod.topic || modData.title || '';
         var mlos = savedMod.mlos || modData.mlos || [];
-        var mloText = mlos.length > 0 ? mlos.map(function(mlo, j) { return modNum + '.' + (j+1) + ': ' + mlo; }).join('\n') : '';
-        thtml += '<tr>';
-        thtml += '<td style="font-weight:600; color:#8c1d40; vertical-align:top;">M' + modNum + '</td>';
-        thtml += '<td style="vertical-align:top;"><input type="text" class="activity-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" style="border:none; background:transparent; width:100%;" /></td>';
-        thtml += '<td style="vertical-align:top; white-space:pre-wrap;"><textarea class="activity-input" style="border:none; background:transparent; width:100%; min-height:' + Math.max(40, mlos.length * 22 + 10) + 'px; resize:none; overflow:hidden; font-size:12px; line-height:1.6;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; saveModuleOverviewFromTable(this,' + modNum + ')">' + escapeHtml(mloText) + '</textarea></td>';
-        thtml += '</tr>';
+        var mloCount = Math.max(mlos.length, 1);
+        // First row: module label + topic span full MLO rows
+        thtml += '<tr data-mod="' + modNum + '">';
+        thtml += '<td rowspan="' + (mloCount + 1) + '" style="font-weight:600; color:#8c1d40; vertical-align:top; text-align:center; background:#fafaf7;">M' + modNum + '</td>';
+        thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top; background:#fafaf7;"><input type="text" class="activity-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" style="border:none; background:transparent; width:100%; font-size:12px;" /></td>';
+        // MLO rows
+        if (mlos.length > 0) {
+          for (var j = 0; j < mlos.length; j++) {
+            if (j > 0) thtml += '<tr data-mod="' + modNum + '">';
+            thtml += '<td class="mlo-cell" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="padding:3px 8px; cursor:grab;">' +
+              '<div style="display:flex; align-items:center; gap:6px;">' +
+              '<span style="color:#999; font-size:10px; cursor:grab;" class="mlo-drag-handle">⠿</span>' +
+              '<span style="color:#8c1d40; font-weight:600; font-size:11px; flex-shrink:0;">' + modNum + '.' + (j+1) + '</span>' +
+              '<input type="text" class="activity-input" value="' + escapeHtml(mlos[j]) + '" ' +
+              'oninput="saveTableMlo(this,' + modNum + ',' + j + ')" ' +
+              'style="border:none; background:transparent; width:100%; font-size:12px; line-height:1.5;" />' +
+              '<button onclick="deleteTableMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0;" title="Remove">&times;</button>' +
+              '</div></td>';
+            thtml += '</tr>';
+          }
+        } else {
+          thtml += '<td class="mlo-cell" data-mod="' + modNum + '" style="padding:3px 8px; color:#ccc; font-style:italic; font-size:12px;">No objectives yet</td></tr>';
+        }
+        // Add MLO row
+        thtml += '<tr data-mod="' + modNum + '"><td style="padding:2px 8px; border-bottom:2px solid #e0ddd5;">' +
+          '<button onclick="addTableMlo(' + modNum + ')" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; font-weight:600; padding:2px 0;">+ Add objective</button>' +
+          '</td></tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
-      // Auto-size textareas (defer so layout is computed even if container was just made visible)
-      requestAnimationFrame(function() {
-        tableContainer.querySelectorAll('textarea').forEach(function(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; });
-      });
+      initMloTableDragDrop(tableContainer);
     }
   }
 
-  function saveModuleOverviewFromTable(textarea, modNum) {
-    // Parse MLOs from textarea (format: "1.1: text\n1.2: text")
-    var lines = textarea.value.split('\n').filter(function(l) { return l.trim(); });
-    var mlos = lines.map(function(line) {
-      var match = line.match(/^\d+\.\d+:\s*(.*)/);
-      return match ? match[1].trim() : line.trim();
-    });
+  function saveTableMlo(input, modNum, idx) {
+    captureUndoOnEdit('edit MLO');
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    mlos = mlos.slice();
+    mlos[idx] = input.value;
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    // Also update activeCourse
     if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
       activeCourse.modules[modNum - 1].mlos = mlos;
     }
+  }
+
+  function addTableMlo(modNum) {
+    captureUndoOnEdit('add MLO');
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    mlos = mlos.slice();
+    mlos.push('');
+    savedMods[modNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+      activeCourse.modules[modNum - 1].mlos = mlos;
+    }
+    renderModuleOverview();
+    // Focus the new input
+    requestAnimationFrame(function() {
+      var table = document.getElementById('module-overview-table');
+      if (!table) return;
+      var cells = table.querySelectorAll('.mlo-cell[data-mod="' + modNum + '"]');
+      var lastCell = cells[cells.length - 1];
+      if (lastCell) { var inp = lastCell.querySelector('input'); if (inp) inp.focus(); }
+    });
+  }
+
+  function deleteTableMlo(modNum, idx) {
+    captureUndoOnEdit('delete MLO');
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    mlos = mlos.slice();
+    mlos.splice(idx, 1);
+    savedMods[modNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+      activeCourse.modules[modNum - 1].mlos = mlos;
+    }
+    renderModuleOverview();
+  }
+
+  function initMloTableDragDrop(tableContainer) {
+    var dragSrcMod = null, dragSrcIdx = null;
+    tableContainer.querySelectorAll('.mlo-cell[draggable="true"]').forEach(function(cell) {
+      cell.addEventListener('dragstart', function(e) {
+        dragSrcMod = parseInt(cell.getAttribute('data-mod'));
+        dragSrcIdx = parseInt(cell.getAttribute('data-mlo-idx'));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcMod + ':' + dragSrcIdx);
+        cell.style.opacity = '0.4';
+      });
+      cell.addEventListener('dragend', function() {
+        cell.style.opacity = '1';
+        tableContainer.querySelectorAll('.mlo-cell').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+      });
+      cell.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var rect = cell.getBoundingClientRect();
+        var midY = rect.top + rect.height / 2;
+        tableContainer.querySelectorAll('.mlo-cell').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+        if (e.clientY < midY) {
+          cell.style.borderTop = '2px solid #8c1d40';
+        } else {
+          cell.style.borderBottom = '2px solid #8c1d40';
+        }
+      });
+      cell.addEventListener('dragleave', function() {
+        cell.style.borderTop = '';
+        cell.style.borderBottom = '';
+      });
+      cell.addEventListener('drop', function(e) {
+        e.preventDefault();
+        cell.style.borderTop = '';
+        cell.style.borderBottom = '';
+        var targetMod = parseInt(cell.getAttribute('data-mod'));
+        var targetIdx = parseInt(cell.getAttribute('data-mlo-idx'));
+        if (dragSrcMod === null) return;
+        var rect = cell.getBoundingClientRect();
+        var insertAfter = e.clientY >= rect.top + rect.height / 2;
+        captureUndoOnEdit('move MLO');
+        var savedMods = loadField('moduleOverviewData') || {};
+        // Get source MLOs
+        if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
+        var srcMlos = (savedMods[dragSrcMod].mlos || (activeCourse.modules[dragSrcMod - 1] ? activeCourse.modules[dragSrcMod - 1].mlos || [] : [])).slice();
+        var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        savedMods[dragSrcMod].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        // Get target MLOs
+        if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var tgtMlos = (savedMods[targetMod].mlos || (activeCourse.modules[targetMod - 1] ? activeCourse.modules[targetMod - 1].mlos || [] : [])).slice();
+        // Adjust target index if same module and source was before target
+        var adjIdx = targetIdx;
+        if (dragSrcMod === targetMod && dragSrcIdx < targetIdx) adjIdx--;
+        var insertIdx = insertAfter ? adjIdx + 1 : adjIdx;
+        tgtMlos.splice(insertIdx, 0, movedMlo);
+        savedMods[targetMod].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        saveField('moduleOverviewData', savedMods);
+        dragSrcMod = null;
+        dragSrcIdx = null;
+        renderModuleOverview();
+      });
+    });
+    // Also allow dropping on "No objectives yet" cells
+    tableContainer.querySelectorAll('.mlo-cell:not([draggable])').forEach(function(cell) {
+      cell.addEventListener('dragover', function(e) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; cell.style.borderTop = '2px solid #8c1d40'; });
+      cell.addEventListener('dragleave', function() { cell.style.borderTop = ''; });
+      cell.addEventListener('drop', function(e) {
+        e.preventDefault();
+        cell.style.borderTop = '';
+        var targetMod = parseInt(cell.getAttribute('data-mod'));
+        if (dragSrcMod === null) return;
+        captureUndoOnEdit('move MLO');
+        var savedMods = loadField('moduleOverviewData') || {};
+        if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
+        var srcMlos = (savedMods[dragSrcMod].mlos || (activeCourse.modules[dragSrcMod - 1] ? activeCourse.modules[dragSrcMod - 1].mlos || [] : [])).slice();
+        var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        savedMods[dragSrcMod].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var tgtMlos = (savedMods[targetMod].mlos || []).slice();
+        tgtMlos.push(movedMlo);
+        savedMods[targetMod].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        saveField('moduleOverviewData', savedMods);
+        dragSrcMod = null;
+        dragSrcIdx = null;
+        renderModuleOverview();
+      });
+    });
   }
 
   function escapeHtml(str) {
