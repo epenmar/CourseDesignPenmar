@@ -2300,11 +2300,21 @@
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Synchronous save — reads all MLO values from card DOM and writes to localStorage immediately
+  // Synchronous save — reads MLO values from card DOM and merges into localStorage
   function saveModuleOverviewSync() {
     clearTimeout(saveTimer);
+    // Start from existing saved data so we don't erase modules not currently in the DOM
+    var data = loadField('moduleOverviewData') || {};
+    // Also seed from activeCourse for any modules not yet in localStorage
+    var modules = activeCourse.modules || [];
+    for (var i = 0; i < modules.length; i++) {
+      var mn = i + 1;
+      if (!data[mn]) {
+        data[mn] = { topic: modules[i].title || '', mlos: (modules[i].mlos || []).slice() };
+      }
+    }
+    // Now overlay with current DOM values for any cards that are rendered
     var cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
-    var data = {};
     cards.forEach(function(card) {
       var modNum = parseInt(card.getAttribute('data-mod-num'));
       var topicInput = card.querySelector('[data-mod-topic]');
