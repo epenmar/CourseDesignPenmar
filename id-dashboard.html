@@ -1201,17 +1201,38 @@
         followUpBody += `Just checking in ${timeRef} on ${courseLabel} development.\n\n`;
       }
 
-      // Pending action items — conversational
-      const pendingActions = (m.actionItems || []).filter(a => !a.done);
-      const doneActions = (m.actionItems || []).filter(a => a.done);
-      if (pendingActions.length > 0) {
-        followUpBody += `From our conversation, I have these as the next steps:\n`;
-        pendingActions.forEach(a => { followUpBody += `  • ${a.text}\n`; });
+      // Split action items by owner (instructor vs Elisa)
+      const allActions = m.actionItems || [];
+      const instrFirst = name.toLowerCase();
+      const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '');
+      const isInstructor = (a) => a.text.toLowerCase().startsWith(instrFirst + ':');
+      const isElisa = (a) => a.text.toLowerCase().startsWith('elisa:');
+
+      const theirPending = allActions.filter(a => !a.done && isInstructor(a));
+      const myPending = allActions.filter(a => !a.done && isElisa(a));
+      const otherPending = allActions.filter(a => !a.done && !isInstructor(a) && !isElisa(a));
+      const theirDone = allActions.filter(a => a.done && isInstructor(a));
+      const myDone = allActions.filter(a => a.done && isElisa(a));
+
+      if (theirPending.length > 0 || otherPending.length > 0) {
+        followUpBody += `From our conversation, I have these as the next steps for you:\n`;
+        theirPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
+        otherPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
         followUpBody += '\n';
       }
-      if (doneActions.length > 0) {
-        followUpBody += `On my end, I've wrapped up:\n`;
-        doneActions.forEach(a => { followUpBody += `  • ${a.text}\n`; });
+      if (myPending.length > 0) {
+        followUpBody += `While you work on that, I'll be:\n`;
+        myPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
+        followUpBody += '\n';
+      }
+      if (myDone.length > 0) {
+        followUpBody += `On my end, I've already wrapped up:\n`;
+        myDone.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
+        followUpBody += '\n';
+      }
+      if (theirDone.length > 0) {
+        followUpBody += `And I see you've completed:\n`;
+        theirDone.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
         followUpBody += '\n';
       }
 
