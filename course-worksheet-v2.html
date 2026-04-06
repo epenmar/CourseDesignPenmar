@@ -1830,9 +1830,19 @@
   }
 
   // ===== RENDER MODULE OVERVIEW CARDS =====
-  function renderModuleOverviewCards() {
+  function renderModuleOverviewCards(openModules) {
     const container = document.getElementById('module-overview-cards');
     if (!container) return;
+    // Snapshot which cards are currently open before re-rendering
+    if (!openModules) {
+      openModules = {};
+      container.querySelectorAll('.card[data-mod-num]').forEach(function(card) {
+        var body = card.querySelector('.card-body');
+        if (body && !body.classList.contains('collapsed')) openModules[card.getAttribute('data-mod-num')] = true;
+      });
+      // Default: open first card if nothing was open
+      if (Object.keys(openModules).length === 0) openModules['1'] = true;
+    }
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || 7;
     let html = '';
@@ -1847,7 +1857,7 @@
       const topic = savedMod.topic || modData.title || '';
       const mlos = savedMod.mlos || modData.mlos || [];
       const mloCount = Math.max(mlos.length, 0);
-      const collapsed = m > 0 ? ' collapsed' : '';
+      const collapsed = openModules[String(modNum)] ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-mod-num="' + modNum + '">';
       html += '<div class="card-header" onclick="toggleCard(this)">';
@@ -1855,7 +1865,7 @@
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + modNum + '</span>';
       html += '<span id="mod-title-display-' + modNum + '">' + (topic || 'Module ' + modNum) + '</span>';
       html += '</div>';
-      html += '<span class="card-toggle' + (m === 0 ? ' open' : '') + '">▾</span>';
+      html += '<span class="card-toggle' + (openModules[String(modNum)] ? ' open' : '') + '">▾</span>';
       html += '</div>';
       html += '<div class="card-body' + collapsed + '">';
 
