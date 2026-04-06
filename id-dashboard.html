@@ -205,6 +205,13 @@
   .resource-body.open { max-height: 400px; }
   .rc-add-btn { font-size: 10px; color: #999; background: none; border: 1px dashed #ccc; border-radius: 3px; padding: 1px 6px; cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 2px; }
   .rc-add-btn:hover { border-color: #8c1d40; color: #8c1d40; }
+  .rc-link-wrap { display: inline-flex; align-items: center; gap: 1px; position: relative; }
+  .rc-link-wrap .rc-link-actions { display: none; }
+  .rc-link-wrap:hover .rc-link-actions { display: inline-flex; gap: 0; }
+  .rc-link-actions button { background: none; border: none; font-size: 9px; cursor: pointer; padding: 0 2px; opacity: 0.5; }
+  .rc-link-actions button:hover { opacity: 1; }
+  .rc-link-actions .rc-edit-btn { color: #1565c0; }
+  .rc-link-actions .rc-del-btn { color: #c62828; }
   .rc-add-form { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
   .rc-add-form input { font-size: 10px; padding: 3px 6px; border: 1px solid #e0ddd5; border-radius: 4px; font-family: 'Inter', sans-serif; width: 80px; }
   .rc-add-form input:focus { outline: none; border-color: #8c1d40; }
@@ -1205,12 +1212,16 @@
   }
 
   // ===== EMAIL TEMPLATE DROPDOWN =====
-  // Pull resource links from Faculty Resources cards in the DOM
+  // Pull resource links from Faculty Resources stored data
   function getFacultyResourceLinks() {
     const links = {};
-    document.querySelectorAll('#faculty-resource-body .rc-link').forEach(a => {
-      const text = a.textContent.trim().toLowerCase();
-      links[text] = a.href;
+    const stored = getResourceLinks();
+    ['faculty-tools', 'faculty-training'].forEach(cardId => {
+      if (stored[cardId]) {
+        stored[cardId].forEach(lnk => {
+          links[lnk.label.toLowerCase()] = lnk.url;
+        });
+      }
     });
     return links;
   }
@@ -1728,24 +1739,58 @@
   }
 
   // ===== RESOURCE LINK MANAGEMENT =====
-  function getCustomLinks() {
-    try { return JSON.parse(localStorage.getItem('dashboard_custom_links') || '{}'); } catch(e) { return {}; }
+  const allResourceCardIds = ['university','new-college','tph','chs','faculty-tools','faculty-training'];
+
+  function getResourceLinks() {
+    try { return JSON.parse(localStorage.getItem('dashboard_resource_links') || '{}'); } catch(e) { return {}; }
+  }
+  function saveResourceLinks(data) {
+    localStorage.setItem('dashboard_resource_links', JSON.stringify(data));
   }
 
-  function saveCustomLinks(links) {
-    localStorage.setItem('dashboard_custom_links', JSON.stringify(links));
+  // Seed localStorage from hardcoded HTML on first load
+  function initResourceLinks() {
+    const stored = getResourceLinks();
+    allResourceCardIds.forEach(cardId => {
+      if (stored[cardId]) return; // already initialized
+      const container = document.getElementById('rc-links-' + cardId);
+      if (!container) return;
+      stored[cardId] = [];
+      container.querySelectorAll('a.rc-link').forEach(a => {
+        stored[cardId].push({ label: a.textContent.trim(), url: a.href });
+      });
+    });
+    saveResourceLinks(stored);
+    // Render all from data
+    allResourceCardIds.forEach(renderResourceLinks);
+  }
+
+  function renderResourceLinks(cardId) {
+    const container = document.getElementById('rc-links-' + cardId);
+    if (!container) return;
+    const stored = getResourceLinks();
+    const links = stored[cardId] || [];
+    container.innerHTML = links.map((lnk, idx) =>
+      `<span class="rc-link-wrap">` +
+        `<a class="rc-link" href="${lnk.url}" target="_blank">${lnk.label}</a>` +
+        `<span class="rc-link-actions">` +
+          `<button class="rc-edit-btn" onclick="editResourceLink('${cardId}',${idx})" title="Edit">✎</button>` +
+          `<button class="rc-del-btn" onclick="deleteResourceLink('${cardId}',${idx})" title="Delete">✕</button>` +
+        `</span>` +
+      `</span>`
+    ).join('');
   }
 
   function showAddLinkForm(cardId) {
-    const container = document.getElementById('rc-links-' + cardId);
-    if (!container || container.querySelector('.rc-add-form')) return;
+    const card = document.querySelector(`[data-rc-id="${cardId}"]`);
+    if (!card || card.querySelector('.rc-add-form')) return;
     const form = document.createElement('div');
     form.className = 'rc-add-form';
     form.innerHTML = `<input type="text" placeholder="Label" id="rc-new-label-${cardId}" />` +
       `<input type="text" placeholder="URL" id="rc-new-url-${cardId}" style="width:120px;" />` +
       `<button class="rc-add-save" onclick="saveNewLink('${cardId}')">Add</button>` +
       `<button class="rc-add-cancel" onclick="this.parentElement.remove()">Cancel</button>`;
-    container.parentElement.insertBefore(form, container.parentElement.querySelector('.rc-add-btn').nextSibling);
+    card.querySelector('.rc-add-btn').insertAdjacentElement('afterend', form);
     document.getElementById('rc-new-label-' + cardId).focus();
   }
 
@@ -1754,45 +1799,56 @@
     const url = document.getElementById('rc-new-url-' + cardId).value.trim();
     if (!label || !url) return;
     const fullUrl = url.match(/^https?:\/\//) ? url : 'https://' + url;
-    const links = getCustomLinks();
-    if (!links[cardId]) links[cardId] = [];
-    links[cardId].push({ label, url: fullUrl });
-    saveCustomLinks(links);
-    renderCustomLinks(cardId);
-    const form = document.querySelector(`#rc-links-${cardId}`).parentElement.querySelector('.rc-add-form');
+    const stored = getResourceLinks();
+    if (!stored[cardId]) stored[cardId] = [];
+    stored[cardId].push({ label, url: fullUrl });
+    saveResourceLinks(stored);
+    renderResourceLinks(cardId);
+    const card = document.querySelector(`[data-rc-id="${cardId}"]`);
+    const form = card ? card.querySelector('.rc-add-form') : null;
     if (form) form.remove();
   }
 
-  function removeCustomLink(cardId, idx) {
-    const links = getCustomLinks();
-    if (links[cardId]) {
-      links[cardId].splice(idx, 1);
-      if (links[cardId].length === 0) delete links[cardId];
-      saveCustomLinks(links);
-      renderCustomLinks(cardId);
-    }
+  function deleteResourceLink(cardId, idx) {
+    const stored = getResourceLinks();
+    if (!stored[cardId]) return;
+    stored[cardId].splice(idx, 1);
+    saveResourceLinks(stored);
+    renderResourceLinks(cardId);
   }
 
-  function renderCustomLinks(cardId) {
+  function editResourceLink(cardId, idx) {
     const container = document.getElementById('rc-links-' + cardId);
     if (!container) return;
-    // Remove existing custom links
-    container.querySelectorAll('.rc-link-custom').forEach(el => el.remove());
-    const links = getCustomLinks();
-    if (links[cardId]) {
-      links[cardId].forEach((lnk, idx) => {
-        const wrap = document.createElement('span');
-        wrap.className = 'rc-link-custom';
-        wrap.style.cssText = 'display:inline-flex; align-items:center; gap:1px;';
-        wrap.innerHTML = `<a class="rc-link" href="${lnk.url}" target="_blank">${lnk.label}</a>` +
-          `<button onclick="removeCustomLink('${cardId}',${idx})" style="background:none; border:none; color:#c62828; font-size:9px; cursor:pointer; padding:0 2px;" title="Remove">✕</button>`;
-        container.appendChild(wrap);
-      });
-    }
+    const stored = getResourceLinks();
+    const lnk = stored[cardId] && stored[cardId][idx];
+    if (!lnk) return;
+    const wrap = container.querySelectorAll('.rc-link-wrap')[idx];
+    if (!wrap) return;
+    wrap.innerHTML = `<div class="rc-add-form" style="margin:0;">` +
+      `<input type="text" value="${lnk.label.replace(/"/g, '&quot;')}" id="rc-edit-label-${cardId}-${idx}" />` +
+      `<input type="text" value="${lnk.url}" id="rc-edit-url-${cardId}-${idx}" style="width:160px;" />` +
+      `<button class="rc-add-save" onclick="saveEditedLink('${cardId}',${idx})">Save</button>` +
+      `<button class="rc-add-cancel" onclick="renderResourceLinks('${cardId}')">Cancel</button>` +
+    `</div>`;
+    document.getElementById('rc-edit-label-' + cardId + '-' + idx).focus();
   }
 
-  // Load custom links on init
-  ['university','new-college','tph','chs'].forEach(renderCustomLinks);
+  function saveEditedLink(cardId, idx) {
+    const label = document.getElementById('rc-edit-label-' + cardId + '-' + idx).value.trim();
+    const url = document.getElementById('rc-edit-url-' + cardId + '-' + idx).value.trim();
+    if (!label || !url) return;
+    const fullUrl = url.match(/^https?:\/\//) ? url : 'https://' + url;
+    const stored = getResourceLinks();
+    if (stored[cardId] && stored[cardId][idx]) {
+      stored[cardId][idx] = { label, url: fullUrl };
+      saveResourceLinks(stored);
+    }
+    renderResourceLinks(cardId);
+  }
+
+  // Initialize on load
+  initResourceLinks();
 </script>
 
 </body>
