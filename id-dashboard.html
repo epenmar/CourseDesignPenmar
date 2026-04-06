@@ -1204,43 +1204,93 @@
       // Split action items by owner (instructor vs Elisa)
       const allActions = m.actionItems || [];
       const instrFirst = name.toLowerCase();
-      const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '');
-      const isInstructor = (a) => a.text.toLowerCase().startsWith(instrFirst + ':');
-      const isElisa = (a) => a.text.toLowerCase().startsWith('elisa:');
+      const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '').replace(/^to\s+/, '');
+      const isInstructor = (a) => {
+        const t = a.text.toLowerCase();
+        return t.startsWith(instrFirst + ':') || t.startsWith(instrFirst + ' to ');
+      };
+      const isElisa = (a) => {
+        const t = a.text.toLowerCase();
+        return t.startsWith('elisa:') || t.startsWith('elisa ');
+      };
 
-      const theirPending = allActions.filter(a => !a.done && isInstructor(a));
-      const myPending = allActions.filter(a => !a.done && isElisa(a));
-      const otherPending = allActions.filter(a => !a.done && !isInstructor(a) && !isElisa(a));
-      const theirDone = allActions.filter(a => a.done && isInstructor(a));
-      const myDone = allActions.filter(a => a.done && isElisa(a));
+      // Find other courses this instructor teaches
+      const otherCourses = {};
+      Object.keys(courseData).forEach(k => {
+        if (k !== id && courseData[k].instructor === c.instructor) {
+          otherCourses[k] = courseData[k];
+        }
+      });
+      const otherCourseNames = Object.values(otherCourses).map(oc => oc.code);
 
-      if (theirPending.length > 0 || otherPending.length > 0) {
-        followUpBody += `From our conversation, I have these as the next steps for you:\n`;
-        theirPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
-        otherPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
+      // Classify each action item
+      const isAboutOtherCourse = (text) => {
+        const t = text.toLowerCase();
+        return otherCourseNames.some(code => t.includes(code.toLowerCase()) || t.includes(code.toLowerCase().replace(/\s+/g, '')));
+      };
+      // Filter out items that reference past dates (already done contextually)
+      const isPastEvent = (text) => {
+        const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i) ||
+                          text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i);
+        if (dateMatch) {
+          const refDate = new Date(dateMatch[0] + ', 2026');
+          return refDate < new Date();
+        }
+        return false;
+      };
+
+      const theirPending = [];
+      const myPending = [];
+      const crossCourseItems = [];
+
+      allActions.forEach(a => {
+        if (a.done) return; // skip completed
+        const clean = stripOwner(a.text);
+        if (isPastEvent(a.text)) return; // skip items with past dates
+        if (isAboutOtherCourse(a.text)) {
+          crossCourseItems.push({ text: clean, otherCode: otherCourseNames.find(code => a.text.toLowerCase().includes(code.toLowerCase()) || a.text.toLowerCase().includes(code.toLowerCase().replace(/\s+/g, ''))) || '' });
+          return;
+        }
+        if (isInstructor(a)) theirPending.push(clean);
+        else if (isElisa(a)) myPending.push(clean);
+        // skip unowned items (generic notes, not actionable for email)
+      });
+
+      if (theirPending.length > 0) {
+        followUpBody += `From our conversation, I have these as your next steps:\n`;
+        theirPending.forEach(t => { followUpBody += `  • ${t}\n`; });
         followUpBody += '\n';
       }
       if (myPending.length > 0) {
-        followUpBody += `While you work on that, I'll be:\n`;
-        myPending.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
-        followUpBody += '\n';
-      }
-      if (myDone.length > 0) {
-        followUpBody += `On my end, I've already wrapped up:\n`;
-        myDone.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
-        followUpBody += '\n';
-      }
-      if (theirDone.length > 0) {
-        followUpBody += `And I see you've completed:\n`;
-        theirDone.forEach(a => { followUpBody += `  • ${stripOwner(a.text)}\n`; });
+        followUpBody += `In the meantime, I'll:\n`;
+        myPending.forEach(t => { followUpBody += `  • ${t}\n`; });
         followUpBody += '\n';
       }
 
-      // Decisions — only if they exist, and frame naturally
+      // Cross-course items — separate paragraph
+      if (crossCourseItems.length > 0) {
+        const grouped = {};
+        crossCourseItems.forEach(item => {
+          if (!grouped[item.otherCode]) grouped[item.otherCode] = [];
+          grouped[item.otherCode].push(item.text);
+        });
+        Object.keys(grouped).forEach(code => {
+          const otherCourseFull = Object.values(otherCourses).find(oc => oc.code === code);
+          const otherName = otherCourseFull ? (code + ' (' + otherCourseFull.courseName + ')') : code;
+          followUpBody += `As you're thinking about ${otherName} — just a reminder that I can help with:\n`;
+          grouped[code].forEach(t => { followUpBody += `  • ${t}\n`; });
+          followUpBody += '\n';
+        });
+      }
+
+      // Decisions — only if they exist, frame naturally, skip cross-course ones
       if (m.decisions && m.decisions.length > 0) {
-        followUpBody += `Just wanted to confirm we're on the same page about:\n`;
-        m.decisions.forEach(d => { followUpBody += `  • ${d}\n`; });
-        followUpBody += '\n';
+        const relevantDecisions = m.decisions.filter(d => !isAboutOtherCourse(d));
+        if (relevantDecisions.length > 0) {
+          followUpBody += `Just wanted to confirm we're on the same page about:\n`;
+          relevantDecisions.forEach(d => { followUpBody += `  • ${d}\n`; });
+          followUpBody += '\n';
+        }
       }
 
       followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\nElisa`;
