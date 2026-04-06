@@ -645,6 +645,19 @@
     });
   }
 
+  // Pull QA date overrides from worksheet localStorage
+  Object.keys(courseData).forEach(id => {
+    try {
+      const ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
+      if (ws.fixedDate_qa) {
+        const d = new Date(ws.fixedDate_qa + 'T00:00:00');
+        const opts = { year: 'numeric', month: 'short', day: 'numeric' };
+        courseData[id].qa = d.toLocaleDateString('en-US', opts);
+        courseData[id].qaShort = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      }
+    } catch(e) {}
+  });
+
   // ===== RENDER SUMMARY CARDS =====
   function renderSummary() {
     const counts = { total: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0 };

@@ -2046,10 +2046,13 @@
     const launch = new Date(launchStr + 'T00:00:00');
     const summerOk = document.getElementById('summer-toggle').checked;
 
-    // Fixed dates
-    const qaDate = activeCourse.qaDate ? new Date(activeCourse.qaDate + 'T00:00:00') : (function() { const d = new Date(launch); d.setDate(d.getDate() - 28); return d; })();
-    // Students get access ~3 days before session starts
-    const liveDate = new Date(launch); liveDate.setDate(liveDate.getDate() - 3);
+    // Fixed dates — check for user overrides first, then config, then defaults
+    const savedQa = loadField('fixedDate_qa');
+    const savedLive = loadField('fixedDate_live');
+    const qaDate = savedQa ? new Date(savedQa + 'T00:00:00') :
+      (activeCourse.qaDate ? new Date(activeCourse.qaDate + 'T00:00:00') : (function() { const d = new Date(launch); d.setDate(d.getDate() - 28); return d; })());
+    const liveDate = savedLive ? new Date(savedLive + 'T00:00:00') :
+      (function() { const d = new Date(launch); d.setDate(d.getDate() - 3); return d; })();
 
     // Use explicit dates if available, otherwise calculate backwards from QA
     const totalMilestones = milestones.length;
@@ -2147,12 +2150,12 @@
 
     html += `<tr style="${qaHighlight}">
       <td><strong>${qaPretty} — Final Walkthrough and QA Check</strong></td>
-      <td><input type="date" class="date-input" value="${qaFmt}" /></td>
-      <td style="font-size:12px; color:${qaStatus.color}">${qaStatus.label}</td></tr>`;
+      <td><input type="date" class="date-input" value="${qaFmt}" onchange="saveFixedDate('qa', this.value)" /></td>
+      <td class="qa-rel-status" style="font-size:12px; color:${qaStatus.color}">${qaStatus.label}</td></tr>`;
     html += `<tr>
       <td><strong>${livePretty} — Student Access / Live Course Shell</strong></td>
-      <td><input type="date" class="date-input" value="${liveFmt}" /></td>
-      <td style="font-size:12px; color:${liveStatus.color}">${liveStatus.label}</td></tr>`;
+      <td><input type="date" class="date-input" value="${liveFmt}" onchange="saveFixedDate('live', this.value)" /></td>
+      <td class="live-rel-status" style="font-size:12px; color:${liveStatus.color}">${liveStatus.label}</td></tr>`;
     html += `<tr style="background:#f5f5f0;">
       <td><strong>🎓 Session begins — ${launchPretty}</strong></td>
       <td><strong>${launchPretty}</strong></td>
@@ -2205,6 +2208,31 @@
     const dates = loadField('timelineDates') || {};
     dates[index] = value;
     saveField('timelineDates', dates);
+  }
+
+  // Save QA / live date overrides and update relative status
+  function saveFixedDate(type, value) {
+    saveField('fixedDate_' + type, value);
+    // Update the relative status cell
+    const now = new Date();
+    const d = new Date(value + 'T00:00:00');
+    const days = Math.round((d - now) / 86400000);
+    let label, color;
+    if (days < 0) { label = '✓ Done'; color = '#4caf50'; }
+    else if (days <= 7) { label = 'This week'; color = '#e65100'; }
+    else if (days <= 14) { label = 'In 2 weeks'; color = '#e65100'; }
+    else if (days <= 30) { label = 'In ' + Math.ceil(days/7) + ' weeks'; color = '#999'; }
+    else { const months = Math.round(days / 30); label = 'In ~' + months + ' month' + (months > 1 ? 's' : ''); color = '#999'; }
+    const cell = document.querySelector('.' + type + '-rel-status');
+    if (cell) { cell.textContent = label; cell.style.color = color; }
+    // Update the row label with the new pretty date
+    const pretty = prettyDate(d);
+    const suffix = type === 'qa' ? 'Final Walkthrough and QA Check' : 'Student Access / Live Course Shell';
+    const row = cell ? cell.closest('tr') : null;
+    if (row) {
+      const td = row.querySelector('td:first-child strong');
+      if (td) td.textContent = pretty + ' — ' + suffix;
+    }
   }
 
   // Push all remaining (non-done) milestone dates by N weeks
