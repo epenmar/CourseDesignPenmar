@@ -937,53 +937,7 @@
           <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
           <button class="view-btn" onclick="downloadDocument()">💾 Download Document</button>
         </div>
-        <div class="doc-preview">
-          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:20px;">
-            <div><h1>Course Development</h1><div class="doc-subtitle">MNS 521 — AI Technologies &bull; Summer 2026 Session B</div></div>
-            <div style="text-align:right; font-size:12px; color:#8c1d40; font-weight:700;">ASU <em>online</em></div>
-          </div>
-          <p><strong>Instructor:</strong> Dariush Navabi (dnavabi@asu.edu)</p>
-          <p><strong>Instructional Designer:</strong> Elisa Penmar</p>
-          <p><strong>Credits:</strong> 3 &bull; <strong>Prerequisites:</strong> None</p>
-          <h2>Course Level Objectives</h2>
-          <h3>CLOs — Students will learn to:</h3>
-          <p>1. Understand the evolution and core differences between major AI paradigms</p>
-          <p>2. Identify appropriate abstractions and modeling techniques for AI solutions</p>
-          <p>3. Recognize the mechanics of machine learning algorithms</p>
-          <p>4. Comprehend structural requirements for integrated AI architectures</p>
-          <p>5. Appreciate ethical complexities including fairness and transparency in AI</p>
-          <p>6. Interpret complex AI system trade-offs for stakeholder communication</p>
-          <h3>ELOs — Students will be able to:</h3>
-          <p>1. Differentiate between major AI paradigms including search, knowledge representation, and probabilistic reasoning</p>
-          <p>2. Formulate real-world problems using AI abstractions such as agents, state spaces, and constraints</p>
-          <p>3. Describe core machine learning approaches and evaluate their performance</p>
-          <p>4. Analyze and design high-level AI system architectures</p>
-          <p>5. Critically evaluate AI technologies for fairness, transparency, and societal impact</p>
-          <p>6. Communicate AI system designs and tradeoffs to technical and non-technical audiences</p>
-          <h2>Module 1: Foundations of AI Modeling</h2>
-          <p><em>Aligned to: CLO 1</em></p>
-          <h3>Objectives</h3>
-          <p>1.1 Define artificial intelligence and distinguish it from machine learning and data science</p>
-          <p>1.2 Describe the agent-environment framework</p>
-          <p>1.3 Specify PEAS components for a given agent</p>
-          <p>1.4 Classify environments based on key properties</p>
-          <p>1.5 Identify and compare major AI paradigms</p>
-          <h3>Activities &amp; Assignments</h3>
-          <table><tr><th>Objective(s)</th><th>Activity</th><th>Points</th><th>Due</th></tr>
-          <tr><td>1.1, 1.5</td><td>AI Misconceptions Debate</td><td>50</td><td>Week 1</td></tr>
-          <tr><td>1.2, 1.3</td><td>Agent Modeling Exercise</td><td>40</td><td>Week 1</td></tr>
-          <tr><td>1.1, 1.5</td><td>What distinguishes AI from traditional software?</td><td>30</td><td>Week 2</td></tr>
-          <tr><td>1.4, 1.5</td><td>Environment Classification Mini-Task</td><td>20</td><td>Week 2</td></tr></table>
-          <h3>Learning Materials</h3>
-          <p>Chapter 1-2 of textbook: Introduction to AI fundamentals</p>
-          <h2>Module 2: AI Problem Modeling</h2>
-          <p class="placeholder">Partially complete — objectives defined, activities and materials pending.</p>
-          <h2 style="color:#999;">Modules 3–7</h2>
-          <p class="placeholder">Not yet started</p>
-          <div style="margin-top:40px; padding-top:20px; border-top:2px solid #e0ddd5; font-size:11px; color:#999; text-align:center;">
-            Generated from Course Development &bull; ASU Online &bull; March 31, 2026
-          </div>
-        </div>
+        <div class="doc-preview" id="doc-preview-content"></div>
       </div>
 
     </div>
@@ -1620,15 +1574,7 @@
       // Clear course context Q&A
       document.querySelectorAll('#view-additional textarea.field-input, #view-additional .auto-expand').forEach(f => f.value = '');
 
-      // Update doc preview
-      const previewTitle = document.querySelector('.doc-preview h1');
-      if (previewTitle) previewTitle.textContent = 'Course Development';
-      const previewSubtitle = document.querySelector('.doc-subtitle');
-      if (previewSubtitle) previewSubtitle.innerHTML = activeCourse.fullTitle + ' &bull; ' + activeCourse.sessionShort;
-      const previewPs = document.querySelectorAll('.doc-preview > p');
-      if (previewPs[0]) previewPs[0].innerHTML = '<strong>Instructor:</strong> ' + activeCourse.instructor + ' (' + activeCourse.email + ')';
-      if (previewPs[1]) previewPs[1].innerHTML = '<strong>Instructional Designer:</strong> ' + activeCourse.id;
-      if (previewPs[2]) previewPs[2].innerHTML = '<strong>Credits:</strong> ' + activeCourse.credits;
+      // Doc preview is now rendered dynamically by renderPreview() when the view is shown
     }
 
     // Populate textbook field from config (applies to ALL courses including MNS 521)
@@ -2600,6 +2546,7 @@
     // Render overview content when navigating to overview views
     if (viewId === 'assignments-overview') renderAssignmentsOverview();
     if (viewId === 'materials-overview') renderMaterialsOverview();
+    if (viewId === 'preview') renderPreview();
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
   }
@@ -4451,6 +4398,137 @@
       document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
     }
   });
+
+  // ===== DOCUMENT PREVIEW =====
+  function renderPreview() {
+    const container = document.getElementById('doc-preview-content');
+    if (!container) return;
+
+    const esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
+    const placeholder = function(text) { return '<span class="placeholder">' + text + '</span>'; };
+
+    let html = '';
+
+    // Header
+    html += '<h1>Course Development Worksheet</h1>';
+    html += '<p class="doc-subtitle">' + esc(activeCourse.fullTitle) + ' &bull; ' + esc(activeCourse.sessionShort || activeCourse.session || '') + '</p>';
+
+    // Course info
+    html += '<p><strong>Instructor:</strong> ' + esc(activeCourse.instructor) + (activeCourse.email ? ' (' + esc(activeCourse.email) + ')' : '') + '</p>';
+    html += '<p><strong>Instructional Designer:</strong> ' + esc(activeCourse.id || '') + '</p>';
+    html += '<p><strong>Credits:</strong> ' + esc(activeCourse.credits || '') + '</p>';
+
+    // Course description — read from the form field
+    const descTextarea = document.querySelector('#view-course-info .card:nth-child(3) textarea.field-input');
+    const courseDesc = descTextarea ? descTextarea.value.trim() : '';
+    html += '<h2>Course Description</h2>';
+    html += courseDesc ? '<p>' + esc(courseDesc).replace(/\n/g, '<br>') + '</p>' : placeholder('No course description entered yet.');
+
+    // CLOs
+    const clos = activeCourse.clos || [];
+    html += '<h2>Course Level Objectives (CLOs)</h2>';
+    if (clos.length > 0) {
+      html += '<ol>';
+      clos.forEach(function(clo) { html += '<li>' + esc(clo) + '</li>'; });
+      html += '</ol>';
+    } else {
+      html += placeholder('No CLOs defined yet.');
+    }
+
+    // ELOs
+    const elos = activeCourse.flatElos || [];
+    html += '<h2>Expected Learning Outcomes (ELOs)</h2>';
+    if (elos.length > 0) {
+      html += '<ol>';
+      elos.forEach(function(elo) { html += '<li>' + esc(elo) + '</li>'; });
+      html += '</ol>';
+    } else {
+      html += placeholder('No ELOs defined yet.');
+    }
+
+    // Textbooks
+    html += '<h2>Textbooks &amp; Required Materials</h2>';
+    const textbookInputs = document.querySelectorAll('#view-materials input.field-input');
+    const otherMatsTextarea = document.querySelector('#view-materials textarea.field-input');
+    let hasTextbooks = false;
+    html += '<ul>';
+    textbookInputs.forEach(function(inp) {
+      if (inp.value.trim()) { html += '<li>' + esc(inp.value.trim()) + '</li>'; hasTextbooks = true; }
+    });
+    html += '</ul>';
+    if (otherMatsTextarea && otherMatsTextarea.value.trim()) {
+      html += '<p><strong>Other Materials:</strong> ' + esc(otherMatsTextarea.value.trim()).replace(/\n/g, '<br>') + '</p>';
+      hasTextbooks = true;
+    }
+    if (!hasTextbooks) html += placeholder('No textbooks or materials entered yet.');
+
+    // Modules with activities and materials
+    const modules = activeCourse.modules || [];
+    const modCount = activeCourse.moduleCount || modules.length || 7;
+    html += '<h2>Module Design</h2>';
+
+    for (let m = 1; m <= modCount; m++) {
+      const mod = modules[m - 1];
+      const title = mod ? 'Module ' + m + ': ' + (mod.title || 'Untitled') : 'Module ' + m;
+      html += '<h3>' + esc(title) + '</h3>';
+
+      // MLOs
+      const mlos = mod ? (mod.mlos || []) : [];
+      const savedMlos = loadField('module_mlos_' + m);
+      const finalMlos = savedMlos || mlos;
+      if (finalMlos.length > 0) {
+        html += '<p><strong>Module Learning Objectives:</strong></p><ol>';
+        finalMlos.forEach(function(mlo) { if (mlo && mlo.trim()) html += '<li>' + esc(mlo) + '</li>'; });
+        html += '</ol>';
+      }
+
+      // Activities
+      const acts = courseActivities[m] || [];
+      if (acts.length > 0) {
+        html += '<table><thead><tr><th>Activity</th><th>Type</th><th>Points</th><th>Due</th><th>Objectives</th></tr></thead><tbody>';
+        acts.forEach(function(act) {
+          html += '<tr>';
+          html += '<td>' + esc(act.name || 'Unnamed') + '</td>';
+          html += '<td>' + esc(act.contentType || '') + '</td>';
+          html += '<td>' + esc(act.points || '') + '</td>';
+          html += '<td>' + esc(act.due || '') + '</td>';
+          html += '<td>' + esc((act.objectives || []).join(', ')) + '</td>';
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
+      } else {
+        html += '<p class="placeholder">No activities defined.</p>';
+      }
+
+      // Materials
+      const mats = courseMaterials[m] || [];
+      if (mats.length > 0) {
+        html += '<p><strong>Materials:</strong></p><ul>';
+        mats.forEach(function(mat) {
+          let desc = esc(mat.type || 'Resource');
+          if (mat.title) desc += ': ' + esc(mat.title);
+          html += '<li>' + desc + '</li>';
+        });
+        html += '</ul>';
+      }
+    }
+
+    // Course context Q&A
+    const contextQuestions = document.querySelectorAll('#view-additional .card:first-child textarea.field-input, #view-additional .card:first-child .auto-expand');
+    let hasContext = false;
+    let contextHtml = '<h2>Course Context</h2>';
+    contextQuestions.forEach(function(ta) {
+      if (ta.value && ta.value.trim()) {
+        const label = ta.closest('.field-group')?.querySelector('.field-label')?.textContent || '';
+        contextHtml += '<p><strong>' + esc(label) + '</strong></p>';
+        contextHtml += '<p>' + esc(ta.value.trim()).replace(/\n/g, '<br>') + '</p>';
+        hasContext = true;
+      }
+    });
+    if (hasContext) html += contextHtml;
+
+    container.innerHTML = html;
+  }
 
   // ===== DOCUMENT EXPORT =====
   function downloadDocument() {
