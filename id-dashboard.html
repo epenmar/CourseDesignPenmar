@@ -341,8 +341,14 @@
 
   <!-- UPCOMING DEADLINES -->
   <div class="dash-section upcoming">
-    <div class="section-header">
-      <h2>Upcoming Deadlines</h2>
+    <div class="section-header" style="display:flex; align-items:center; gap:12px;">
+      <h2 style="margin:0;">Upcoming Deadlines</h2>
+      <select id="upcoming-weeks" onchange="renderUpcoming()" style="font-size:12px; padding:2px 6px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#333; cursor:pointer;">
+        <option value="1">1 week</option>
+        <option value="2" selected>2 weeks</option>
+        <option value="3">3 weeks</option>
+        <option value="4">4 weeks</option>
+      </select>
     </div>
     <div class="upcoming-list" id="upcoming-list"></div>
   </div>
@@ -728,13 +734,15 @@
       });
     }
 
-    // Only show next 2 weeks
+    // Filter by selected week range
+    const weeksEl = document.getElementById('upcoming-weeks');
+    const weeks = weeksEl ? parseInt(weeksEl.value) : 2;
     const today = new Date();
-    const twoWeeks = new Date(today);
-    twoWeeks.setDate(twoWeeks.getDate() + 14);
+    const cutoff = new Date(today);
+    cutoff.setDate(cutoff.getDate() + (weeks * 7));
     const todayStr = today.toISOString().split('T')[0];
-    const twoWeeksStr = twoWeeks.toISOString().split('T')[0];
-    const inRange = raw.filter(d => d.date && d.date >= todayStr && d.date <= twoWeeksStr);
+    const cutoffStr = cutoff.toISOString().split('T')[0];
+    const inRange = raw.filter(d => d.date && d.date >= todayStr && d.date <= cutoffStr);
 
     // Classify each entry as a meeting or a deadline
     const isMeeting = (t) => /meeting|follow.?up|check.?in|sync|call/i.test(t);
@@ -755,7 +763,7 @@
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
-      el.innerHTML = '<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines in the next 2 weeks.</div>';
+      el.innerHTML = `<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines in the next ${weeks} week${weeks > 1 ? 's' : ''}.</div>`;
       return;
     }
     el.innerHTML = upcoming.map(d => {
