@@ -613,6 +613,9 @@
       'https://drive.google.com/drive/u/0/folders/1o-UhdJZcCxrlUmNuqPnARfRcUagVxD_U'),
   };
 
+  // Comment counts must be declared before renderTable() which references it
+  const courseCommentCounts = {}; // { courseId: { total, newCount, comments } }
+
   // ===== LOAD USER-CREATED COURSES FROM LOCALSTORAGE =====
   (function() {
     try {
@@ -1886,7 +1889,6 @@
   const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
   const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
   let dashSupabase = null;
-  const courseCommentCounts = {}; // { courseId: { total, instructor, lastSeen } }
 
   try {
     dashSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
