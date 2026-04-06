@@ -2319,6 +2319,9 @@
           c.style.borderBottom = '';
         });
         modDragSrc = null;
+        // Suppress the click event that fires after drag ends (would toggle card)
+        _suppressCardToggle = true;
+        setTimeout(function() { _suppressCardToggle = false; }, 50);
       });
     });
 
@@ -3912,7 +3915,9 @@
     }
   }
 
+  var _suppressCardToggle = false;
   function toggleCard(h) {
+    if (_suppressCardToggle) { _suppressCardToggle = false; return; }
     const body = h.nextElementSibling;
     body.classList.toggle('collapsed');
     h.querySelector('.card-toggle').classList.toggle('open');
