@@ -1876,7 +1876,7 @@
           html += '<div class="obj-entry" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
           html += '<span class="card-mlo-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#ccc; font-size:11px; cursor:grab; user-select:none; flex-shrink:0;">⠿</span>';
           html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.' + (j + 1) + '</span>';
-          html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" />';
+          html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
           html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0;" title="Remove">&times;</button>';
           html += '</div>';
         }
@@ -1885,7 +1885,7 @@
         html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
         html += '<span style="width:15px; flex-shrink:0;"></span>';
         html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.1</span>';
-        html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" />';
+        html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
         html += '</div>';
       }
 
@@ -3749,14 +3749,27 @@
   // ===== MODULE OVERVIEW: ADD OBJECTIVE =====
   function addObjective(modNum) {
     captureUndoState('add MLO');
-    const list = document.getElementById('obj-list-' + modNum);
-    const count = list.querySelectorAll('.obj-entry').length + 1;
-    const entry = document.createElement('div');
-    entry.className = 'obj-entry';
-    entry.style.cssText = 'display:flex; align-items:center; gap:8px; margin-bottom:8px;';
-    entry.innerHTML = `<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">${modNum}.${count}</span><input type="text" class="field-input" style="margin-bottom:0;" placeholder="What should students be able to do?" />`;
-    list.appendChild(entry);
-    entry.querySelector('input').focus();
+    // Save current state from card inputs, then add empty MLO and re-render
+    saveModuleOverview();
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    mlos = mlos.slice();
+    mlos.push('');
+    savedMods[modNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+      activeCourse.modules[modNum - 1].mlos = mlos;
+    }
+    renderModuleOverviewCards();
+    // Focus the new input
+    requestAnimationFrame(function() {
+      var list = document.getElementById('obj-list-' + modNum);
+      if (!list) return;
+      var inputs = list.querySelectorAll('.obj-entry input');
+      var last = inputs[inputs.length - 1];
+      if (last) last.focus();
+    });
   }
 
   function updateModTitle(modNum, value) {
