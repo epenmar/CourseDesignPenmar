@@ -3119,8 +3119,8 @@
     var tableEl = document.getElementById(prefix + '-overview-table');
     if (cardsEl) cardsEl.style.display = mode === 'card' ? 'block' : 'none';
     if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
-    // Re-render module overview table when switching to it so it picks up card edits
-    if (prefix === 'module' && mode === 'table') {
+    // Re-render both views when switching so edits in one sync to the other
+    if (prefix === 'module') {
       renderModuleOverviewCards();
     }
     // Auto-size textareas now that they're visible (scrollHeight is 0 while display:none)
