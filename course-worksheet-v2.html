@@ -1947,7 +1947,8 @@
 
       html += '<div class="card" style="margin-bottom:12px;" data-mod-num="' + modNum + '">';
       html += '<div class="card-header" onclick="toggleCard(this)">';
-      html += '<div class="card-title">';
+      html += '<div class="card-title" style="display:flex; align-items:center; gap:8px;">';
+      html += '<span class="mod-drag-handle" draggable="true" data-mod-num="' + modNum + '" title="Drag to reorder module" onclick="event.stopPropagation()" style="color:#bbb; font-size:14px; cursor:grab; user-select:none; flex-shrink:0; padding:2px 0;">☰</span>';
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + modNum + '</span>';
       html += '<span id="mod-title-display-' + modNum + '">' + (topic || 'Module ' + modNum) + '</span>';
       html += '</div>';
@@ -2012,7 +2013,7 @@
         var mloCount = Math.max(mlos.length, 1);
         // First row: module label + topic span full MLO rows
         thtml += '<tr data-mod="' + modNum + '">';
-        thtml += '<td rowspan="' + (mloCount + 1) + '" style="font-weight:600; color:#8c1d40; vertical-align:top; text-align:center; background:#fafaf7;">M' + modNum + '</td>';
+        thtml += '<td rowspan="' + (mloCount + 1) + '" class="mod-reorder-cell" data-mod-num="' + modNum + '" style="font-weight:600; color:#8c1d40; vertical-align:top; text-align:center; background:#fafaf7; cursor:grab; user-select:none;"><span class="mod-table-drag" draggable="true" data-mod-num="' + modNum + '" style="display:block;">☰<br>M' + modNum + '</span></td>';
         thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top; background:#fff;"><textarea class="activity-input" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; min-height:28px; line-height:1.4; font-family:Inter,sans-serif;">' + escapeHtml(topic) + '</textarea></td>';
         // MLO rows
         if (mlos.length > 0) {
@@ -2378,6 +2379,152 @@
         renderModuleOverviewCards();
       });
     });
+  }
+
+  // ===== MODULE REORDER DRAG-DROP =====
+  function reorderModules(fromNum, toNum) {
+    if (fromNum === toNum) return;
+    captureUndoState('reorder modules');
+    saveModuleOverviewSync();
+
+    var modules = activeCourse.modules || [];
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modCount = activeCourse.moduleCount || modules.length;
+
+    // Build ordered arrays of data keyed by current module number
+    var modOrder = [];
+    for (var i = 1; i <= modCount; i++) modOrder.push(i);
+
+    // Move fromNum to toNum position
+    var fromIdx = modOrder.indexOf(fromNum);
+    var toIdx = modOrder.indexOf(toNum);
+    modOrder.splice(fromIdx, 1);
+    modOrder.splice(toIdx, 0, fromNum);
+
+    // Remap all data structures using the new order
+    var newModules = [];
+    var newSavedMods = {};
+    var newActivities = {};
+    var newMaterials = {};
+
+    for (var i = 0; i < modOrder.length; i++) {
+      var oldNum = modOrder[i];
+      var newNum = i + 1;
+
+      // activeCourse.modules (0-indexed array)
+      newModules[i] = modules[oldNum - 1] || { title: '', mlos: [] };
+
+      // moduleOverviewData (1-indexed keys)
+      newSavedMods[newNum] = savedMods[oldNum] || { topic: '', mlos: [] };
+
+      // courseActivities and courseMaterials (1-indexed keys)
+      if (courseActivities[oldNum]) newActivities[newNum] = courseActivities[oldNum];
+      if (courseMaterials[oldNum]) newMaterials[newNum] = courseMaterials[oldNum];
+    }
+
+    activeCourse.modules = newModules;
+    courseActivities = newActivities;
+    courseMaterials = newMaterials;
+    saveField('moduleOverviewData', newSavedMods);
+    saveActivityData();
+    renderModuleOverviewCards();
+  }
+
+  var modDragSrc = null; // module being dragged for reorder (distinct from MLO drag)
+
+  function initModuleDragDrop() {
+    var container = document.getElementById('module-overview-cards');
+    var tableContainer = document.getElementById('module-overview-table');
+
+    // Card view: drag from .mod-drag-handle
+    if (container) {
+      container.addEventListener('dragstart', function(e) {
+        var handle = e.target.closest('.mod-drag-handle');
+        if (!handle) return;
+        modDragSrc = parseInt(handle.getAttribute('data-mod-num'));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'mod-' + modDragSrc);
+        var card = handle.closest('.card[data-mod-num]');
+        if (card) card.style.opacity = '0.4';
+      }, true);
+
+      container.addEventListener('dragend', function(e) {
+        if (modDragSrc === null) return;
+        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) {
+          c.style.opacity = '';
+          c.style.borderTop = '';
+          c.style.borderBottom = '';
+        });
+        modDragSrc = null;
+      });
+
+      container.addEventListener('dragover', function(e) {
+        if (modDragSrc === null) return;
+        var card = e.target.closest('.card[data-mod-num]');
+        if (!card) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+        var rect = card.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          card.style.borderTop = '3px solid #8c1d40';
+        } else {
+          card.style.borderBottom = '3px solid #8c1d40';
+        }
+      });
+
+      container.addEventListener('drop', function(e) {
+        if (modDragSrc === null) return;
+        e.preventDefault();
+        var card = e.target.closest('.card[data-mod-num]');
+        if (!card) return;
+        var targetMod = parseInt(card.getAttribute('data-mod-num'));
+        reorderModules(modDragSrc, targetMod);
+        modDragSrc = null;
+      });
+    }
+
+    // Table view: drag from .mod-table-drag
+    if (tableContainer) {
+      tableContainer.addEventListener('dragstart', function(e) {
+        var handle = e.target.closest('.mod-table-drag');
+        if (!handle) return;
+        modDragSrc = parseInt(handle.getAttribute('data-mod-num'));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'mod-' + modDragSrc);
+      }, true);
+
+      tableContainer.addEventListener('dragend', function(e) {
+        if (modDragSrc === null) return;
+        tableContainer.querySelectorAll('.mod-reorder-cell').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+        modDragSrc = null;
+      });
+
+      tableContainer.addEventListener('dragover', function(e) {
+        if (modDragSrc === null) return;
+        var cell = e.target.closest('.mod-reorder-cell');
+        if (!cell) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        tableContainer.querySelectorAll('.mod-reorder-cell').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+        var rect = cell.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          cell.style.borderTop = '3px solid #8c1d40';
+        } else {
+          cell.style.borderBottom = '3px solid #8c1d40';
+        }
+      });
+
+      tableContainer.addEventListener('drop', function(e) {
+        if (modDragSrc === null) return;
+        var cell = e.target.closest('.mod-reorder-cell');
+        if (!cell) return;
+        e.preventDefault();
+        var targetMod = parseInt(cell.getAttribute('data-mod-num'));
+        reorderModules(modDragSrc, targetMod);
+        modDragSrc = null;
+      });
+    }
   }
 
   function escapeHtml(str) {
@@ -4243,6 +4390,8 @@
 
     // Restore all saved form data (runs last to override defaults with user edits)
     restoreAllFields();
+    // Init module reorder drag-drop (once, uses event delegation)
+    initModuleDragDrop();
     // Re-resize after restore
     setTimeout(function() { document.querySelectorAll('textarea').forEach(function(ta) { if (ta.offsetParent !== null) autoResize(ta); }); }, 100);
   });
