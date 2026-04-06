@@ -246,6 +246,30 @@
   .gcal-link { font-size: 11px; color: #8c1d40; text-decoration: none; display: inline-flex; align-items: center; gap: 4px; margin-top: 6px; }
   .gcal-link:hover { text-decoration: underline; }
 
+  /* ===== CONTEXT MENU ===== */
+  .ctx-menu { position: fixed; z-index: 999; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.15); min-width: 180px; padding: 4px 0; font-size: 13px; display: none; }
+  .ctx-menu.open { display: block; }
+  .ctx-menu-item { padding: 8px 16px; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .ctx-menu-item:hover { background: #f5f5f0; }
+  .ctx-menu-divider { height: 1px; background: #eee; margin: 4px 0; }
+
+  /* ===== EDIT COURSE MODAL ===== */
+  .edit-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); z-index: 300; display: none; align-items: center; justify-content: center; }
+  .edit-modal-overlay.open { display: flex; }
+  .edit-modal { background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.2); width: 480px; max-width: 90vw; max-height: 85vh; overflow-y: auto; }
+  .edit-modal-header { padding: 20px 24px 12px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+  .edit-modal-header h3 { font-size: 16px; margin: 0; }
+  .edit-modal-body { padding: 16px 24px 24px; }
+  .edit-field { margin-bottom: 14px; }
+  .edit-field label { display: block; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #666; margin-bottom: 4px; }
+  .edit-field input, .edit-field select { width: 100%; padding: 8px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; font-family: Inter, sans-serif; }
+  .edit-field input:focus, .edit-field select:focus { outline: none; border-color: #8c1d40; }
+  .edit-modal-footer { padding: 12px 24px 20px; display: flex; justify-content: flex-end; gap: 8px; }
+  .edit-modal-footer button { padding: 8px 20px; border-radius: 6px; font-size: 13px; font-weight: 500; cursor: pointer; font-family: Inter, sans-serif; }
+  .edit-btn-cancel { background: #fff; border: 1px solid #ddd; color: #666; }
+  .edit-btn-save { background: #8c1d40; border: none; color: #fff; }
+  .edit-btn-save:hover { background: #6d1633; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
@@ -474,6 +498,47 @@
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
       <button onclick="closeAddCourseModal()" style="padding:8px 20px; background:#fff; color:#666; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
       <button onclick="submitNewCourse()" style="padding:8px 20px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:13px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">Create Course</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== CONTEXT MENU ===== -->
+<div class="ctx-menu" id="course-ctx-menu">
+  <div class="ctx-menu-item" onclick="ctxEditCourse()">✏️ Edit Course Info</div>
+  <div class="ctx-menu-item" onclick="ctxOpenDetail()">📋 View Details</div>
+  <div class="ctx-menu-divider"></div>
+  <div class="ctx-menu-item" onclick="ctxOpenWorksheet()">📄 Open Worksheet</div>
+  <div class="ctx-menu-item" onclick="ctxOpenDrive()">📂 Open Google Drive</div>
+</div>
+
+<!-- ===== EDIT COURSE MODAL ===== -->
+<div class="edit-modal-overlay" id="edit-course-overlay" onclick="if(event.target===this)closeEditCourse()">
+  <div class="edit-modal">
+    <div class="edit-modal-header">
+      <h3 id="edit-course-title">Edit Course</h3>
+      <button onclick="closeEditCourse()" style="border:none; background:none; font-size:20px; cursor:pointer; color:#999;">×</button>
+    </div>
+    <div class="edit-modal-body">
+      <div class="edit-field"><label>Course Code</label><input type="text" id="edit-code" placeholder="e.g. MNS 521"></div>
+      <div class="edit-field"><label>Course Name</label><input type="text" id="edit-name" placeholder="e.g. AI Technologies"></div>
+      <div class="edit-field"><label>Instructor Name</label><input type="text" id="edit-instructor" placeholder="e.g. John Smith"></div>
+      <div class="edit-field"><label>Instructor Email</label><input type="text" id="edit-email" placeholder="e.g. john.smith@asu.edu"></div>
+      <div class="edit-field"><label>Session</label><input type="text" id="edit-session" placeholder="e.g. Spring B '27"></div>
+      <div class="edit-field"><label>Program</label><input type="text" id="edit-program" placeholder="e.g. Bio Data Science MS"></div>
+      <div class="edit-field"><label>College</label><input type="text" id="edit-college" placeholder="e.g. New College"></div>
+      <div class="edit-field"><label>Google Drive Link</label><input type="text" id="edit-drive" placeholder="https://drive.google.com/..."></div>
+      <div class="edit-field"><label>Instructional Designer</label><input type="text" id="edit-id" placeholder="e.g. Elisa Penmar"></div>
+      <div style="display:flex; gap:12px;">
+        <div class="edit-field" style="flex:1;"><label>Status</label>
+          <select id="edit-status"><option>Not Started</option><option>On Track</option><option>At Risk</option><option>Complete</option></select>
+        </div>
+        <div class="edit-field" style="flex:1;"><label>Progress (%)</label><input type="number" id="edit-progress" min="0" max="100" placeholder="0"></div>
+      </div>
+      <div class="edit-field"><label>Phase</label><input type="text" id="edit-phase" placeholder="e.g. Assignments Review"></div>
+    </div>
+    <div class="edit-modal-footer">
+      <button class="edit-btn-cancel" onclick="closeEditCourse()">Cancel</button>
+      <button class="edit-btn-save" onclick="saveEditCourse()">Save Changes</button>
     </div>
   </div>
 </div>
@@ -1952,6 +2017,190 @@
 
   // Load comment notifications on init
   loadCommentNotifications();
+
+  // ===== RIGHT-CLICK CONTEXT MENU =====
+  var ctxCourseId = null;
+
+  document.getElementById('course-table-body').addEventListener('contextmenu', function(e) {
+    var row = e.target.closest('tr');
+    if (!row) return;
+    e.preventDefault();
+    // Extract course ID from the row's onclick attribute
+    var onclick = row.getAttribute('onclick') || '';
+    var match = onclick.match(/openDetail\('([^']+)'\)/);
+    if (!match) return;
+    ctxCourseId = match[1];
+    var menu = document.getElementById('course-ctx-menu');
+    menu.style.left = e.clientX + 'px';
+    menu.style.top = e.clientY + 'px';
+    menu.classList.add('open');
+    // Hide drive option if no drive link
+    var c = courseData[ctxCourseId];
+    menu.querySelectorAll('.ctx-menu-item')[3].style.display = c && c.driveFolder ? '' : 'none';
+  });
+
+  document.addEventListener('click', function() {
+    document.getElementById('course-ctx-menu').classList.remove('open');
+  });
+
+  document.addEventListener('contextmenu', function(e) {
+    if (!e.target.closest('#course-table-body')) {
+      document.getElementById('course-ctx-menu').classList.remove('open');
+    }
+  });
+
+  function ctxOpenDetail() {
+    if (ctxCourseId) openDetail(ctxCourseId);
+  }
+
+  function ctxOpenWorksheet() {
+    var c = courseData[ctxCourseId];
+    if (c && c.devLink) window.open(c.devLink, '_blank');
+  }
+
+  function ctxOpenDrive() {
+    var c = courseData[ctxCourseId];
+    if (c && c.driveFolder) window.open(c.driveFolder, '_blank');
+  }
+
+  // ===== EDIT COURSE MODAL =====
+  var editCourseId = null;
+
+  function ctxEditCourse() {
+    editCourseId = ctxCourseId;
+    var c = courseData[editCourseId];
+    if (!c) return;
+    document.getElementById('edit-course-title').textContent = 'Edit ' + c.code;
+    document.getElementById('edit-code').value = c.code || '';
+    document.getElementById('edit-name').value = c.courseName || '';
+    document.getElementById('edit-instructor').value = c.instructor || '';
+    document.getElementById('edit-email').value = c.email || '';
+    document.getElementById('edit-session').value = c.session || '';
+    document.getElementById('edit-program').value = c.program || '';
+    document.getElementById('edit-college').value = c.college || '';
+    document.getElementById('edit-drive').value = c.driveFolder || '';
+    document.getElementById('edit-id').value = (c.id || '').replace(/&amp;/g, '&');
+    document.getElementById('edit-status').value = c.status || 'Not Started';
+    document.getElementById('edit-progress').value = c.progress || 0;
+    document.getElementById('edit-phase').value = c.phase || '';
+    document.getElementById('edit-course-overlay').classList.add('open');
+  }
+
+  function closeEditCourse() {
+    document.getElementById('edit-course-overlay').classList.remove('open');
+    editCourseId = null;
+  }
+
+  function saveEditCourse() {
+    if (!editCourseId) return;
+    var c = courseData[editCourseId];
+    if (!c) return;
+
+    var code = document.getElementById('edit-code').value.trim();
+    var name = document.getElementById('edit-name').value.trim();
+    var instructor = document.getElementById('edit-instructor').value.trim();
+    var email = document.getElementById('edit-email').value.trim();
+    var session = document.getElementById('edit-session').value.trim();
+    var program = document.getElementById('edit-program').value.trim();
+    var college = document.getElementById('edit-college').value.trim();
+    var drive = document.getElementById('edit-drive').value.trim();
+    var id = document.getElementById('edit-id').value.trim();
+    var status = document.getElementById('edit-status').value;
+    var progress = parseInt(document.getElementById('edit-progress').value) || 0;
+    var phase = document.getElementById('edit-phase').value.trim();
+
+    // Update course data
+    c.code = code;
+    c.courseName = name;
+    c.title = code + ' — ' + name;
+    c.instructor = instructor;
+    c.email = email;
+    c.session = session || '—';
+    c.program = program;
+    c.college = college;
+    c.driveFolder = drive;
+    c.id = id.replace(/&/g, '&amp;');
+    c.status = status;
+    c.statusClass = 'status-' + status.toLowerCase().replace(/\s+/g, '-');
+    c.progress = progress;
+    c.phase = phase;
+    c.progressLabel = progress + '% — ' + (phase || 'Not started');
+    c.progressColor = status === 'On Track' ? '#2e7d32' : (progress > 0 ? '#e65100' : '#999');
+    c.fillClass = progress > 0 ? (status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red';
+    c.subtitle = instructor + ' &bull; ' + (session || 'Session TBD');
+
+    // Recompute initials
+    var parts = instructor.split(/\s+/);
+    c.initials = instructor === 'TBD' ? '?' : (parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : instructor.substring(0,2).toUpperCase());
+    c.instructorSlug = instructor === 'TBD' ? '' : parts[parts.length-1].toLowerCase();
+
+    // Recompute devLink
+    var key = code.toLowerCase().replace(/[\s\/]+/g, '');
+    c.devLink = 'course-worksheet-v2.html?course=' + key;
+    c.emailName = code;
+
+    // Save overrides to localStorage
+    var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+    overrides[editCourseId] = {
+      code: code, courseName: name, instructor: instructor, email: email,
+      session: session, program: program, college: college, driveFolder: drive,
+      id: id, status: status, progress: progress, phase: phase
+    };
+    localStorage.setItem('course_overrides', JSON.stringify(overrides));
+
+    renderTable();
+    closeEditCourse();
+
+    // If detail panel is open for this course, refresh it
+    var overlay = document.getElementById('detail-overlay');
+    if (overlay.classList.contains('open') && overlay._currentId === editCourseId) {
+      renderDetail(editCourseId);
+    }
+  }
+
+  // ===== LOAD COURSE OVERRIDES ON INIT =====
+  (function() {
+    try {
+      var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+      Object.keys(overrides).forEach(function(id) {
+        if (!courseData[id]) return;
+        var o = overrides[id];
+        var c = courseData[id];
+        if (o.code) { c.code = o.code; c.emailName = o.code; }
+        if (o.courseName) c.courseName = o.courseName;
+        if (o.code && o.courseName) c.title = o.code + ' — ' + o.courseName;
+        if (o.instructor) {
+          c.instructor = o.instructor;
+          var parts = o.instructor.split(/\s+/);
+          c.initials = o.instructor === 'TBD' ? '?' : (parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : o.instructor.substring(0,2).toUpperCase());
+          c.instructorSlug = o.instructor === 'TBD' ? '' : parts[parts.length-1].toLowerCase();
+          c.subtitle = o.instructor + ' &bull; ' + (o.session || c.session || 'Session TBD');
+        }
+        if (o.email) c.email = o.email;
+        if (o.session) { c.session = o.session || '—'; c.subtitle = (o.instructor || c.instructor) + ' &bull; ' + (o.session || 'Session TBD'); }
+        if (o.program !== undefined) c.program = o.program;
+        if (o.college !== undefined) c.college = o.college;
+        if (o.driveFolder !== undefined) c.driveFolder = o.driveFolder;
+        if (o.id) c.id = o.id.replace(/&/g, '&amp;');
+        if (o.status) {
+          c.status = o.status;
+          c.statusClass = 'status-' + o.status.toLowerCase().replace(/\s+/g, '-');
+        }
+        if (o.progress !== undefined) c.progress = o.progress;
+        if (o.phase) c.phase = o.phase;
+        if (o.status || o.progress !== undefined || o.phase) {
+          c.progressLabel = (o.progress || c.progress || 0) + '% — ' + (o.phase || c.phase || 'Not started');
+          c.progressColor = c.status === 'On Track' ? '#2e7d32' : (c.progress > 0 ? '#e65100' : '#999');
+          c.fillClass = c.progress > 0 ? (c.status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red';
+        }
+        if (o.code) {
+          var key = o.code.toLowerCase().replace(/[\s\/]+/g, '');
+          c.devLink = 'course-worksheet-v2.html?course=' + key;
+        }
+      });
+    } catch(e) {}
+  })();
+  renderTable();
 </script>
 
 </body>
