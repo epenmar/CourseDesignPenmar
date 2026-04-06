@@ -1878,6 +1878,8 @@
   function toggleEloEditMode() {
     eloEditMode = !eloEditMode;
     renderModuleOverviewRef();
+    // Sync the objectives page ELO textareas with updated in-memory values
+    if (!eloEditMode) renderEloList();
   }
 
   function saveModRefElo(idx, value) {
@@ -4753,6 +4755,8 @@
 
   function saveEloState() {
     migrateToDecoupledObjectives();
+    // Don't read from objectives page DOM while editing ELOs inline on module overview
+    if (eloEditMode) { saveObjectivesState(); return; }
     var elos = activeCourse.flatElos || [];
     for (var i = 0; i < elos.length; i++) {
       var el = document.getElementById('elo-' + i);
