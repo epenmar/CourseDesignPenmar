@@ -2112,6 +2112,64 @@
       });
     });
 
+    // Auto-expand collapsed cards when dragging over their header
+    var expandTimer = null;
+    container.querySelectorAll('.card[data-mod-num]').forEach(function(card) {
+      var header = card.querySelector('.card-header');
+      if (!header) return;
+      header.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        var body = card.querySelector('.card-body');
+        if (body && body.classList.contains('collapsed') && !expandTimer) {
+          header.style.outline = '2px dashed #8c1d40';
+          expandTimer = setTimeout(function() {
+            body.classList.remove('collapsed');
+            var toggle = header.querySelector('.card-toggle');
+            if (toggle) toggle.classList.add('open');
+            header.style.outline = '';
+            expandTimer = null;
+          }, 400);
+        }
+      });
+      header.addEventListener('dragleave', function() {
+        header.style.outline = '';
+        if (expandTimer) { clearTimeout(expandTimer); expandTimer = null; }
+      });
+      header.addEventListener('drop', function(e) {
+        e.preventDefault();
+        header.style.outline = '';
+        if (expandTimer) { clearTimeout(expandTimer); expandTimer = null; }
+        // Treat drop on header as drop at end of that module's list
+        var body = card.querySelector('.card-body');
+        if (body && body.classList.contains('collapsed')) {
+          body.classList.remove('collapsed');
+          var toggle = header.querySelector('.card-toggle');
+          if (toggle) toggle.classList.add('open');
+        }
+        if (dragSrcMod === null) return;
+        saveModuleOverview();
+        var targetMod = parseInt(card.getAttribute('data-mod-num'));
+        captureUndoOnEdit('move MLO');
+        var savedMods = loadField('moduleOverviewData') || {};
+        if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
+        var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        savedMods[dragSrcMod].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var tgtMlos = getMloDataForMod(targetMod).slice();
+        if (dragSrcMod === targetMod) tgtMlos = srcMlos.slice();
+        tgtMlos.push(movedMlo);
+        savedMods[targetMod].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        saveField('moduleOverviewData', savedMods);
+        dragSrcMod = null;
+        dragSrcIdx = null;
+        renderModuleOverviewCards();
+      });
+    });
+
     // Allow dropping on obj-list containers (for empty modules)
     container.querySelectorAll('.obj-list').forEach(function(list) {
       list.addEventListener('dragover', function(e) {
