@@ -2171,6 +2171,7 @@
         entry.style.borderBottom = '';
       });
       entry.addEventListener('drop', function(e) {
+        if (modDragSrc !== null) return; // let module reorder handle it
         e.preventDefault();
         clearIndicators();
         if (dragSrcMod === null) return;
@@ -2266,6 +2267,7 @@
     // Allow dropping on obj-list containers (for empty modules)
     container.querySelectorAll('.obj-list').forEach(function(list) {
       list.addEventListener('dragover', function(e) {
+        if (modDragSrc !== null) return;
         if (list.querySelectorAll('.obj-entry[data-mod]').length === 0) {
           e.preventDefault();
           e.dataTransfer.dropEffect = 'move';
@@ -2275,6 +2277,7 @@
       list.addEventListener('dragleave', function() { list.style.outline = ''; });
       list.addEventListener('drop', function(e) {
         list.style.outline = '';
+        if (modDragSrc !== null) return;
         if (list.querySelectorAll('.obj-entry[data-mod]').length > 0) return;
         e.preventDefault();
         if (dragSrcMod === null) return;
@@ -2297,6 +2300,49 @@
         dragSrcMod = null;
         dragSrcIdx = null;
         renderModuleOverviewCards();
+      });
+    });
+
+    // Module reorder drag-drop (per-card handlers)
+    container.querySelectorAll('.mod-drag-handle[draggable="true"]').forEach(function(handle) {
+      handle.addEventListener('dragstart', function(e) {
+        modDragSrc = parseInt(handle.getAttribute('data-mod-num'));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', 'mod-' + modDragSrc);
+        var card = handle.closest('.card[data-mod-num]');
+        if (card) setTimeout(function() { card.style.opacity = '0.4'; }, 0);
+      });
+      handle.addEventListener('dragend', function() {
+        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) {
+          c.style.opacity = '';
+          c.style.borderTop = '';
+          c.style.borderBottom = '';
+        });
+        modDragSrc = null;
+      });
+    });
+
+    container.querySelectorAll('.card[data-mod-num]').forEach(function(card) {
+      card.addEventListener('dragover', function(e) {
+        if (modDragSrc === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'move';
+        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
+        var rect = card.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          card.style.borderTop = '3px solid #8c1d40';
+        } else {
+          card.style.borderBottom = '3px solid #8c1d40';
+        }
+      });
+      card.addEventListener('drop', function(e) {
+        if (modDragSrc === null) return;
+        e.preventDefault();
+        e.stopPropagation();
+        var targetMod = parseInt(card.getAttribute('data-mod-num'));
+        reorderModules(modDragSrc, targetMod);
+        modDragSrc = null;
       });
     });
   }
@@ -2441,58 +2487,9 @@
   var modDragSrc = null; // module being dragged for reorder (distinct from MLO drag)
 
   function initModuleDragDrop() {
-    var container = document.getElementById('module-overview-cards');
-    var tableContainer = document.getElementById('module-overview-table');
-
-    // Card view: drag from .mod-drag-handle
-    if (container) {
-      container.addEventListener('dragstart', function(e) {
-        var handle = e.target.closest('.mod-drag-handle');
-        if (!handle) return;
-        modDragSrc = parseInt(handle.getAttribute('data-mod-num'));
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', 'mod-' + modDragSrc);
-        var card = handle.closest('.card[data-mod-num]');
-        if (card) card.style.opacity = '0.4';
-      }, true);
-
-      container.addEventListener('dragend', function(e) {
-        if (modDragSrc === null) return;
-        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) {
-          c.style.opacity = '';
-          c.style.borderTop = '';
-          c.style.borderBottom = '';
-        });
-        modDragSrc = null;
-      });
-
-      container.addEventListener('dragover', function(e) {
-        if (modDragSrc === null) return;
-        var card = e.target.closest('.card[data-mod-num]');
-        if (!card) return;
-        e.preventDefault();
-        e.dataTransfer.dropEffect = 'move';
-        container.querySelectorAll('.card[data-mod-num]').forEach(function(c) { c.style.borderTop = ''; c.style.borderBottom = ''; });
-        var rect = card.getBoundingClientRect();
-        if (e.clientY < rect.top + rect.height / 2) {
-          card.style.borderTop = '3px solid #8c1d40';
-        } else {
-          card.style.borderBottom = '3px solid #8c1d40';
-        }
-      });
-
-      container.addEventListener('drop', function(e) {
-        if (modDragSrc === null) return;
-        e.preventDefault();
-        var card = e.target.closest('.card[data-mod-num]');
-        if (!card) return;
-        var targetMod = parseInt(card.getAttribute('data-mod-num'));
-        reorderModules(modDragSrc, targetMod);
-        modDragSrc = null;
-      });
-    }
-
+    // Card view module drag is handled inside initCardMloDragDrop (per-card listeners)
     // Table view: drag from .mod-table-drag
+    var tableContainer = document.getElementById('module-overview-table');
     if (tableContainer) {
       tableContainer.addEventListener('dragstart', function(e) {
         var handle = e.target.closest('.mod-table-drag');
