@@ -2021,8 +2021,8 @@
 
   function deleteCardMlo(modNum, idx) {
     captureUndoOnEdit('delete MLO');
-    // Save current card state first
-    saveModuleOverview();
+    // Save current card state synchronously first
+    saveModuleOverviewSync();
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
     var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
@@ -2085,8 +2085,8 @@
         e.preventDefault();
         clearIndicators();
         if (dragSrcMod === null) return;
-        // Save current card state before modifying data
-        saveModuleOverview();
+        // Save current card state synchronously before modifying data
+        saveModuleOverviewSync();
         var targetMod = parseInt(entry.getAttribute('data-mod'));
         var targetIdx = parseInt(entry.getAttribute('data-mlo-idx'));
         var rect = entry.getBoundingClientRect();
@@ -2149,7 +2149,7 @@
           if (toggle) toggle.classList.add('open');
         }
         if (dragSrcMod === null) return;
-        saveModuleOverview();
+        saveModuleOverviewSync();
         var targetMod = parseInt(card.getAttribute('data-mod-num'));
         captureUndoOnEdit('move MLO');
         var savedMods = loadField('moduleOverviewData') || {};
@@ -2186,7 +2186,7 @@
         if (list.querySelectorAll('.obj-entry[data-mod]').length > 0) return;
         e.preventDefault();
         if (dragSrcMod === null) return;
-        saveModuleOverview();
+        saveModuleOverviewSync();
         var card = list.closest('.card[data-mod-num]');
         var targetMod = parseInt(card.getAttribute('data-mod-num'));
         captureUndoOnEdit('move MLO');
@@ -2300,27 +2300,34 @@
     return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
+  // Synchronous save — reads all MLO values from card DOM and writes to localStorage immediately
+  function saveModuleOverviewSync() {
+    clearTimeout(saveTimer);
+    var cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
+    var data = {};
+    cards.forEach(function(card) {
+      var modNum = parseInt(card.getAttribute('data-mod-num'));
+      var topicInput = card.querySelector('[data-mod-topic]');
+      var mlos = [];
+      card.querySelectorAll('.obj-entry input').forEach(function(inp) {
+        if (inp.value.trim()) mlos.push(inp.value.trim());
+      });
+      data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
+      if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+        activeCourse.modules[modNum - 1].mlos = mlos;
+        if (topicInput) activeCourse.modules[modNum - 1].title = topicInput.value;
+      }
+    });
+    saveField('moduleOverviewData', data);
+    return data;
+  }
+
+  // Debounced save — for oninput handlers where we don't need immediate persistence
   function saveModuleOverview() {
     captureUndoOnEdit('edit module');
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
-      const cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
-      const data = {};
-      cards.forEach(function(card) {
-        const modNum = parseInt(card.getAttribute('data-mod-num'));
-        const topicInput = card.querySelector('[data-mod-topic]');
-        const mlos = [];
-        card.querySelectorAll('.obj-entry input').forEach(function(inp) {
-          if (inp.value.trim()) mlos.push(inp.value.trim());
-        });
-        data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
-        // Keep activeCourse in sync so other views see changes
-        if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-          activeCourse.modules[modNum - 1].mlos = mlos;
-          if (topicInput) activeCourse.modules[modNum - 1].title = topicInput.value;
-        }
-      });
-      saveField('moduleOverviewData', data);
+      saveModuleOverviewSync();
       showSaveIndicator();
     }, 500);
   }
@@ -3818,25 +3825,10 @@
   // ===== MODULE OVERVIEW: ADD OBJECTIVE =====
   function addObjective(modNum) {
     captureUndoState('add MLO');
-    // Synchronously read current MLOs from DOM before re-rendering
-    clearTimeout(saveTimer);
-    var savedMods = {};
-    document.querySelectorAll('#module-overview-cards .card[data-mod-num]').forEach(function(card) {
-      var mn = parseInt(card.getAttribute('data-mod-num'));
-      var topicInput = card.querySelector('[data-mod-topic]');
-      var cardMlos = [];
-      card.querySelectorAll('.obj-entry input').forEach(function(inp) {
-        if (inp.value.trim()) cardMlos.push(inp.value.trim());
-      });
-      savedMods[mn] = { topic: topicInput ? topicInput.value : '', mlos: cardMlos };
-      if (activeCourse.modules && activeCourse.modules[mn - 1]) {
-        activeCourse.modules[mn - 1].mlos = cardMlos;
-        if (topicInput) activeCourse.modules[mn - 1].title = topicInput.value;
-      }
-    });
-    saveField('moduleOverviewData', savedMods);
-    // Now add empty MLO
-    var mlos = savedMods[modNum] ? savedMods[modNum].mlos.slice() : [];
+    var savedMods = saveModuleOverviewSync();
+    // Add empty MLO
+    if (!savedMods[modNum]) savedMods[modNum] = { topic: '', mlos: [] };
+    var mlos = savedMods[modNum].mlos.slice();
     mlos.push('');
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
