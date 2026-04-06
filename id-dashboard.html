@@ -1167,29 +1167,83 @@
     const name = c.instructor.split(/\s+/)[0]; // first name
     const courseLabel = c.emailName || c.code;
 
-    // Meeting follow-up body — pull from latest meeting notes
+    // Meeting follow-up body — personable, context-aware
     let followUpBody = '';
     if (c.meetings && c.meetings.length > 0) {
       const m = c.meetings[0];
-      followUpBody = `Hi ${name},\n\nThank you for our meeting on ${m.date}. Here's a quick summary:\n\n`;
-      if (m.summary) followUpBody += m.summary + '\n\n';
+      // Calculate time since meeting
+      const meetDate = new Date(m.date);
+      const now = new Date();
+      const daysSince = Math.floor((now - meetDate) / 86400000);
+      let timeRef = '';
+      if (daysSince <= 1) timeRef = 'after our meeting today';
+      else if (daysSince <= 3) timeRef = 'since we met a couple of days ago';
+      else if (daysSince <= 7) timeRef = 'since our meeting earlier this week';
+      else if (daysSince <= 14) timeRef = "as it's been about a week since our last meeting";
+      else timeRef = 'since we last spoke';
+
+      // Find next upcoming milestone
+      let nextMilestone = '';
+      if (c.milestones && c.milestones.length > 0) {
+        const upcoming = c.milestones.find(ms => !ms.done);
+        if (upcoming) nextMilestone = upcoming.label;
+      }
+
+      // Build personable intro
+      followUpBody = `Hi ${name},\n\n`;
+      if (nextMilestone) {
+        const milestoneReadable = nextMilestone
+          .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
+          .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
+          .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
+        followUpBody += `Just checking in ${timeRef} — I wanted to see how things are going with the ${milestoneReadable} for ${courseLabel}.\n\n`;
+      } else {
+        followUpBody += `Just checking in ${timeRef} on ${courseLabel} development.\n\n`;
+      }
+
+      // Pending action items — conversational
+      const pendingActions = (m.actionItems || []).filter(a => !a.done);
+      const doneActions = (m.actionItems || []).filter(a => a.done);
+      if (pendingActions.length > 0) {
+        followUpBody += `From our conversation, I have these as the next steps:\n`;
+        pendingActions.forEach(a => { followUpBody += `  • ${a.text}\n`; });
+        followUpBody += '\n';
+      }
+      if (doneActions.length > 0) {
+        followUpBody += `On my end, I've wrapped up:\n`;
+        doneActions.forEach(a => { followUpBody += `  • ${a.text}\n`; });
+        followUpBody += '\n';
+      }
+
+      // Decisions — only if they exist, and frame naturally
       if (m.decisions && m.decisions.length > 0) {
-        followUpBody += 'Key decisions:\n';
-        m.decisions.forEach(d => { followUpBody += '• ' + d + '\n'; });
+        followUpBody += `Just wanted to confirm we're on the same page about:\n`;
+        m.decisions.forEach(d => { followUpBody += `  • ${d}\n`; });
         followUpBody += '\n';
       }
-      if (m.actionItems && m.actionItems.length > 0) {
-        followUpBody += 'Action items:\n';
-        m.actionItems.forEach(a => { followUpBody += (a.done ? '✓ ' : '☐ ') + a.text + '\n'; });
-        followUpBody += '\n';
-      }
-      followUpBody += 'Please let me know if I missed anything or if you have questions.\n\nBest,\nElisa';
+
+      followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\nElisa`;
     } else if (c.notes) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent discussion about ${courseLabel}.\n\n${c.notes.text}\n\nPlease let me know if you have any questions.\n\nBest,\nElisa`;
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\nElisa`;
     }
 
-    // Check-in body
-    const checkInBody = `Hi ${name},\n\nI wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\nLooking forward to hearing from you.\n\nBest,\nElisa`;
+    // Check-in body — context-aware
+    let checkInBody = `Hi ${name},\n\n`;
+    if (c.milestones && c.milestones.length > 0) {
+      const upcoming = c.milestones.find(ms => !ms.done);
+      if (upcoming) {
+        const label = upcoming.label
+          .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
+          .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
+          .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
+        checkInBody += `Hope things are going well! I wanted to touch base on ${courseLabel} — our next milestone is the ${label}${upcoming.date ? ' (target: ' + upcoming.date + ')' : ''}.\n\nHow are things looking on your end? Is there anything I can help with to keep things moving?\n\n`;
+      } else {
+        checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
+      }
+    } else {
+      checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
+    }
+    checkInBody += `Looking forward to hearing from you.\n\nBest,\nElisa`;
 
     // Course readiness body
     const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\nElisa`;
@@ -1201,8 +1255,8 @@
     return `<div class="email-dropdown-wrap">
       <button class="email-dropdown-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open');">📧 ${emailLabel} ▾</button>
       <div class="email-dropdown-menu" id="email-menu-${id}">
-        ${followUpBody ? `<a href="${makeMailto('Meeting Follow-Up — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
-          <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Summary from latest meeting notes</div></div>
+        ${followUpBody ? `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
         </a>` : ''}
         <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">👋</span><div><div>Check-In</div><div class="em-desc">Ask about progress and offer help</div></div>
