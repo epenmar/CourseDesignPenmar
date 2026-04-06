@@ -426,13 +426,15 @@
           <h2>COURSE DEVELOPMENT</h2>
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
-        <div style="display:flex; gap:2px; margin-right:4px;">
-          <button class="comment-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="padding:4px 6px; font-size:13px;">↩</button>
-          <button class="comment-btn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" style="padding:4px 6px; font-size:13px;">↪</button>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
+          <div style="display:flex; gap:2px;">
+            <button class="comment-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="padding:4px 6px; font-size:13px;">↩</button>
+            <button class="comment-btn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" style="padding:4px 6px; font-size:13px;">↪</button>
+          </div>
+          <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())">
+            💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
+          </button>
         </div>
-        <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())" style="margin-top:2px;">
-          💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
-        </button>
       </div>
     </div>
 
