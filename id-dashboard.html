@@ -263,6 +263,9 @@
         <button class="resource-accordion" onclick="var b=document.getElementById('college-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
           🏫 College Resources <span class="ra-arrow">▾</span>
         </button>
+        <button class="resource-accordion" onclick="var b=document.getElementById('faculty-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+          🎓 Faculty Resources <span class="ra-arrow">▾</span>
+        </button>
       </div>
       <div class="resource-body" id="uni-resource-body">
         <div class="resource-section" style="margin-top:4px;">
@@ -310,6 +313,26 @@
               <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('chs')">+ Add Link</button>
+          </div>
+        </div>
+      </div>
+      <div class="resource-body" id="faculty-resource-body">
+        <div class="resource-section" style="margin-top:4px;">
+          <div class="resource-card" data-rc-id="faculty-tools">
+            <div class="rc-header"><span>🛠</span><span class="rc-title">Course Development Tools</span></div>
+            <div class="rc-links" id="rc-links-faculty-tools">
+              <a class="rc-link" href="course-worksheet-v2.html" target="_blank">Course Development Worksheet</a>
+              <a class="rc-link" href="https://docs.google.com/presentation/d/1example/edit" target="_blank">Kickoff Slideshow</a>
+            </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('faculty-tools')">+ Add Link</button>
+          </div>
+          <div class="resource-card" data-rc-id="faculty-training">
+            <div class="rc-header"><span>📚</span><span class="rc-title">Faculty Training & Development</span></div>
+            <div class="rc-links" id="rc-links-faculty-training">
+              <a class="rc-link" href="https://teachonline.asu.edu/masterclass/" target="_blank">MasterClass Registration</a>
+              <a class="rc-link" href="https://teachonline.asu.edu/" target="_blank">Teach Online @ ASU</a>
+            </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('faculty-training')">+ Add Link</button>
           </div>
         </div>
       </div>
@@ -1162,16 +1185,159 @@
   }
 
   // ===== EMAIL TEMPLATE DROPDOWN =====
+  // Pull resource links from Faculty Resources cards in the DOM
+  function getFacultyResourceLinks() {
+    const links = {};
+    document.querySelectorAll('#faculty-resource-body .rc-link').forEach(a => {
+      const text = a.textContent.trim().toLowerCase();
+      links[text] = a.href;
+    });
+    return links;
+  }
+
   function buildEmailDropdown(id, c) {
     const emailLabel = c.emailLabel || 'Email Instructor';
     const name = c.instructor.split(/\s+/)[0]; // first name
     const courseLabel = c.emailName || c.code;
 
-    // Meeting follow-up body — personable, context-aware
+    // Shared helpers
+    const instrFirst = name.toLowerCase();
+    const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '').replace(/^to\s+/, '');
+    const isInstructor = (a) => {
+      const t = a.text.toLowerCase();
+      return t.startsWith(instrFirst + ':') || t.startsWith(instrFirst + ' to ');
+    };
+    const isElisa = (a) => {
+      const t = a.text.toLowerCase();
+      return t.startsWith('elisa:') || t.startsWith('elisa ');
+    };
+    // Find other courses this instructor teaches
+    const otherCourses = {};
+    Object.keys(courseData).forEach(k => {
+      if (k !== id && courseData[k].instructor === c.instructor) {
+        otherCourses[k] = courseData[k];
+      }
+    });
+    const otherCourseNames = Object.values(otherCourses).map(oc => oc.code);
+    const isAboutOtherCourse = (text) => {
+      const t = text.toLowerCase();
+      return otherCourseNames.some(code => t.includes(code.toLowerCase()) || t.includes(code.toLowerCase().replace(/\s+/g, '')));
+    };
+    const isPastEvent = (text) => {
+      const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i) ||
+                        text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i);
+      if (dateMatch) {
+        const refDate = new Date(dateMatch[0] + ', 2026');
+        return refDate < new Date();
+      }
+      return false;
+    };
+
+    // Detect if latest meeting is a kickoff
+    const latestMeeting = (c.meetings && c.meetings.length > 0) ? c.meetings[0] : null;
+    const isKickoff = latestMeeting && latestMeeting.title && latestMeeting.title.toLowerCase().includes('kickoff');
+
+    // ===== KICKOFF FOLLOW-UP =====
+    let kickoffBody = '';
+    if (isKickoff && latestMeeting) {
+      const m = latestMeeting;
+      const meetDate = new Date(m.date);
+      const now = new Date();
+      const daysSince = Math.floor((now - meetDate) / 86400000);
+      let timeRef = '';
+      if (daysSince <= 1) timeRef = 'after our kickoff meeting today';
+      else if (daysSince <= 3) timeRef = 'after our kickoff meeting a couple of days ago';
+      else if (daysSince <= 7) timeRef = 'after our kickoff meeting last week';
+      else if (daysSince <= 14) timeRef = 'since our kickoff meeting';
+      else timeRef = 'since our kickoff meeting';
+
+      // Build course-specific links
+      const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+      const worksheetUrl = c.devLink ? (baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '')) : '';
+      const driveUrl = c.driveFolder || '';
+      const facLinks = getFacultyResourceLinks();
+      const slideshowUrl = facLinks['kickoff slideshow'] || '[SLIDESHOW_LINK]';
+      const masterclassUrl = facLinks['masterclass registration'] || '[MASTERCLASS_LINK]';
+
+      // Find first milestone
+      let firstMilestone = null;
+      if (c.milestones && c.milestones.length > 0) {
+        firstMilestone = c.milestones.find(ms => !ms.done);
+      }
+
+      kickoffBody = `Hi ${name},\n\n`;
+      kickoffBody += `I'm reaching out to check in ${timeRef}. I wanted to send you the links to the various resources we discussed during the meeting.\n\n`;
+
+      // Google Drive link
+      if (driveUrl) {
+        kickoffBody += `Our shared Google Drive space where you'll drop all assignment and learning materials documents:\n${driveUrl}\n\n`;
+      }
+
+      // Worksheet link with milestone context
+      if (worksheetUrl) {
+        kickoffBody += `Our Course Development Worksheet, which contains the milestone timeline`;
+        if (firstMilestone) {
+          const msLabel = firstMilestone.label
+            .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
+            .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
+            .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
+          kickoffBody += `. Right now, the first milestone (${msLabel}) is${firstMilestone.date ? " set for " + firstMilestone.date : " coming up"}. Please let me know if this still works for you — if not, we can absolutely adjust the dates`;
+        }
+        kickoffBody += `:\n${worksheetUrl}\n\n`;
+      }
+
+      // Slideshow link
+      kickoffBody += `Here is the link to the course development kickoff slideshow that I went over during our meeting:\n${slideshowUrl}\n\n`;
+
+      // MasterClass link
+      kickoffBody += `Here is the link to register for MasterClass, which will expose you to different online teaching ideas:\n${masterclassUrl}\n\n`;
+
+      // Weave in any instructor-owned action items as natural encouragement
+      const allActions = m.actionItems || [];
+      const instrActions = allActions.filter(a => !a.done && !isPastEvent(a.text) && !isAboutOtherCourse(a.text) && isInstructor(a));
+      const elisaActions = allActions.filter(a => !a.done && !isPastEvent(a.text) && !isAboutOtherCourse(a.text) && isElisa(a));
+
+      // Closing — use meeting decisions to set tone
+      const commDecision = (m.decisions || []).find(d => d.toLowerCase().includes('email') || d.toLowerCase().includes('communication') || d.toLowerCase().includes('independently'));
+      const firstMsLabel = firstMilestone ? firstMilestone.label
+        .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
+        .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
+        .replace(/MLOs/g, 'Module Learning Objectives (MLOs)') : 'your next steps';
+
+      if (instrActions.length > 0) {
+        kickoffBody += `As you begin your work on the ${firstMsLabel} for ${courseLabel}, please know that you can reach out to me any time. `;
+      } else {
+        kickoffBody += `As you get started with ${courseLabel} development, please know that you can reach out to me any time. `;
+      }
+
+      kickoffBody += `Let me know if anything has come up or if there's anything I can help with!\n\n`;
+
+      // Cross-course items
+      const crossItems = allActions.filter(a => !a.done && !isPastEvent(a.text) && isAboutOtherCourse(a.text));
+      if (crossItems.length > 0) {
+        const grouped = {};
+        crossItems.forEach(a => {
+          const clean = stripOwner(a.text);
+          const code = otherCourseNames.find(c => a.text.toLowerCase().includes(c.toLowerCase()) || a.text.toLowerCase().includes(c.toLowerCase().replace(/\s+/g, ''))) || '';
+          if (!grouped[code]) grouped[code] = [];
+          grouped[code].push(clean);
+        });
+        Object.keys(grouped).forEach(code => {
+          const oc = Object.values(otherCourses).find(x => x.code === code);
+          const otherName = oc ? (code + ' (' + oc.courseName + ')') : code;
+          kickoffBody += `As you're thinking about ${otherName} — just a reminder that I can help with:\n`;
+          grouped[code].forEach(t => { kickoffBody += `  • ${t}\n`; });
+          kickoffBody += '\n';
+        });
+      }
+
+      kickoffBody += `All the best,\nElisa`;
+    }
+
+    // ===== MEETING FOLLOW-UP (non-kickoff) =====
     let followUpBody = '';
-    if (c.meetings && c.meetings.length > 0) {
-      const m = c.meetings[0];
-      // Calculate time since meeting
+    if (latestMeeting && !isKickoff) {
+      const m = latestMeeting;
       const meetDate = new Date(m.date);
       const now = new Date();
       const daysSince = Math.floor((now - meetDate) / 86400000);
@@ -1182,14 +1348,12 @@
       else if (daysSince <= 14) timeRef = "as it's been about a week since our last meeting";
       else timeRef = 'since we last spoke';
 
-      // Find next upcoming milestone
       let nextMilestone = '';
       if (c.milestones && c.milestones.length > 0) {
         const upcoming = c.milestones.find(ms => !ms.done);
         if (upcoming) nextMilestone = upcoming.label;
       }
 
-      // Build personable intro
       followUpBody = `Hi ${name},\n\n`;
       if (nextMilestone) {
         const milestoneReadable = nextMilestone
@@ -1201,59 +1365,21 @@
         followUpBody += `Just checking in ${timeRef} on ${courseLabel} development.\n\n`;
       }
 
-      // Split action items by owner (instructor vs Elisa)
       const allActions = m.actionItems || [];
-      const instrFirst = name.toLowerCase();
-      const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '').replace(/^to\s+/, '');
-      const isInstructor = (a) => {
-        const t = a.text.toLowerCase();
-        return t.startsWith(instrFirst + ':') || t.startsWith(instrFirst + ' to ');
-      };
-      const isElisa = (a) => {
-        const t = a.text.toLowerCase();
-        return t.startsWith('elisa:') || t.startsWith('elisa ');
-      };
-
-      // Find other courses this instructor teaches
-      const otherCourses = {};
-      Object.keys(courseData).forEach(k => {
-        if (k !== id && courseData[k].instructor === c.instructor) {
-          otherCourses[k] = courseData[k];
-        }
-      });
-      const otherCourseNames = Object.values(otherCourses).map(oc => oc.code);
-
-      // Classify each action item
-      const isAboutOtherCourse = (text) => {
-        const t = text.toLowerCase();
-        return otherCourseNames.some(code => t.includes(code.toLowerCase()) || t.includes(code.toLowerCase().replace(/\s+/g, '')));
-      };
-      // Filter out items that reference past dates (already done contextually)
-      const isPastEvent = (text) => {
-        const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i) ||
-                          text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i);
-        if (dateMatch) {
-          const refDate = new Date(dateMatch[0] + ', 2026');
-          return refDate < new Date();
-        }
-        return false;
-      };
-
       const theirPending = [];
       const myPending = [];
       const crossCourseItems = [];
 
       allActions.forEach(a => {
-        if (a.done) return; // skip completed
+        if (a.done) return;
         const clean = stripOwner(a.text);
-        if (isPastEvent(a.text)) return; // skip items with past dates
+        if (isPastEvent(a.text)) return;
         if (isAboutOtherCourse(a.text)) {
           crossCourseItems.push({ text: clean, otherCode: otherCourseNames.find(code => a.text.toLowerCase().includes(code.toLowerCase()) || a.text.toLowerCase().includes(code.toLowerCase().replace(/\s+/g, ''))) || '' });
           return;
         }
         if (isInstructor(a)) theirPending.push(clean);
         else if (isElisa(a)) myPending.push(clean);
-        // skip unowned items (generic notes, not actionable for email)
       });
 
       if (theirPending.length > 0) {
@@ -1267,7 +1393,6 @@
         followUpBody += '\n';
       }
 
-      // Cross-course items — separate paragraph
       if (crossCourseItems.length > 0) {
         const grouped = {};
         crossCourseItems.forEach(item => {
@@ -1283,7 +1408,6 @@
         });
       }
 
-      // Decisions — only if they exist, frame naturally, skip cross-course ones
       if (m.decisions && m.decisions.length > 0) {
         const relevantDecisions = m.decisions.filter(d => !isAboutOtherCourse(d));
         if (relevantDecisions.length > 0) {
@@ -1294,11 +1418,11 @@
       }
 
       followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\nElisa`;
-    } else if (c.notes) {
+    } else if (!latestMeeting && c.notes) {
       followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\nElisa`;
     }
 
-    // Check-in body — context-aware
+    // ===== CHECK-IN =====
     let checkInBody = `Hi ${name},\n\n`;
     if (c.milestones && c.milestones.length > 0) {
       const upcoming = c.milestones.find(ms => !ms.done);
@@ -1323,12 +1447,23 @@
       return `mailto:${c.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
     };
 
+    // Build dropdown — show kickoff template if applicable, otherwise regular follow-up
+    let templateLinks = '';
+    if (kickoffBody) {
+      templateLinks += `<a href="${makeMailto('Following Up — ' + courseLabel + ' Kickoff', kickoffBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">🚀</span><div><div>Kickoff Follow-Up</div><div class="em-desc">Resources and next steps from kickoff meeting</div></div>
+        </a>`;
+    }
+    if (followUpBody) {
+      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
+        </a>`;
+    }
+
     return `<div class="email-dropdown-wrap">
       <button class="email-dropdown-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open');">📧 ${emailLabel} ▾</button>
       <div class="email-dropdown-menu" id="email-menu-${id}">
-        ${followUpBody ? `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
-          <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
-        </a>` : ''}
+        ${templateLinks}
         <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">👋</span><div><div>Check-In</div><div class="em-desc">Ask about progress and offer help</div></div>
         </a>
