@@ -114,6 +114,12 @@
   .detail-overlay.open { display: flex; justify-content: flex-end; }
   .detail-panel { width: 520px; background: #fff; height: 100vh; overflow-y: auto; box-shadow: -4px 0 20px rgba(0,0,0,0.1); padding: 28px 32px; }
   .detail-close { border: none; background: none; font-size: 22px; cursor: pointer; color: #999; float: right; }
+  .comment-notif { background: #8c1d40; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 6px; white-space: nowrap; }
+  .comment-notif-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fef3e8; border: 1px solid #ffc627; border-radius: 8px; margin-bottom: 16px; cursor: pointer; transition: background 0.15s; }
+  .comment-notif-bar:hover { background: #fff8e8; }
+  .comment-notif-bar .notif-icon { font-size: 18px; }
+  .comment-notif-bar .notif-text { font-size: 12px; color: #333; font-weight: 500; }
+  .comment-notif-bar .notif-count { background: #8c1d40; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; margin-left: auto; }
   .detail-header h2 { font-size: 20px; color: #8c1d40; margin-bottom: 2px; }
   .detail-header p { font-size: 13px; color: #666; margin-bottom: 20px; }
   .detail-section { margin-bottom: 24px; }
@@ -241,6 +247,7 @@
   .gcal-link:hover { text-decoration: underline; }
 
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
 </head>
 <body>
@@ -876,7 +883,7 @@
       const c = courseData[id];
       const dataStatus = statusMap[c.status] || 'not-started';
       html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}">
-        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span></div></td>
+        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
         <td style="font-size:12px;">${c.program || '—'}</td>
         <td style="font-size:12px;">${c.college || '—'}</td>
@@ -1113,6 +1120,17 @@
       <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
       <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
     </div>`;
+
+    // Comment notification bar
+    const cc = courseCommentCounts[id];
+    if (cc && cc.total > 0) {
+      const worksheetCommentsUrl = c.devLink + '&openComments=1';
+      html += `<div class="comment-notif-bar" onclick="markCommentsSeenForCourse('${id}'); window.open('${worksheetCommentsUrl}', '_blank');">
+        <span class="notif-icon">💬</span>
+        <span class="notif-text">${cc.newCount > 0 ? cc.newCount + ' new' : cc.total} instructor comment${(cc.newCount > 0 ? cc.newCount : cc.total) !== 1 ? 's' : ''}</span>
+        <span class="notif-count">${cc.newCount > 0 ? cc.newCount : cc.total}</span>
+      </div>`;
+    }
 
     // ID assigned
     html += `<div class="detail-section" style="margin-bottom:16px;">
@@ -1568,9 +1586,10 @@
   }
 
   function openDetail(courseId) {
-    console.log('Opening detail for:', courseId);
     renderDetail(courseId);
-    document.getElementById('detail-overlay').classList.add('open');
+    const overlay = document.getElementById('detail-overlay');
+    overlay.classList.add('open');
+    overlay._currentId = courseId;
     document.getElementById('detail-panel').scrollTop = 0;
   }
 
@@ -1862,6 +1881,75 @@
 
   // Initialize on load
   initResourceLinks();
+
+  // ===== COMMENT NOTIFICATIONS =====
+  const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
+  let dashSupabase = null;
+  const courseCommentCounts = {}; // { courseId: { total, instructor, lastSeen } }
+
+  try {
+    dashSupabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  } catch(e) {
+    console.warn('Supabase not available for comment notifications.', e);
+  }
+
+  function getLastSeenComments() {
+    try { return JSON.parse(localStorage.getItem('dashboard_comments_seen') || '{}'); } catch(e) { return {}; }
+  }
+  function saveLastSeenComments(data) {
+    localStorage.setItem('dashboard_comments_seen', JSON.stringify(data));
+  }
+
+  async function loadCommentNotifications() {
+    if (!dashSupabase) return;
+    try {
+      // Get all unresolved, non-deleted instructor comments across all courses
+      const { data, error } = await dashSupabase
+        .from('comments')
+        .select('id, course_id, author_role, created_at, section_id, resolved, deleted_at')
+        .eq('author_role', 'instructor')
+        .is('resolved', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+
+      if (error || !data) return;
+
+      const lastSeen = getLastSeenComments();
+
+      // Group by course
+      Object.keys(courseData).forEach(cid => { courseCommentCounts[cid] = { total: 0, newCount: 0, comments: [] }; });
+      data.forEach(c => {
+        const cid = c.course_id;
+        if (!courseCommentCounts[cid]) courseCommentCounts[cid] = { total: 0, newCount: 0, comments: [] };
+        courseCommentCounts[cid].total++;
+        courseCommentCounts[cid].comments.push(c);
+        // Check if this comment is newer than last seen
+        const seenAt = lastSeen[cid];
+        if (!seenAt || new Date(c.created_at) > new Date(seenAt)) {
+          courseCommentCounts[cid].newCount++;
+        }
+      });
+
+      // Re-render table to show badges
+      renderTable();
+      // If detail panel is open, update it too
+      const overlay = document.getElementById('detail-overlay');
+      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+        renderDetail(overlay._currentId);
+      }
+    } catch(e) { console.error('Failed to load comment notifications:', e); }
+  }
+
+  function markCommentsSeenForCourse(courseId) {
+    const lastSeen = getLastSeenComments();
+    lastSeen[courseId] = new Date().toISOString();
+    saveLastSeenComments(lastSeen);
+    if (courseCommentCounts[courseId]) courseCommentCounts[courseId].newCount = 0;
+  }
+
+  // Load comment notifications on init
+  loadCommentNotifications();
 </script>
 
 </body>

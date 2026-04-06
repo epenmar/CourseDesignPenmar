@@ -399,6 +399,9 @@
   .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
   .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
+  .has-field-comment { box-shadow: inset 0 -2px 0 #8c1d40; }
+  .has-field-comment:hover { box-shadow: inset 0 -2px 0 #8c1d40, 0 0 0 1px rgba(140,29,64,0.2); }
+  .comment-history-toggle.active { background: #8c1d40 !important; color: #fff !important; border-color: #8c1d40 !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
   .highlight-tooltip:hover { background: #6d1633; }
@@ -1034,7 +1037,10 @@
 <div class="comment-thread-panel" id="comment-panel">
   <div class="comment-thread-header">
     <h3 id="comment-panel-title">Comments</h3>
-    <button class="comment-thread-close" onclick="closeCommentPanel()">×</button>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <button class="comment-history-toggle" id="comment-history-toggle" onclick="toggleCommentHistory()" title="Show resolved comments" style="font-size:11px; padding:3px 8px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; color:#999; cursor:pointer; font-family:'Inter',sans-serif;">History</button>
+      <button class="comment-thread-close" onclick="closeCommentPanel()">×</button>
+    </div>
   </div>
   <div class="comment-thread-messages" id="comment-messages"></div>
   <div class="comment-input-area" id="comment-input-area">
@@ -4564,11 +4570,25 @@
     await loadComments(sectionId, highlightId);
   }
 
+  let showingHistory = false;
+
   function closeCommentPanel() {
     document.getElementById('comment-panel').classList.remove('open');
     currentCommentSection = null;
     currentHighlightCommentId = null;
     pendingHighlight = null;
+    showingHistory = false;
+    const btn = document.getElementById('comment-history-toggle');
+    if (btn) btn.classList.remove('active');
+  }
+
+  function toggleCommentHistory() {
+    showingHistory = !showingHistory;
+    const btn = document.getElementById('comment-history-toggle');
+    if (btn) btn.classList.toggle('active', showingHistory);
+    if (currentCommentSection) {
+      loadComments(currentCommentSection, currentHighlightCommentId);
+    }
   }
 
   async function loadComments(sectionId, highlightId) {
@@ -4612,6 +4632,41 @@
     }
   }
 
+  function renderCommentItem(c, isThread) {
+    const date = new Date(c.created_at);
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    const roleLabel = c.author_role === 'id' ? 'ID' : 'Faculty';
+    const roleClass = c.author_role === 'id' ? 'id' : 'instructor';
+    const identity = getCommentIdentity();
+    const isOwn = identity && c.author_name === identity.name;
+    const isDeleted = !!c.deleted_at;
+
+    let highlightBadge = '';
+    if (!isThread && c.highlight_text) {
+      const truncated = c.highlight_text.length > 60 ? c.highlight_text.substring(0, 60) + '...' : c.highlight_text;
+      highlightBadge = '<div class="comment-quote" style="margin-bottom:6px;margin-top:0;padding:4px 8px;font-size:11px;cursor:pointer;" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">"' + escapeHtml(truncated) + '"</div>';
+    }
+
+    let statusTag = '';
+    if (isDeleted) statusTag = '<span style="font-size:10px;color:#c62828;font-style:italic;">Deleted</span>';
+    else if (c.resolved) statusTag = '<span style="font-size:11px;color:#4caf50;">Resolved</span>';
+
+    return '<div class="comment-item' + (c.resolved ? ' resolved' : '') + (isDeleted ? ' resolved' : '') + '">' +
+      '<div class="comment-meta">' +
+        '<span class="comment-author">' + escapeHtml(c.author_name) + '<span class="role-tag ' + roleClass + '">' + roleLabel + '</span></span>' +
+        '<span class="comment-date">' + dateStr + '</span>' +
+      '</div>' +
+      highlightBadge +
+      '<div class="comment-text"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
+      '<div class="comment-actions">' +
+        (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
+        (!c.resolved && !isDeleted && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
+        statusTag +
+        (!isDeleted && isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
+      '</div>' +
+    '</div>';
+  }
+
   function renderComments(comments, isThread) {
     const msgContainer = document.getElementById('comment-messages');
 
@@ -4621,8 +4676,13 @@
       quoteHtml = '<div class="comment-quote"><span class="quote-label">Highlighted text</span>"' + escapeHtml(pendingHighlight.text) + '"</div>';
     }
 
-    if (!comments || comments.length === 0) {
-      msgContainer.innerHTML = quoteHtml + '<div class="comment-empty">' + (pendingHighlight ? 'Add your comment about this selection.' : 'No comments yet. Be the first to add one!') + '</div>';
+    // Split active vs resolved/deleted
+    const active = (comments || []).filter(c => !c.resolved && !c.deleted_at);
+    const history = (comments || []).filter(c => c.resolved || c.deleted_at);
+
+    if (active.length === 0 && (!showingHistory || history.length === 0)) {
+      msgContainer.innerHTML = quoteHtml + '<div class="comment-empty">' + (pendingHighlight ? 'Add your comment about this selection.' : 'No comments yet. Be the first to add one!') + '</div>' +
+        (history.length > 0 && !showingHistory ? '<div style="text-align:center;padding:8px;"><button onclick="toggleCommentHistory()" style="font-size:11px;color:#999;background:none;border:none;cursor:pointer;text-decoration:underline;">' + history.length + ' resolved comment' + (history.length > 1 ? 's' : '') + '</button></div>' : '');
       return;
     }
 
@@ -4635,36 +4695,18 @@
       html += quoteHtml;
     }
 
-    html += comments.map(c => {
-      const date = new Date(c.created_at);
-      const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-      const roleLabel = c.author_role === 'id' ? 'ID' : 'Faculty';
-      const roleClass = c.author_role === 'id' ? 'id' : 'instructor';
-      const identity = getCommentIdentity();
-      const isOwn = identity && c.author_name === identity.name;
+    // Render active comments
+    html += active.map(c => renderCommentItem(c, isThread)).join('');
 
-      // Show inline quote preview for highlight root comments in section view
-      let highlightBadge = '';
-      if (!isThread && c.highlight_text) {
-        const truncated = c.highlight_text.length > 60 ? c.highlight_text.substring(0, 60) + '...' : c.highlight_text;
-        highlightBadge = '<div class="comment-quote" style="margin-bottom:6px;margin-top:0;padding:4px 8px;font-size:11px;" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')" style="cursor:pointer;">"' + escapeHtml(truncated) + '"</div>';
-      }
-
-      return '<div class="comment-item' + (c.resolved ? ' resolved' : '') + '">' +
-        '<div class="comment-meta">' +
-          '<span class="comment-author">' + escapeHtml(c.author_name) + '<span class="role-tag ' + roleClass + '">' + roleLabel + '</span></span>' +
-          '<span class="comment-date">' + dateStr + '</span>' +
-        '</div>' +
-        highlightBadge +
-        '<div class="comment-text">' + escapeHtml(c.content) + '</div>' +
-        '<div class="comment-actions">' +
-          (!isThread && c.highlight_text ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
-          (!c.resolved && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
-          (c.resolved ? '<span style="font-size:11px;color:#4caf50;">Resolved</span>' : '') +
-          (isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
-        '</div>' +
-      '</div>';
-    }).join('');
+    // Render history section
+    if (showingHistory && history.length > 0) {
+      html += '<div style="border-top:1px solid #e0ddd5;margin:12px 16px;padding-top:8px;">' +
+        '<div style="font-size:10px;font-weight:600;color:#999;text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px;">History (' + history.length + ')</div>' +
+        history.map(c => renderCommentItem(c, isThread)).join('') +
+        '</div>';
+    } else if (!showingHistory && history.length > 0) {
+      html += '<div style="text-align:center;padding:8px;"><button onclick="toggleCommentHistory()" style="font-size:11px;color:#999;background:none;border:none;cursor:pointer;text-decoration:underline;">' + history.length + ' resolved comment' + (history.length > 1 ? 's' : '') + '</button></div>';
+    }
 
     msgContainer.innerHTML = html;
   }
@@ -4712,9 +4754,12 @@
       const { data, error } = await supabaseClient.from('comments').insert(insertData).select();
       if (error) throw error;
 
-      // If we just created a highlight comment, wrap the text in a mark (DOM text only, not field comments)
+      // If we just created a highlight comment, apply visual indicator
       if (pendingHighlight && data && data[0]) {
-        if (pendingHighlight.range && !pendingHighlight.isFieldComment) {
+        if (pendingHighlight.isFieldComment && pendingHighlight.fieldEl) {
+          // Mark the field with a visual indicator
+          pendingHighlight.fieldEl.classList.add('has-field-comment');
+        } else if (pendingHighlight.range) {
           applyHighlightToRange(pendingHighlight.range, data[0].id);
         }
         pendingHighlight = null;
@@ -4764,10 +4809,16 @@
         while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
         parent.removeChild(mark);
       }
-      await supabaseClient.from('comments').delete().eq('id', commentId);
+      // Soft-delete: set deleted_at timestamp instead of removing the row
+      const { error: softErr } = await supabaseClient.from('comments').update({ deleted_at: new Date().toISOString(), resolved: true }).eq('id', commentId);
+      // If soft-delete fails (column doesn't exist yet), fall back to hard resolve
+      if (softErr) {
+        await supabaseClient.from('comments').update({ resolved: true, content: '[deleted]' }).eq('id', commentId);
+      }
       if (currentHighlightCommentId === commentId) {
         currentHighlightCommentId = null;
-        closeCommentPanel();
+        if (currentCommentSection) await loadComments(currentCommentSection);
+        else closeCommentPanel();
       } else if (currentHighlightCommentId) {
         await loadComments(currentCommentSection, currentHighlightCommentId);
       } else if (currentCommentSection) {
@@ -4853,6 +4904,41 @@
       startOffset: startOffset,
       highlightText: selectedText
     };
+  }
+
+  // Build CSS selector for a form field (textarea/input)
+  function buildFieldSelector(field) {
+    if (field.id) return '#' + field.id;
+    const parts = [];
+    let el = field;
+    while (el && el !== document.body) {
+      let part = el.tagName.toLowerCase();
+      if (el.id) { parts.unshift('#' + el.id); break; }
+      if (el.parentElement) {
+        const siblings = Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName);
+        if (siblings.length > 1) part += ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
+      }
+      parts.unshift(part);
+      el = el.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  // Apply visual indicator to fields that have comments
+  function applyFieldCommentIndicators() {
+    // Remove existing indicators
+    document.querySelectorAll('.has-field-comment').forEach(el => el.classList.remove('has-field-comment'));
+    // Check all comments for field anchors
+    Object.values(commentCache).forEach(comments => {
+      (comments || []).forEach(c => {
+        if (c.highlight_anchor && c.highlight_anchor.isField && !c.resolved && !c.deleted_at) {
+          try {
+            const field = document.querySelector(c.highlight_anchor.containerSelector);
+            if (field) field.classList.add('has-field-comment');
+          } catch(e) {}
+        }
+      });
+    });
   }
 
   // Show tooltip when user selects text
@@ -4942,7 +5028,8 @@
 
     if (!ensureIdentity()) {
       if (isFieldComment) {
-        pendingHighlight = { text, anchor: null, range: null, sectionId, isFieldComment: true };
+        const fieldSelector = buildFieldSelector(container);
+        pendingHighlight = { text, anchor: { containerSelector: fieldSelector, isField: true, highlightText: text }, range: null, sectionId, isFieldComment: true, fieldEl: container };
       } else {
         pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
       }
@@ -4950,8 +5037,9 @@
     }
 
     if (isFieldComment) {
-      // Field comments: no DOM highlight, just store text reference
-      pendingHighlight = { text, anchor: null, range: null, sectionId, isFieldComment: true };
+      // Field comments: store field reference for visual indicator
+      const fieldSelector = buildFieldSelector(container);
+      pendingHighlight = { text, anchor: { containerSelector: fieldSelector, isField: true, highlightText: text }, range: null, sectionId, isFieldComment: true, fieldEl: container };
     } else {
       pendingHighlight = { text, anchor: buildAnchor(range, container), range, sectionId };
     }
@@ -5114,7 +5202,7 @@
     try {
       const { data, error } = await supabaseClient
         .from('comments')
-        .select('section_id, resolved')
+        .select('id, section_id, resolved, deleted_at, highlight_anchor, highlight_text, author_role')
         .eq('course_id', courseId)
         .is('parent_id', null);
 
@@ -5131,6 +5219,7 @@
       });
 
       updateCommentCounts();
+      applyFieldCommentIndicators();
     } catch(e) { console.error('Failed to load comment counts:', e); }
   }
 
@@ -5140,6 +5229,10 @@
       injectCommentButtons();
       loadAllCommentCounts();
       loadAndApplyHighlights();
+      // Auto-open comment panel if URL param requests it
+      if (urlParams.get('openComments') === '1') {
+        setTimeout(function() { openCommentPanel(getCurrentSection()); }, 300);
+      }
     }, 500);
   });
 </script>
