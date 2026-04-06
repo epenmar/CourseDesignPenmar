@@ -3123,6 +3123,12 @@
     if (prefix === 'module' && mode === 'table') {
       renderModuleOverviewCards();
     }
+    // Auto-size textareas now that they're visible (scrollHeight is 0 while display:none)
+    if (mode === 'table' && tableEl) {
+      requestAnimationFrame(function() {
+        tableEl.querySelectorAll('textarea').forEach(function(ta) { autoGrowTextarea(ta); });
+      });
+    }
   }
 
   // Helper: get MLO full text for a given ID like "1.2"
