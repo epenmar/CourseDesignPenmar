@@ -4860,8 +4860,8 @@
     }
     activeCourse.elos = elos2d;
     saveField('elos', elos2d);
-    // Keep Module Overview and overview accordions in sync
-    renderModuleOverviewRef();
+    // Keep Module Overview and overview accordions in sync (skip if editing inline)
+    if (!eloEditMode) renderModuleOverviewRef();
     renderCourseObjectivesAccordion();
   }
 
