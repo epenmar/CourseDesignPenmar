@@ -86,8 +86,8 @@
 
   /* ===== TIMELINE TABLE ===== */
   .timeline-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  .timeline-table th { text-align: left; padding: 8px 12px; background: #f5f5f0; border: 1px solid #e0ddd5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
-  .timeline-table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: middle; }
+  .timeline-table th { text-align: left; padding: 4px 8px; background: #f5f5f0; border: 1px solid #e0ddd5; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: #666; }
+  .timeline-table td { padding: 4px 8px; border: 1px solid #e0ddd5; vertical-align: middle; background: #fff; }
   .timeline-table tr.done td { color: #999; background: #fafaf7; }
   .timeline-table tr.done td:first-child { color: #999; }
   .timeline-table tr.done td:first-child a { color: #999; }
@@ -2945,7 +2945,7 @@
           html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
           html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
-          html += '<textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; min-height:28px; resize:none; overflow:hidden; font-size:12px; line-height:1.4;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.due) + '</textarea>';
+          html += '<textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; min-height:20px; resize:none; overflow:hidden; font-size:11px; line-height:1.3;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.due) + '</textarea>';
           html += '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button>';
           html += '</div>';
           // Inline content expansion
@@ -2965,7 +2965,7 @@
 
     // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th>Activity</th><th style="width:80px;">Points</th><th style="width:100px;">Due</th><th style="width:24px;"></th></tr></thead>';
+      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:80px;">Due</th><th style="width:24px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
         var mod = modules[m - 1];
         var acts = courseActivities[m] || [];
@@ -2977,7 +2977,7 @@
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
-          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:20px; resize:none; overflow:hidden; font-size:11px; line-height:1.3; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
