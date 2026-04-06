@@ -1909,13 +1909,15 @@
         thtml += '<tr>';
         thtml += '<td style="font-weight:600; color:#8c1d40; vertical-align:top;">M' + modNum + '</td>';
         thtml += '<td style="vertical-align:top;"><input type="text" class="activity-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" style="border:none; background:transparent; width:100%;" /></td>';
-        thtml += '<td style="vertical-align:top;"><textarea class="activity-input" style="border:none; background:transparent; width:100%; min-height:40px; resize:none; overflow:hidden; font-size:12px; line-height:1.5;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; saveModuleOverviewFromTable(this,' + modNum + ')">' + escapeHtml(mloText) + '</textarea></td>';
+        thtml += '<td style="vertical-align:top; white-space:pre-wrap;"><textarea class="activity-input" style="border:none; background:transparent; width:100%; min-height:' + Math.max(40, mlos.length * 22 + 10) + 'px; resize:none; overflow:hidden; font-size:12px; line-height:1.6;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; saveModuleOverviewFromTable(this,' + modNum + ')">' + escapeHtml(mloText) + '</textarea></td>';
         thtml += '</tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
-      // Auto-size textareas
-      tableContainer.querySelectorAll('textarea').forEach(function(ta) { ta.style.height = ta.scrollHeight + 'px'; });
+      // Auto-size textareas (defer so layout is computed even if container was just made visible)
+      requestAnimationFrame(function() {
+        tableContainer.querySelectorAll('textarea').forEach(function(ta) { ta.style.height = 'auto'; ta.style.height = ta.scrollHeight + 'px'; });
+      });
     }
   }
 
