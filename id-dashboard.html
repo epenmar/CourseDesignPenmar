@@ -805,7 +805,19 @@
         case 'instructor': va = ca.instructor; vb = cb.instructor; break;
         case 'program': va = ca.program || ''; vb = cb.program || ''; break;
         case 'college': va = ca.college || ''; vb = cb.college || ''; break;
-        case 'session': va = ca.session; vb = cb.session; break;
+        case 'session': {
+          const sessionOrd = (s) => {
+            if (!s || s === '—') return 99999;
+            const m = s.match(/(Spring|Summer|Fall)\s*([ABC])?\s*'?(\d{2,4})/i);
+            if (!m) return 99998;
+            const seasonVal = { spring: 0, summer: 1, fall: 2 }[m[1].toLowerCase()] || 0;
+            const sub = m[2] ? m[2].charCodeAt(0) - 65 : 0;
+            let yr = parseInt(m[3]); if (yr < 100) yr += 2000;
+            return yr * 100 + seasonVal * 10 + sub;
+          };
+          const oa = sessionOrd(ca.session), ob = sessionOrd(cb.session);
+          return sortAsc ? oa - ob : ob - oa;
+        }
         case 'progress': return sortAsc ? ca.progress - cb.progress : cb.progress - ca.progress;
         case 'phase': va = ca.phase; vb = cb.phase; break;
         case 'status': va = ca.status; vb = cb.status; break;
