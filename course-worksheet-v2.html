@@ -1163,6 +1163,23 @@
   const courseId = urlParams.get('course') || 'mns521';
   const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
 
+  // ===== ONE-TIME MIGRATION: reseed module data from hardcoded config =====
+  (function() {
+    var migrationKey = courseId + '_mlo_migration_v2';
+    if (!localStorage.getItem(migrationKey)) {
+      // Rebuild moduleOverviewData from hardcoded activeCourse.modules
+      if (activeCourse.modules && activeCourse.modules.length > 0) {
+        var freshData = {};
+        for (var i = 0; i < activeCourse.modules.length; i++) {
+          var m = activeCourse.modules[i];
+          freshData[i + 1] = { topic: m.title || '', mlos: (m.mlos || []).slice() };
+        }
+        localStorage.setItem(courseId + '_moduleOverviewData', JSON.stringify(freshData));
+      }
+      localStorage.setItem(migrationKey, '1');
+    }
+  })();
+
   // ===== ACTIVITY & MATERIAL DATA MODEL =====
   let courseActivities = {};
   let courseMaterials = {};
