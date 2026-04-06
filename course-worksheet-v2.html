@@ -1165,16 +1165,19 @@
 
   // ===== ONE-TIME MIGRATION: reseed module data from hardcoded config =====
   (function() {
-    var migrationKey = courseId + '_mlo_migration_v2';
+    var migrationKey = 'mlo_migration_v2_' + courseId;
     if (!localStorage.getItem(migrationKey)) {
-      // Rebuild moduleOverviewData from hardcoded activeCourse.modules
+      // Rebuild moduleOverviewData inside the worksheet storage bucket
       if (activeCourse.modules && activeCourse.modules.length > 0) {
         var freshData = {};
         for (var i = 0; i < activeCourse.modules.length; i++) {
           var m = activeCourse.modules[i];
           freshData[i + 1] = { topic: m.title || '', mlos: (m.mlos || []).slice() };
         }
-        localStorage.setItem(courseId + '_moduleOverviewData', JSON.stringify(freshData));
+        var sk = 'worksheet_' + (courseId || 'default');
+        var bucket = JSON.parse(localStorage.getItem(sk) || '{}');
+        bucket['moduleOverviewData'] = freshData;
+        localStorage.setItem(sk, JSON.stringify(bucket));
       }
       localStorage.setItem(migrationKey, '1');
     }
@@ -2935,6 +2938,8 @@
     } else {
       document.getElementById('breadcrumb').innerHTML = names[viewId] || viewId;
     }
+    // Persist current view in URL hash for refresh
+    history.replaceState(null, '', '#' + viewId);
     window.scrollTo(0, 0);
     document.querySelector('.main').scrollTo(0, 0);
     renderPageNav(viewId);
@@ -2951,6 +2956,7 @@
   function showModule(num) {
     currentModuleNum = num;
     showView('module');
+    history.replaceState(null, '', '#module-' + num);
     document.querySelector('.main').scrollTo(0, 0);
     renderPageNav('mod-' + num);
     document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; <a href="#" onclick="event.preventDefault(); showView(\'module-overview\')" style="color:#8c1d40; text-decoration:none;">Module Overview</a> &nbsp;/&nbsp; <span>Module '+num+'</span>';
@@ -5717,6 +5723,16 @@
 
   // Initialize comments after DOM is ready
   document.addEventListener('DOMContentLoaded', function() {
+    // Restore view from URL hash on page load
+    var hashView = window.location.hash.replace('#', '');
+    if (hashView) {
+      var modMatch = hashView.match(/^module-(\d+)$/);
+      if (modMatch) {
+        showModule(parseInt(modMatch[1]));
+      } else if (document.getElementById('view-' + hashView)) {
+        showView(hashView);
+      }
+    }
     setTimeout(function() {
       injectCommentButtons();
       loadAllCommentCounts();
