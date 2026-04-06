@@ -1873,15 +1873,18 @@
 
       if (mloCount > 0) {
         for (let j = 0; j < mloCount; j++) {
-          html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">';
-          html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">' + modNum + '.' + (j + 1) + '</span>';
+          html += '<div class="obj-entry" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
+          html += '<span class="card-mlo-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#ccc; font-size:11px; cursor:grab; user-select:none; flex-shrink:0;">⠿</span>';
+          html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.' + (j + 1) + '</span>';
           html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" />';
+          html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0;" title="Remove">&times;</button>';
           html += '</div>';
         }
       } else {
         // One empty row
-        html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">';
-        html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px;">' + modNum + '.1</span>';
+        html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
+        html += '<span style="width:15px; flex-shrink:0;"></span>';
+        html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.1</span>';
         html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" />';
         html += '</div>';
       }
@@ -1894,6 +1897,7 @@
     }
 
     container.innerHTML = html;
+    initCardMloDragDrop(container);
 
     // Module overview table view
     var tableContainer = document.getElementById('module-overview-table');
@@ -1978,7 +1982,7 @@
     if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
       activeCourse.modules[modNum - 1].mlos = mlos;
     }
-    renderModuleOverview();
+    renderModuleOverviewCards();
     // Focus the new input
     requestAnimationFrame(function() {
       var table = document.getElementById('module-overview-table');
@@ -2001,7 +2005,139 @@
     if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
       activeCourse.modules[modNum - 1].mlos = mlos;
     }
-    renderModuleOverview();
+    renderModuleOverviewCards();
+  }
+
+  function deleteCardMlo(modNum, idx) {
+    captureUndoOnEdit('delete MLO');
+    // Save current card state first
+    saveModuleOverview();
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    mlos = mlos.slice();
+    mlos.splice(idx, 1);
+    savedMods[modNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
+      activeCourse.modules[modNum - 1].mlos = mlos;
+    }
+    renderModuleOverviewCards();
+  }
+
+  function initCardMloDragDrop(container) {
+    var dragSrcMod = null, dragSrcIdx = null;
+
+    function getMloDataForMod(modNum) {
+      var savedMods = loadField('moduleOverviewData') || {};
+      return (savedMods[modNum] && savedMods[modNum].mlos) ? savedMods[modNum].mlos :
+        (activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    }
+
+    function clearIndicators() {
+      container.querySelectorAll('.obj-entry').forEach(function(e) { e.style.borderTop = ''; e.style.borderBottom = ''; });
+    }
+
+    container.querySelectorAll('.card-mlo-handle[draggable="true"]').forEach(function(handle) {
+      handle.addEventListener('dragstart', function(e) {
+        dragSrcMod = parseInt(handle.getAttribute('data-mod'));
+        dragSrcIdx = parseInt(handle.getAttribute('data-mlo-idx'));
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', dragSrcMod + ':' + dragSrcIdx);
+        var entry = handle.closest('.obj-entry');
+        if (entry) setTimeout(function() { entry.style.opacity = '0.4'; }, 0);
+      });
+      handle.addEventListener('dragend', function() {
+        var entry = handle.closest('.obj-entry');
+        if (entry) entry.style.opacity = '1';
+        clearIndicators();
+      });
+    });
+
+    container.querySelectorAll('.obj-entry[data-mod]').forEach(function(entry) {
+      entry.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        clearIndicators();
+        var rect = entry.getBoundingClientRect();
+        if (e.clientY < rect.top + rect.height / 2) {
+          entry.style.borderTop = '2px solid #8c1d40';
+        } else {
+          entry.style.borderBottom = '2px solid #8c1d40';
+        }
+      });
+      entry.addEventListener('dragleave', function() {
+        entry.style.borderTop = '';
+        entry.style.borderBottom = '';
+      });
+      entry.addEventListener('drop', function(e) {
+        e.preventDefault();
+        clearIndicators();
+        if (dragSrcMod === null) return;
+        // Save current card state before modifying data
+        saveModuleOverview();
+        var targetMod = parseInt(entry.getAttribute('data-mod'));
+        var targetIdx = parseInt(entry.getAttribute('data-mlo-idx'));
+        var rect = entry.getBoundingClientRect();
+        var insertAfter = e.clientY >= rect.top + rect.height / 2;
+        captureUndoOnEdit('move MLO');
+        var savedMods = loadField('moduleOverviewData') || {};
+        if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
+        var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        savedMods[dragSrcMod].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var tgtMlos = (dragSrcMod === targetMod ? srcMlos : getMloDataForMod(targetMod)).slice();
+        var adjIdx = targetIdx;
+        if (dragSrcMod === targetMod && dragSrcIdx < targetIdx) adjIdx--;
+        var insertIdx = insertAfter ? adjIdx + 1 : adjIdx;
+        tgtMlos.splice(insertIdx, 0, movedMlo);
+        savedMods[targetMod].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        saveField('moduleOverviewData', savedMods);
+        dragSrcMod = null;
+        dragSrcIdx = null;
+        renderModuleOverviewCards();
+      });
+    });
+
+    // Allow dropping on obj-list containers (for empty modules)
+    container.querySelectorAll('.obj-list').forEach(function(list) {
+      list.addEventListener('dragover', function(e) {
+        if (list.querySelectorAll('.obj-entry[data-mod]').length === 0) {
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          list.style.outline = '2px dashed #8c1d40';
+        }
+      });
+      list.addEventListener('dragleave', function() { list.style.outline = ''; });
+      list.addEventListener('drop', function(e) {
+        list.style.outline = '';
+        if (list.querySelectorAll('.obj-entry[data-mod]').length > 0) return;
+        e.preventDefault();
+        if (dragSrcMod === null) return;
+        saveModuleOverview();
+        var card = list.closest('.card[data-mod-num]');
+        var targetMod = parseInt(card.getAttribute('data-mod-num'));
+        captureUndoOnEdit('move MLO');
+        var savedMods = loadField('moduleOverviewData') || {};
+        if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
+        var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        savedMods[dragSrcMod].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var tgtMlos = (savedMods[targetMod].mlos || []).slice();
+        tgtMlos.push(movedMlo);
+        savedMods[targetMod].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        saveField('moduleOverviewData', savedMods);
+        dragSrcMod = null;
+        dragSrcIdx = null;
+        renderModuleOverviewCards();
+      });
+    });
   }
 
   function initMloTableDragDrop(tableContainer) {
@@ -2085,7 +2221,7 @@
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
-        renderModuleOverview();
+        renderModuleOverviewCards();
       });
     });
   }
@@ -2874,6 +3010,10 @@
     var tableEl = document.getElementById(prefix + '-overview-table');
     if (cardsEl) cardsEl.style.display = mode === 'card' ? 'block' : 'none';
     if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
+    // Re-render module overview table when switching to it so it picks up card edits
+    if (prefix === 'module' && mode === 'table') {
+      renderModuleOverviewCards();
+    }
   }
 
   // Helper: get MLO full text for a given ID like "1.2"
