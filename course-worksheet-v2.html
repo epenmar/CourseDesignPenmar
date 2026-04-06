@@ -1924,12 +1924,13 @@
     // Snapshot which cards are currently open before re-rendering
     if (!openModules) {
       openModules = {};
-      container.querySelectorAll('.card[data-mod-num]').forEach(function(card) {
+      var existingCards = container.querySelectorAll('.card[data-mod-num]');
+      existingCards.forEach(function(card) {
         var body = card.querySelector('.card-body');
         if (body && !body.classList.contains('collapsed')) openModules[card.getAttribute('data-mod-num')] = true;
       });
-      // Default: open first card if nothing was open
-      if (Object.keys(openModules).length === 0) openModules['1'] = true;
+      // Only default to module 1 open on very first render (no cards in DOM yet)
+      if (existingCards.length === 0 && Object.keys(openModules).length === 0) openModules['1'] = true;
     }
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || 7;
@@ -2344,7 +2345,9 @@
         e.preventDefault();
         e.stopPropagation();
         var targetMod = parseInt(card.getAttribute('data-mod-num'));
-        reorderModules(modDragSrc, targetMod);
+        var rect = card.getBoundingClientRect();
+        var insertAfter = e.clientY >= rect.top + rect.height / 2;
+        reorderModules(modDragSrc, targetMod, insertAfter);
         modDragSrc = null;
       });
     });
@@ -2437,10 +2440,22 @@
   }
 
   // ===== MODULE REORDER DRAG-DROP =====
-  function reorderModules(fromNum, toNum) {
+  function reorderModules(fromNum, toNum, insertAfter) {
     if (fromNum === toNum) return;
     captureUndoState('reorder modules');
     saveModuleOverviewSync();
+
+    // Snapshot accordion open state before reorder (keyed by old module number)
+    var container = document.getElementById('module-overview-cards');
+    var openBefore = {};
+    if (container) {
+      container.querySelectorAll('.card[data-mod-num]').forEach(function(card) {
+        var body = card.querySelector('.card-body');
+        if (body && !body.classList.contains('collapsed')) {
+          openBefore[card.getAttribute('data-mod-num')] = true;
+        }
+      });
+    }
 
     var modules = activeCourse.modules || [];
     var savedMods = loadField('moduleOverviewData') || {};
@@ -2456,6 +2471,8 @@
     modOrder.splice(fromIdx, 1);
     // After removing fromIdx, if it was before toIdx, toIdx shifts down by 1
     if (fromIdx < toIdx) toIdx--;
+    // If dropping on the lower half, insert after the target
+    if (insertAfter) toIdx++;
     modOrder.splice(toIdx, 0, fromNum);
 
     // Remap all data structures using the new order
@@ -2464,19 +2481,20 @@
     var newActivities = {};
     var newMaterials = {};
 
+    // Map old module numbers to new positions for accordion state
+    var openAfter = {};
+
     for (var i = 0; i < modOrder.length; i++) {
       var oldNum = modOrder[i];
       var newNum = i + 1;
 
-      // activeCourse.modules (0-indexed array)
       newModules[i] = modules[oldNum - 1] || { title: '', mlos: [] };
-
-      // moduleOverviewData (1-indexed keys)
       newSavedMods[newNum] = savedMods[oldNum] || { topic: '', mlos: [] };
-
-      // courseActivities and courseMaterials (1-indexed keys)
       if (courseActivities[oldNum]) newActivities[newNum] = courseActivities[oldNum];
       if (courseMaterials[oldNum]) newMaterials[newNum] = courseMaterials[oldNum];
+
+      // Remap open state: if old module was open, new module number should be open
+      if (openBefore[String(oldNum)]) openAfter[String(newNum)] = true;
     }
 
     activeCourse.modules = newModules;
@@ -2484,7 +2502,7 @@
     courseMaterials = newMaterials;
     saveField('moduleOverviewData', newSavedMods);
     saveActivityData();
-    renderModuleOverviewCards();
+    renderModuleOverviewCards(openAfter);
   }
 
   var modDragSrc = null; // module being dragged for reorder (distinct from MLO drag)
@@ -2529,7 +2547,9 @@
         if (!cell) return;
         e.preventDefault();
         var targetMod = parseInt(cell.getAttribute('data-mod-num'));
-        reorderModules(modDragSrc, targetMod);
+        var rect = cell.getBoundingClientRect();
+        var insertAfter = e.clientY >= rect.top + rect.height / 2;
+        reorderModules(modDragSrc, targetMod, insertAfter);
         modDragSrc = null;
       });
     }
