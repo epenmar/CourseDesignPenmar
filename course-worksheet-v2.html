@@ -207,6 +207,12 @@
 
   /* ===== OBJECTIVE PICKER ===== */
   .obj-picker { position: relative; }
+  .elo-tag-picker { margin-top:4px; }
+  .obj-entry .elo-tag-picker { margin-left:34px; }
+  .elo-tag-picker .obj-picker-display { min-height:24px; padding:3px 6px; background:#fafaf7; border:1px dashed #d5d0c8; border-radius:4px; font-size:11px; }
+  .elo-tag-picker .obj-picker-display:hover { border-color:#8c1d40; background:#fef9f0; }
+  .elo-tag-picker .obj-picker-placeholder { font-size:11px; color:#bbb; }
+  .elo-tag-picker .obj-chip { font-size:10px; padding:1px 5px; }
   .obj-picker-display { padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; cursor: pointer; min-height: 34px; display: flex; flex-wrap: wrap; gap: 4px; align-items: center; background: #fff; }
   .obj-picker-display:hover { border-color: #ccc; }
   .obj-picker-display.open { border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
@@ -1909,8 +1915,8 @@
         '<span><strong>' + eloId + '</strong> ' + escapeHtml(elos[i]) + '</span></div>';
     }
 
-    return '<div class="obj-picker" data-elo-picker="' + pickerId + '" data-mod="' + modNum + '" data-mlo-idx="' + mloIdx + '" style="margin-top:2px;">' +
-      '<div class="obj-picker-display" onclick="toggleObjDropdown(\'' + pickerId + '\')" style="min-height:24px; padding:4px 6px;">' + chipsHtml + '</div>' +
+    return '<div class="obj-picker elo-tag-picker" data-elo-picker="' + pickerId + '" data-mod="' + modNum + '" data-mlo-idx="' + mloIdx + '">' +
+      '<div class="obj-picker-display" onclick="toggleObjDropdown(\'' + pickerId + '\')">' + chipsHtml + '</div>' +
       '<div class="obj-dropdown" id="obj-dropdown-' + pickerId + '">' + optionsHtml + '</div>' +
       '</div>';
   }
