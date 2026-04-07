@@ -326,7 +326,7 @@ async function main() {
     const allEvents = parseIcal(icsText);
     console.log(`[sync] Parsed ${allEvents.length} calendar events`);
 
-    const upcoming = allEvents.filter(ev => ev.dtstart >= todayStart && ev.dtstart <= cutoff);
+    const upcoming = allEvents.filter(ev => ev.dtstart >= todayStart && ev.dtstart <= cutoff && ev.status !== 'CANCELLED');
     console.log(`[sync] ${upcoming.length} upcoming in next ${LOOKAHEAD_DAYS} days`);
 
     for (const ev of upcoming) {
@@ -342,7 +342,7 @@ async function main() {
       }
     }
     for (const courseId of Object.keys(courseCalendar)) {
-      courseCalendar[courseId].sort((a, b) => a.date.localeCompare(b.date));
+      courseCalendar[courseId].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
     }
     for (const [courseId, meetings] of Object.entries(courseCalendar)) {
       console.log(`[sync] Calendar: ${courseId} → ${meetings.length} meeting(s)`);
@@ -404,10 +404,17 @@ async function main() {
     const calMeetings = courseCalendar[courseId] || [];
     const notes = courseNotes[courseId] || [];
 
+    // Clear stale nextMeeting from previous syncs
+    if (course.nextMeeting && course.nextMeeting.date < todayStr) {
+      course.nextMeeting = null;
+    }
+
     // --- Calendar meetings ---
     if (calMeetings.length > 0) {
       course.calendarMeetings = calMeetings;
-      const nextCal = calMeetings[0];
+      // Prefer the meeting whose label contains the course code, else fall back to first
+      const codeUpper = courseId.replace(/(\d+)/, ' $1').toUpperCase(); // e.g. "BST 605"
+      const nextCal = calMeetings.find(m => m.label.toUpperCase().includes(codeUpper)) || calMeetings[0];
       const existingDate = course.nextMeeting && course.nextMeeting.date;
       if (!existingDate || nextCal.date <= existingDate) {
         course.nextMeeting = { date: nextCal.date, time: nextCal.time, label: nextCal.label };
@@ -467,9 +474,26 @@ async function main() {
         source: 'obsidian'
       };
 
-      // Next meeting from notes (if not already set by calendar)
-      if (!course.nextMeeting && latestNote.nextMeeting) {
+      // Next meeting from notes (if not already set by calendar, and only if future)
+      if (!course.nextMeeting && latestNote.nextMeeting && latestNote.nextMeeting.date >= todayStr) {
         course.nextMeeting = latestNote.nextMeeting;
+      }
+    }
+  }
+
+  // ===== 4b. UPDATE MILESTONE MEETING DATES =====
+  for (const courseId of allCourseIds) {
+    const course = existing.courses[courseId];
+    if (!course || !course.milestoneStatus || !course.nextMeeting) continue;
+    // Update the first milestone that has status 'meeting' with the new meeting date
+    for (const ms of course.milestoneStatus) {
+      if (ms.status === 'meeting') {
+        const nm = course.nextMeeting;
+        ms.meetingDate = nm.date;
+        const d = new Date(nm.date + 'T00:00:00');
+        const monthStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        ms.meetingLabel = nm.time ? `${monthStr} at ${nm.time}` : monthStr;
+        break;
       }
     }
   }
@@ -480,8 +504,23 @@ async function main() {
     if (!courseId) continue;
 
     const calMeetings = courseCalendar[courseId] || [];
+    const course = existing.courses[courseId];
     const dlDate = new Date(dl.date + 'T00:00:00').getTime();
     const range = 2 * 86400000;
+
+    // If deadline is past and course has a future nextMeeting, shift the deadline to match
+    if (dl.date < todayStr && course && course.nextMeeting && course.nextMeeting.date >= todayStr) {
+      const nm = course.nextMeeting;
+      dl.date = nm.date;
+      const d = new Date(nm.date + 'T00:00:00');
+      dl.month = d.toLocaleDateString('en-US', { month: 'short' });
+      dl.day = String(d.getDate());
+      dl.hasMeeting = true;
+      dl.meetingTime = nm.time;
+      dl.meetingLabel = nm.label;
+      dl.urgent = true;
+      continue;
+    }
 
     dl.hasMeeting = false;
     for (const calMeeting of calMeetings) {
