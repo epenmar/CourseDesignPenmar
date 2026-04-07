@@ -243,7 +243,7 @@
   .course-obj-list { list-style: none; padding: 0; margin: 0; }
   .course-obj-list li { padding: 6px 0; border-bottom: 1px solid #f0ede5; font-size: 13px; color: #444; display: flex; gap: 8px; }
   .course-obj-list li:last-child { border-bottom: none; }
-  .course-obj-list .obj-num { font-weight: 700; color: #8c1d40; min-width: 32px; }
+  .course-obj-list .obj-num { font-weight: 700; color: #8c1d40; min-width: 42px; flex-shrink: 0; }
 
   /* Module MLO accordion inside overview cards */
   .mlo-accordion { margin-bottom: 8px; border: 1px solid #e8e5dd; border-radius: 8px; overflow: hidden; background: #fafaf7; }
@@ -706,7 +706,10 @@
           <div class="card-body">
             <div id="module-objectives-list" style="padding:12px 16px; background:#fff; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; line-height:1.8;">
             </div>
-            <div style="margin-top:8px; font-size:12px; color:#8c1d40; cursor:pointer;" onclick="showView('module-overview')">Edit objectives in Module Overview →</div>
+            <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:12px; color:#8c1d40; cursor:pointer;" onclick="showView('module-overview')">Edit in Module Overview →</span>
+              <button id="mod-obj-edit-btn" onclick="toggleModDetailMloEdit()" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">✏️ Edit</button>
+            </div>
           </div>
         </div>
 
@@ -3980,11 +3983,64 @@
       }
     }
 
+    // Reset edit mode button
+    var editBtn = document.getElementById('mod-obj-edit-btn');
+    if (editBtn) { editBtn.textContent = '✏️ Edit'; editBtn.style.background = '#fff'; editBtn.style.color = '#666'; editBtn.style.borderColor = '#ddd'; }
+
     // Render activities and materials from data model
     renderModuleActivities(num);
     renderModuleMaterials(num);
 
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
+  }
+
+  var modDetailMloEditing = false;
+
+  function toggleModDetailMloEdit() {
+    var objList = document.getElementById('module-objectives-list');
+    var btn = document.getElementById('mod-obj-edit-btn');
+    if (!objList) return;
+    var num = currentModuleNum;
+    var mod = (activeCourse.modules || [])[num - 1];
+
+    if (!modDetailMloEditing) {
+      // Switch to edit mode
+      modDetailMloEditing = true;
+      var mlos = mod && mod.mlos ? mod.mlos : [];
+      var html = '<div style="display:flex; flex-direction:column; gap:6px;">';
+      for (var i = 0; i < mlos.length; i++) {
+        html += '<div style="display:flex; align-items:start; gap:8px;">';
+        html += '<strong style="min-width:30px; padding-top:6px;">' + num + '.' + (i + 1) + '</strong>';
+        html += '<textarea class="activity-input mod-detail-mlo-edit" data-mlo-idx="' + i + '" oninput="autoGrowTextarea(this)" style="flex:1; border:1px solid #e0ddd5; background:#fff; border-radius:4px; padding:6px 8px; font-size:13px; font-family:Inter,sans-serif; resize:none; overflow:hidden; min-height:20px; line-height:1.4;">' + escapeHtml(mlos[i]) + '</textarea>';
+        html += '</div>';
+      }
+      html += '</div>';
+      objList.innerHTML = html;
+      btn.textContent = 'Done';
+      btn.style.background = '#8c1d40';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#8c1d40';
+      requestAnimationFrame(function() {
+        objList.querySelectorAll('textarea').forEach(function(ta) { autoGrowTextarea(ta); });
+      });
+    } else {
+      // Save edits
+      var textareas = objList.querySelectorAll('.mod-detail-mlo-edit');
+      var mlos = [];
+      textareas.forEach(function(ta) { mlos.push(ta.value); });
+      if (mod) mod.mlos = mlos;
+      var savedMods = loadField('moduleOverviewData') || {};
+      if (!savedMods[num]) savedMods[num] = {};
+      savedMods[num].mlos = mlos;
+      saveField('moduleOverviewData', savedMods);
+      // Switch back to read mode
+      modDetailMloEditing = false;
+      objList.innerHTML = mlos.map(function(mlo, i) { return '<strong>' + num + '.' + (i + 1) + '</strong> ' + mlo; }).join('<br>');
+      btn.textContent = '✏️ Edit';
+      btn.style.background = '#fff';
+      btn.style.color = '#666';
+      btn.style.borderColor = '#ddd';
+    }
   }
 
   function editModuleTitle() {
@@ -4157,6 +4213,8 @@
   }
 
   // Render Course Objectives accordion at top of assignments overview
+  var eloAccordionEditMode = false;
+
   function renderCourseObjectivesAccordion() {
     var containers = [
       document.getElementById('elo-accordion-assignments'),
@@ -4170,38 +4228,132 @@
       if (!container) return;
       if (elosFlat.length === 0) { container.innerHTML = ''; return; }
 
-      var html = '<div class="course-obj-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
+      var html = '<div class="course-obj-accordion-header" onclick="if(!event.target.closest(\'button\'))  { this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\'); }">';
       html += '<h3>Expected Learning Outcomes (ELOs)</h3>';
-      html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
-      html += '</div>';
-      html += '<div class="course-obj-accordion-body">';
-      html += '<ul class="course-obj-list">';
-      for (var i = 0; i < elosFlat.length; i++) {
-        html += '<li><span class="obj-num">' + elosFlat[i].label + '</span><span>' + escapeHtml(elosFlat[i].text) + '</span></li>';
+      html += '<div style="display:flex; align-items:center; gap:8px;">';
+      if (eloAccordionEditMode) {
+        html += '<button onclick="event.stopPropagation(); saveEloAccordionEdits(); " style="border:1px solid #8c1d40; background:#8c1d40; color:#fff; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">Done</button>';
+      } else {
+        html += '<button onclick="event.stopPropagation(); startEloAccordionEdit();" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">✏️ Edit</button>';
       }
-      html += '</ul>';
+      html += '<span class="ca-toggle" style="font-size:14px; color:#999; transition:transform 0.2s;">▾</span>';
+      html += '</div></div>';
+      html += '<div class="course-obj-accordion-body' + (eloAccordionEditMode ? ' open' : '') + '">';
+      if (eloAccordionEditMode) {
+        html += '<div style="display:flex; flex-direction:column; gap:6px;">';
+        for (var i = 0; i < elosFlat.length; i++) {
+          html += '<div style="display:flex; align-items:start; gap:8px;">';
+          html += '<span class="obj-num" style="padding-top:6px;">' + elosFlat[i].label + '</span>';
+          html += '<textarea class="activity-input elo-acc-edit" data-elo-idx="' + i + '" style="flex:1; border:1px solid #e0ddd5; background:#fff; border-radius:4px; padding:6px 8px; font-size:13px; font-family:Inter,sans-serif; resize:none; overflow:hidden; min-height:20px; line-height:1.4;">' + escapeHtml(elosFlat[i].text) + '</textarea>';
+          html += '</div>';
+        }
+        html += '</div>';
+      } else {
+        html += '<ul class="course-obj-list">';
+        for (var i = 0; i < elosFlat.length; i++) {
+          html += '<li><span class="obj-num">' + elosFlat[i].label + '</span><span>' + escapeHtml(elosFlat[i].text) + '</span></li>';
+        }
+        html += '</ul>';
+      }
       html += '</div>';
       container.innerHTML = html;
     });
+
+    if (eloAccordionEditMode) {
+      requestAnimationFrame(function() {
+        document.querySelectorAll('.elo-acc-edit').forEach(function(ta) { autoGrowTextarea(ta); });
+      });
+    }
+  }
+
+  function startEloAccordionEdit() {
+    eloAccordionEditMode = true;
+    renderCourseObjectivesAccordion();
+  }
+
+  function saveEloAccordionEdits() {
+    // Read values from whichever container has the textareas
+    var textareas = document.querySelectorAll('.elo-acc-edit');
+    if (textareas.length > 0) {
+      textareas.forEach(function(ta) {
+        var idx = parseInt(ta.getAttribute('data-elo-idx'));
+        if (!isNaN(idx) && activeCourse.flatElos) {
+          activeCourse.flatElos[idx] = ta.value;
+        }
+      });
+      // Only read from first set (assignments or materials view)
+      saveObjectivesState();
+    }
+    eloAccordionEditMode = false;
+    renderCourseObjectivesAccordion();
+    renderEloList();
+    renderModuleOverviewRef();
   }
 
   // Build MLO accordion HTML for a module card
+  var mloAccordionEditMod = null; // which module's MLO accordion is being edited
+
   function buildMloAccordionHtml(moduleNum) {
     var mod = (activeCourse.modules || [])[moduleNum - 1];
     var mlos = mod && mod.mlos ? mod.mlos : [];
     if (mlos.length === 0) return '';
-    var html = '<div class="mlo-accordion">';
-    html += '<div class="mlo-accordion-header" onclick="this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\')">';
+    var isEditing = mloAccordionEditMod === moduleNum;
+    var html = '<div class="mlo-accordion" data-mlo-acc-mod="' + moduleNum + '">';
+    html += '<div class="mlo-accordion-header" onclick="if(!event.target.closest(\'button\')) { this.nextElementSibling.classList.toggle(\'open\'); this.querySelector(\'.ca-toggle\').classList.toggle(\'open\'); }">';
     html += '<span>Module ' + moduleNum + ' Objectives (' + mlos.length + ' MLOs)</span>';
-    html += '<span class="ca-toggle" style="font-size:12px; color:#999; transition:transform 0.2s;">▾</span>';
-    html += '</div>';
-    html += '<div class="mlo-accordion-body">';
-    html += '<ul class="mlo-list">';
-    for (var j = 0; j < mlos.length; j++) {
-      html += '<li><span class="mlo-id">' + moduleNum + '.' + (j + 1) + '</span><span>' + escapeHtml(mlos[j]) + '</span></li>';
+    html += '<div style="display:flex; align-items:center; gap:6px;">';
+    if (isEditing) {
+      html += '<button onclick="event.stopPropagation(); saveMloAccordionEdits(' + moduleNum + ');" style="border:1px solid #8c1d40; background:#8c1d40; color:#fff; font-size:10px; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">Done</button>';
+    } else {
+      html += '<button onclick="event.stopPropagation(); startMloAccordionEdit(' + moduleNum + ');" style="border:1px solid #ddd; background:#fff; color:#666; font-size:10px; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">✏️ Edit</button>';
     }
-    html += '</ul></div></div>';
+    html += '<span class="ca-toggle' + (isEditing ? ' open' : '') + '" style="font-size:12px; color:#999; transition:transform 0.2s;">▾</span>';
+    html += '</div></div>';
+    html += '<div class="mlo-accordion-body' + (isEditing ? ' open' : '') + '">';
+    if (isEditing) {
+      html += '<div style="display:flex; flex-direction:column; gap:4px;">';
+      for (var j = 0; j < mlos.length; j++) {
+        html += '<div style="display:flex; align-items:start; gap:6px;">';
+        html += '<span class="mlo-id" style="padding-top:4px;">' + moduleNum + '.' + (j + 1) + '</span>';
+        html += '<textarea class="activity-input mlo-acc-edit" data-mod="' + moduleNum + '" data-mlo-idx="' + j + '" style="flex:1; border:1px solid #e0ddd5; background:#fff; border-radius:4px; padding:4px 6px; font-size:12px; font-family:Inter,sans-serif; resize:none; overflow:hidden; min-height:18px; line-height:1.3;">' + escapeHtml(mlos[j]) + '</textarea>';
+        html += '</div>';
+      }
+      html += '</div>';
+    } else {
+      html += '<ul class="mlo-list">';
+      for (var j = 0; j < mlos.length; j++) {
+        html += '<li><span class="mlo-id">' + moduleNum + '.' + (j + 1) + '</span><span>' + escapeHtml(mlos[j]) + '</span></li>';
+      }
+      html += '</ul>';
+    }
+    html += '</div></div>';
     return html;
+  }
+
+  function startMloAccordionEdit(moduleNum) {
+    mloAccordionEditMod = moduleNum;
+    // Re-render the containing overview
+    if (currentViewId === 'assignments-overview') renderAssignmentsOverview();
+    else if (currentViewId === 'materials-overview') renderMaterialsOverview();
+  }
+
+  function saveMloAccordionEdits(moduleNum) {
+    var textareas = document.querySelectorAll('.mlo-acc-edit[data-mod="' + moduleNum + '"]');
+    var mlos = [];
+    textareas.forEach(function(ta) { mlos.push(ta.value); });
+    // Update in-memory
+    if (activeCourse.modules && activeCourse.modules[moduleNum - 1]) {
+      activeCourse.modules[moduleNum - 1].mlos = mlos;
+    }
+    // Update localStorage
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[moduleNum]) savedMods[moduleNum] = {};
+    savedMods[moduleNum].mlos = mlos;
+    saveField('moduleOverviewData', savedMods);
+    // Exit edit mode and re-render
+    mloAccordionEditMod = null;
+    if (currentViewId === 'assignments-overview') renderAssignmentsOverview();
+    else if (currentViewId === 'materials-overview') renderMaterialsOverview();
   }
 
   // Build inline content attachment for an activity in overview
