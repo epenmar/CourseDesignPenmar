@@ -19,7 +19,24 @@
   .topnav-logo em { color: #ffc627; }
   .topnav-title { font-size: 15px; font-weight: 500; opacity: 0.9; }
   .topnav-right { display: flex; align-items: center; gap: 16px; }
-  .topnav-user { font-size: 13px; opacity: 0.8; }
+  .topnav-account { position: relative; cursor: pointer; }
+  .account-icon { width: 34px; height: 34px; border-radius: 50%; background: rgba(255,255,255,0.15); display: flex; align-items: center; justify-content: center; color: #fff; transition: background 0.15s; }
+  .account-icon:hover { background: rgba(255,255,255,0.25); }
+  .account-popover { position: absolute; top: calc(100% + 8px); right: 0; background: #fff; border-radius: 12px; box-shadow: 0 8px 32px rgba(0,0,0,0.18); width: 320px; z-index: 200; display: none; color: #333; font-size: 13px; }
+  .account-popover.open { display: block; }
+  .account-popover-header { padding: 16px 20px; border-bottom: 1px solid #eee; display: flex; align-items: center; gap: 12px; }
+  .account-avatar { width: 44px; height: 44px; border-radius: 50%; background: #fef3e8; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .account-name { font-weight: 600; font-size: 14px; }
+  .account-email { font-size: 12px; color: #888; }
+  .account-popover-body { padding: 12px 20px 16px; }
+  .account-field { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid #f5f5f0; }
+  .account-label { font-size: 12px; color: #888; }
+  .account-value { font-size: 12px; color: #333; }
+  .account-edit-btn { width: 100%; margin-top: 10px; padding: 8px; border: 1px solid #e0ddd5; background: #fff; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: Inter, sans-serif; color: #555; }
+  .account-edit-btn:hover { background: #f5f5f0; }
+  .star-btn { border: none; background: none; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; color: #ddd; transition: color 0.15s; }
+  .star-btn:hover { color: #ffc627; }
+  .star-btn.starred { color: #ffc627; }
   .topnav-badge { background: #ffc627; color: #8c1d40; font-size: 11px; font-weight: 700; padding: 3px 10px; border-radius: 12px; }
   .sync-btn { background: none; border: 1px solid rgba(255,255,255,0.3); color: #fff; font-size: 11px; padding: 4px 10px; border-radius: 4px; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.2s; }
   .sync-btn:hover { background: rgba(255,255,255,0.1); border-color: rgba(255,255,255,0.5); }
@@ -284,7 +301,33 @@
   <div class="topnav-right">
     <span class="topnav-badge" id="attention-badge">2 need attention</span>
     <button class="sync-btn" id="sync-btn" onclick="triggerSync()" title="Sync calendar & notes"><span class="sync-icon">↻</span> Sync</button>
-    <span class="topnav-user">Elisa Penmar</span>
+    <div class="topnav-account" onclick="toggleAccountPopover(event)">
+      <div class="account-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+    </div>
+    <div class="account-popover" id="account-popover">
+      <div class="account-popover-header">
+        <div class="account-avatar"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#8c1d40" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
+        <div>
+          <div class="account-name" id="account-display-name">Elisa Penmar</div>
+          <div class="account-email" id="account-display-email">elisa.penmar@asu.edu</div>
+        </div>
+      </div>
+      <div class="account-popover-body" id="account-view-mode">
+        <div class="account-field"><span class="account-label">Booking Link</span><span class="account-value" id="account-display-booking" style="font-size:11px; word-break:break-all;">Set in profile</span></div>
+        <div class="account-field"><span class="account-label">Signature</span><span class="account-value" id="account-display-sig">Elisa</span></div>
+        <button class="account-edit-btn" onclick="toggleAccountEdit()">✏️ Edit Profile</button>
+      </div>
+      <div class="account-popover-body" id="account-edit-mode" style="display:none;">
+        <div class="edit-field"><label>Full Name</label><input type="text" id="acct-name" /></div>
+        <div class="edit-field"><label>Email</label><input type="text" id="acct-email" /></div>
+        <div class="edit-field"><label>Booking Link</label><input type="text" id="acct-booking" placeholder="https://outlook.office.com/bookwithme/..." /></div>
+        <div class="edit-field"><label>Email Signature Name</label><input type="text" id="acct-sig" placeholder="e.g. Elisa" /></div>
+        <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:8px;">
+          <button class="edit-btn-cancel" onclick="toggleAccountEdit()" style="padding:6px 14px;">Cancel</button>
+          <button class="edit-btn-save" onclick="saveAccountProfile()" style="padding:6px 14px;">Save</button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -408,6 +451,7 @@
     <table class="course-table">
       <thead>
         <tr>
+          <th style="width:30px; padding:0;"></th>
           <th data-sort="code" onclick="sortTable('code', this)">Course <span class="sort-arrow">▲</span></th>
           <th data-sort="instructor" onclick="sortTable('instructor', this)">Instructor <span class="sort-arrow">▲</span></th>
           <th data-sort="program" onclick="sortTable('program', this)">Program <span class="sort-arrow">▲</span></th>
@@ -888,10 +932,25 @@
   let sortField = null;
   let sortAsc = true;
 
+  // ===== FAVORITES =====
+  function getStarredCourses() {
+    try { return JSON.parse(localStorage.getItem('starred_courses') || '[]'); } catch(e) { return []; }
+  }
+  function isStarred(id) { return getStarredCourses().indexOf(id) !== -1; }
+  function toggleStar(id, e) {
+    e.stopPropagation();
+    var starred = getStarredCourses();
+    var idx = starred.indexOf(id);
+    if (idx !== -1) starred.splice(idx, 1);
+    else starred.push(id);
+    localStorage.setItem('starred_courses', JSON.stringify(starred));
+    renderTable();
+  }
+
   function getSortedCourseKeys() {
     const keys = Object.keys(courseData);
-    if (!sortField) return keys;
-    return keys.sort((a, b) => {
+    // Sort by field if set
+    if (sortField) keys.sort((a, b) => {
       const ca = courseData[a];
       const cb = courseData[b];
       let va, vb;
@@ -926,6 +985,14 @@
       }
       return 0;
     });
+    // Pin starred courses to top
+    var starred = getStarredCourses();
+    keys.sort(function(a, b) {
+      var aS = starred.indexOf(a) !== -1 ? 0 : 1;
+      var bS = starred.indexOf(b) !== -1 ? 0 : 1;
+      return aS - bS;
+    });
+    return keys;
   }
 
   function sortTable(field, th) {
@@ -947,10 +1014,13 @@
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
     const tbody = document.getElementById('course-table-body');
     let html = '';
+    var starredSet = getStarredCourses();
     getSortedCourseKeys().forEach(id => {
       const c = courseData[id];
       const dataStatus = statusMap[c.status] || 'not-started';
+      const starred = starredSet.indexOf(id) !== -1;
       html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}">
+        <td style="padding:0 4px; text-align:center;"><button class="star-btn${starred ? ' starred' : ''}" onclick="toggleStar('${id}', event)" title="${starred ? 'Unstar' : 'Star'} course">${starred ? '★' : '☆'}</button></td>
         <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
         <td style="font-size:12px;">${c.program || '—'}</td>
@@ -973,16 +1043,16 @@
 
   // ===== COLUMN VISIBILITY =====
   const allColumns = [
-    { key: 'code', label: 'Course', idx: 0 },
-    { key: 'instructor', label: 'Instructor', idx: 1 },
-    { key: 'program', label: 'Program', idx: 2 },
-    { key: 'college', label: 'College', idx: 3 },
-    { key: 'session', label: 'Session', idx: 4 },
-    { key: 'progress', label: 'Progress', idx: 5 },
-    { key: 'phase', label: 'Phase', idx: 6 },
-    { key: 'status', label: 'Status', idx: 7 },
-    { key: 'qa', label: 'QA Date', idx: 8 },
-    { key: 'lastActive', label: 'Last Active', idx: 9 }
+    { key: 'code', label: 'Course', idx: 1 },
+    { key: 'instructor', label: 'Instructor', idx: 2 },
+    { key: 'program', label: 'Program', idx: 3 },
+    { key: 'college', label: 'College', idx: 4 },
+    { key: 'session', label: 'Session', idx: 5 },
+    { key: 'progress', label: 'Progress', idx: 6 },
+    { key: 'phase', label: 'Phase', idx: 7 },
+    { key: 'status', label: 'Status', idx: 8 },
+    { key: 'qa', label: 'QA Date', idx: 9 },
+    { key: 'lastActive', label: 'Last Active', idx: 10 }
   ];
   const defaultHidden = ['program', 'college', 'phase'];
   let hiddenCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null') || defaultHidden;
@@ -1177,7 +1247,7 @@
         bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
         'Note: Documents you upload through the web app will automatically appear in this Drive folder. However, files added directly to Drive will not sync back to the web app — please use the worksheet upload feature for any materials you want tracked in the development tool.\n\n';
       }
-      bodyText += 'Best,\nElisa';
+      bodyText += 'Best,\n' + getProfile().sig + '';
       const body = encodeURIComponent(bodyText);
       html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
@@ -1547,9 +1617,9 @@
         }
       }
 
-      followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\nElisa`;
+      followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
     } else if (!latestMeeting && c.notes) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\nElisa`;
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
     }
 
     // ===== CHECK-IN =====
@@ -1568,10 +1638,10 @@
     } else {
       checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
     }
-    checkInBody += `Looking forward to hearing from you.\n\nBest,\nElisa`;
+    checkInBody += `Looking forward to hearing from you.\n\nBest,\n${getProfile().sig}`;
 
     // Course readiness body
-    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\nElisa`;
+    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\n${getProfile().sig}`;
 
     const makeMailto = (subj, body) => {
       return `mailto:${c.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
@@ -2157,6 +2227,74 @@
       renderDetail(editCourseId);
     }
   }
+
+  // ===== ACCOUNT PROFILE =====
+  var defaultProfile = {
+    name: 'Elisa Penmar',
+    email: 'elisa.penmar@asu.edu',
+    booking: 'https://outlook.office.com/bookwithme/user/cea5ad6a70a64d58a3160c11440affa7%40asu.edu?anonymous&ismsaljsauthenabled',
+    sig: 'Elisa'
+  };
+
+  function getProfile() {
+    try { return Object.assign({}, defaultProfile, JSON.parse(localStorage.getItem('id_profile') || '{}')); } catch(e) { return Object.assign({}, defaultProfile); }
+  }
+
+  function toggleAccountPopover(e) {
+    e.stopPropagation();
+    var pop = document.getElementById('account-popover');
+    pop.classList.toggle('open');
+    if (pop.classList.contains('open')) {
+      var p = getProfile();
+      document.getElementById('account-display-name').textContent = p.name;
+      document.getElementById('account-display-email').textContent = p.email;
+      document.getElementById('account-display-booking').textContent = p.booking ? 'Configured' : 'Not set';
+      document.getElementById('account-display-sig').textContent = p.sig || p.name.split(' ')[0];
+      // Reset to view mode
+      document.getElementById('account-view-mode').style.display = '';
+      document.getElementById('account-edit-mode').style.display = 'none';
+    }
+  }
+
+  function toggleAccountEdit() {
+    var viewMode = document.getElementById('account-view-mode');
+    var editMode = document.getElementById('account-edit-mode');
+    if (editMode.style.display === 'none') {
+      var p = getProfile();
+      document.getElementById('acct-name').value = p.name;
+      document.getElementById('acct-email').value = p.email;
+      document.getElementById('acct-booking').value = p.booking;
+      document.getElementById('acct-sig').value = p.sig;
+      viewMode.style.display = 'none';
+      editMode.style.display = '';
+    } else {
+      viewMode.style.display = '';
+      editMode.style.display = 'none';
+    }
+  }
+
+  function saveAccountProfile() {
+    var profile = {
+      name: document.getElementById('acct-name').value.trim() || defaultProfile.name,
+      email: document.getElementById('acct-email').value.trim() || defaultProfile.email,
+      booking: document.getElementById('acct-booking').value.trim(),
+      sig: document.getElementById('acct-sig').value.trim() || document.getElementById('acct-name').value.trim().split(' ')[0]
+    };
+    localStorage.setItem('id_profile', JSON.stringify(profile));
+    // Update display
+    document.getElementById('account-display-name').textContent = profile.name;
+    document.getElementById('account-display-email').textContent = profile.email;
+    document.getElementById('account-display-booking').textContent = profile.booking ? 'Configured' : 'Not set';
+    document.getElementById('account-display-sig').textContent = profile.sig;
+    toggleAccountEdit();
+  }
+
+  // Close popover when clicking outside
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.topnav-account')) {
+      document.getElementById('account-popover').classList.remove('open');
+    }
+  });
 
   // ===== LOAD COURSE OVERRIDES ON INIT =====
   (function() {
