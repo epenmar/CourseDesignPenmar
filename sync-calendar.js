@@ -399,7 +399,10 @@ async function main() {
   const allCourseIds = new Set([...Object.keys(courseCalendar), ...Object.keys(courseNotes)]);
 
   for (const courseId of allCourseIds) {
-    if (!existing.courses[courseId]) continue; // only update known courses
+    if (!existing.courses[courseId]) {
+      // Bootstrap a minimal entry so calendar/notes data isn't lost
+      existing.courses[courseId] = {};
+    }
     const course = existing.courses[courseId];
     const calMeetings = courseCalendar[courseId] || [];
     const notes = courseNotes[courseId] || [];

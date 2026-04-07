@@ -459,7 +459,7 @@
       </div>
       <div class="nav-item" onclick="showView('course-info')">
         <span class="icon">📋</span> Course Info
-        <span class="badge badge-done">✓</span>
+        <span class="badge badge-empty" id="sidebar-info-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('materials')">
         <span class="icon">📚</span> Textbooks &amp; Materials
@@ -471,7 +471,7 @@
       </div>
       <div class="nav-item" onclick="showView('objectives')">
         <span class="icon">🎯</span> ELOs &amp; CLOs
-        <span class="badge badge-done">6/6</span>
+        <span class="badge badge-empty" id="sidebar-obj-badge">—</span>
       </div>
 
       <div class="nav-section-label">Course Design</div>
@@ -3256,6 +3256,44 @@
     if (dashPct) dashPct.textContent = pct + '%';
     if (dashMods) dashMods.innerHTML = modulesStarted + ' <span style="font-size:16px; font-weight:400; color:#666;">of ' + modCount + '</span>';
 
+    // Update sidebar Course Info badge
+    var infoBadge = document.getElementById('sidebar-info-badge');
+    if (infoBadge) {
+      // Count course info fields that have actual user-entered content
+      var infoFilled = 0;
+      var infoTotal = 0;
+      courseInfoFields.forEach(function(f) {
+        infoTotal++;
+        if (f.value && f.value.trim()) infoFilled++;
+      });
+      // Only mark done if ALL fields are filled
+      if (infoTotal > 0 && infoFilled === infoTotal) {
+        infoBadge.className = 'badge badge-done';
+        infoBadge.textContent = '✓';
+      } else if (infoFilled > 0) {
+        infoBadge.className = 'badge badge-partial';
+        infoBadge.textContent = infoFilled + '/' + infoTotal;
+      } else {
+        infoBadge.className = 'badge badge-empty';
+        infoBadge.textContent = '—';
+      }
+    }
+
+    // Update sidebar ELOs & CLOs badge
+    var objBadge = document.getElementById('sidebar-obj-badge');
+    if (objBadge) {
+      var realElos = (activeCourse.flatElos || []).filter(function(e) { return e && e.trim(); });
+      var realClos = (activeCourse.clos || []).filter(function(c) { return c && c.trim(); });
+      var objCount = realElos.length + realClos.length;
+      if (objCount > 0) {
+        objBadge.className = 'badge badge-done';
+        objBadge.textContent = objCount + '/' + objCount;
+      } else {
+        objBadge.className = 'badge badge-empty';
+        objBadge.textContent = '—';
+      }
+    }
+
     return pct;
   }
 
@@ -3454,8 +3492,8 @@
       const datePretty = prettyDate(dates[i]);
       const labelText = milestones[i].label + (i === completed ? ' (current)' : '');
       const labelHtml = milestones[i].action
-        ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${datePretty} — ${labelText}</a>`
-        : `${datePretty} — ${labelText}`;
+        ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${labelText}</a>`
+        : `${labelText}`;
       html += `<tr class="${rowClass}">
         <td>${labelHtml}</td>
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
@@ -3487,15 +3525,15 @@
     const qaHighlight = qaStatus.color === '#e65100' ? 'background:#fef3e8;' : '';
 
     html += `<tr style="${qaHighlight}">
-      <td><strong>${qaPretty} — Final Walkthrough and QA Check</strong></td>
+      <td><strong>Final Walkthrough and QA Check</strong></td>
       <td><input type="date" class="date-input" value="${qaFmt}" onchange="saveFixedDate('qa', this.value)" /></td>
       <td class="qa-rel-status" style="font-size:12px; color:${qaStatus.color}">${qaStatus.label}</td></tr>`;
     html += `<tr>
-      <td><strong>${livePretty} — Student Access / Live Course Shell</strong></td>
+      <td><strong>Student Access / Live Course Shell</strong></td>
       <td><input type="date" class="date-input" value="${liveFmt}" onchange="saveFixedDate('live', this.value)" /></td>
       <td class="live-rel-status" style="font-size:12px; color:${liveStatus.color}">${liveStatus.label}</td></tr>`;
     html += `<tr style="background:#f5f5f0;">
-      <td><strong>🎓 Session begins — ${launchPretty}</strong></td>
+      <td><strong>🎓 Session begins</strong></td>
       <td><strong>${launchPretty}</strong></td>
       <td></td></tr>`;
 
