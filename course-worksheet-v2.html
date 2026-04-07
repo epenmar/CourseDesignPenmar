@@ -655,12 +655,13 @@
         <h1 style="font-size:22px; margin-bottom:4px;">Course Mapping</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">Map ELOs to MLOs and audit alignment across your course design.</p>
 
-        <!-- ELO ↔ MLO Matrix -->
+        <!-- ELO ↔ MLO Matrix (auto-populated from Module Overview tags) -->
         <div class="card" style="padding:16px; margin-bottom:20px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <h4 style="margin:0; font-size:14px;">ELO → MLO Alignment Matrix</h4>
+            <span style="font-size:11px; color:#888;">Auto-populated from Module Overview tags</span>
           </div>
-          <p style="font-size:12px; color:#666; margin-bottom:12px;">Check which MLOs support each ELO. An MLO can support multiple ELOs.</p>
+          <p style="font-size:12px; color:#666; margin-bottom:12px;">This matrix reflects the ELO tags you've assigned to each MLO on the Module Overview page. Edit tags there to update this matrix.</p>
           <div id="elo-mlo-matrix" style="overflow-x:auto;"></div>
         </div>
 
@@ -668,9 +669,12 @@
         <div class="card" style="padding:16px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
             <h4 style="margin:0; font-size:14px;">Alignment Audit</h4>
-            <button class="elo-add-btn" onclick="runAlignmentAudit()" style="display:flex; align-items:center; gap:4px;">🔍 Run Audit</button>
+            <div style="display:flex; gap:8px;">
+              <button class="elo-add-btn" onclick="aiDoubleCheckAlignment()" style="display:flex; align-items:center; gap:4px;">✨ AI Double-Check</button>
+              <button class="elo-add-btn" onclick="runAlignmentAudit()" style="display:flex; align-items:center; gap:4px;">🔍 Run Audit</button>
+            </div>
           </div>
-          <p style="font-size:12px; color:#666; margin-bottom:12px;">Traces each ELO through MLOs to activities and flags gaps.</p>
+          <p style="font-size:12px; color:#666; margin-bottom:12px;">Traces each ELO through MLOs to activities and flags gaps. Use AI Double-Check to verify your tagging.</p>
           <div id="alignment-audit-report"></div>
         </div>
       </div>
@@ -1855,6 +1859,108 @@
     container.innerHTML = html;
   }
 
+  // ===== MLO → ELO TAGGING (used in Module Overview card & table views) =====
+
+  function getMloEloTags(modNum, mloIdx) {
+    var alignment = activeCourse.eloMloAlignment || {};
+    var mloId = modNum + '.' + (mloIdx + 1);
+    var tags = [];
+    Object.keys(alignment).forEach(function(eloKey) {
+      if ((alignment[eloKey] || []).indexOf(mloId) !== -1) {
+        tags.push(parseInt(eloKey) + 1); // convert 0-indexed key to 1-indexed ELO number
+      }
+    });
+    tags.sort(function(a,b) { return a - b; });
+    return tags;
+  }
+
+  function buildMloEloTagsHtml(modNum, mloIdx) {
+    var elos = activeCourse.flatElos || [];
+    if (elos.length === 0) return '';
+    var tags = getMloEloTags(modNum, mloIdx);
+    var pickerId = 'elo-tag-' + modNum + '-' + mloIdx;
+
+    var html = '<div class="elo-tag-picker" data-picker-id="' + pickerId + '" style="margin-top:2px;">';
+    html += '<div class="elo-tag-display" onclick="toggleEloTagDropdown(\'' + pickerId + '\')" style="display:flex; flex-wrap:wrap; gap:3px; align-items:center; cursor:pointer; min-height:20px;">';
+    if (tags.length > 0) {
+      tags.forEach(function(eloNum) {
+        var eloText = elos[eloNum - 1] || '';
+        html += '<span class="obj-chip" data-tooltip="ELO ' + eloNum + ': ' + escapeHtml(eloText).replace(/"/g, '&quot;') + '" style="font-size:10px; padding:1px 5px;">ELO ' + eloNum + '</span>';
+      });
+    } else {
+      html += '<span style="font-size:10px; color:#bbb; font-style:italic;">+ Tag ELOs</span>';
+    }
+    html += '</div>';
+
+    // Dropdown
+    html += '<div class="obj-dropdown" id="elo-dd-' + pickerId + '" style="min-width:200px;">';
+    for (var i = 0; i < elos.length; i++) {
+      var isSelected = tags.indexOf(i + 1) !== -1;
+      html += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleMloEloTag(\'' + pickerId + '\',' + modNum + ',' + mloIdx + ',' + i + ')">';
+      html += '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ';
+      html += '<span><strong>ELO ' + (i+1) + '</strong> ' + escapeHtml((elos[i] || '').substring(0, 50)) + (elos[i] && elos[i].length > 50 ? '…' : '') + '</span>';
+      html += '</div>';
+    }
+    html += '</div>';
+    html += '</div>';
+    return html;
+  }
+
+  function toggleEloTagDropdown(pickerId) {
+    var dd = document.getElementById('elo-dd-' + pickerId);
+    if (!dd) return;
+    var display = dd.previousElementSibling;
+    var isOpen = dd.classList.contains('show');
+    // Close all other dropdowns
+    document.querySelectorAll('.obj-dropdown').forEach(function(d) { d.classList.remove('show'); if (d.previousElementSibling) d.previousElementSibling.classList.remove('open'); });
+    if (!isOpen) {
+      dd.classList.add('show');
+      display.classList.add('open');
+    }
+  }
+
+  function toggleMloEloTag(pickerId, modNum, mloIdx, eloIdx) {
+    var mloId = modNum + '.' + (mloIdx + 1);
+    if (!activeCourse.eloMloAlignment) activeCourse.eloMloAlignment = {};
+    var key = eloIdx + '';
+    if (!activeCourse.eloMloAlignment[key]) activeCourse.eloMloAlignment[key] = [];
+    var arr = activeCourse.eloMloAlignment[key];
+    var idx = arr.indexOf(mloId);
+    if (idx !== -1) {
+      arr.splice(idx, 1);
+    } else {
+      arr.push(mloId);
+    }
+    saveField('eloMloAlignment', activeCourse.eloMloAlignment);
+
+    // Update dropdown visual
+    var dd = document.getElementById('elo-dd-' + pickerId);
+    if (dd) {
+      var options = dd.querySelectorAll('.obj-option');
+      options.forEach(function(opt, i) {
+        var check = opt.querySelector('.obj-check');
+        if (i === eloIdx) {
+          opt.classList.toggle('selected');
+          check.textContent = opt.classList.contains('selected') ? '✓' : '';
+        }
+      });
+    }
+
+    // Update all display chips for this MLO (both card and table views may be in DOM)
+    document.querySelectorAll('[data-picker-id="' + pickerId + '"] .elo-tag-display').forEach(function(display) {
+      var tags = getMloEloTags(modNum, mloIdx);
+      var elos = activeCourse.flatElos || [];
+      if (tags.length > 0) {
+        display.innerHTML = tags.map(function(eloNum) {
+          var eloText = elos[eloNum - 1] || '';
+          return '<span class="obj-chip" data-tooltip="ELO ' + eloNum + ': ' + escapeHtml(eloText).replace(/"/g, '&quot;') + '" style="font-size:10px; padding:1px 5px;">ELO ' + eloNum + '</span>';
+        }).join('');
+      } else {
+        display.innerHTML = '<span style="font-size:10px; color:#bbb; font-style:italic;">+ Tag ELOs</span>';
+      }
+    });
+  }
+
   // ===== COURSE MAPPING: ELO ↔ MLO MATRIX =====
 
   function getEloMloAlignment() {
@@ -1970,8 +2076,8 @@
         var checked = eloMlos.indexOf(mlo.id) !== -1;
         var modBorder = mlo.modNum !== lastMod ? ' border-left:2px solid #8c1d40;' : '';
         lastMod = mlo.modNum;
-        html += '<td style="padding:2px; border:1px solid #e0ddd5; text-align:center;' + modBorder + '">' +
-          '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleEloMlo(' + i + ',' + mlo.modNum + ',' + mlo.mloIdx + ',this.checked)" style="width:16px; height:16px; cursor:pointer; accent-color:#8c1d40;" />' +
+        html += '<td style="padding:2px; border:1px solid #e0ddd5; text-align:center; font-size:14px;' + modBorder + (checked ? ' background:#f0faf0;' : '') + '">' +
+          (checked ? '✓' : '') +
           '</td>';
       });
       html += '</tr>';
@@ -2338,11 +2444,14 @@
 
       if (mloCount > 0) {
         for (let j = 0; j < mloCount; j++) {
-          html += '<div class="obj-entry" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
-          html += '<span class="card-mlo-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#ccc; font-size:11px; cursor:grab; user-select:none; flex-shrink:0;">⠿</span>';
-          html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.' + (j + 1) + '</span>';
+          html += '<div class="obj-entry" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="display:flex; align-items:start; gap:8px; margin-bottom:6px;">';
+          html += '<span class="card-mlo-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#ccc; font-size:11px; cursor:grab; user-select:none; flex-shrink:0; margin-top:8px;">⠿</span>';
+          html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0; margin-top:6px;">' + modNum + '.' + (j + 1) + '</span>';
+          html += '<div style="flex:1; min-width:0;">';
           html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
-          html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0;" title="Remove">&times;</button>';
+          html += buildMloEloTagsHtml(modNum, j);
+          html += '</div>';
+          html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; margin-top:6px;" title="Remove">&times;</button>';
           html += '</div>';
         }
       } else {
@@ -2371,6 +2480,7 @@
         '<th style="width:40px;">Mod</th>' +
         '<th style="width:140px;">Topic</th>' +
         '<th>Objectives (MLOs)</th>' +
+        '<th style="width:110px;">ELOs</th>' +
         '</tr></thead><tbody>';
       for (var m = 0; m < modCount; m++) {
         var modNum = m + 1;
@@ -2396,15 +2506,16 @@
               'style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; font-family:Inter,sans-serif;">' + escapeHtml(mlos[j]) + '</textarea>' +
               '<button onclick="deleteTableMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0; line-height:1;" title="Remove">&times;</button>' +
               '</div></td>';
+            thtml += '<td class="mlo-cell" style="vertical-align:top;">' + buildMloEloTagsHtml(modNum, j) + '</td>';
             thtml += '</tr>';
           }
         } else {
-          thtml += '<td class="mlo-cell" data-mod="' + modNum + '" style="color:#ccc; font-style:italic; font-size:12px;">No objectives yet</td></tr>';
+          thtml += '<td class="mlo-cell" data-mod="' + modNum + '" style="color:#ccc; font-style:italic; font-size:12px;">No objectives yet</td><td class="mlo-cell"></td></tr>';
         }
         // Add MLO row
         thtml += '<tr data-mod="' + modNum + '"><td style="padding:2px 8px; border-bottom:2px solid #e0ddd5;">' +
           '<button onclick="addTableMlo(' + modNum + ')" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; font-weight:600; padding:2px 0;">+ Add objective</button>' +
-          '</td></tr>';
+          '</td><td style="border-bottom:2px solid #e0ddd5;"></td></tr>';
       }
       thtml += '</tbody></table>';
       tableContainer.innerHTML = thtml;
@@ -4638,6 +4749,49 @@
     document.getElementById('ai-panel').classList.toggle('open');
   }
 
+  function aiDoubleCheckAlignment() {
+    if (!getApiKey()) {
+      pendingMessage = '__alignment_check__';
+      showApiKeyModal();
+      return;
+    }
+    // Build a summary of current ELO-MLO tagging
+    var elos = activeCourse.flatElos || [];
+    var allMlos = getAllMlos();
+    var alignment = activeCourse.eloMloAlignment || {};
+    if (elos.length === 0 || allMlos.length === 0) {
+      alert('Define ELOs and MLOs first.');
+      return;
+    }
+
+    var summary = 'Please review my ELO-to-MLO alignment tagging and tell me if you see any issues:\n\n';
+    elos.forEach(function(elo, i) {
+      var linked = alignment[i + ''] || [];
+      summary += 'ELO ' + (i+1) + ': ' + elo + '\n';
+      if (linked.length > 0) {
+        summary += '  Tagged MLOs: ' + linked.map(function(mloId) {
+          var mloObj = allMlos.find(function(m) { return m.id === mloId; });
+          return mloId + (mloObj ? ' (' + mloObj.text.substring(0, 40) + ')' : '');
+        }).join(', ') + '\n';
+      } else {
+        summary += '  Tagged MLOs: NONE\n';
+      }
+    });
+    // Also list untagged MLOs
+    var linkedSet = {};
+    Object.keys(alignment).forEach(function(k) { (alignment[k] || []).forEach(function(id) { linkedSet[id] = true; }); });
+    var untagged = allMlos.filter(function(m) { return !linkedSet[m.id]; });
+    if (untagged.length > 0) {
+      summary += '\nMLOs not tagged to any ELO: ' + untagged.map(function(m) { return m.id + ' (' + m.text.substring(0, 30) + ')'; }).join(', ');
+    }
+    summary += '\n\nAre there any misalignments, missing connections, or suggestions?';
+
+    // Open AI panel and send
+    var panel = document.getElementById('ai-panel');
+    if (!panel.classList.contains('open')) panel.classList.add('open');
+    doSendAIMessage(summary);
+  }
+
   // ===== OBJECTIVE PICKER =====
   function toggleObjDropdown(pickerId) {
     const dd = document.getElementById('obj-dropdown-' + pickerId);
@@ -5755,8 +5909,8 @@
 
   // Close dropdowns when clicking outside
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.obj-picker')) {
-      document.querySelectorAll('.obj-dropdown').forEach(d => { d.classList.remove('show'); d.previousElementSibling.classList.remove('open'); });
+    if (!e.target.closest('.obj-picker') && !e.target.closest('.elo-tag-picker')) {
+      document.querySelectorAll('.obj-dropdown').forEach(function(d) { d.classList.remove('show'); if (d.previousElementSibling) d.previousElementSibling.classList.remove('open'); });
     }
   });
 
