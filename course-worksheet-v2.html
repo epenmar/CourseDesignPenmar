@@ -471,6 +471,9 @@
       <div class="nav-item" onclick="showView('materials-overview')">
         <span class="icon">📖</span> Materials Overview
       </div>
+      <div class="nav-item" onclick="showView('course-mapping')">
+        <span class="icon">🔗</span> Course Mapping
+      </div>
 
       <div id="sidebar-module-list"></div>
     </div>
@@ -644,6 +647,31 @@
         </div>
         <div id="materials-overview-cards"></div>
         <div id="materials-overview-table" style="display:none;"></div>
+      </div>
+
+      <!-- ===== COURSE MAPPING ===== -->
+      <div id="view-course-mapping" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Mapping</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:16px;">Map ELOs to MLOs and audit alignment across your course design.</p>
+
+        <!-- ELO ↔ MLO Matrix -->
+        <div class="card" style="padding:16px; margin-bottom:20px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h4 style="margin:0; font-size:14px;">ELO → MLO Alignment Matrix</h4>
+          </div>
+          <p style="font-size:12px; color:#666; margin-bottom:12px;">Check which MLOs support each ELO. An MLO can support multiple ELOs.</p>
+          <div id="elo-mlo-matrix" style="overflow-x:auto;"></div>
+        </div>
+
+        <!-- Alignment Audit -->
+        <div class="card" style="padding:16px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+            <h4 style="margin:0; font-size:14px;">Alignment Audit</h4>
+            <button class="elo-add-btn" onclick="runAlignmentAudit()" style="display:flex; align-items:center; gap:4px;">🔍 Run Audit</button>
+          </div>
+          <p style="font-size:12px; color:#666; margin-bottom:12px;">Traces each ELO through MLOs to activities and flags gaps.</p>
+          <div id="alignment-audit-report"></div>
+        </div>
       </div>
 
       <!-- ===== MODULE DETAIL ===== -->
@@ -1668,6 +1696,8 @@
     if (savedFlatElos) activeCourse.flatElos = savedFlatElos;
     const savedAlignment = loadField('cloEloAlignment');
     if (savedAlignment) activeCourse.cloEloAlignment = savedAlignment;
+    const savedEloMlo = loadField('eloMloAlignment');
+    if (savedEloMlo) activeCourse.eloMloAlignment = savedEloMlo;
     const savedClos = loadField('clos');
     if (savedClos) activeCourse.clos = savedClos;
 
@@ -1821,6 +1851,329 @@
       html += '</tr>';
     });
     html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ===== COURSE MAPPING: ELO ↔ MLO MATRIX =====
+
+  function getEloMloAlignment() {
+    return activeCourse.eloMloAlignment || {};
+  }
+
+  function toggleEloMlo(eloIdx, modNum, mloIdx, checked) {
+    if (!activeCourse.eloMloAlignment) activeCourse.eloMloAlignment = {};
+    var key = eloIdx + '';
+    if (!activeCourse.eloMloAlignment[key]) activeCourse.eloMloAlignment[key] = [];
+    var mloId = modNum + '.' + (mloIdx + 1);
+    var arr = activeCourse.eloMloAlignment[key];
+    if (checked) {
+      if (arr.indexOf(mloId) === -1) arr.push(mloId);
+    } else {
+      var idx = arr.indexOf(mloId);
+      if (idx !== -1) arr.splice(idx, 1);
+    }
+    saveField('eloMloAlignment', activeCourse.eloMloAlignment);
+    // Don't re-render — checkbox already reflects the state
+  }
+
+  function getAllMlos() {
+    var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    var moduleOverviewData = loadField('moduleOverviewData') || {};
+    var allMlos = [];
+    for (var m = 1; m <= modCount; m++) {
+      var modData = moduleOverviewData[m] || {};
+      var topic = modData.topic || (activeCourse.modules[m-1] ? activeCourse.modules[m-1].title : '');
+      var mlos = modData.mlos || (activeCourse.modules[m-1] ? activeCourse.modules[m-1].mlos : []) || [];
+      for (var j = 0; j < mlos.length; j++) {
+        if (mlos[j] && mlos[j].trim()) {
+          allMlos.push({ modNum: m, mloIdx: j, id: m + '.' + (j+1), text: mlos[j], topic: topic });
+        }
+      }
+    }
+    return allMlos;
+  }
+
+  function renderEloMloMatrix() {
+    var container = document.getElementById('elo-mlo-matrix');
+    if (!container) return;
+    migrateToDecoupledObjectives();
+
+    var elos = activeCourse.flatElos || [];
+    var allMlos = getAllMlos();
+    var alignment = getEloMloAlignment();
+
+    // Load from localStorage if not in memory
+    if (Object.keys(alignment).length === 0) {
+      var saved = loadField('eloMloAlignment');
+      if (saved) {
+        activeCourse.eloMloAlignment = saved;
+        alignment = saved;
+      }
+    }
+
+    if (elos.length === 0 || allMlos.length === 0) {
+      container.innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">Define ELOs and module MLOs to see the alignment matrix.</div>';
+      return;
+    }
+
+    var html = '<table style="border-collapse:collapse; font-size:12px; width:100%;">';
+
+    // Header row with MLO numbers
+    html += '<thead><tr><th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; min-width:140px;"></th>';
+    var lastMod = 0;
+    allMlos.forEach(function(mlo) {
+      var modBorder = mlo.modNum !== lastMod ? ' border-left:2px solid #8c1d40;' : '';
+      lastMod = mlo.modNum;
+      html += '<th style="padding:6px 4px; border:1px solid #e0ddd5; background:#fef9f0; text-align:center; min-width:44px; font-weight:500; font-size:11px;' + modBorder + '" title="MLO ' + mlo.id + ': ' + escapeHtml(mlo.text) + '">' + mlo.id + '</th>';
+    });
+    html += '</tr>';
+
+    // Module header row
+    html += '<tr><th style="padding:4px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-size:11px; color:#888;">ELO ↓ &nbsp; MLO →</th>';
+    lastMod = 0;
+    var modSpans = [];
+    allMlos.forEach(function(mlo, idx) {
+      if (mlo.modNum !== lastMod) {
+        if (lastMod > 0) modSpans[modSpans.length - 1].span = idx - modSpans[modSpans.length - 1].start;
+        modSpans.push({ mod: mlo.modNum, start: idx, topic: mlo.topic });
+        lastMod = mlo.modNum;
+      }
+    });
+    if (modSpans.length > 0) modSpans[modSpans.length - 1].span = allMlos.length - modSpans[modSpans.length - 1].start;
+    // Re-build: we need a second header row for module grouping
+    // Actually rebuild the whole header
+    html = '<table style="border-collapse:collapse; font-size:12px; width:100%;">';
+    html += '<thead>';
+    // Module group row
+    html += '<tr><th style="padding:4px 8px; border:1px solid #e0ddd5; background:#f5f5f0;"></th>';
+    modSpans.forEach(function(ms) {
+      html += '<th colspan="' + ms.span + '" style="padding:4px 6px; border:1px solid #e0ddd5; background:#f0eee8; text-align:center; font-size:11px; font-weight:600; color:#8c1d40; border-left:2px solid #8c1d40;">M' + ms.mod + (ms.topic ? ': ' + escapeHtml(ms.topic.substring(0, 20)) + (ms.topic.length > 20 ? '…' : '') : '') + '</th>';
+    });
+    html += '</tr>';
+    // MLO number row
+    html += '<tr><th style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; min-width:140px; font-size:11px; color:#888;">ELO ↓ &nbsp; MLO →</th>';
+    lastMod = 0;
+    allMlos.forEach(function(mlo) {
+      var modBorder = mlo.modNum !== lastMod ? ' border-left:2px solid #8c1d40;' : '';
+      lastMod = mlo.modNum;
+      html += '<th style="padding:4px; border:1px solid #e0ddd5; background:#fef9f0; text-align:center; min-width:44px; font-weight:500; font-size:11px;' + modBorder + '" title="MLO ' + mlo.id + ': ' + escapeHtml(mlo.text) + '">' + mlo.id + '</th>';
+    });
+    html += '</tr></thead><tbody>';
+
+    // One row per ELO
+    elos.forEach(function(elo, i) {
+      html += '<tr><td style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:11px; white-space:nowrap;" title="' + escapeHtml(elo) + '">ELO ' + (i+1) + '</td>';
+      var eloMlos = alignment[i + ''] || [];
+      lastMod = 0;
+      allMlos.forEach(function(mlo) {
+        var checked = eloMlos.indexOf(mlo.id) !== -1;
+        var modBorder = mlo.modNum !== lastMod ? ' border-left:2px solid #8c1d40;' : '';
+        lastMod = mlo.modNum;
+        html += '<td style="padding:2px; border:1px solid #e0ddd5; text-align:center;' + modBorder + '">' +
+          '<input type="checkbox" ' + (checked ? 'checked' : '') + ' onchange="toggleEloMlo(' + i + ',' + mlo.modNum + ',' + mlo.mloIdx + ',this.checked)" style="width:16px; height:16px; cursor:pointer; accent-color:#8c1d40;" />' +
+          '</td>';
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table>';
+    container.innerHTML = html;
+  }
+
+  // ===== ALIGNMENT AUDIT =====
+
+  function runAlignmentAudit() {
+    var container = document.getElementById('alignment-audit-report');
+    if (!container) return;
+
+    var elos = activeCourse.flatElos || [];
+    var allMlos = getAllMlos();
+    var eloMloAlignment = getEloMloAlignment();
+    var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+
+    // Load from localStorage if needed
+    if (Object.keys(eloMloAlignment).length === 0) {
+      var saved = loadField('eloMloAlignment');
+      if (saved) {
+        activeCourse.eloMloAlignment = saved;
+        eloMloAlignment = saved;
+      }
+    }
+
+    if (elos.length === 0) {
+      container.innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">Define ELOs and complete the alignment matrix above to run an audit.</div>';
+      return;
+    }
+
+    var issues = [];
+    var stats = { elosCovered: 0, mlosLinked: 0, mlosAssessed: 0, untaggedActivities: 0, totalActivities: 0 };
+
+    // Build MLO → activities map
+    var mloActivityMap = {};
+    for (var m = 1; m <= modCount; m++) {
+      var acts = courseActivities[m] || [];
+      acts.forEach(function(act) {
+        stats.totalActivities++;
+        var tagged = act.objectives || [];
+        if (tagged.length === 0) {
+          stats.untaggedActivities++;
+        }
+        tagged.forEach(function(tag) {
+          if (!mloActivityMap[tag]) mloActivityMap[tag] = [];
+          mloActivityMap[tag].push({ name: act.name || 'Unnamed', module: m, type: act.contentType || '' });
+        });
+      });
+    }
+
+    // Build traceability data
+    var traceRows = [];
+
+    elos.forEach(function(elo, eloIdx) {
+      var linkedMlos = eloMloAlignment[eloIdx + ''] || [];
+      if (linkedMlos.length === 0) {
+        issues.push({ severity: 'critical', type: 'Phantom ELO', message: 'ELO ' + (eloIdx+1) + ' has no MLOs mapped to it', detail: elo });
+      } else {
+        stats.elosCovered++;
+      }
+
+      linkedMlos.forEach(function(mloId) {
+        var mloObj = allMlos.find(function(m) { return m.id === mloId; });
+        var activities = mloActivityMap[mloId] || [];
+        var mloText = mloObj ? mloObj.text : mloId;
+
+        traceRows.push({
+          elo: 'ELO ' + (eloIdx+1),
+          eloText: elo,
+          mlo: 'MLO ' + mloId,
+          mloText: mloText,
+          activities: activities
+        });
+
+        if (activities.length === 0) {
+          issues.push({ severity: 'major', type: 'Phantom MLO', message: 'MLO ' + mloId + ' has no activity addressing it', detail: mloText });
+        } else {
+          stats.mlosAssessed++;
+        }
+      });
+    });
+
+    // Check for orphan MLOs (MLOs not linked to any ELO)
+    var linkedMloIds = {};
+    Object.keys(eloMloAlignment).forEach(function(k) {
+      (eloMloAlignment[k] || []).forEach(function(id) { linkedMloIds[id] = true; });
+    });
+    allMlos.forEach(function(mlo) {
+      if (linkedMloIds[mlo.id]) stats.mlosLinked++;
+      else {
+        issues.push({ severity: 'major', type: 'Orphan MLO', message: 'MLO ' + mlo.id + ' is not linked to any ELO', detail: mlo.text });
+      }
+    });
+
+    // Check for untagged activities
+    for (var m = 1; m <= modCount; m++) {
+      var acts = courseActivities[m] || [];
+      acts.forEach(function(act) {
+        if (!act.objectives || act.objectives.length === 0) {
+          issues.push({ severity: 'minor', type: 'Stealth Assessment', message: 'Activity "' + (act.name || 'Unnamed') + '" (Module ' + m + ') is not tagged to any MLO', detail: '' });
+        }
+      });
+    }
+
+    // Check for MLOs with only one activity (Single-Shot Skill)
+    allMlos.forEach(function(mlo) {
+      var acts = mloActivityMap[mlo.id] || [];
+      if (acts.length === 1 && linkedMloIds[mlo.id]) {
+        issues.push({ severity: 'minor', type: 'Single-Shot Skill', message: 'MLO ' + mlo.id + ' is only addressed by one activity', detail: mlo.text });
+      }
+    });
+
+    // Render the report
+    var html = '';
+
+    // Summary bar
+    var healthPct = 0;
+    var healthChecks = 0;
+    if (elos.length > 0) { healthPct += (stats.elosCovered / elos.length) * 100; healthChecks++; }
+    if (allMlos.length > 0) { healthPct += (stats.mlosLinked / allMlos.length) * 100; healthChecks++; }
+    if (allMlos.length > 0) { healthPct += (stats.mlosAssessed / allMlos.length) * 100; healthChecks++; }
+    if (stats.totalActivities > 0) { healthPct += ((stats.totalActivities - stats.untaggedActivities) / stats.totalActivities) * 100; healthChecks++; }
+    var overallHealth = healthChecks > 0 ? Math.round(healthPct / healthChecks) : 0;
+
+    var healthColor = overallHealth >= 80 ? '#2d7d46' : overallHealth >= 50 ? '#c4841d' : '#c0392b';
+    html += '<div style="display:flex; gap:16px; margin-bottom:20px; flex-wrap:wrap;">';
+    html += '<div style="flex:1; min-width:120px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:28px; font-weight:700; color:' + healthColor + ';">' + overallHealth + '%</div>';
+    html += '<div style="font-size:11px; color:#888;">Overall Alignment</div></div>';
+    html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:20px; font-weight:600; color:#333;">' + stats.elosCovered + '/' + elos.length + '</div>';
+    html += '<div style="font-size:11px; color:#888;">ELOs Covered</div></div>';
+    html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:20px; font-weight:600; color:#333;">' + stats.mlosLinked + '/' + allMlos.length + '</div>';
+    html += '<div style="font-size:11px; color:#888;">MLOs Linked</div></div>';
+    html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:20px; font-weight:600; color:#333;">' + (stats.totalActivities - stats.untaggedActivities) + '/' + stats.totalActivities + '</div>';
+    html += '<div style="font-size:11px; color:#888;">Activities Tagged</div></div>';
+    html += '</div>';
+
+    // Issues list
+    if (issues.length > 0) {
+      html += '<h4 style="font-size:13px; margin:16px 0 8px; font-weight:600;">Issues Found (' + issues.length + ')</h4>';
+      var sevOrder = { critical: 0, major: 1, minor: 2 };
+      issues.sort(function(a, b) { return (sevOrder[a.severity] || 9) - (sevOrder[b.severity] || 9); });
+      html += '<div style="display:flex; flex-direction:column; gap:6px;">';
+      issues.forEach(function(issue) {
+        var sevColor = issue.severity === 'critical' ? '#c0392b' : issue.severity === 'major' ? '#c4841d' : '#888';
+        var sevBg = issue.severity === 'critical' ? '#fef0f0' : issue.severity === 'major' ? '#fef9f0' : '#f5f5f0';
+        var sevLabel = issue.severity.charAt(0).toUpperCase() + issue.severity.slice(1);
+        html += '<div style="display:flex; align-items:start; gap:8px; padding:8px 12px; background:' + sevBg + '; border-radius:6px; border-left:3px solid ' + sevColor + ';">';
+        html += '<span style="font-size:10px; font-weight:700; color:' + sevColor + '; text-transform:uppercase; min-width:55px; padding-top:1px;">' + sevLabel + '</span>';
+        html += '<div><span style="font-size:12px; font-weight:600; color:#333;">' + escapeHtml(issue.type) + ':</span> <span style="font-size:12px; color:#555;">' + escapeHtml(issue.message) + '</span>';
+        if (issue.detail) html += '<div style="font-size:11px; color:#888; margin-top:2px;">' + escapeHtml(issue.detail.substring(0, 80)) + (issue.detail.length > 80 ? '…' : '') + '</div>';
+        html += '</div></div>';
+      });
+      html += '</div>';
+    } else if (elos.length > 0 && allMlos.length > 0 && Object.keys(eloMloAlignment).length > 0) {
+      html += '<div style="padding:16px; background:#f0faf0; border-radius:8px; text-align:center; color:#2d7d46; font-size:13px; font-weight:500;">✅ No alignment issues found. All objectives are properly traced to activities.</div>';
+    }
+
+    // Traceability table
+    if (traceRows.length > 0) {
+      html += '<h4 style="font-size:13px; margin:20px 0 8px; font-weight:600;">Traceability Table</h4>';
+      html += '<div style="overflow-x:auto;"><table style="border-collapse:collapse; font-size:12px; width:100%;">';
+      html += '<thead><tr>';
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap;">ELO</th>';
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap;">MLO</th>';
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">MLO Text</th>';
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">Activities</th>';
+      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:center;">Status</th>';
+      html += '</tr></thead><tbody>';
+
+      traceRows.forEach(function(row) {
+        var statusColor = row.activities.length > 0 ? '#2d7d46' : '#c0392b';
+        var statusIcon = row.activities.length > 0 ? '✅' : '❌';
+        var statusText = row.activities.length > 0 ? row.activities.length + ' activit' + (row.activities.length === 1 ? 'y' : 'ies') : 'No activities';
+        html += '<tr>';
+        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; font-weight:600; color:#8c1d40; white-space:nowrap;">' + row.elo + '</td>';
+        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; white-space:nowrap;">' + row.mlo + '</td>';
+        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; color:#555; max-width:250px;">' + escapeHtml(row.mloText.substring(0, 80)) + (row.mloText.length > 80 ? '…' : '') + '</td>';
+        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">';
+        if (row.activities.length > 0) {
+          row.activities.forEach(function(a) {
+            html += '<div style="font-size:11px;">' + escapeHtml(a.name) + ' <span style="color:#999;">(M' + a.module + ')</span></div>';
+          });
+        } else {
+          html += '<span style="color:#c0392b; font-size:11px;">—</span>';
+        }
+        html += '</td>';
+        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; text-align:center; color:' + statusColor + '; font-size:11px;">' + statusIcon + ' ' + statusText + '</td>';
+        html += '</tr>';
+      });
+
+      html += '</tbody></table></div>';
+    } else if (Object.keys(eloMloAlignment).length === 0 && elos.length > 0 && allMlos.length > 0) {
+      html += '<div style="padding:16px; background:#fef9f0; border-radius:8px; text-align:center; color:#c4841d; font-size:13px;">Complete the ELO → MLO alignment matrix above, then run the audit to see your traceability report.</div>';
+    }
+
     container.innerHTML = html;
   }
 
@@ -2628,6 +2981,7 @@
       { label: 'Module MLOs and Topics Review', section: 'module-overview', action: "showView('module-overview')" },
       { label: 'Assignments Review', section: 'assignments-overview', action: "showView('assignments-overview')" },
       { label: 'Materials Review', section: 'materials-overview', action: "showView('materials-overview')" },
+      { label: 'Alignment Audit', section: 'course-mapping', action: "showView('course-mapping')" },
     ];
     for (let i = 1; i <= course.moduleCount; i++) {
       ms.push({ label: 'Module ' + i, section: 'mod-' + i, action: "showModule(" + i + ")" });
@@ -3250,6 +3604,28 @@
       prompt += '- Links should be descriptive ("Read the Jones 2024 study") not "click here"\n\n';
     }
 
+    if (view === 'course-mapping') {
+      prompt += '## PAGE CONTEXT: Course Mapping & Alignment Audit\n';
+      prompt += 'The user is mapping ELOs to MLOs and auditing alignment. Provide expertise in:\n\n';
+      prompt += '### ELO → MLO ALIGNMENT\n';
+      prompt += '- Each ELO should be supported by 3-7 MLOs across modules\n';
+      prompt += '- An ELO with 0 MLOs = Phantom ELO (critical gap — this outcome is never taught)\n';
+      prompt += '- An MLO not linked to any ELO = Orphan MLO (may indicate scope creep or a missing ELO)\n';
+      prompt += '- Look for ELOs supported by only one module — single points of failure\n';
+      prompt += '- Verify Bloom\'s consistency: if the ELO is at Evaluate, its supporting MLOs should build toward that level\n\n';
+      prompt += '### TRACEABILITY ANALYSIS\n';
+      prompt += '- The full chain is: ELO → MLO → Activity/Assessment\n';
+      prompt += '- A complete chain means the objective is taught AND assessed\n';
+      prompt += '- A broken chain (MLO with no activity) = teaching gap\n';
+      prompt += '- An activity with no MLO tag = Stealth Assessment (testing something never formally targeted)\n';
+      prompt += '- An MLO addressed by only one activity = Single-Shot Skill (no distributed practice)\n\n';
+      prompt += '### INTERPRETING THE AUDIT\n';
+      prompt += '- Critical issues: Phantom ELOs (untaught outcomes), phantom MLOs (unassessed objectives)\n';
+      prompt += '- Major issues: Orphan MLOs (scope creep), assessment overload (one activity → 5+ MLOs)\n';
+      prompt += '- Minor issues: Stealth assessments, single-shot skills\n';
+      prompt += '- Overall health >80% = good shape; 50-80% = needs attention; <50% = significant gaps\n\n';
+    }
+
     if (view === 'preview') {
       prompt += '## PAGE CONTEXT: Document Preview / QA\n';
       prompt += 'The user is reviewing the full course design. Provide expertise in:\n\n';
@@ -3362,14 +3738,14 @@
   setTimeout(() => renderPageNav('dashboard'), 0);
 
   // ===== VIEW SWITCHING =====
-  const views = ['dashboard','module','module-overview','assignments-overview','materials-overview','course-info','objectives','additional','materials','preview'];
+  const views = ['dashboard','module','module-overview','assignments-overview','materials-overview','course-mapping','course-info','objectives','additional','materials','preview'];
   let currentViewId = 'dashboard';
 
   function getCurrentSection() {
     var sectionMap = {
       'dashboard': 'dashboard', 'course-info': 'course-info', 'objectives': 'clos-elos',
       'additional': 'additional', 'materials': 'textbooks', 'module-overview': 'module-overview',
-      'assignments-overview': 'assignments-overview', 'materials-overview': 'materials-overview',
+      'assignments-overview': 'assignments-overview', 'materials-overview': 'materials-overview', 'course-mapping': 'course-mapping',
       'module': 'module-' + currentModuleNum, 'preview': 'preview'
     };
     return sectionMap[currentViewId] || currentViewId;
@@ -3397,7 +3773,7 @@
       target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-mapping':'Module Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -3412,6 +3788,7 @@
     // Render overview content when navigating to overview views
     if (viewId === 'assignments-overview') renderAssignmentsOverview();
     if (viewId === 'materials-overview') renderMaterialsOverview();
+    if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); }
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
     if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
@@ -4349,6 +4726,7 @@
       { id: 'module-overview', label: 'Module Overview', action: "showView('module-overview')" },
       { id: 'assignments-overview', label: 'Assignments Overview', action: "showView('assignments-overview')" },
       { id: 'materials-overview', label: 'Materials Overview', action: "showView('materials-overview')" },
+      { id: 'course-mapping', label: 'Course Mapping', action: "showView('course-mapping')" },
     ];
     const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     for (let i = 1; i <= modCount; i++) {
@@ -5493,6 +5871,72 @@
         });
         html += '</ul>';
       }
+    }
+
+    // Alignment Audit section
+    var auditElos = activeCourse.flatElos || [];
+    var auditMlos = getAllMlos();
+    var auditAlignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
+
+    if (auditElos.length > 0 && auditMlos.length > 0 && Object.keys(auditAlignment).length > 0) {
+      html += '<h2>Course Alignment Map</h2>';
+
+      // ELO → MLO matrix
+      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; margin-bottom:16px;">';
+      html += '<thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;"></th>';
+      auditMlos.forEach(function(mlo) {
+        html += '<th style="padding:4px; border:1px solid #ddd; background:#fef9f0; text-align:center; font-size:10px;">' + mlo.id + '</th>';
+      });
+      html += '</tr></thead><tbody>';
+      auditElos.forEach(function(elo, i) {
+        html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:10px; white-space:nowrap;">ELO ' + (i+1) + '</td>';
+        var linked = auditAlignment[i + ''] || [];
+        auditMlos.forEach(function(mlo) {
+          var checked = linked.indexOf(mlo.id) !== -1;
+          html += '<td style="padding:2px; border:1px solid #ddd; text-align:center;">' + (checked ? '✓' : '') + '</td>';
+        });
+        html += '</tr>';
+      });
+      html += '</tbody></table>';
+
+      // Traceability table
+      html += '<h3>Alignment Traceability</h3>';
+      html += '<table style="border-collapse:collapse; font-size:11px; width:100%;">';
+      html += '<thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">ELO</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">MLO</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Activities</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Status</th></tr></thead><tbody>';
+
+      // Build MLO → activities map for preview
+      var prevMloActMap = {};
+      for (var pm = 1; pm <= modCount; pm++) {
+        (courseActivities[pm] || []).forEach(function(act) {
+          (act.objectives || []).forEach(function(tag) {
+            if (!prevMloActMap[tag]) prevMloActMap[tag] = [];
+            prevMloActMap[tag].push(act.name || 'Unnamed');
+          });
+        });
+      }
+
+      auditElos.forEach(function(elo, eloIdx) {
+        var linkedMlos = auditAlignment[eloIdx + ''] || [];
+        if (linkedMlos.length === 0) {
+          html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1) + '</td>';
+          html += '<td colspan="2" style="padding:4px 6px; border:1px solid #ddd; color:#c0392b;">No MLOs mapped</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; color:#c0392b;">❌</td></tr>';
+        }
+        linkedMlos.forEach(function(mloId, j) {
+          var mloObj = auditMlos.find(function(m) { return m.id === mloId; });
+          var acts = prevMloActMap[mloId] || [];
+          html += '<tr>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1) + '</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd;">MLO ' + mloId + (mloObj ? ': ' + esc(mloObj.text.substring(0, 60)) + (mloObj.text.length > 60 ? '…' : '') : '') + '</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (acts.length > 0 ? acts.map(esc).join(', ') : '<span style="color:#c0392b;">None</span>') + '</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + (acts.length > 0 ? '✅' : '❌') + '</td>';
+          html += '</tr>';
+        });
+      });
+      html += '</tbody></table>';
     }
 
     // Course context Q&A
