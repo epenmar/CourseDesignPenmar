@@ -1298,8 +1298,9 @@
         'Note: Documents you upload through the web app will automatically appear in this Drive folder. However, files added directly to Drive will not sync back to the web app — please use the worksheet upload feature for any materials you want tracked in the development tool.\n\n';
       }
       bodyText += 'Best,\n' + getProfile().sig + '';
-      const body = encodeURIComponent(bodyText);
-      html += `<a href="mailto:${c.email}?subject=${subject}&body=${body}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
+      const wsHtmlBody = bodyToHtml(bodyText);
+      const wsComposeUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${subject}&body=${encodeURIComponent(wsHtmlBody)}&ItemType=Message&deepLinkSource=Other`;
+      html += `<a href="${wsComposeUrl}" target="_blank" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
     html += `</div></div>`;
 
@@ -1515,8 +1516,48 @@
         firstMilestone = c.milestones.find(ms => !ms.done);
       }
 
+      // Extract excitement points from meeting summary and decisions
+      var excitementPoints = [];
+      const summary = (m.summary || '').toLowerCase();
+      const decisions = m.decisions || [];
+      // Look for innovative tools, creative approaches, media, engagement strategies
+      const excitementPatterns = [
+        { pattern: /flipgrid|harmonize|video.?discussion|video.?submission/i, label: 'video-based discussions' },
+        { pattern: /podcast|audio/i, label: 'podcast content' },
+        { pattern: /guest.?speaker/i, label: 'guest speakers from the field' },
+        { pattern: /animation|custom.?media|media.?team|storytelling|visual/i, label: 'custom media and storytelling' },
+        { pattern: /backwards?.?design/i, label: 'backwards design methodology' },
+        { pattern: /case.?stud/i, label: 'real-world case studies' },
+        { pattern: /simulation|interactive/i, label: 'interactive simulations' },
+        { pattern: /peer.?review|collaborative/i, label: 'collaborative learning activities' },
+        { pattern: /project.?based|capstone|applied/i, label: 'applied project work' },
+        { pattern: /office.?hours|synchronous/i, label: 'live interaction opportunities' },
+      ];
+      const allText = (m.summary || '') + ' ' + decisions.join(' ');
+      excitementPatterns.forEach(function(ep) {
+        if (ep.pattern.test(allText) && excitementPoints.length < 3) {
+          excitementPoints.push(ep.label);
+        }
+      });
+
       kickoffBody = `Hi ${name},\n\n`;
-      kickoffBody += `I'm reaching out to check in ${timeRef}. I wanted to send you the links to the various resources we discussed during the meeting.\n\n`;
+      kickoffBody += `I really enjoyed our kickoff ${timeRef.replace('after our kickoff meeting ', '').replace('since our kickoff meeting', 'meeting')} — thank you for sharing your vision for ${courseLabel}! `;
+
+      if (excitementPoints.length > 0) {
+        kickoffBody += `I'm especially excited about the ideas we discussed around `;
+        if (excitementPoints.length === 1) {
+          kickoffBody += excitementPoints[0];
+        } else if (excitementPoints.length === 2) {
+          kickoffBody += excitementPoints[0] + ' and ' + excitementPoints[1];
+        } else {
+          kickoffBody += excitementPoints.slice(0, -1).join(', ') + ', and ' + excitementPoints[excitementPoints.length - 1];
+        }
+        kickoffBody += `. I think these are going to make this course really stand out for students.\n\n`;
+      } else {
+        kickoffBody += `I can already tell this is going to be a great course, and I'm looking forward to helping bring your ideas to life.\n\n`;
+      }
+
+      kickoffBody += `I wanted to send you the links to the various resources we discussed during the meeting.\n\n`;
 
       // Google Drive link
       if (driveUrl) {
@@ -1555,12 +1596,12 @@
         .replace(/MLOs/g, 'Module Learning Objectives (MLOs)') : 'your next steps';
 
       if (instrActions.length > 0) {
-        kickoffBody += `As you begin your work on the ${firstMsLabel} for ${courseLabel}, please know that you can reach out to me any time. `;
+        kickoffBody += `As you begin your work on the ${firstMsLabel} for ${courseLabel}, please know that I'm here to support you every step of the way. `;
       } else {
-        kickoffBody += `As you get started with ${courseLabel} development, please know that you can reach out to me any time. `;
+        kickoffBody += `As you get started with ${courseLabel} development, please know that I'm here to support you every step of the way. `;
       }
 
-      kickoffBody += `Let me know if anything has come up or if there's anything I can help with!\n\n`;
+      kickoffBody += `Don't hesitate to reach out with any questions, ideas, or even just to brainstorm — that's what I'm here for!\n\n`;
 
       // Cross-course items
       const crossItems = allActions.filter(a => !a.done && !isPastEvent(a.text) && isAboutOtherCourse(a.text));
@@ -1581,7 +1622,7 @@
         });
       }
 
-      kickoffBody += `All the best,\nElisa`;
+      kickoffBody += `All the best,\n` + getProfile().sig;
     }
 
     // ===== MEETING FOLLOW-UP (non-kickoff) =====
@@ -1693,19 +1734,41 @@
     // Course readiness body
     const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\n${getProfile().sig}`;
 
+    // Convert plain text body to HTML with embedded links
+    function bodyToHtml(body) {
+      // Escape HTML entities
+      let html = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      // Convert URLs to clickable links — find URLs preceded by descriptive text ending with :\n
+      html = html.replace(/([^\n]+):\n(https?:\/\/[^\s\n]+)/g, function(match, desc, url) {
+        // Use the descriptive text as the link label
+        return '<a href="' + url + '">' + desc.trim() + '</a>';
+      });
+      // Convert any remaining bare URLs to links
+      html = html.replace(/(^|[^"'])(https?:\/\/[^\s<\n]+)/gm, function(match, prefix, url) {
+        return prefix + '<a href="' + url + '">' + url + '</a>';
+      });
+      // Convert bullet points
+      html = html.replace(/  • (.+)/g, '&nbsp;&nbsp;• $1');
+      // Convert newlines to <br>
+      html = html.replace(/\n/g, '<br>');
+      return html;
+    }
+
     const makeMailto = (subj, body) => {
-      return `mailto:${c.email}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
+      // Use Outlook Web compose for HTML support (embedded links)
+      const htmlBody = bodyToHtml(body);
+      return `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(htmlBody)}&ItemType=Message&deepLinkSource=Other`;
     };
 
     // Build dropdown — show kickoff template if applicable, otherwise regular follow-up
     let templateLinks = '';
     if (kickoffBody) {
-      templateLinks += `<a href="${makeMailto('Following Up — ' + courseLabel + ' Kickoff', kickoffBody)}" onclick="this.parentElement.classList.remove('open');">
-          <span class="em-icon">🚀</span><div><div>Kickoff Follow-Up</div><div class="em-desc">Resources and next steps from kickoff meeting</div></div>
+      templateLinks += `<a href="${makeMailto('Following Up — ' + courseLabel + ' Kickoff', kickoffBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">🚀</span><div><div>Kickoff Follow-Up</div><div class="em-desc">Warm follow-up with resources and highlights</div></div>
         </a>`;
     }
     if (followUpBody) {
-      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
+      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
         </a>`;
     }
@@ -1714,13 +1777,13 @@
       <button class="email-dropdown-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open');">📧 ${emailLabel} ▾</button>
       <div class="email-dropdown-menu" id="email-menu-${id}">
         ${templateLinks}
-        <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" onclick="this.parentElement.classList.remove('open');">
+        <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">👋</span><div><div>Check-In</div><div class="em-desc">Ask about progress and offer help</div></div>
         </a>
-        <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" onclick="this.parentElement.classList.remove('open');">
+        <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📊</span><div><div>Course Readiness Update</div><div class="em-desc">Status and progress summary</div></div>
         </a>
-        <a href="mailto:${c.email}?subject=${encodeURIComponent(courseLabel + ' — ')}" onclick="this.parentElement.classList.remove('open');">
+        <a href="https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${encodeURIComponent(courseLabel + ' — ')}&ItemType=Message&deepLinkSource=Other" target="_blank" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">✉️</span><div><div>Blank Email</div><div class="em-desc">Start from scratch</div></div>
         </a>
       </div>
