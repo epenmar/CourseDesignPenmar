@@ -1155,7 +1155,7 @@
       const c = courseData[key];
       if (saved[key] && saved[key]._worksheet) return; // already has worksheet config
       if (!saved[key]) saved[key] = {};
-      const modCount = c.modules ? c.modules.length : 7;
+      const modCount = (c.modules && c.modules.length) ? c.modules.length : 7;
       saved[key]._worksheet = {
         code: c.code, name: c.courseName,
         fullTitle: c.code + ' — ' + c.courseName,
