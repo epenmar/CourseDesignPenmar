@@ -1867,98 +1867,137 @@
     var tags = [];
     Object.keys(alignment).forEach(function(eloKey) {
       if ((alignment[eloKey] || []).indexOf(mloId) !== -1) {
-        tags.push(parseInt(eloKey) + 1); // convert 0-indexed key to 1-indexed ELO number
+        tags.push('ELO ' + (parseInt(eloKey) + 1));
       }
     });
-    tags.sort(function(a,b) { return a - b; });
+    tags.sort();
     return tags;
   }
 
-  function buildMloEloTagsHtml(modNum, mloIdx) {
+  function getEloText(eloId) {
+    // eloId is like "ELO 1", "ELO 2" etc.
+    var match = eloId.match(/(\d+)/);
+    if (!match) return '';
+    var idx = parseInt(match[1]) - 1;
+    var elos = activeCourse.flatElos || [];
+    return elos[idx] || '';
+  }
+
+  function buildMloEloTagsHtml(modNum, mloIdx, viewPrefix) {
     var elos = activeCourse.flatElos || [];
     if (elos.length === 0) return '';
-    var tags = getMloEloTags(modNum, mloIdx);
-    var pickerId = 'elo-tag-' + modNum + '-' + mloIdx;
+    var selected = getMloEloTags(modNum, mloIdx);
+    var pickerId = (viewPrefix || '') + 'elo-' + modNum + '-' + mloIdx;
 
-    var html = '<div class="elo-tag-picker" data-picker-id="' + pickerId + '" style="margin-top:2px;">';
-    html += '<div class="elo-tag-display" onclick="toggleEloTagDropdown(\'' + pickerId + '\')" style="display:flex; flex-wrap:wrap; gap:3px; align-items:center; cursor:pointer; min-height:20px;">';
-    if (tags.length > 0) {
-      tags.forEach(function(eloNum) {
-        var eloText = elos[eloNum - 1] || '';
-        html += '<span class="obj-chip" data-tooltip="ELO ' + eloNum + ': ' + escapeHtml(eloText).replace(/"/g, '&quot;') + '" style="font-size:10px; padding:1px 5px;">ELO ' + eloNum + '</span>';
-      });
+    var chipsHtml = '';
+    if (selected.length === 0) {
+      chipsHtml = '<span class="obj-picker-placeholder">Tag ELOs...</span>';
     } else {
-      html += '<span style="font-size:10px; color:#bbb; font-style:italic;">+ Tag ELOs</span>';
+      chipsHtml = selected.map(function(id) {
+        var fullText = getEloText(id);
+        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
+        return '<span class="obj-chip"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeEloTag(\'' + pickerId + '\',\'' + id + '\')">×</span></span>';
+      }).join('');
     }
-    html += '</div>';
 
-    // Dropdown
-    html += '<div class="obj-dropdown" id="elo-dd-' + pickerId + '" style="min-width:200px;">';
+    var optionsHtml = '';
     for (var i = 0; i < elos.length; i++) {
-      var isSelected = tags.indexOf(i + 1) !== -1;
-      html += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleMloEloTag(\'' + pickerId + '\',' + modNum + ',' + mloIdx + ',' + i + ')">';
-      html += '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ';
-      html += '<span><strong>ELO ' + (i+1) + '</strong> ' + escapeHtml((elos[i] || '').substring(0, 50)) + (elos[i] && elos[i].length > 50 ? '…' : '') + '</span>';
-      html += '</div>';
+      var eloId = 'ELO ' + (i + 1);
+      var isSelected = selected.indexOf(eloId) !== -1;
+      optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleEloTag(\'' + pickerId + '\',\'' + eloId + '\',' + modNum + ',' + mloIdx + ')">' +
+        '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
+        '<span><strong>' + eloId + '</strong> ' + escapeHtml(elos[i]) + '</span></div>';
     }
-    html += '</div>';
-    html += '</div>';
-    return html;
+
+    return '<div class="obj-picker" data-elo-picker="' + pickerId + '" data-mod="' + modNum + '" data-mlo-idx="' + mloIdx + '" style="margin-top:2px;">' +
+      '<div class="obj-picker-display" onclick="toggleObjDropdown(\'' + pickerId + '\')" style="min-height:24px; padding:4px 6px;">' + chipsHtml + '</div>' +
+      '<div class="obj-dropdown" id="obj-dropdown-' + pickerId + '">' + optionsHtml + '</div>' +
+      '</div>';
   }
 
-  function toggleEloTagDropdown(pickerId) {
-    var dd = document.getElementById('elo-dd-' + pickerId);
-    if (!dd) return;
-    var display = dd.previousElementSibling;
-    var isOpen = dd.classList.contains('show');
-    // Close all other dropdowns
-    document.querySelectorAll('.obj-dropdown').forEach(function(d) { d.classList.remove('show'); if (d.previousElementSibling) d.previousElementSibling.classList.remove('open'); });
-    if (!isOpen) {
-      dd.classList.add('show');
-      display.classList.add('open');
-    }
-  }
+  function toggleEloTag(pickerId, eloId, modNum, mloIdx) {
+    var mloIdStr = modNum + '.' + (mloIdx + 1);
+    var match = eloId.match(/(\d+)/);
+    if (!match) return;
+    var eloIdx = parseInt(match[1]) - 1;
 
-  function toggleMloEloTag(pickerId, modNum, mloIdx, eloIdx) {
-    var mloId = modNum + '.' + (mloIdx + 1);
+    // Toggle in data model
     if (!activeCourse.eloMloAlignment) activeCourse.eloMloAlignment = {};
     var key = eloIdx + '';
     if (!activeCourse.eloMloAlignment[key]) activeCourse.eloMloAlignment[key] = [];
     var arr = activeCourse.eloMloAlignment[key];
-    var idx = arr.indexOf(mloId);
+    var idx = arr.indexOf(mloIdStr);
     if (idx !== -1) {
       arr.splice(idx, 1);
     } else {
-      arr.push(mloId);
+      arr.push(mloIdStr);
     }
     saveField('eloMloAlignment', activeCourse.eloMloAlignment);
 
     // Update dropdown visual
-    var dd = document.getElementById('elo-dd-' + pickerId);
-    if (dd) {
-      var options = dd.querySelectorAll('.obj-option');
-      options.forEach(function(opt, i) {
-        var check = opt.querySelector('.obj-check');
-        if (i === eloIdx) {
-          opt.classList.toggle('selected');
-          check.textContent = opt.classList.contains('selected') ? '✓' : '';
-        }
-      });
-    }
-
-    // Update all display chips for this MLO (both card and table views may be in DOM)
-    document.querySelectorAll('[data-picker-id="' + pickerId + '"] .elo-tag-display').forEach(function(display) {
-      var tags = getMloEloTags(modNum, mloIdx);
-      var elos = activeCourse.flatElos || [];
-      if (tags.length > 0) {
-        display.innerHTML = tags.map(function(eloNum) {
-          var eloText = elos[eloNum - 1] || '';
-          return '<span class="obj-chip" data-tooltip="ELO ' + eloNum + ': ' + escapeHtml(eloText).replace(/"/g, '&quot;') + '" style="font-size:10px; padding:1px 5px;">ELO ' + eloNum + '</span>';
-        }).join('');
+    var dd = document.getElementById('obj-dropdown-' + pickerId);
+    if (!dd) return;
+    var options = dd.querySelectorAll('.obj-option');
+    var selected = [];
+    options.forEach(function(opt) {
+      var optId = opt.querySelector('strong').textContent;
+      if (optId === eloId) opt.classList.toggle('selected');
+      var check = opt.querySelector('.obj-check');
+      if (opt.classList.contains('selected')) {
+        check.textContent = '✓';
+        selected.push(optId);
       } else {
-        display.innerHTML = '<span style="font-size:10px; color:#bbb; font-style:italic;">+ Tag ELOs</span>';
+        check.textContent = '';
       }
     });
+
+    // Update display chips
+    var display = dd.previousElementSibling;
+    if (selected.length === 0) {
+      display.innerHTML = '<span class="obj-picker-placeholder">Tag ELOs...</span>';
+    } else {
+      display.innerHTML = selected.map(function(id) {
+        var fullText = getEloText(id);
+        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
+        return '<span class="obj-chip"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeEloTag(\'' + pickerId + '\',\'' + id + '\')">×</span></span>';
+      }).join('');
+    }
+
+    // Sync the other view's picker (card ↔ table)
+    var otherPrefix = pickerId.startsWith('c-') ? 't-' : 'c-';
+    var otherPickerId = otherPrefix + 'elo-' + modNum + '-' + mloIdx;
+    var otherDd = document.getElementById('obj-dropdown-' + otherPickerId);
+    if (otherDd) {
+      var otherOptions = otherDd.querySelectorAll('.obj-option');
+      otherOptions.forEach(function(opt) {
+        var optId = opt.querySelector('strong').textContent;
+        var check = opt.querySelector('.obj-check');
+        if (selected.indexOf(optId) !== -1) {
+          opt.classList.add('selected');
+          check.textContent = '✓';
+        } else {
+          opt.classList.remove('selected');
+          check.textContent = '';
+        }
+      });
+      var otherDisplay = otherDd.previousElementSibling;
+      if (selected.length === 0) {
+        otherDisplay.innerHTML = '<span class="obj-picker-placeholder">Tag ELOs...</span>';
+      } else {
+        otherDisplay.innerHTML = selected.map(function(id) {
+          var fullText = getEloText(id);
+          var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
+          return '<span class="obj-chip"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeEloTag(\'' + otherPickerId + '\',\'' + id + '\')">×</span></span>';
+        }).join('');
+      }
+    }
+  }
+
+  function removeEloTag(pickerId, eloId) {
+    // Extract modNum and mloIdx from pickerId (format: "c-elo-1-0" or "t-elo-1-0")
+    var parts = pickerId.match(/elo-(\d+)-(\d+)$/);
+    if (!parts) return;
+    toggleEloTag(pickerId, eloId, parseInt(parts[1]), parseInt(parts[2]));
   }
 
   // ===== COURSE MAPPING: ELO ↔ MLO MATRIX =====
@@ -2449,7 +2488,7 @@
           html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0; margin-top:6px;">' + modNum + '.' + (j + 1) + '</span>';
           html += '<div style="flex:1; min-width:0;">';
           html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
-          html += buildMloEloTagsHtml(modNum, j);
+          html += buildMloEloTagsHtml(modNum, j, 'c-');
           html += '</div>';
           html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; margin-top:6px;" title="Remove">&times;</button>';
           html += '</div>';
@@ -2506,7 +2545,7 @@
               'style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; font-family:Inter,sans-serif;">' + escapeHtml(mlos[j]) + '</textarea>' +
               '<button onclick="deleteTableMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:14px; padding:0 2px; flex-shrink:0; line-height:1;" title="Remove">&times;</button>' +
               '</div></td>';
-            thtml += '<td class="mlo-cell" style="vertical-align:top;">' + buildMloEloTagsHtml(modNum, j) + '</td>';
+            thtml += '<td class="mlo-cell" style="vertical-align:top;">' + buildMloEloTagsHtml(modNum, j, 't-') + '</td>';
             thtml += '</tr>';
           }
         } else {
@@ -5909,7 +5948,7 @@
 
   // Close dropdowns when clicking outside
   document.addEventListener('click', function(e) {
-    if (!e.target.closest('.obj-picker') && !e.target.closest('.elo-tag-picker')) {
+    if (!e.target.closest('.obj-picker')) {
       document.querySelectorAll('.obj-dropdown').forEach(function(d) { d.classList.remove('show'); if (d.previousElementSibling) d.previousElementSibling.classList.remove('open'); });
     }
   });
