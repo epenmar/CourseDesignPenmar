@@ -680,7 +680,7 @@
               <button class="elo-add-btn" onclick="runAlignmentAudit()" style="display:flex; align-items:center; gap:4px;">🔍 Run Audit</button>
             </div>
           </div>
-          <p style="font-size:12px; color:#666; margin-bottom:12px;">Traces each ELO through MLOs to activities and flags gaps. Use AI Double-Check to verify your tagging.</p>
+          <p style="font-size:12px; color:#666; margin-bottom:12px;"><strong>Run Audit</strong> generates a structural report — tracing ELOs through MLOs to activities and flagging gaps, orphans, or over-reliance. <strong>AI Double-Check</strong> reads the actual objective text and verifies that your ELO↔MLO tags make pedagogical sense.</p>
           <div id="alignment-audit-report"></div>
         </div>
       </div>
@@ -3954,6 +3954,8 @@
     if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
+    // Re-apply comment highlights for the newly visible view
+    setTimeout(function() { loadAndApplyHighlights(); }, 200);
   }
 
   let currentModuleNum = 1;
@@ -6409,10 +6411,34 @@
   }
 
   // ===== COMMENT PANEL =====
+  function navigateToSection(sectionId) {
+    // Parse section_id and navigate to the correct view
+    var modMatch = sectionId.match(/^module-(\d+)$/);
+    if (modMatch) {
+      showModule(parseInt(modMatch[1]));
+    } else if (sectionId === 'clos-elos') {
+      showView('objectives');
+    } else if (sectionId === 'dashboard' || sectionId === 'dashboard-timeline') {
+      showView('dashboard');
+    } else {
+      // Try direct match (e.g. 'course-info', 'assignments-overview', 'materials-overview', 'course-mapping')
+      var viewEl = document.getElementById('view-' + sectionId);
+      if (viewEl) {
+        showView(sectionId);
+      }
+    }
+  }
+
   async function openCommentPanel(sectionId, highlightId) {
     if (!ensureIdentity()) { currentCommentSection = sectionId; return; }
     currentCommentSection = sectionId;
     currentHighlightCommentId = highlightId || null;
+
+    // Navigate to the correct view if not already there
+    var currentSection = getCurrentSection();
+    if (currentSection !== sectionId) {
+      navigateToSection(sectionId);
+    }
 
     const aiPanel = document.getElementById('ai-panel');
     if (aiPanel && aiPanel.classList.contains('open')) aiPanel.classList.remove('open');
@@ -6520,6 +6546,7 @@
       '<div class="comment-text"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
       '<div class="comment-actions">' +
         (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
+        (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToSection(\'' + c.section_id + '\'); closeCommentPanel();">View in context</button>' : '') +
         (!c.resolved && !isDeleted && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
         statusTag +
         (!isDeleted && isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
@@ -7005,6 +7032,8 @@
       data.forEach(function(comment) {
         if (!comment.highlight_anchor) return;
         if (comment.resolved) return; // don't restore resolved highlights
+        // Skip if already highlighted in the DOM
+        if (document.querySelector('.inline-highlight[data-comment-id="' + comment.id + '"]')) return;
         const anchor = comment.highlight_anchor;
         try {
           const container = document.querySelector(anchor.containerSelector);
