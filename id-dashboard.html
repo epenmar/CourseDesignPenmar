@@ -1153,7 +1153,17 @@
     let changed = false;
     Object.keys(courseData).forEach(key => {
       const c = courseData[key];
-      if (saved[key] && saved[key]._worksheet) return; // already has worksheet config
+      if (saved[key] && saved[key]._worksheet) {
+        // Fix stale moduleCount: 0 from earlier bug
+        if (!saved[key]._worksheet.moduleCount) {
+          saved[key]._worksheet.moduleCount = (c.modules && c.modules.length) ? c.modules.length : 7;
+          if (!saved[key]._worksheet.modules || saved[key]._worksheet.modules.length === 0) {
+            saved[key]._worksheet.modules = Array.from({length: saved[key]._worksheet.moduleCount}, (_, i) => ({ title: 'Module ' + (i+1), num: i+1, mlos: [] }));
+          }
+          changed = true;
+        }
+        return;
+      }
       if (!saved[key]) saved[key] = {};
       const modCount = (c.modules && c.modules.length) ? c.modules.length : 7;
       saved[key]._worksheet = {

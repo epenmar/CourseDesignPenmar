@@ -3152,7 +3152,8 @@
       { label: 'Materials Review', section: 'materials-overview', action: "showView('materials-overview')" },
       { label: 'Alignment Audit', section: 'course-mapping', action: "showView('course-mapping')" },
     ];
-    for (let i = 1; i <= course.moduleCount; i++) {
+    const modCount = course.moduleCount || 7;
+    for (let i = 1; i <= modCount; i++) {
       ms.push({ label: 'Module ' + i, section: 'mod-' + i, action: "showModule(" + i + ")" });
     }
     ms.push({ label: 'Course Shell Draft', section: null, action: null });
