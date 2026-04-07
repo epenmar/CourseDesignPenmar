@@ -409,8 +409,8 @@
   .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
   .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
-  .has-field-comment { box-shadow: inset 0 -2px 0 #8c1d40; }
-  .has-field-comment:hover { box-shadow: inset 0 -2px 0 #8c1d40, 0 0 0 1px rgba(140,29,64,0.2); }
+  .has-field-comment { box-shadow: inset 0 -3px 0 #8c1d40; border-left: 3px solid #8c1d40 !important; background: #fef9f5 !important; }
+  .has-field-comment:hover { box-shadow: inset 0 -3px 0 #8c1d40, 0 0 0 1px rgba(140,29,64,0.2); }
   .comment-history-toggle.active { background: #8c1d40 !important; color: #fff !important; border-color: #8c1d40 !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
@@ -710,7 +710,6 @@
             <div id="module-objectives-list" style="padding:12px 16px; background:#fff; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; line-height:1.8;">
             </div>
             <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:12px; color:#8c1d40; cursor:pointer;" onclick="showView('module-overview')">Edit in Module Overview →</span>
               <button id="mod-obj-edit-btn" onclick="toggleModDetailMloEdit()" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">✏️ Edit</button>
             </div>
           </div>
@@ -792,7 +791,7 @@
               <div class="field-group"><label class="field-label">Section Line(s)</label><input type="text" class="field-input" value="87023" /></div>
               <div class="field-group"><label class="field-label">Enrollment Cap</label><input type="text" class="field-input" value="50" /></div>
             </div>
-            <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" class="field-input" /></div>
+            <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" id="gen-studies" class="field-input" /></div>
           </div>
         </div>
         <div class="card">
@@ -807,9 +806,9 @@
             </div>
             <div class="field-row">
               <div class="field-group"><label class="field-label">Office</label><input type="text" class="field-input" value="COOR 4422" /></div>
-              <div class="field-group"><label class="field-label">Phone</label><input type="text" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Zoom Link</label><input type="text" id="instructor-zoom" class="field-input" placeholder="https://asu.zoom.us/..." /></div>
             </div>
-            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" class="field-input" /></div>
+            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="office-hours" class="field-input" /></div>
           </div>
         </div>
         <div class="card">
@@ -819,8 +818,12 @@
           </div>
           <div class="card-body">
             <div class="step-hint">Write a paragraph or two about the course content. You may reference the <a href="#" style="color:#8c1d40;">Catalog Description</a>.</div>
-            <div class="field-group"><textarea class="field-input" style="min-height:120px;" placeholder="Course description..."></textarea></div>
+            <div class="field-group"><textarea class="field-input" id="course-description" style="min-height:120px;" placeholder="Course description..."></textarea></div>
           </div>
+        </div>
+        <div style="margin-top:16px; padding:12px 16px; background:#f9f8f5; border:1px solid #e0ddd5; border-radius:8px; display:flex; align-items:center; gap:8px;">
+          <input type="checkbox" id="course-info-complete" onchange="saveAllFields(); calculateProgress();" style="width:16px; height:16px; cursor:pointer;">
+          <label for="course-info-complete" style="font-size:13px; color:#555; cursor:pointer;">Mark Course Info as complete</label>
         </div>
       </div>
 
@@ -941,14 +944,14 @@
         <h1 style="font-size:22px; margin-bottom:4px;">Course Context &amp; Questions</h1>
         <p style="color:#666; font-size:13px; margin-bottom:24px;">Help the instructional design team understand your course context.</p>
         <div class="card"><div class="card-body">
-          <div class="field-group"><label class="field-label">What is the intended audience for this course?</label><textarea class="field-input auto-expand" placeholder="Describe the target students..."></textarea></div>
-          <div class="field-group"><label class="field-label">What will students need to do by the end of the course?</label><textarea class="field-input auto-expand" placeholder="Key outcomes and skills..."></textarea></div>
-          <div class="field-group"><label class="field-label">Are there external standards or accreditations we need to align with or be conscious of?</label><textarea class="field-input auto-expand" placeholder="Accreditation, competency frameworks, etc."></textarea></div>
-          <div class="field-group"><label class="field-label">How is this course currently being taught or supported?</label><textarea class="field-input auto-expand" placeholder="Existing offerings, formats, etc."></textarea></div>
-          <div class="field-group"><label class="field-label">Which courses will students take prior to this course?</label><textarea class="field-input auto-expand" placeholder="Prerequisites, typical sequencing..."></textarea></div>
-          <div class="field-group"><label class="field-label">Where do you anticipate students may struggle?</label><textarea class="field-input auto-expand" placeholder="Known challenge areas..."></textarea></div>
-          <div class="field-group"><label class="field-label">What access or technology limitations should we expect?</label><textarea class="field-input auto-expand" placeholder="Tools, platforms, access issues..."></textarea></div>
-          <div class="field-group"><label class="field-label">Is there an existing i-course or course shell we can review?</label><textarea class="field-input auto-expand" placeholder="Links or references to existing materials..."></textarea></div>
+          <div class="field-group"><label class="field-label">What is the intended audience for this course?</label><textarea class="field-input auto-expand" id="ctx-audience" placeholder="Describe the target students..."></textarea></div>
+          <div class="field-group"><label class="field-label">What will students need to do by the end of the course?</label><textarea class="field-input auto-expand" id="ctx-outcomes" placeholder="Key outcomes and skills..."></textarea></div>
+          <div class="field-group"><label class="field-label">Are there external standards or accreditations we need to align with or be conscious of?</label><textarea class="field-input auto-expand" id="ctx-standards" placeholder="Accreditation, competency frameworks, etc."></textarea></div>
+          <div class="field-group"><label class="field-label">How is this course currently being taught or supported?</label><textarea class="field-input auto-expand" id="ctx-current" placeholder="Existing offerings, formats, etc."></textarea></div>
+          <div class="field-group"><label class="field-label">Which courses will students take prior to this course?</label><textarea class="field-input auto-expand" id="ctx-prereqs" placeholder="Prerequisites, typical sequencing..."></textarea></div>
+          <div class="field-group"><label class="field-label">Where do you anticipate students may struggle?</label><textarea class="field-input auto-expand" id="ctx-struggles" placeholder="Known challenge areas..."></textarea></div>
+          <div class="field-group"><label class="field-label">What access or technology limitations should we expect?</label><textarea class="field-input auto-expand" id="ctx-technology" placeholder="Tools, platforms, access issues..."></textarea></div>
+          <div class="field-group"><label class="field-label">Is there an existing i-course or course shell we can review?</label><textarea class="field-input auto-expand" id="ctx-existing" placeholder="Links or references to existing materials..."></textarea></div>
         </div></div>
 
         <div class="card" style="margin-top:20px;">
@@ -3255,8 +3258,11 @@
         infoTotal++;
         if (f.value && f.value.trim()) infoFilled++;
       });
-      // Only mark done if ALL fields are filled
-      if (infoTotal > 0 && infoFilled === infoTotal) {
+      // Check manual completion checkbox
+      var courseInfoComplete = document.getElementById('course-info-complete');
+      var manuallyComplete = courseInfoComplete && courseInfoComplete.checked;
+      // Mark done if ALL fields are filled OR manually marked complete
+      if (manuallyComplete || (infoTotal > 0 && infoFilled === infoTotal)) {
         infoBadge.className = 'badge badge-done';
         infoBadge.textContent = '✓';
       } else if (infoFilled > 0) {
@@ -4304,7 +4310,7 @@
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
     // Re-apply comment highlights for the newly visible view
-    setTimeout(function() { loadAndApplyHighlights(); }, 200);
+    setTimeout(function() { loadAndApplyHighlights(); applyFieldCommentIndicators(); }, 200);
   }
 
   let currentModuleNum = 1;
@@ -6586,23 +6592,33 @@
       html += '<h2>Course Alignment Map</h2>';
       html += '<div style="overflow-x:auto;">';
 
-      // ELO → MLO matrix
-      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; margin-bottom:16px; table-layout:fixed;">';
-      html += '<thead><tr><th style="padding:4px; border:1px solid #ddd; background:#f5f5f0;"></th>';
-      auditMlos.forEach(function(mlo) {
-        html += '<th style="padding:4px; border:1px solid #ddd; background:#fef9f0; text-align:center; font-size:10px;">' + mlo.id + '</th>';
-      });
-      html += '</tr></thead><tbody>';
-      auditElos.forEach(function(elo, i) {
-        html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:10px; white-space:nowrap;">ELO ' + (i+1) + '</td>';
-        var linked = auditAlignment[i + ''] || [];
-        auditMlos.forEach(function(mlo) {
-          var checked = linked.indexOf(mlo.id) !== -1;
-          html += '<td style="padding:2px; border:1px solid #ddd; text-align:center;">' + (checked ? '✓' : '') + '</td>';
+      // ELO → MLO matrix — split into chunks by module groups
+      var moduleGroups = [[1,2,3], [4,5,6,7]];
+      moduleGroups.forEach(function(modNums) {
+        var chunkMlos = auditMlos.filter(function(mlo) {
+          var modNum = parseInt(mlo.id.split('.')[0]);
+          return modNums.indexOf(modNum) !== -1;
         });
-        html += '</tr>';
+        if (chunkMlos.length === 0) return;
+
+        html += '<p style="font-size:11px; color:#666; margin:8px 0 4px;">Modules ' + modNums[0] + '\u2013' + modNums[modNums.length-1] + '</p>';
+        html += '<table style="border-collapse:collapse; font-size:11px; width:100%; margin-bottom:16px; table-layout:fixed;">';
+        html += '<thead><tr><th style="padding:4px; border:1px solid #ddd; background:#f5f5f0;"></th>';
+        chunkMlos.forEach(function(mlo) {
+          html += '<th style="padding:4px; border:1px solid #ddd; background:#fef9f0; text-align:center; font-size:10px;">' + mlo.id + '</th>';
+        });
+        html += '</tr></thead><tbody>';
+        auditElos.forEach(function(elo, i) {
+          html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:10px; white-space:nowrap;">ELO ' + (i+1) + '</td>';
+          var linked = auditAlignment[i + ''] || [];
+          chunkMlos.forEach(function(mlo) {
+            var checked = linked.indexOf(mlo.id) !== -1;
+            html += '<td style="padding:2px; border:1px solid #ddd; text-align:center;">' + (checked ? '✓' : '') + '</td>';
+          });
+          html += '</tr>';
+        });
+        html += '</tbody></table>';
       });
-      html += '</tbody></table>';
 
       // Traceability table
       html += '<h3>Alignment Traceability</h3>';
@@ -7489,6 +7505,7 @@
       injectCommentButtons();
       loadAllCommentCounts();
       loadAndApplyHighlights();
+      applyFieldCommentIndicators();
       // Auto-open comment panel if URL param requests it
       if (urlParams.get('openComments') === '1') {
         setTimeout(function() { openCommentPanel(getCurrentSection()); }, 300);
