@@ -460,7 +460,7 @@
         <span class="badge badge-done">6/6</span>
       </div>
 
-      <div class="nav-section-label">Module Design</div>
+      <div class="nav-section-label">Course Design</div>
       <div class="nav-item" onclick="showView('module-overview')">
         <span class="icon">🗺</span> Module Overview
         <span class="badge badge-empty" id="sidebar-module-count">—</span>
@@ -475,6 +475,7 @@
         <span class="icon">🔗</span> Course Mapping
       </div>
 
+      <div class="nav-section-label">Module View</div>
       <div id="sidebar-module-list"></div>
     </div>
 
@@ -1580,7 +1581,7 @@
       for (let i = 0; i < modCount; i++) {
         const mod = modules[i];
         const title = mod ? mod.title : 'Module ' + (i + 1);
-        html += '<div class="nav-item nav-item-module" onclick="showModule(' + (i + 1) + ')">' +
+        html += '<div class="nav-item" onclick="showModule(' + (i + 1) + ')">' +
           '<span class="icon" style="font-size:11px;">' + (i + 1) + '</span> ' + title +
           '<span class="badge badge-empty">—</span></div>';
       }
@@ -3773,7 +3774,7 @@
       target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    const names = {'dashboard':'Getting Started / Dashboard','module':'Module Design / Module','module-overview':'Module Design / Overview','assignments-overview':'Module Design / Assignments Overview','materials-overview':'Module Design / Materials Overview','course-mapping':'Module Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -3849,7 +3850,7 @@
       // Update sidebar
       const sidebarModList = document.getElementById('sidebar-module-list');
       if (sidebarModList) {
-        const items = sidebarModList.querySelectorAll('.nav-item-module');
+        const items = sidebarModList.querySelectorAll('.nav-item');
         if (items[currentModuleNum - 1]) {
           const badge = items[currentModuleNum - 1].querySelector('.badge');
           items[currentModuleNum - 1].innerHTML = '<span class="icon" style="font-size:11px;">' + currentModuleNum + '</span> ' + newTitle.trim();
