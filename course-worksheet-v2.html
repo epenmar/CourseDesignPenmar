@@ -98,6 +98,14 @@
   .timeline-table .date-input:focus { outline: none; border-color: #8c1d40; }
   .timeline-alert { font-size: 11px; color: #e65100; margin-top: 2px; }
 
+  /* ===== SIDEBAR MILESTONES ===== */
+  .sidebar-ms-item { display: flex; align-items: center; gap: 6px; padding: 3px 0; font-size: 11px; color: #555; cursor: pointer; line-height: 1.3; }
+  .sidebar-ms-item:hover { color: #8c1d40; }
+  .sidebar-ms-icon { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+  .sidebar-ms-icon.ms-empty { border: 1.5px solid #ccc; background: #fff; }
+  .sidebar-ms-icon.ms-partial { border: 1.5px solid #ffc627; background: linear-gradient(to top, #ffc627 50%, #fff 50%); }
+  .sidebar-ms-icon.ms-done { border: 1.5px solid #4caf50; background: #4caf50; color: #fff; }
+
   /* ===== CLO / ELO PAIRED LAYOUT ===== */
   .clo-elo-pairs { display: flex; flex-direction: column; gap: 10px; }
   .clo-elo-row { display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 8px; align-items: start; padding: 10px 8px; border: 1px solid #e8e5dd; border-radius: 8px; background: #fafaf7; }
@@ -166,7 +174,7 @@
   .module-tab.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
 
   /* ===== DOC PREVIEW ===== */
-  .doc-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 40px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
+  .doc-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 40px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: hidden; }
   .doc-preview h1 { font-size: 24px; color: #8c1d40; margin-bottom: 4px; }
   .doc-preview .doc-subtitle { font-size: 14px; color: #666; margin-bottom: 24px; }
   .doc-preview h2 { font-size: 18px; color: #8c1d40; margin-top: 28px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #ffc627; }
@@ -486,8 +494,14 @@
     </div>
 
     <div class="progress-section">
-      <div class="progress-label"><span>Overall Progress</span><span>25%</span></div>
-      <div class="progress-bar"><div class="progress-fill" style="width:25%"></div></div>
+      <div class="progress-label"><span>Overall Progress</span><span id="sidebar-progress-pct">0%</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="sidebar-progress-bar" style="width:0%"></div></div>
+    </div>
+
+    <!-- Development Milestones -->
+    <div class="progress-section" style="max-height: 220px; overflow-y: auto; border-top: none; padding-top: 0;">
+      <div style="font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: #999; margin-bottom: 6px;">Development Milestones</div>
+      <div id="sidebar-milestone-list"></div>
     </div>
 
     <div class="sidebar-actions">
@@ -495,7 +509,7 @@
       <button class="btn-ai" onclick="toggleAI()">✨ AI Design Assistant</button>
       <div style="display:flex; gap:6px;">
         <a href="mailto:elisa.penmar@asu.edu" class="btn-ai" style="flex:1; text-decoration:none; font-size:12px; padding:8px 10px;">📧 Email My ID</a>
-        <a href="https://outlook.office.com/bookwithme/user/cea5ad6a70a64d58a3160c11440affa7%40asu.edu?anonymous&ismsaljsauthenabled" target="_blank" class="btn-ai" style="flex:1; text-decoration:none; font-size:12px; padding:8px 10px;">📅 Book Appointment</a>
+        <a id="booking-link" href="https://outlook.office.com/bookwithme/user/cea5ad6a70a64d58a3160c11440affa7%40asu.edu?anonymous&ismsaljsauthenabled" target="_blank" class="btn-ai" style="flex:1; text-decoration:none; font-size:12px; padding:8px 10px;">📅 Book Appointment</a>
       </div>
     </div>
   </div>
@@ -513,12 +527,12 @@
         <div class="dashboard-grid">
           <div class="dash-card">
             <h3>Completion</h3>
-            <div class="dash-stat">25%</div>
+            <div class="dash-stat" id="dash-completion-pct">0%</div>
             <div class="dash-stat-label">of development fields completed</div>
           </div>
           <div class="dash-card">
             <h3>Modules</h3>
-            <div class="dash-stat">3 <span style="font-size:16px; font-weight:400; color:#666;">of 7</span></div>
+            <div class="dash-stat" id="dash-modules-stat">0 <span style="font-size:16px; font-weight:400; color:#666;">of 7</span></div>
             <div class="dash-stat-label">modules started</div>
           </div>
         </div>
@@ -1381,6 +1395,7 @@
   function saveActivityData() {
     saveField('courseActivities', courseActivities);
     saveField('courseMaterials', courseMaterials);
+    if (typeof scheduleProgressUpdate === 'function') scheduleProgressUpdate();
   }
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
@@ -1726,6 +1741,12 @@
 
     // ===== RENDER MODULE OVERVIEW CARDS =====
     renderModuleOverviewCards();
+
+    // ===== CALCULATE PROGRESS & RENDER MILESTONES =====
+    setTimeout(function() {
+      calculateProgress();
+      renderSidebarMilestones();
+    }, 100);
   });
 
   // ===== OBJECTIVES: MIGRATION, RENDER, AND CRUD =====
@@ -3154,6 +3175,204 @@
 
   const milestones = buildMilestones(activeCourse);
 
+  // ===== DYNAMIC PROGRESS CALCULATION =====
+  function calculateProgress() {
+    let filled = 0;
+    let total = 0;
+
+    // 1. Course info fields (inputs and textareas in course-info view)
+    const courseInfoFields = document.querySelectorAll('#view-course-info .field-input');
+    courseInfoFields.forEach(function(f) {
+      total++;
+      if (f.value && f.value.trim()) filled++;
+    });
+
+    // 2. ELOs defined
+    const elos = activeCourse.flatElos || [];
+    total++;
+    if (elos.length > 0 && elos.some(function(e) { return e && e.trim(); })) filled++;
+
+    // 3. CLOs defined
+    const clos = activeCourse.clos || [];
+    total++;
+    if (clos.length > 0 && clos.some(function(c) { return c && c.trim(); })) filled++;
+
+    // 4. Module MLOs — one trackable field per module
+    const modules = activeCourse.modules || [];
+    const modCount = activeCourse.moduleCount || modules.length || 7;
+    for (let i = 0; i < modCount; i++) {
+      total++;
+      const mod = modules[i];
+      if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) {
+        filled++;
+      }
+    }
+
+    // 5. Assignments — one trackable field per module that has activities
+    for (let i = 1; i <= modCount; i++) {
+      total++;
+      const acts = courseActivities[i];
+      if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) {
+        filled++;
+      }
+    }
+
+    // 6. Materials — one trackable field per module that has materials
+    for (let i = 1; i <= modCount; i++) {
+      total++;
+      const mats = courseMaterials[i];
+      if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) {
+        filled++;
+      }
+    }
+
+    // 7. Textbook field
+    const matInputs = document.querySelectorAll('#view-materials .field-input');
+    if (matInputs.length > 0) {
+      total++;
+      if (matInputs[0].value && matInputs[0].value.trim()) filled++;
+    }
+
+    const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+
+    // Count modules started (have at least one MLO)
+    let modulesStarted = 0;
+    for (let i = 0; i < modCount; i++) {
+      const mod = modules[i];
+      if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) {
+        modulesStarted++;
+      }
+    }
+
+    // Update sidebar progress
+    const sidebarPct = document.getElementById('sidebar-progress-pct');
+    const sidebarBar = document.getElementById('sidebar-progress-bar');
+    if (sidebarPct) sidebarPct.textContent = pct + '%';
+    if (sidebarBar) sidebarBar.style.width = pct + '%';
+
+    // Update dashboard card
+    const dashPct = document.getElementById('dash-completion-pct');
+    const dashMods = document.getElementById('dash-modules-stat');
+    if (dashPct) dashPct.textContent = pct + '%';
+    if (dashMods) dashMods.innerHTML = modulesStarted + ' <span style="font-size:16px; font-weight:400; color:#666;">of ' + modCount + '</span>';
+
+    return pct;
+  }
+
+  // ===== SIDEBAR MILESTONE RENDERING =====
+  function getMilestoneStatus(milestone, index) {
+    // Returns 'done', 'partial', or 'empty'
+    const label = milestone.label;
+    const modules = activeCourse.modules || [];
+    const modCount = activeCourse.moduleCount || modules.length || 7;
+
+    if (label === 'ELOs and CLOs Review') {
+      const hasElos = (activeCourse.flatElos || []).some(function(e) { return e && e.trim(); });
+      const hasClos = (activeCourse.clos || []).some(function(c) { return c && c.trim(); });
+      if (hasElos && hasClos) return 'done';
+      if (hasElos || hasClos) return 'partial';
+      return 'empty';
+    }
+
+    if (label === 'Module MLOs and Topics Review') {
+      let withMlos = 0;
+      for (let i = 0; i < modCount; i++) {
+        const mod = modules[i];
+        if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) withMlos++;
+      }
+      if (withMlos === modCount) return 'done';
+      if (withMlos > 0) return 'partial';
+      return 'empty';
+    }
+
+    if (label === 'Assignments Review') {
+      let withActs = 0;
+      for (let i = 1; i <= modCount; i++) {
+        const acts = courseActivities[i];
+        if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) withActs++;
+      }
+      if (withActs === modCount) return 'done';
+      if (withActs > 0) return 'partial';
+      return 'empty';
+    }
+
+    if (label === 'Materials Review') {
+      let withMats = 0;
+      for (let i = 1; i <= modCount; i++) {
+        const mats = courseMaterials[i];
+        if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) withMats++;
+      }
+      if (withMats === modCount) return 'done';
+      if (withMats > 0) return 'partial';
+      return 'empty';
+    }
+
+    if (label === 'Alignment Audit') {
+      const eloMlo = activeCourse.eloMloAlignment;
+      if (eloMlo && Object.keys(eloMlo).length > 0) return 'done';
+      return 'empty';
+    }
+
+    // Module N
+    var modMatch = label.match(/^Module (\d+)$/);
+    if (modMatch) {
+      var modNum = parseInt(modMatch[1]);
+      var mod = modules[modNum - 1];
+      var hasMlos = mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); });
+      var acts = courseActivities[modNum];
+      var hasActs = acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); });
+      if (hasMlos && hasActs) return 'done';
+      if (hasMlos || hasActs) return 'partial';
+      return 'empty';
+    }
+
+    // Course Shell Draft, Lectures, Course Shell — check localStorage for manual toggle
+    var msKey = 'milestone_manual_' + index;
+    var manual = loadField(msKey);
+    if (manual === 'done') return 'done';
+    return 'empty';
+  }
+
+  function renderSidebarMilestones() {
+    var container = document.getElementById('sidebar-milestone-list');
+    if (!container) return;
+    var ms = buildMilestones(activeCourse);
+    var html = '';
+    for (var i = 0; i < ms.length; i++) {
+      var status = getMilestoneStatus(ms[i], i);
+      var iconClass = 'ms-' + status;
+      var iconContent = status === 'done' ? '✓' : '';
+      var onclick = '';
+      if (ms[i].action) {
+        onclick = ' onclick="' + ms[i].action + '"';
+      } else {
+        // Manual toggle for non-actionable milestones
+        onclick = ' onclick="toggleManualMilestone(' + i + ')"';
+      }
+      html += '<div class="sidebar-ms-item"' + onclick + '>' +
+        '<span class="sidebar-ms-icon ' + iconClass + '">' + iconContent + '</span>' +
+        '<span>' + ms[i].label + '</span></div>';
+    }
+    container.innerHTML = html;
+  }
+
+  function toggleManualMilestone(index) {
+    var msKey = 'milestone_manual_' + index;
+    var current = loadField(msKey);
+    saveField(msKey, current === 'done' ? null : 'done');
+    renderSidebarMilestones();
+  }
+
+  // Debounced progress updater
+  var _progressTimer = null;
+  function scheduleProgressUpdate() {
+    if (_progressTimer) clearTimeout(_progressTimer);
+    _progressTimer = setTimeout(function() {
+      calculateProgress();
+      renderSidebarMilestones();
+    }, 500);
+  }
+
   function recalcTimeline() {
     const sel = document.getElementById('session-select').value;
     if (!sel) {
@@ -3465,10 +3684,10 @@
 
   // Listen for all form changes
   document.addEventListener('input', function(e) {
-    if (e.target.matches('input, textarea, select')) saveAllFields();
+    if (e.target.matches('input, textarea, select')) { saveAllFields(); scheduleProgressUpdate(); }
   });
   document.addEventListener('change', function(e) {
-    if (e.target.matches('input, textarea, select')) saveAllFields();
+    if (e.target.matches('input, textarea, select')) { saveAllFields(); scheduleProgressUpdate(); }
   });
 
   // ===== AI ASSISTANT =====
@@ -6090,6 +6309,7 @@
     // Keep Module Overview and overview accordions in sync (skip if editing inline)
     if (!eloEditMode) renderModuleOverviewRef();
     renderCourseObjectivesAccordion();
+    if (typeof scheduleProgressUpdate === 'function') scheduleProgressUpdate();
   }
 
   // Backward compat stubs for old function names
@@ -6234,10 +6454,11 @@
 
     if (auditElos.length > 0 && auditMlos.length > 0 && Object.keys(auditAlignment).length > 0) {
       html += '<h2>Course Alignment Map</h2>';
+      html += '<div style="overflow-x:auto;">';
 
       // ELO → MLO matrix
-      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; margin-bottom:16px;">';
-      html += '<thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;"></th>';
+      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; margin-bottom:16px; table-layout:fixed;">';
+      html += '<thead><tr><th style="padding:4px; border:1px solid #ddd; background:#f5f5f0;"></th>';
       auditMlos.forEach(function(mlo) {
         html += '<th style="padding:4px; border:1px solid #ddd; background:#fef9f0; text-align:center; font-size:10px;">' + mlo.id + '</th>';
       });
@@ -6255,7 +6476,7 @@
 
       // Traceability table
       html += '<h3>Alignment Traceability</h3>';
-      html += '<table style="border-collapse:collapse; font-size:11px; width:100%;">';
+      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; table-layout:fixed;">';
       html += '<thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">ELO</th>';
       html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">MLO</th>';
       html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Activities</th>';
@@ -6291,6 +6512,7 @@
         });
       });
       html += '</tbody></table>';
+      html += '</div>';
     }
 
     // Course context Q&A
@@ -7124,6 +7346,15 @@
         showView(hashView);
       }
     }
+    // Update booking link from profile
+    try {
+      var profile = JSON.parse(localStorage.getItem('id_profile') || '{}');
+      if (profile.booking) {
+        var bookingEl = document.getElementById('booking-link');
+        if (bookingEl) bookingEl.href = profile.booking;
+      }
+    } catch(e) {}
+
     setTimeout(function() {
       injectCommentButtons();
       loadAllCommentCounts();
