@@ -30,6 +30,12 @@
   .nav-item-module { padding-left: 20px; font-size: 12px; }
   .progress-section { padding: 12px 20px; border-top: 1px solid #e0ddd5; }
   .progress-label { font-size: 11px; color: #666; margin-bottom: 6px; display: flex; justify-content: space-between; }
+  .progress-info-wrap { position: relative; display: inline-flex; align-items: center; gap: 4px; }
+  .progress-info-icon { width: 14px; height: 14px; border-radius: 50%; background: #e0ddd5; color: #666; font-size: 9px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; cursor: help; flex-shrink: 0; }
+  .progress-info-icon:hover { background: #8c1d40; color: #fff; }
+  .progress-info-tooltip { display: none; position: absolute; bottom: calc(100% + 8px); left: -8px; background: #2d2926; color: #f5f5f0; border-radius: 8px; padding: 10px 14px; font-size: 11px; line-height: 1.6; width: 240px; z-index: 400; box-shadow: 0 4px 16px rgba(0,0,0,0.25); pointer-events: none; }
+  .progress-info-tooltip::after { content: ''; position: absolute; top: 100%; left: 16px; border: 6px solid transparent; border-top-color: #2d2926; }
+  .progress-info-wrap:hover .progress-info-tooltip { display: block; }
   .progress-bar { height: 6px; background: #eee; border-radius: 3px; overflow: hidden; }
   .progress-fill { height: 100%; background: linear-gradient(90deg, #8c1d40, #ffc627); border-radius: 3px; transition: width 0.5s; }
   .sidebar-actions { padding: 12px 16px; border-top: 1px solid #e0ddd5; display: flex; flex-direction: column; gap: 8px; }
@@ -489,7 +495,7 @@
     </div>
 
     <div class="progress-section">
-      <div class="progress-label"><span>Overall Progress</span><span id="sidebar-progress-pct">0%</span></div>
+      <div class="progress-label"><span class="progress-info-wrap"><span class="progress-info-icon">i</span><span class="progress-info-tooltip"><strong style="color:#ffc627;">How progress is calculated</strong><br>Course Info — 5%<br>Course Context — 5%<br>ELOs &amp; CLOs — 10%<br>Module MLOs — 15%<br>Assignments — 20%<br>Materials — 20%<br>Module Content — 20%<br>Alignment Map — 5%<br><span style="color:#aaa; font-size:10px; margin-top:4px; display:block;">Timeline milestones don't count toward completion.</span></span>Overall Progress</span><span id="sidebar-progress-pct">0%</span></div>
       <div class="progress-bar"><div class="progress-fill" id="sidebar-progress-bar" style="width:0%"></div></div>
     </div>
 
