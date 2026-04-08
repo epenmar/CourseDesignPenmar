@@ -1213,10 +1213,29 @@
           }
           changed = true;
         }
+        // Fix stale sessionValue: null — map from session display string
+        if (!saved[key]._worksheet.sessionValue && c.session) {
+          var sMap = {
+            "Summer A '26": '2026-05-18', "Summer B '26": '2026-07-01', "Summer C '26": '2026-05-18c',
+            "Fall A '26": '2026-08-20', "Fall B '26": '2026-10-14', "Fall C '26": '2026-08-20c',
+            "Spring A '27": '2027-01-11', "Spring B '27": '2027-03-15', "Spring C '27": '2027-01-11c',
+          };
+          if (sMap[c.session]) {
+            saved[key]._worksheet.sessionValue = sMap[c.session];
+            changed = true;
+          }
+        }
         return;
       }
       if (!saved[key]) saved[key] = {};
       const modCount = (c.modules && c.modules.length) ? c.modules.length : 7;
+      // Map session display string to worksheet session-select value
+      var sessionMap = {
+        "Summer A '26": '2026-05-18', "Summer B '26": '2026-07-01', "Summer C '26": '2026-05-18c',
+        "Fall A '26": '2026-08-20', "Fall B '26": '2026-10-14', "Fall C '26": '2026-08-20c',
+        "Spring A '27": '2027-01-11', "Spring B '27": '2027-03-15', "Spring C '27": '2027-01-11c',
+      };
+      var mappedSession = sessionMap[c.session] || null;
       saved[key]._worksheet = {
         code: c.code, name: c.courseName,
         fullTitle: c.code + ' — ' + c.courseName,
@@ -1225,7 +1244,7 @@
         credits: '', prerequisites: '', sectionLines: '', enrollmentCap: '',
         id: c.id || 'Elisa Penmar', textbook: '',
         driveFolder: c.driveFolder || '',
-        sessionValue: null,
+        sessionValue: mappedSession,
         moduleCount: modCount,
         milestonesCompleted: 0,
         qaDate: c.qa && c.qa !== '—' ? c.qa : null,

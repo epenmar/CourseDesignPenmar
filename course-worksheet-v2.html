@@ -3342,17 +3342,35 @@
     if (realElos.length > 0) weightedPct += 5;
     if (realClos.length > 0) weightedPct += 5;
 
-    // 4. Module MLOs (15%) — fraction of modules that have at least one MLO defined
+    // 4. Module MLOs (15%) — each module scores up to 1.0:
+    //    0.75 for having MLOs defined, 0.25 for all MLOs tagged with at least one ELO
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
+    var moduleScore = 0;
     var modsWithMlos = 0;
+    var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
     for (var i = 0; i < modCount; i++) {
       var mod = modules[i];
-      if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) {
+      var hasMlos = mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); });
+      if (hasMlos) {
         modsWithMlos++;
+        moduleScore += 0.75;
+        // Check if all non-empty MLOs in this module have at least one ELO tag
+        var modNum = (mod && mod.num) || (i + 1);
+        var nonEmptyMlos = mod.mlos.filter(function(m) { return m && m.trim(); });
+        var allTagged = nonEmptyMlos.length > 0;
+        for (var mi = 0; mi < mod.mlos.length; mi++) {
+          if (!mod.mlos[mi] || !mod.mlos[mi].trim()) continue;
+          var mloId = modNum + '.' + (mi + 1);
+          var hasTag = Object.keys(alignment).some(function(eloKey) {
+            return alignment[eloKey] && alignment[eloKey].indexOf(mloId) !== -1;
+          });
+          if (!hasTag) { allTagged = false; break; }
+        }
+        if (allTagged) moduleScore += 0.25;
       }
     }
-    if (modCount > 0) weightedPct += 15 * (modsWithMlos / modCount);
+    if (modCount > 0) weightedPct += 15 * (moduleScore / modCount);
 
     // 5. Assignments (20%) — fraction of modules that have at least one named activity
     var modsWithActs = 0;
@@ -3486,15 +3504,17 @@
       }
     }
 
-    // Update sidebar Module Overview badge
+    // Update sidebar Module Overview badge (fractional: MLOs + ELO tagging)
     var modBadge = document.getElementById('sidebar-module-count');
     if (modBadge) {
-      if (modulesStarted === modCount && modCount > 0) {
+      var displayScore = Math.round(moduleScore * 10) / 10; // one decimal
+      if (displayScore === Math.floor(displayScore)) displayScore = Math.floor(displayScore); // drop .0
+      if (moduleScore >= modCount && modCount > 0) {
         modBadge.className = 'badge badge-done';
-        modBadge.textContent = modulesStarted + '/' + modCount;
-      } else if (modulesStarted > 0) {
+        modBadge.textContent = displayScore + '/' + modCount;
+      } else if (moduleScore > 0) {
         modBadge.className = 'badge badge-partial';
-        modBadge.textContent = modulesStarted + '/' + modCount;
+        modBadge.textContent = displayScore + '/' + modCount;
       } else {
         modBadge.className = 'badge badge-empty';
         modBadge.textContent = '—';
