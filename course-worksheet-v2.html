@@ -594,6 +594,7 @@
               <div class="field-group" style="margin-bottom:0;">
                 <label class="field-label">Session Launch</label>
                 <select class="field-input" id="session-select" onchange="recalcTimeline()">
+                  <option value="">— Select a session —</option>
                   <optgroup label="Summer 2026">
                     <option value="2026-05-18">Summer 2026 A — May 18</option>
                     <option value="2026-07-01">Summer 2026 B — Jul 1</option>
@@ -3882,6 +3883,7 @@
   // Save session select changes
   document.getElementById('session-select').addEventListener('change', function() {
     saveField('sessionSelect', this.value);
+    saveAllFields();
   });
 
   // Save timeline date overrides
@@ -3998,6 +4000,8 @@
       // Skip comment system elements
       if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
       if (el.dataset.managed === 'true') return;
+      // Skip session-select — it has its own dedicated restore via saveField('sessionSelect')
+      if (el.id === 'session-select') return;
       const view = el.closest('[id^="view-"]');
       const viewId = view ? view.id : 'global';
       let key = el.id || el.name || '';
@@ -6029,6 +6033,10 @@
 
     // Restore all saved form data (runs last to override defaults with user edits)
     restoreAllFields();
+    // Recalculate timeline after restore (select may have changed)
+    recalcTimeline();
+    // Recalculate progress after restore
+    calculateProgress();
     // Restore accordion open/closed states from localStorage
     restoreAccordionStates();
     // Init module reorder drag-drop (once, uses event delegation)
