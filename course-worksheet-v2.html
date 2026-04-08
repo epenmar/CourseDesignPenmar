@@ -685,7 +685,7 @@
         </div>
         <div id="module-overview-table" style="display:none;"></div>
 
-        <button class="btn-add-row" style="margin-top:8px;" onclick="addModuleCard()">+ Add module</button>
+        <button class="btn-generate" style="margin-top:12px; width:auto; padding:10px 24px; font-size:14px;" onclick="addModuleCard()">+ Add Module</button>
 
         <div class="callout callout-info" style="margin-top:20px;">
           <strong>What happens next:</strong> Once you've defined topics and objectives here, we suggest you move onto the <strong>Assignments Overview</strong> in order to determine how your students will show what they've learned.
@@ -3748,23 +3748,10 @@
     const tbody = document.getElementById('timeline-body');
     let html = '';
 
-    // Pull synced milestone status and calendar meetings from dashboard-data.js
+    // Pull synced milestone status from dashboard-data.js
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
 
-    // Collect calendar meetings for this course
-    const calMeetings = [];
-    if (syncedCourse) {
-      if (syncedCourse.calendarMeetings) syncedCourse.calendarMeetings.forEach(function(m) {
-        calMeetings.push({ date: m.date, time: m.time, label: m.label });
-      });
-      if (syncedCourse.nextMeeting && syncedCourse.nextMeeting.date) {
-        var alreadyHas = calMeetings.some(function(m) { return m.date === syncedCourse.nextMeeting.date && m.label === syncedCourse.nextMeeting.label; });
-        if (!alreadyHas) calMeetings.push({ date: syncedCourse.nextMeeting.date, time: syncedCourse.nextMeeting.time, label: syncedCourse.nextMeeting.label });
-      }
-    }
-    // Build a combined list of milestone rows + meeting rows, sorted by date
-    const timelineRows = [];
     for (let i = 0; i < milestones.length; i++) {
       const rowClass = i < completed ? 'done' : (i === completed ? 'current' : '');
       let statusLabel, statusColor;
@@ -3790,37 +3777,12 @@
       const labelHtml = milestones[i].action
         ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${labelText}</a>`
         : `${labelText}`;
-      timelineRows.push({
-        sortDate: dateVal,
-        sortOrder: 0,
-        html: `<tr class="${rowClass}">
+      html += `<tr class="${rowClass}">
         <td>${labelHtml}</td>
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
         <td style="font-size:12px; color:${statusColor}">${statusLabel}</td>
-      </tr>`
-      });
+      </tr>`;
     }
-    // Insert calendar meeting rows
-    calMeetings.forEach(function(m) {
-      const mDate = new Date(m.date + 'T00:00:00');
-      const timeStr = m.time ? ' at ' + m.time : '';
-      const isPast = mDate < new Date(new Date().toISOString().split('T')[0] + 'T00:00:00');
-      timelineRows.push({
-        sortDate: m.date,
-        sortOrder: 1,
-        html: `<tr style="background:#e8f4fd;">
-        <td style="color:#1565c0; font-weight:500;">📅 ${m.label || 'Meeting'}</td>
-        <td style="font-size:13px; color:#1565c0;">${prettyDate(mDate)}${timeStr}</td>
-        <td style="font-size:12px; color:${isPast ? '#4caf50' : '#1565c0'}">${isPast ? '✓ Done' : '📅 Scheduled'}</td>
-      </tr>`
-      });
-    });
-    // Sort by date, meetings after milestones on same day
-    timelineRows.sort(function(a, b) {
-      var cmp = a.sortDate.localeCompare(b.sortDate);
-      return cmp !== 0 ? cmp : a.sortOrder - b.sortOrder;
-    });
-    timelineRows.forEach(function(r) { html += r.html; });
 
     // Fixed end rows
     const qaFmt = fmt(qaDate);
