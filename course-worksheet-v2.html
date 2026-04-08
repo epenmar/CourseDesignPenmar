@@ -1730,7 +1730,7 @@
     if (dashP) dashP.innerHTML = activeCourse.sessionShort + ' &bull; Instructional Designer: ' + activeCourse.id;
 
     // Page title
-    document.title = 'Course Development — ' + activeCourse.code;
+    document.title = activeCourse.code + ' — Course Development';
 
     // Restore any saved module titles from localStorage, then render sidebar
     const modules = activeCourse.modules || [];
