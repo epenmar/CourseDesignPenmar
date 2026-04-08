@@ -442,8 +442,8 @@
   .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
   .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
-  .has-field-comment { box-shadow: inset 0 -3px 0 #8c1d40; border-left: 3px solid #8c1d40 !important; background: #fef9f5 !important; }
-  .has-field-comment:hover { box-shadow: inset 0 -3px 0 #8c1d40, 0 0 0 1px rgba(140,29,64,0.2); }
+  .has-field-comment { box-shadow: inset 0 -3px 0 #ffc627; border-left: 3px solid #ffc627 !important; background: #fffde6 !important; }
+  .has-field-comment:hover { box-shadow: inset 0 -3px 0 #ffc627, 0 0 0 1px rgba(255,198,39,0.4); }
   .comment-history-toggle.active { background: #8c1d40 !important; color: #fff !important; border-color: #8c1d40 !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
@@ -488,7 +488,7 @@
         <span class="badge badge-empty" id="sidebar-textbook-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('additional')">
-        <span class="icon">💬</span> Course Context Q&amp;A
+        <span class="icon">🧩</span> Course Context Q&amp;A
         <span class="badge badge-empty" id="sidebar-context-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('objectives')">
@@ -3717,6 +3717,16 @@
           }
         }
       }
+      // Clamp: no milestone date should be in the past
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      for (let i = 0; i < totalMilestones; i++) {
+        if (dates[i] < today) dates[i] = new Date(today);
+      }
+      // Ensure dates are non-decreasing (spread same-day milestones forward if possible)
+      for (let i = 1; i < totalMilestones; i++) {
+        if (dates[i] < dates[i - 1]) dates[i] = new Date(dates[i - 1]);
+      }
     }
 
     // Apply saved date overrides from localStorage
@@ -3732,10 +3742,23 @@
     const tbody = document.getElementById('timeline-body');
     let html = '';
 
-    // Pull synced milestone status from dashboard-data.js if available
+    // Pull synced milestone status and calendar meetings from dashboard-data.js
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
 
+    // Collect calendar meetings for this course
+    const calMeetings = [];
+    if (syncedCourse) {
+      if (syncedCourse.calendarMeetings) syncedCourse.calendarMeetings.forEach(function(m) {
+        calMeetings.push({ date: m.date, time: m.time, label: m.label });
+      });
+      if (syncedCourse.nextMeeting && syncedCourse.nextMeeting.date) {
+        var alreadyHas = calMeetings.some(function(m) { return m.date === syncedCourse.nextMeeting.date && m.label === syncedCourse.nextMeeting.label; });
+        if (!alreadyHas) calMeetings.push({ date: syncedCourse.nextMeeting.date, time: syncedCourse.nextMeeting.time, label: syncedCourse.nextMeeting.label });
+      }
+    }
+    // Build a combined list of milestone rows + meeting rows, sorted by date
+    const timelineRows = [];
     for (let i = 0; i < milestones.length; i++) {
       const rowClass = i < completed ? 'done' : (i === completed ? 'current' : '');
       let statusLabel, statusColor;
@@ -3757,17 +3780,41 @@
         statusColor = '#999';
       }
       const dateVal = fmt(dates[i]);
-      const datePretty = prettyDate(dates[i]);
       const labelText = milestones[i].label + (i === completed ? ' (current)' : '');
       const labelHtml = milestones[i].action
         ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${labelText}</a>`
         : `${labelText}`;
-      html += `<tr class="${rowClass}">
+      timelineRows.push({
+        sortDate: dateVal,
+        sortOrder: 0,
+        html: `<tr class="${rowClass}">
         <td>${labelHtml}</td>
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
         <td style="font-size:12px; color:${statusColor}">${statusLabel}</td>
-      </tr>`;
+      </tr>`
+      });
     }
+    // Insert calendar meeting rows
+    calMeetings.forEach(function(m) {
+      const mDate = new Date(m.date + 'T00:00:00');
+      const timeStr = m.time ? ' at ' + m.time : '';
+      const isPast = mDate < new Date(new Date().toISOString().split('T')[0] + 'T00:00:00');
+      timelineRows.push({
+        sortDate: m.date,
+        sortOrder: 1,
+        html: `<tr style="background:#e8f4fd;">
+        <td style="color:#1565c0; font-weight:500;">📅 ${m.label || 'Meeting'}</td>
+        <td style="font-size:13px; color:#1565c0;">${prettyDate(mDate)}${timeStr}</td>
+        <td style="font-size:12px; color:${isPast ? '#4caf50' : '#1565c0'}">${isPast ? '✓ Done' : '📅 Scheduled'}</td>
+      </tr>`
+      });
+    });
+    // Sort by date, meetings after milestones on same day
+    timelineRows.sort(function(a, b) {
+      var cmp = a.sortDate.localeCompare(b.sortDate);
+      return cmp !== 0 ? cmp : a.sortOrder - b.sortOrder;
+    });
+    timelineRows.forEach(function(r) { html += r.html; });
 
     // Fixed end rows
     const qaFmt = fmt(qaDate);
