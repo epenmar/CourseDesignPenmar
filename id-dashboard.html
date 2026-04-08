@@ -1266,6 +1266,20 @@
   }
   try { triggerSync(); } catch(e) {} // sync on page load, never block initial render
 
+  // Convert plain text body to HTML with embedded links (used by renderDetail + buildEmailDropdown)
+  function bodyToHtml(body) {
+    let html = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    html = html.replace(/([^\n]+):\n(https?:\/\/[^\s\n]+)/g, function(match, desc, url) {
+      return '<a href="' + url + '">' + desc.trim() + '</a>';
+    });
+    html = html.replace(/(^|[^"'])(https?:\/\/[^\s<\n]+)/gm, function(match, prefix, url) {
+      return prefix + '<a href="' + url + '">' + url + '</a>';
+    });
+    html = html.replace(/  • (.+)/g, '&nbsp;&nbsp;• $1');
+    html = html.replace(/\n/g, '<br>');
+    return html;
+  }
+
   // ===== RENDER DETAIL PANEL =====
   function renderDetail(id) {
     const c = courseData[id];
@@ -1744,26 +1758,6 @@
     // Course readiness body
     const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\n${getProfile().sig}`;
 
-    // Convert plain text body to HTML with embedded links
-    function bodyToHtml(body) {
-      // Escape HTML entities
-      let html = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-      // Convert URLs to clickable links — find URLs preceded by descriptive text ending with :\n
-      html = html.replace(/([^\n]+):\n(https?:\/\/[^\s\n]+)/g, function(match, desc, url) {
-        // Use the descriptive text as the link label
-        return '<a href="' + url + '">' + desc.trim() + '</a>';
-      });
-      // Convert any remaining bare URLs to links
-      html = html.replace(/(^|[^"'])(https?:\/\/[^\s<\n]+)/gm, function(match, prefix, url) {
-        return prefix + '<a href="' + url + '">' + url + '</a>';
-      });
-      // Convert bullet points
-      html = html.replace(/  • (.+)/g, '&nbsp;&nbsp;• $1');
-      // Convert newlines to <br>
-      html = html.replace(/\n/g, '<br>');
-      return html;
-    }
-
     const makeMailto = (subj, body) => {
       // Use Outlook Web compose for HTML support (embedded links)
       const htmlBody = bodyToHtml(body);
@@ -1847,7 +1841,12 @@
   }
 
   function openDetail(courseId) {
-    renderDetail(courseId);
+    try {
+      renderDetail(courseId);
+    } catch(err) {
+      console.error('renderDetail error for ' + courseId + ':', err);
+      document.getElementById('detail-content').innerHTML = '<div style="padding:24px; color:#c0392b;">Error loading course detail: ' + err.message + '</div>';
+    }
     const overlay = document.getElementById('detail-overlay');
     overlay.classList.add('open');
     overlay._currentId = courseId;
