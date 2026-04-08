@@ -506,9 +506,9 @@
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">College</label>
         <select id="nc-college" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; background:#fff;">
           <option value="">— Select —</option>
-          <option value="New College">New College of Interdisciplinary Arts & Sciences</option>
-          <option value="Tech for Public Health">School of Technology for Public Health</option>
-          <option value="Health Solutions">College of Health Solutions</option>
+          <option value="CHS">College of Health Solutions (CHS)</option>
+          <option value="NCIAS">New College of Interdisciplinary Arts & Sciences (NCIAS)</option>
+          <option value="STPH">School of Technology for Public Health (STPH)</option>
           <option value="Other">Other</option>
         </select>
       </div>
@@ -633,7 +633,7 @@
   }
 
   const courseData = {
-    mns521: mkCourse('MNS 521', 'AI Technologies', 'Dariush Navabi', 'Dariush.Navabi@asu.edu', "Spring B '27", 'Bio Data Science MS', 'New College',
+    mns521: mkCourse('MNS 521', 'AI Technologies', 'Dariush Navabi', 'Dariush.Navabi@asu.edu', "Spring B '27", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/1cyidt-HEfMzUBDeR7NvyJnHEsISs_RPv',
       { status: 'On Track', phase: 'Assignments Review', lastActive: 'Today', lastActiveStale: false, color: '#5c6bc0',
         qa: 'Feb 22, 2027', qaShort: 'Feb 22',
@@ -656,22 +656,22 @@
         ],
         notes: { author: 'Elisa Penmar', date: 'Mar 31', text: 'Assignment table pending from Dariush. API token research for Harmonize. Platform decided: Harmonize over YellowDig. Next meeting Apr 2 for assignment review.' }
       }),
-    mns522: mkCourse('MNS 522', 'Python for Scientific Computing', 'Dariush Navabi', 'dnavabi@asu.edu', "Fall A '26", 'Bio Data Science MS', 'New College',
+    mns522: mkCourse('MNS 522', 'Python for Scientific Computing', 'Dariush Navabi', 'dnavabi@asu.edu', "Fall A '26", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/15zc1HTfls3jnbuAk8XFbMiXncoFPMAXP',
       { qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
-    lsc598: mkCourse('LSC 598', 'Geospatial Data Science', 'John Bailey', 'johnbailey@asu.edu', "Spring A '27", 'Bio Data Science MS', 'New College',
+    lsc598: mkCourse('LSC 598', 'Geospatial Data Science', 'John Bailey', 'johnbailey@asu.edu', "Spring A '27", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/1BGor6I6BEjCFMUQUCb0u2l50Cr0FC_Vo',
       { qa: 'Jan 4, 2027', qaShort: 'Jan 4' }),
-    lsc598gen: mkCourse('LSC 598/STP 494', 'Data Science for Genomics', 'Fahad Mostafa', 'Fahad.Mostafa@asu.edu', "Fall B '26", 'Bio Data Science MS', 'New College',
+    lsc598gen: mkCourse('LSC 598/STP 494', 'Data Science for Genomics', 'Fahad Mostafa', 'Fahad.Mostafa@asu.edu', "Fall B '26", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/1eJ7xrMaVGUGLyL5A6W2RAxV-BIORL2HM',
       { qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
-    bst501: mkCourse('BST 501', 'Biostatistics for Research and Practice', 'Chong Lee', 'Chong.Lee@asu.edu', "Fall A '26", 'Biostatistics MS', 'Health Solutions',
+    bst501: mkCourse('BST 501', 'Biostatistics for Research and Practice', 'Chong Lee', 'Chong.Lee@asu.edu', "Fall A '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1UpZhMoNugwOYRlAyKDlrTtUDFhFgCjMW',
       { qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
-    bst515: mkCourse('BST 515', 'Biostatistics in Medicine and Informatics', 'TBD', '', "Fall B '26", 'PH Tech MPH', 'Tech for Public Health',
+    bst515: mkCourse('BST 515', 'Biostatistics in Medicine and Informatics', 'TBD', '', "Fall B '26", 'PH Tech MPH', 'STPH',
       'https://drive.google.com/drive/u/0/folders/10KAcmfKbgUXRNeDZZovbywLn8AjdGhRq',
       { qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
-    bst605: mkCourse('BST 605', 'Biostatistical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall A '26", 'Biostatistics MS', 'Health Solutions',
+    bst605: mkCourse('BST 605', 'Biostatistical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall A '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1TWmWxFDcvxFu7-ys8Q3lYLY1UU1JJYBA',
       { status: 'On Track', phase: 'ELOs & CLOs', lastActive: '13 days ago', lastActiveStale: false, qa: 'Jul 20, 2026', qaShort: 'Jul 20',
         milestones: [
@@ -681,27 +681,27 @@
           { date: 'Apr 27', label: 'Materials Review' },
           { date: 'Jul 20', label: 'Final Walkthrough & QA', bold: true },
         ] }),
-    bst606: mkCourse('BST 606', 'Applied Clinical Trial Design', 'Yunro Chung', 'yunro.chung@asu.edu', "Fall B '26", 'Biostatistics MS', 'Health Solutions',
+    bst606: mkCourse('BST 606', 'Applied Clinical Trial Design', 'Yunro Chung', 'yunro.chung@asu.edu', "Fall B '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1GOZ9ld1k3J-VRnI-EMg_TjcSordHDa1O',
       { status: 'On Track', phase: 'Not Started', lastActive: '3 days ago', lastActiveStale: false, qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
-    bst609: mkCourse('BST 609', 'Categorical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall B '26", 'Biostatistics MS', 'Health Solutions',
+    bst609: mkCourse('BST 609', 'Categorical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall B '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1OvoqhBq2-Na0ShOLCFvtk_-Q7vpODd4a',
       { qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
-    bst693: mkCourse('BST 693', 'Applied Project', 'Zhongxue Chen', 'zchen424@asu.edu', "Spring A '27", 'Biostatistics MS', 'Health Solutions',
+    bst693: mkCourse('BST 693', 'Applied Project', 'Zhongxue Chen', 'zchen424@asu.edu', "Spring A '27", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1tt7_IumoAeNBHOrAtSE3umArOK2RLAY7',
       { qa: 'Jan 4, 2027', qaShort: 'Jan 4' }),
-    asb554: mkCourse('ASB 554', 'One Health', 'India Schneider-Crease', 'IndiaSC@asu.edu', "Spring B '28", 'PH Tech MPH', 'Tech for Public Health', '',
+    asb554: mkCourse('ASB 554', 'One Health', 'India Schneider-Crease', 'IndiaSC@asu.edu', "Spring B '28", 'PH Tech MPH', 'STPH', '',
       { qa: 'Feb 21, 2028', qaShort: 'Feb 21' }),
-    tph501: mkCourse('TPH 501', 'Foundations of Public Health I', 'Josh Anbar', 'Joshua.Anbar@asu.edu', "Fall A '26", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph501: mkCourse('TPH 501', 'Foundations of Public Health I', 'Josh Anbar', 'Joshua.Anbar@asu.edu', "Fall A '26", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1HmTIMCOqFv0CzGJuWruLEwDyI8bRGRF8',
       { qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
-    tph502: mkCourse('TPH 502', 'Foundations of Public Health II', 'Jordan Miller', 'Jordan.Anne.Miller@asu.edu', "Spring A '27", 'PH Tech MPH', 'Tech for Public Health',
+    tph502: mkCourse('TPH 502', 'Foundations of Public Health II', 'Jordan Miller', 'Jordan.Anne.Miller@asu.edu', "Spring A '27", 'PH Tech MPH', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1gyDNYxTVzErBZN6DmiF7XNGtMSoXk8rw',
       { qa: 'Jan 4, 2027', qaShort: 'Jan 4' }),
-    tph550: mkCourse('TPH 550', 'Data Science for Public Health', 'Josh Loughman & Susan Robinson', 'Joshua.Loughman@asu.edu', "Fall A '26", 'PH Tech MS', 'Tech for Public Health',
+    tph550: mkCourse('TPH 550', 'Data Science for Public Health', 'Josh Loughman & Susan Robinson', 'Joshua.Loughman@asu.edu', "Fall A '26", 'PH Tech MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1kiz2d_luY4pf4A5a1g25CwTJu2fDSuDg',
       { qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
-    tph552: mkCourse('TPH 552', 'Systems Design & Engineering in Public Health', 'Biana Bogosian', 'biayna.bogosian@asu.edu', "Summer C '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph552: mkCourse('TPH 552', 'Systems Design & Engineering in Public Health', 'Biana Bogosian', 'biayna.bogosian@asu.edu', "Summer C '27", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1vo1ORbehrm6woHYQXvJ1X4jJbNm_zWZy',
       { phase: 'Course Outline', qa: 'May 3, 2027', qaShort: 'May 3',
         modules: [
@@ -715,31 +715,31 @@
         ],
         notes: { author: 'Elisa Penmar', date: 'Mar 10', text: '7 CLOs and 9 ELOs defined (CEPH competency alignments). Module 1 & 2 topics/MLOs drafted. Modules 3-7 pending.' }
       }),
-    tph553: mkCourse('TPH 553', 'Health Technology and Equity', 'TBD', '', "Spring B '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph553: mkCourse('TPH 553', 'Health Technology and Equity', 'TBD', '', "Spring B '27", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1JtpaB3fBWWJO2yNsFgbApqrcewSXZ3cm',
       { qa: 'Feb 22, 2027', qaShort: 'Feb 22' }),
-    tph554: mkCourse('TPH 554', 'AI and ML for Public Health', 'Steffen Eikenberry', 'Steffen.Eikenberry@asu.edu', "Spring B '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph554: mkCourse('TPH 554', 'AI and ML for Public Health', 'Steffen Eikenberry', 'Steffen.Eikenberry@asu.edu', "Spring B '27", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1xNRGEn6IeqmmdKi1eq9PFvHxWpzM55lH',
       { qa: 'Feb 22, 2027', qaShort: 'Feb 22' }),
-    tph555: mkCourse('TPH 555', 'Health Communication, Behavior & Technology', 'Rodney Joseph & Dave Keating', 'Rodney.Joseph@asu.edu', "Spring A '27", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph555: mkCourse('TPH 555', 'Health Communication, Behavior & Technology', 'Rodney Joseph & Dave Keating', 'Rodney.Joseph@asu.edu', "Spring A '27", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/13o4MamkKPWKabxL4w60AhiU306BLdhPQ',
       { qa: 'Jan 4, 2027', qaShort: 'Jan 4' }),
-    tph556: mkCourse('TPH 556', 'PH Tech Entrepreneurship & Leadership', 'TBD', '', "Spring A '27", 'PH Tech MS', 'Tech for Public Health',
+    tph556: mkCourse('TPH 556', 'PH Tech Entrepreneurship & Leadership', 'TBD', '', "Spring A '27", 'PH Tech MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1J8wC7vG5CMr2Ed_e1T3WMSiRZHKZemFg',
       { qa: 'Jan 4, 2027', qaShort: 'Jan 4' }),
-    tph557: mkCourse('TPH 557', 'PH Tech Ethics, Policy and Law', 'Rachel Gur-Arie', 'rgurarie@asu.edu', "Fall B '26", 'PH Tech MPH/MS', 'Tech for Public Health',
+    tph557: mkCourse('TPH 557', 'PH Tech Ethics, Policy and Law', 'Rachel Gur-Arie', 'rgurarie@asu.edu', "Fall B '26", 'PH Tech MPH/MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/10ejlJ0iRJDSgiGtpoqNAoo2PlgQgyyPq',
       { qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
-    tph580: mkCourse('TPH 580', 'Practicum', 'TBD', '', "Summer C '27", 'PH Tech MPH', 'Tech for Public Health',
+    tph580: mkCourse('TPH 580', 'Practicum', 'TBD', '', "Summer C '27", 'PH Tech MPH', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1R3cnWJ8yGVWccOqdAQaBGPIIhlXwxSgY',
       { qa: 'May 3, 2027', qaShort: 'May 3' }),
-    tph585: mkCourse('TPH 585', 'Capstone', 'TBD', '', "Spring C '28", 'PH Tech MPH', 'Tech for Public Health',
+    tph585: mkCourse('TPH 585', 'Capstone', 'TBD', '', "Spring C '28", 'PH Tech MPH', 'STPH',
       'https://drive.google.com/drive/u/0/folders/134yMBm5ypUHTK923pnt6WcHnS2s0vjh1',
       { qa: 'Jan 3, 2028', qaShort: 'Jan 3' }),
-    tph591: mkCourse('TPH 591', 'Entrepreneurship & Leadership for PH', 'Jyoti Pathak', 'pathakj@asu.edu', "Fall B '27", 'PH Tech MPH', 'Tech for Public Health',
+    tph591: mkCourse('TPH 591', 'Entrepreneurship & Leadership for PH', 'Jyoti Pathak', 'pathakj@asu.edu', "Fall B '27", 'PH Tech MPH', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1FtXw2-UDPXsx8EYkCSonyVuYQzXIO5Gx',
       { qa: 'Sep 20, 2027', qaShort: 'Sep 20' }),
-    tph593: mkCourse('TPH 593', 'Applied Project', 'TBD', '', "Summer C '27", 'PH Tech MS', 'Tech for Public Health',
+    tph593: mkCourse('TPH 593', 'Applied Project', 'TBD', '', "Summer C '27", 'PH Tech MS', 'STPH',
       'https://drive.google.com/drive/u/0/folders/1o-UhdJZcCxrlUmNuqPnARfRcUagVxD_U',
       { qa: 'May 3, 2027', qaShort: 'May 3' }),
   };
@@ -1182,15 +1182,16 @@
       if (c.session && c.session !== '—') sessions.add(c.session);
       statuses.add(c.status);
     });
-    const makeOpts = (set, label) => {
+    const collegeFullNames = { 'CHS': 'College of Health Solutions (CHS)', 'NCIAS': 'New College of Interdisciplinary Arts & Sciences (NCIAS)', 'STPH': 'School of Technology for Public Health (STPH)' };
+    const makeOpts = (set, label, displayMap) => {
       let html = `<option value="">All ${label}</option>`;
-      [...set].sort().forEach(v => { html += `<option value="${v}">${v}</option>`; });
+      [...set].sort().forEach(v => { html += `<option value="${v}">${displayMap && displayMap[v] || v}</option>`; });
       return html;
     };
     document.getElementById('col-filter-row').innerHTML =
       `<label>Filter:</label>` +
       `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
-      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges')}</select>` +
+      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges', collegeFullNames)}</select>` +
       `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
       `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>` +
       renderColumnToggle();
