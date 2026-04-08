@@ -3169,72 +3169,96 @@
 
   // ===== DYNAMIC PROGRESS CALCULATION =====
   function calculateProgress() {
-    let filled = 0;
-    let total = 0;
+    // Weighted progress: each section contributes a fixed % of the total
+    // Course Info: 5%, Course Context: 5%, ELOs & CLOs: 10%, Module MLOs: 15%,
+    // Assignments: 20%, Materials: 20%, Module Content Pages: 20%, Alignment Map: 5%
+    // Timeline milestones do NOT count.
 
-    // 1. Course info fields (inputs and textareas in course-info view)
-    const courseInfoFields = document.querySelectorAll('#view-course-info .field-input');
+    var weightedPct = 0;
+
+    // 1. Course Info (5%) — fraction of filled text fields
+    var courseInfoFields = document.querySelectorAll('#view-course-info .field-input');
+    var infoFilled = 0, infoTotal = 0;
     courseInfoFields.forEach(function(f) {
-      total++;
-      if (f.value && f.value.trim()) filled++;
+      if (f.closest('.comment-thread-panel') || f.closest('#comment-identity-modal')) return;
+      infoTotal++;
+      if (f.value && f.value.trim()) infoFilled++;
     });
+    // Check manual completion checkbox
+    var courseInfoComplete = document.getElementById('course-info-complete');
+    var manuallyComplete = courseInfoComplete && courseInfoComplete.checked;
+    if (manuallyComplete) {
+      weightedPct += 5;
+    } else if (infoTotal > 0) {
+      weightedPct += 5 * (infoFilled / infoTotal);
+    }
 
-    // 2. ELOs defined
-    const elos = activeCourse.flatElos || [];
-    total++;
-    if (elos.length > 0 && elos.some(function(e) { return e && e.trim(); })) filled++;
+    // 2. Course Context Q&A (5%) — fraction of filled context textareas
+    var ctxFields = document.querySelectorAll('#view-additional textarea.field-input');
+    var ctxFilled = 0, ctxTotal = 0;
+    ctxFields.forEach(function(f) {
+      ctxTotal++;
+      if (f.value && f.value.trim()) ctxFilled++;
+    });
+    if (ctxTotal > 0) weightedPct += 5 * (ctxFilled / ctxTotal);
 
-    // 3. CLOs defined
-    const clos = activeCourse.clos || [];
-    total++;
-    if (clos.length > 0 && clos.some(function(c) { return c && c.trim(); })) filled++;
+    // 3. ELOs & CLOs (10%) — 5% for having any ELOs, 5% for having any CLOs
+    var elos = activeCourse.flatElos || [];
+    var realElos = elos.filter(function(e) { return e && e.trim(); });
+    var clos = activeCourse.clos || [];
+    var realClos = clos.filter(function(c) { return c && c.trim(); });
+    if (realElos.length > 0) weightedPct += 5;
+    if (realClos.length > 0) weightedPct += 5;
 
-    // 4. Module MLOs — one trackable field per module
-    const modules = activeCourse.modules || [];
-    const modCount = activeCourse.moduleCount || modules.length || 7;
-    for (let i = 0; i < modCount; i++) {
-      total++;
-      const mod = modules[i];
+    // 4. Module MLOs (15%) — fraction of modules that have at least one MLO defined
+    var modules = activeCourse.modules || [];
+    var modCount = activeCourse.moduleCount || modules.length || 7;
+    var modsWithMlos = 0;
+    for (var i = 0; i < modCount; i++) {
+      var mod = modules[i];
       if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) {
-        filled++;
+        modsWithMlos++;
       }
     }
+    if (modCount > 0) weightedPct += 15 * (modsWithMlos / modCount);
 
-    // 5. Assignments — one trackable field per module that has activities
-    for (let i = 1; i <= modCount; i++) {
-      total++;
-      const acts = courseActivities[i];
-      if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) {
-        filled++;
-      }
+    // 5. Assignments (20%) — fraction of modules that have at least one named activity
+    var modsWithActs = 0;
+    for (var ai = 1; ai <= modCount; ai++) {
+      var acts = courseActivities[ai];
+      if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) modsWithActs++;
     }
+    if (modCount > 0) weightedPct += 20 * (modsWithActs / modCount);
 
-    // 6. Materials — one trackable field per module that has materials
-    for (let i = 1; i <= modCount; i++) {
-      total++;
-      const mats = courseMaterials[i];
-      if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) {
-        filled++;
-      }
+    // 6. Materials (20%) — fraction of modules that have at least one titled material
+    var modsWithMats = 0;
+    for (var mi = 1; mi <= modCount; mi++) {
+      var mats = courseMaterials[mi];
+      if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) modsWithMats++;
     }
+    if (modCount > 0) weightedPct += 20 * (modsWithMats / modCount);
 
-    // 7. Textbook field
-    const matInputs = document.querySelectorAll('#view-materials .field-input');
-    if (matInputs.length > 0) {
-      total++;
-      if (matInputs[0].value && matInputs[0].value.trim()) filled++;
+    // 7. Module Content Pages (20%) — fraction of modules that have content beyond just MLOs
+    //    A module page counts as "started" if it has MLOs AND (activities OR materials)
+    var modsWithContent = 0;
+    for (var ci = 0; ci < modCount; ci++) {
+      var cMod = modules[ci];
+      var hasMlos = cMod && cMod.mlos && cMod.mlos.length > 0 && cMod.mlos.some(function(m) { return m && m.trim(); });
+      var hasActs = courseActivities[ci + 1] && courseActivities[ci + 1].length > 0 && courseActivities[ci + 1].some(function(a) { return a.name && a.name.trim(); });
+      var hasMats = courseMaterials[ci + 1] && courseMaterials[ci + 1].length > 0 && courseMaterials[ci + 1].some(function(m) { return m.title && m.title.trim(); });
+      if (hasMlos && (hasActs || hasMats)) modsWithContent++;
     }
+    if (modCount > 0) weightedPct += 20 * (modsWithContent / modCount);
 
-    const pct = total > 0 ? Math.round((filled / total) * 100) : 0;
+    // 8. Course Alignment Map (5%) — done if eloMloAlignment has entries
+    var eloMlo = activeCourse.eloMloAlignment || loadField('eloMloAlignment');
+    if (eloMlo && Object.keys(eloMlo).length > 0) weightedPct += 5;
 
-    // Count modules started (have at least one MLO)
-    let modulesStarted = 0;
-    for (let i = 0; i < modCount; i++) {
-      const mod = modules[i];
-      if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) {
-        modulesStarted++;
-      }
-    }
+    var pct = Math.round(weightedPct);
+    saveField('completionPct', pct);
+
+    // Recompute modulesStarted for badge updates below
+    var modulesStarted = modsWithMlos;
 
     // Update sidebar progress
     const sidebarPct = document.getElementById('sidebar-progress-pct');
