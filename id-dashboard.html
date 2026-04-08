@@ -235,10 +235,10 @@
   .rc-link-actions button:hover { opacity: 1; }
   .rc-link-actions .rc-edit-btn { color: #1565c0; }
   .rc-link-actions .rc-del-btn { color: #c62828; }
-  .rc-add-form { display: flex; gap: 4px; align-items: center; margin-top: 4px; }
-  .rc-add-form input { font-size: 10px; padding: 3px 6px; border: 1px solid #e0ddd5; border-radius: 4px; font-family: 'Inter', sans-serif; width: 80px; }
+  .rc-add-form { display: flex; gap: 4px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
+  .rc-add-form input { font-size: 10px; padding: 3px 6px; border: 1px solid #e0ddd5; border-radius: 4px; font-family: 'Inter', sans-serif; width: 80px; min-width: 0; flex: 1; }
   .rc-add-form input:focus { outline: none; border-color: #8c1d40; }
-  .rc-add-form button { font-size: 10px; padding: 3px 8px; border: none; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .rc-add-form button { font-size: 10px; padding: 3px 8px; border: none; border-radius: 4px; cursor: pointer; font-family: 'Inter', sans-serif; flex-shrink: 0; }
   .rc-add-save { background: #8c1d40; color: #fff; }
   .rc-add-cancel { background: #eee; color: #666; }
 
@@ -356,6 +356,7 @@
               <a class="rc-link" href="https://provost.asu.edu/upra" target="_blank">ABOR Accreditation</a>
               <a class="rc-link" href="https://asuonline.asu.edu/" target="_blank">ASU Online</a>
               <a class="rc-link" href="https://catalog.asu.edu/" target="_blank">Course Catalog</a>
+              <a class="rc-link" href="https://catalog.apps.asu.edu/catalog/classes/classlist?campusOrOnlineSelection=A&catalogNbr=557&honors=F&promod=F&searchType=all&subject=TPH&term=2267" target="_blank">Class Search</a>
               <a class="rc-link" href="https://uto.asu.edu/canvas" target="_blank">Canvas/LMS</a>
               <a class="rc-link" href="https://accessibility.asu.edu/" target="_blank">Accessibility</a>
               <a class="rc-link" href="https://uoeee.asu.edu/" target="_blank">Universal Design</a>
@@ -423,7 +424,7 @@
   <!-- UPCOMING DEADLINES -->
   <div class="dash-section upcoming">
     <div class="section-header" style="display:flex; align-items:center; gap:12px;">
-      <h2 style="margin:0;">Upcoming Deadlines</h2>
+      <h2 style="margin:0;">Upcoming</h2>
       <select id="upcoming-weeks" onchange="renderUpcoming()" style="font-size:12px; padding:2px 6px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#333; cursor:pointer;">
         <option value="1">1 week</option>
         <option value="2" selected>2 weeks</option>
@@ -930,13 +931,45 @@
       return { ...d, meetingInfo: meeting, courseId: cid };
     });
 
+    // Collect deadline dates per course so we can find orphan meetings
+    const deadlineDatesByCourse = {};
+    cards.forEach(d => { if (d.courseId) { (deadlineDatesByCourse[d.courseId] = deadlineDatesByCourse[d.courseId] || []).push(d.date); } });
+
+    // Add standalone calendar meetings that aren't near any milestone
+    Object.keys(courseData).forEach(id => {
+      const c = courseData[id];
+      const allMeetings = [];
+      if (c.calendarMeetings) allMeetings.push(...c.calendarMeetings);
+      if (c.nextMeeting && c.nextMeeting.date) {
+        const alreadyHas = allMeetings.some(m => m.date === c.nextMeeting.date && m.label === c.nextMeeting.label);
+        if (!alreadyHas) allMeetings.push(c.nextMeeting);
+      }
+      const datesForCourse = deadlineDatesByCourse[id] || [];
+      allMeetings.forEach(m => {
+        if (!m.date || m.date < todayStr || m.date > cutoffStr) return;
+        // Check if this meeting is already associated with a nearby deadline (within 2 days)
+        const mTime = new Date(m.date + 'T00:00:00').getTime();
+        const nearDeadline = datesForCourse.some(dd => Math.abs(new Date(dd + 'T00:00:00').getTime() - mTime) <= 2 * 86400000);
+        if (!nearDeadline) {
+          cards.push({
+            title: m.label || 'Meeting',
+            course: c.title,
+            date: m.date,
+            courseId: id,
+            meetingInfo: { time: m.time, label: m.label },
+            isStandaloneMeeting: true
+          });
+        }
+      });
+    });
+
     // Sort by date, limit to 6
     cards.sort((a, b) => a.date.localeCompare(b.date));
     const upcoming = cards.slice(0, 6);
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
-      el.innerHTML = `<div style="padding:20px; color:#999; font-size:13px;">No upcoming deadlines in the next ${weeks} week${weeks > 1 ? 's' : ''}.</div>`;
+      el.innerHTML = `<div style="padding:20px; color:#999; font-size:13px;">Nothing upcoming in the next ${weeks} week${weeks > 1 ? 's' : ''}.</div>`;
       return;
     }
     el.innerHTML = upcoming.map(d => {
@@ -983,6 +1016,11 @@
 
   function getSortedCourseKeys() {
     const keys = Object.keys(courseData);
+    // Default: sort by most recently viewed
+    if (!sortField) {
+      const lv = getLastViewed();
+      keys.sort((a, b) => (lv[b] || 0) - (lv[a] || 0));
+    }
     // Sort by field if set
     if (sortField) keys.sort((a, b) => {
       const ca = courseData[a];
@@ -1312,7 +1350,7 @@
       html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor Development</a>`;
     }
     if (c.driveFolder) {
-      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;">📂 Google Drive</a>`;
+      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
     }
     if (c.email) {
       html += buildEmailDropdown(id, c);
@@ -1853,7 +1891,17 @@
     applyAllFilters();
   }
 
+  function getLastViewed() {
+    try { return JSON.parse(localStorage.getItem('course_last_viewed') || '{}'); } catch(e) { return {}; }
+  }
+  function recordLastViewed(courseId) {
+    var lv = getLastViewed();
+    lv[courseId] = Date.now();
+    localStorage.setItem('course_last_viewed', JSON.stringify(lv));
+  }
+
   function openDetail(courseId) {
+    recordLastViewed(courseId);
     try {
       renderDetail(courseId);
     } catch(err) {
@@ -2130,9 +2178,10 @@
     if (!lnk) return;
     const wrap = container.querySelectorAll('.rc-link-wrap')[idx];
     if (!wrap) return;
+    wrap.style.display = 'block';
     wrap.innerHTML = `<div class="rc-add-form" style="margin:0;">` +
       `<input type="text" value="${lnk.label.replace(/"/g, '&quot;')}" id="rc-edit-label-${cardId}-${idx}" />` +
-      `<input type="text" value="${lnk.url}" id="rc-edit-url-${cardId}-${idx}" style="width:160px;" />` +
+      `<input type="text" value="${lnk.url}" id="rc-edit-url-${cardId}-${idx}" />` +
       `<button class="rc-add-save" onclick="saveEditedLink('${cardId}',${idx})">Save</button>` +
       `<button class="rc-add-cancel" onclick="renderResourceLinks('${cardId}')">Cancel</button>` +
     `</div>`;
