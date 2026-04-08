@@ -1765,37 +1765,22 @@
       moduleTabs.innerHTML = html;
     }
 
-    // Course Info fields (only overwrite if not MNS 521, since MNS 521 data is already hardcoded)
+    // Course Info fields — populate defaults from course config, but NEVER clear user-saved data.
+    // restoreAllFields() runs later and will overwrite these with saved values if they exist.
     if (courseId !== 'mns521') {
-      const fields = document.querySelectorAll('#view-course-info .field-input');
-      // Clear all course info fields for non-MNS courses
-      fields.forEach(f => { if (f.tagName === 'TEXTAREA') f.value = ''; else if (f.type === 'text') f.value = ''; });
-
-      // Fill in what we know
       const courseInfoInputs = document.querySelectorAll('#view-course-info input.field-input');
-      if (courseInfoInputs[0]) courseInfoInputs[0].value = activeCourse.code; // prefix & number
-      if (courseInfoInputs[1]) courseInfoInputs[1].value = activeCourse.name; // course name
-      if (courseInfoInputs[2]) courseInfoInputs[2].value = activeCourse.credits; // credits
-      if (courseInfoInputs[3]) courseInfoInputs[3].value = activeCourse.prerequisites; // prereqs
-      if (courseInfoInputs[4]) courseInfoInputs[4].value = activeCourse.session; // session
-      if (courseInfoInputs[5]) courseInfoInputs[5].value = activeCourse.sectionLines; // section lines
-      if (courseInfoInputs[6]) courseInfoInputs[6].value = activeCourse.enrollmentCap; // enrollment
-      // Instructor fields
-      if (courseInfoInputs[8]) courseInfoInputs[8].value = activeCourse.instructor;
-      if (courseInfoInputs[9]) courseInfoInputs[9].value = activeCourse.email;
-      if (courseInfoInputs[10]) courseInfoInputs[10].value = activeCourse.office;
-
-      // Clear CLOs and ELOs for non-MNS courses
-      document.querySelectorAll('#view-objectives input.field-input').forEach(f => f.value = '');
-
-      // Clear textbook
-      const matInputs = document.querySelectorAll('#view-materials input.field-input');
-      matInputs.forEach(f => f.value = '');
-
-      // Clear course context Q&A
-      document.querySelectorAll('#view-additional textarea.field-input, #view-additional .auto-expand').forEach(f => f.value = '');
-
-      // Doc preview is now rendered dynamically by renderPreview() when the view is shown
+      // Only set defaults for fields that are currently empty
+      if (courseInfoInputs[0] && !courseInfoInputs[0].value) courseInfoInputs[0].value = activeCourse.code || '';
+      if (courseInfoInputs[1] && !courseInfoInputs[1].value) courseInfoInputs[1].value = activeCourse.name || '';
+      if (courseInfoInputs[2] && !courseInfoInputs[2].value) courseInfoInputs[2].value = activeCourse.credits || '';
+      if (courseInfoInputs[3] && !courseInfoInputs[3].value) courseInfoInputs[3].value = activeCourse.prerequisites || '';
+      if (courseInfoInputs[4] && !courseInfoInputs[4].value) courseInfoInputs[4].value = activeCourse.session || '';
+      if (courseInfoInputs[5] && !courseInfoInputs[5].value) courseInfoInputs[5].value = activeCourse.sectionLines || '';
+      if (courseInfoInputs[6] && !courseInfoInputs[6].value) courseInfoInputs[6].value = activeCourse.enrollmentCap || '';
+      if (courseInfoInputs[8] && !courseInfoInputs[8].value) courseInfoInputs[8].value = activeCourse.instructor || '';
+      if (courseInfoInputs[9] && !courseInfoInputs[9].value) courseInfoInputs[9].value = activeCourse.email || '';
+      if (courseInfoInputs[10] && !courseInfoInputs[10].value) courseInfoInputs[10].value = activeCourse.office || '';
+      // Do NOT clear CLOs, ELOs, textbooks, or course context Q&A — user data lives there
     }
 
     // Populate textbook field from config (applies to ALL courses including MNS 521)
@@ -3879,7 +3864,12 @@
       const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
       data[key] = value;
       localStorage.setItem(storageKey, JSON.stringify(data));
-    } catch(e) {}
+    } catch(e) {
+      console.error('Failed to save field "' + key + '":', e);
+      if (e.name === 'QuotaExceededError') {
+        alert('Storage is full — your changes may not be saved. Please contact your instructional designer.');
+      }
+    }
   }
 
   function loadField(key) {
@@ -3953,48 +3943,53 @@
 
   // ===== GLOBAL PERSISTENCE ENGINE =====
   let saveTimer = null;
+
+  function _doSaveAllFields() {
+    // Sync CLO/ELO textareas back to activeCourse data model
+    if (document.getElementById('clo-list')) { saveCloState(); saveEloState(); }
+    const allData = {};
+    // Save all inputs and textareas with values (exclude comment panel elements)
+    document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
+      // Skip comment system elements — they're managed by Supabase, not localStorage
+      if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
+      if (el.dataset.managed === 'true') return;
+      // Build a unique key from context
+      const view = el.closest('[id^="view-"]');
+      const viewId = view ? view.id : 'global';
+      // Use element id, name, or positional key
+      let key = el.id || el.name || '';
+      if (!key) {
+        key = viewId + '_' + idx;
+      }
+      if (el.type === 'checkbox') {
+        allData[key] = el.checked;
+      } else if (el.tagName === 'SELECT') {
+        allData[key] = el.selectedIndex;
+      } else {
+        allData[key] = el.value;
+      }
+    });
+    // Save checkbox states
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+      const key = el.id || ('chk_' + idx);
+      allData[key] = el.checked;
+    });
+    saveField('formData', allData);
+  }
+
   function saveAllFields() {
     clearTimeout(saveTimer);
     saveTimer = setTimeout(function() {
-      // Sync CLO/ELO textareas back to activeCourse data model
-      if (document.getElementById('clo-list')) { saveCloState(); saveEloState(); }
-      const allData = {};
-      // Save all inputs and textareas with values (exclude comment panel elements)
-      document.querySelectorAll('input[type="text"], input[type="date"], input[type="password"], textarea, select').forEach(function(el, idx) {
-        // Skip comment system elements — they're managed by Supabase, not localStorage
-        if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
-        if (el.dataset.managed === 'true') return;
-        // Build a unique key from context
-        const view = el.closest('[id^="view-"]');
-        const viewId = view ? view.id : 'global';
-        const card = el.closest('.card');
-        const fieldGroup = el.closest('.field-group');
-        const objEntry = el.closest('.obj-entry');
-        const actBlock = el.closest('.activity-block');
-        const label = el.getAttribute('data-mod-topic') || el.closest('.field-group')?.querySelector('.field-label')?.textContent || '';
-        // Use element id, name, or positional key
-        let key = el.id || el.name || '';
-        if (!key) {
-          key = viewId + '_' + idx;
-        }
-        if (el.type === 'checkbox') {
-          allData[key] = el.checked;
-        } else if (el.tagName === 'SELECT') {
-          allData[key] = el.selectedIndex;
-        } else {
-          allData[key] = el.value;
-        }
-      });
-      // Save checkbox states
-      document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
-        const key = el.id || ('chk_' + idx);
-        allData[key] = el.checked;
-      });
-      saveField('formData', allData);
-      // Brief save indicator
+      _doSaveAllFields();
       showSaveIndicator();
     }, 500);
   }
+
+  // Flush any pending save immediately when leaving the page
+  window.addEventListener('beforeunload', function() {
+    clearTimeout(saveTimer);
+    _doSaveAllFields();
+  });
 
   function restoreAllFields() {
     const allData = loadField('formData');
