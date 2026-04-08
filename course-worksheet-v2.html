@@ -46,8 +46,24 @@
 
   /* ===== MAIN ===== */
   .main { flex: 1; overflow-y: auto; }
-  .main-header { padding: 24px 40px 0; }
+  .main-header { padding: 24px 40px 0; display: flex; justify-content: space-between; align-items: flex-start; }
   .breadcrumb { font-size: 12px; color: #999; margin-bottom: 8px; }
+  .undo-redo-bar { display: flex; gap: 2px; align-items: center; flex-shrink: 0; }
+  .undo-redo-wrap { position: relative; display: inline-flex; }
+  .undo-redo-btn { background: #fff; border: 1px solid #e0ddd5; border-radius: 6px 0 0 6px; padding: 5px 8px; font-size: 14px; cursor: pointer; color: #666; line-height: 1; }
+  .undo-redo-btn:hover:not(:disabled) { background: #f5f5f0; color: #333; }
+  .undo-redo-btn:disabled { opacity: 0.3; cursor: default; }
+  .undo-redo-caret { background: #fff; border: 1px solid #e0ddd5; border-left: none; border-radius: 0 6px 6px 0; padding: 5px 4px; font-size: 8px; cursor: pointer; color: #999; line-height: 1; display: flex; align-items: center; }
+  .undo-redo-caret:hover { background: #f5f5f0; color: #333; }
+  .undo-redo-caret:disabled { opacity: 0.3; cursor: default; }
+  .undo-redo-dropdown { display: none; position: absolute; top: calc(100% + 4px); right: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.12); min-width: 220px; max-height: 240px; overflow-y: auto; z-index: 500; padding: 4px 0; }
+  .undo-redo-dropdown.open { display: block; }
+  .undo-redo-item { padding: 6px 12px; font-size: 12px; color: #444; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+  .undo-redo-item:hover { background: #f5f5f0; }
+  .undo-redo-item .uri-idx { color: #999; font-size: 10px; min-width: 16px; }
+  .undo-redo-item .uri-label { flex: 1; }
+  .undo-redo-item.uri-selected { background: #fef9f0; font-weight: 600; color: #8c1d40; }
+  .undo-redo-empty { padding: 8px 12px; font-size: 11px; color: #999; font-style: italic; }
   .breadcrumb span { color: #8c1d40; }
   .main-content { padding: 12px 40px 60px; max-width: 920px; }
 
@@ -438,17 +454,11 @@
           <h2>COURSE DEVELOPMENT</h2>
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
-        <div style="display:flex; flex-direction:column; align-items:center; gap:4px;">
-          <div style="display:flex; gap:2px;">
-            <button class="comment-btn" onclick="undo()" title="Undo (Ctrl+Z)" style="padding:4px 6px; font-size:13px;">↩</button>
-            <button class="comment-btn" onclick="redo()" title="Redo (Ctrl+Shift+Z)" style="padding:4px 6px; font-size:13px;">↪</button>
-          </div>
-          <div style="display:flex; gap:2px;">
-            <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
-            <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())">
-              💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
-            </button>
-          </div>
+        <div style="display:flex; gap:2px; align-items:center;">
+          <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
+          <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())">
+            💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
+          </button>
         </div>
       </div>
     </div>
@@ -514,7 +524,21 @@
 
   <!-- MAIN CONTENT -->
   <div class="main">
-    <div class="main-header"><div class="breadcrumb" id="breadcrumb">Getting Started / Dashboard</div></div>
+    <div class="main-header">
+      <div class="breadcrumb" id="breadcrumb">Getting Started / Dashboard</div>
+      <div class="undo-redo-bar">
+        <div class="undo-redo-wrap">
+          <button class="undo-redo-btn" id="undo-btn" onclick="undo(); updateUndoRedoState();" title="Undo (Ctrl+Z)" disabled>↩</button>
+          <button class="undo-redo-caret" id="undo-caret" onclick="event.stopPropagation(); toggleUndoDropdown('undo')" title="Undo history" disabled>▾</button>
+          <div class="undo-redo-dropdown" id="undo-dropdown"></div>
+        </div>
+        <div class="undo-redo-wrap">
+          <button class="undo-redo-btn" id="redo-btn" onclick="redo(); updateUndoRedoState();" title="Redo (Ctrl+Shift+Z)" disabled style="border-radius:6px 0 0 6px;">↪</button>
+          <button class="undo-redo-caret" id="redo-caret" onclick="event.stopPropagation(); toggleUndoDropdown('redo')" title="Redo history" disabled>▾</button>
+          <div class="undo-redo-dropdown" id="redo-dropdown"></div>
+        </div>
+      </div>
+    </div>
     <div class="main-content" id="main-content">
 
       <!-- ===== DASHBOARD ===== -->
@@ -1284,6 +1308,7 @@
     });
     var state = undoStack.pop();
     restoreState(state);
+    updateUndoRedoState();
   }
 
   function redo() {
@@ -1299,6 +1324,7 @@
     });
     var state = redoStack.pop();
     restoreState(state);
+    updateUndoRedoState();
   }
 
   function restoreState(state) {
@@ -1327,6 +1353,78 @@
     // Re-render everything
     renderAllViews();
   }
+
+  // ===== UNDO/REDO DROPDOWN UI =====
+  function updateUndoRedoState() {
+    var undoBtn = document.getElementById('undo-btn');
+    var redoBtn = document.getElementById('redo-btn');
+    var undoCaret = document.getElementById('undo-caret');
+    var redoCaret = document.getElementById('redo-caret');
+    if (undoBtn) undoBtn.disabled = undoStack.length === 0;
+    if (redoBtn) redoBtn.disabled = redoStack.length === 0;
+    if (undoCaret) undoCaret.disabled = undoStack.length === 0;
+    if (redoCaret) redoCaret.disabled = redoStack.length === 0;
+  }
+
+  function toggleUndoDropdown(type) {
+    var dropdown = document.getElementById(type + '-dropdown');
+    var otherDropdown = document.getElementById(type === 'undo' ? 'redo-dropdown' : 'undo-dropdown');
+    if (otherDropdown) otherDropdown.classList.remove('open');
+    if (!dropdown) return;
+    if (dropdown.classList.contains('open')) {
+      dropdown.classList.remove('open');
+      return;
+    }
+    var stack = type === 'undo' ? undoStack : redoStack;
+    if (stack.length === 0) {
+      dropdown.innerHTML = '<div class="undo-redo-empty">No ' + type + ' history</div>';
+    } else {
+      var html = '';
+      for (var i = stack.length - 1; i >= 0; i--) {
+        var label = stack[i].label || 'edit';
+        var num = stack.length - i;
+        html += '<div class="undo-redo-item" onclick="undoRedoTo(\'' + type + '\', ' + i + ')">';
+        html += '<span class="uri-idx">' + num + '</span>';
+        html += '<span class="uri-label">' + label.charAt(0).toUpperCase() + label.slice(1) + '</span>';
+        html += '</div>';
+      }
+      dropdown.innerHTML = html;
+    }
+    dropdown.classList.add('open');
+  }
+
+  function undoRedoTo(type, targetIndex) {
+    var stack = type === 'undo' ? undoStack : redoStack;
+    var otherStack = type === 'undo' ? redoStack : undoStack;
+    if (targetIndex < 0 || targetIndex >= stack.length) return;
+    // Perform sequential undo/redo from top of stack down to targetIndex
+    var count = stack.length - targetIndex;
+    for (var i = 0; i < count; i++) {
+      if (type === 'undo') undo();
+      else redo();
+    }
+    updateUndoRedoState();
+    // Close dropdown
+    var dropdown = document.getElementById(type + '-dropdown');
+    if (dropdown) dropdown.classList.remove('open');
+  }
+
+  // Close dropdowns on outside click
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.undo-redo-wrap')) {
+      var d1 = document.getElementById('undo-dropdown');
+      var d2 = document.getElementById('redo-dropdown');
+      if (d1) d1.classList.remove('open');
+      if (d2) d2.classList.remove('open');
+    }
+  });
+
+  // Patch captureUndoState to update button state
+  var _origCapture = captureUndoState;
+  captureUndoState = function(label) {
+    _origCapture(label);
+    updateUndoRedoState();
+  };
 
   function renderAllViews() {
     renderEloList();
