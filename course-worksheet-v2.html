@@ -1907,8 +1907,14 @@
     document.title = activeCourse.code + ' — Course Development';
 
     // Restore saved module count and start-from-zero from localStorage
+    // Only use saved moduleCount if it's >= the config default (never shrink below default)
+    const configModCount = activeCourse.moduleCount || 7;
     const savedModuleCount = loadField('moduleCount');
-    if (savedModuleCount) activeCourse.moduleCount = savedModuleCount;
+    if (savedModuleCount && savedModuleCount >= configModCount) {
+      activeCourse.moduleCount = savedModuleCount;
+    } else {
+      activeCourse.moduleCount = configModCount;
+    }
     const savedStartZero = loadField('moduleStartZero');
     if (savedStartZero) activeCourse.moduleStartZero = savedStartZero;
 
@@ -1922,35 +1928,7 @@
       }
     }
 
-    const sidebarModList = document.getElementById('sidebar-module-list');
-    const sideStartNum = activeCourse.moduleStartZero ? 0 : 1;
-    const sidebarSavedMods = loadField('moduleOverviewData') || {};
-    if (sidebarModList) {
-      let html = '';
-      for (let i = 0; i < modCount; i++) {
-        const mod = modules[i];
-        const num = i + sideStartNum;
-        const savedMod = sidebarSavedMods[num] || {};
-        const title = savedMod.topic || (mod ? mod.title : '') || 'Module ' + num;
-        html += '<div class="nav-item" onclick="showModule(' + num + ')">' +
-          '<span class="icon" style="font-size:11px;">' + num + '</span> ' + title +
-          '<span class="badge badge-empty" id="sidebar-mod-badge-' + num + '">—</span></div>';
-      }
-      sidebarModList.innerHTML = html;
-    }
-
-    // Render module detail tabs dynamically
-    const moduleTabs = document.getElementById('module-tabs');
-    if (moduleTabs) {
-      const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
-      const tabStart = activeCourse.moduleStartZero ? 0 : 1;
-      let html = '';
-      for (let i = 0; i < modCount; i++) {
-        const num = i + tabStart;
-        html += '<div class="module-tab' + (i === 0 ? ' active' : '') + '" onclick="showModule(' + num + ')">' + num + '</div>';
-      }
-      moduleTabs.innerHTML = html;
-    }
+    rebuildSidebarModules();
 
     // Course Info fields — populate defaults from course config by ID.
     // restoreAllFields() runs later and will overwrite these with saved values if they exist.
@@ -3482,14 +3460,6 @@
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
     // Start from existing saved data so we don't erase modules not currently in the DOM
     var data = loadField('moduleOverviewData') || {};
-    // Also seed from activeCourse for any modules not yet in localStorage
-    var modules = activeCourse.modules || [];
-    for (var i = 0; i < modules.length; i++) {
-      var mn = i + startNum;
-      if (!data[mn]) {
-        data[mn] = { topic: modules[i].title || '', mlos: (modules[i].mlos || []).slice() };
-      }
-    }
     // Now overlay with current DOM values for any cards that are rendered
     var cards = document.querySelectorAll('#module-overview-cards .card[data-mod-num]');
     cards.forEach(function(card) {
@@ -3521,20 +3491,52 @@
     }, 500);
   }
 
+  function rebuildSidebarModules() {
+    var _modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    var _startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var _savedMods = loadField('moduleOverviewData') || {};
+    var _modules = activeCourse.modules || [];
+
+    var sidebarModList = document.getElementById('sidebar-module-list');
+    if (sidebarModList) {
+      var html = '';
+      for (var i = 0; i < _modCount; i++) {
+        var mod = _modules[i];
+        var num = i + _startNum;
+        var savedMod = _savedMods[num] || {};
+        var title = savedMod.topic || (mod ? mod.title : '') || 'Module ' + num;
+        html += '<div class="nav-item" onclick="showModule(' + num + ')">' +
+          '<span class="icon" style="font-size:11px;">' + num + '</span> ' + title +
+          '<span class="badge badge-empty" id="sidebar-mod-badge-' + num + '">—</span></div>';
+      }
+      sidebarModList.innerHTML = html;
+    }
+
+    var moduleTabs = document.getElementById('module-tabs');
+    if (moduleTabs) {
+      var html = '';
+      for (var i = 0; i < _modCount; i++) {
+        var num = i + _startNum;
+        html += '<div class="module-tab' + (i === 0 ? ' active' : '') + '" onclick="showModule(' + num + ')">' + num + '</div>';
+      }
+      moduleTabs.innerHTML = html;
+    }
+  }
+
   function addModuleCard() {
     // Save current state before modifying
     saveModuleOverviewSync();
-    const container = document.getElementById('module-overview-cards');
-    const currentCount = container.querySelectorAll('.card[data-mod-num]').length;
-    activeCourse.moduleCount = currentCount + 1;
-    saveField('moduleCount', activeCourse.moduleCount);
-    // Create a blank entry for the new module so it doesn't inherit stale data
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
-    var newModNum = currentCount + startNum;
+    var newModCount = activeCourse.moduleCount + 1;
+    activeCourse.moduleCount = newModCount;
+    saveField('moduleCount', newModCount);
+    // Create a blank entry for the new module so it doesn't inherit stale data
+    var newModNum = (newModCount - 1) + startNum;
     var savedMods = loadField('moduleOverviewData') || {};
     savedMods[newModNum] = { topic: '', mlos: [] };
     saveField('moduleOverviewData', savedMods);
     renderModuleOverviewCards();
+    rebuildSidebarModules();
   }
 
   function deleteModuleCard(modNum) {
@@ -3570,6 +3572,7 @@
     saveField('moduleOverviewData', newSavedMods);
     saveActivityData();
     renderModuleOverviewCards();
+    rebuildSidebarModules();
     calculateProgress();
   }
 
