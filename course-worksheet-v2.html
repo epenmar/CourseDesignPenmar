@@ -5202,9 +5202,15 @@
   // Helper: get MLO full text for a given ID like "1.2"
   function getMloText(mloId) {
     var parts = mloId.split('.');
-    var _startN = activeCourse.moduleStartZero ? 0 : 1;
-    var modIdx = parseInt(parts[0]) - _startN;
+    var modNum = parseInt(parts[0]);
     var mloIdx = parseInt(parts[1]) - 1;
+    // Check saved moduleOverviewData first, then fall back to config
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (savedMods[modNum] && savedMods[modNum].mlos && savedMods[modNum].mlos[mloIdx]) {
+      return savedMods[modNum].mlos[mloIdx];
+    }
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modIdx = modNum - _startN;
     var mod = (activeCourse.modules || [])[modIdx];
     if (mod && mod.mlos && mod.mlos[mloIdx]) return mod.mlos[mloIdx];
     return '';
@@ -6805,17 +6811,34 @@
     }
 
     var moduleMlos = '';
+    var moduleTitle = '';
     var modNumEl = card ? card.querySelector('[data-module-num]') : null;
     if (modNumEl) {
       var modNum = parseInt(modNumEl.getAttribute('data-module-num'));
-      var mod = (activeCourse.modules || [])[modNum - 1];
-      if (mod && mod.mlos) {
-        moduleMlos = mod.mlos.map(function(m, i) { return modNum + '.' + (i + 1) + ': ' + m; }).join('\n');
+      var savedMods = loadField('moduleOverviewData') || {};
+      var savedMod = savedMods[modNum] || {};
+      var mlos = savedMod.mlos || [];
+      moduleTitle = savedMod.topic || '';
+      if (mlos.length === 0) {
+        var _startN = activeCourse.moduleStartZero ? 0 : 1;
+        var mod = (activeCourse.modules || [])[modNum - _startN];
+        if (mod) {
+          mlos = mod.mlos || [];
+          if (!moduleTitle) moduleTitle = mod.title || '';
+        }
+      }
+      if (mlos.length > 0) {
+        moduleMlos = mlos.map(function(m, i) { return modNum + '.' + (i + 1) + ': ' + m; }).join('\n');
       }
     }
 
-    var prompt = 'Generate 5 multiple-choice quiz questions for a course activity called "' + actName + '".\n';
-    if (moduleMlos) prompt += '\nModule Learning Objectives:\n' + moduleMlos + '\n';
+    // Build rich course context
+    var courseName = activeCourse.code + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var prompt = 'Generate 5 multiple-choice quiz questions for a university course.\n';
+    prompt += 'Course: ' + courseName + '\n';
+    if (moduleTitle) prompt += 'Module Topic: ' + moduleTitle + '\n';
+    prompt += 'Activity: "' + actName + '"\n';
+    if (moduleMlos) prompt += '\nModule Learning Objectives (questions MUST align to these):\n' + moduleMlos + '\n';
     prompt += '\nFor each question provide:\n- Question text\n- 4 answer choices, with the correct one marked\n- Brief feedback for correct and incorrect answers\n\nReturn as JSON array with this structure:\n[{"text":"question","type":"multiple-choice","choices":[{"text":"answer","correct":true/false}],"correctFeedback":"...","incorrectFeedback":"..."}]';
     prompt += '\nReturn ONLY the JSON array, no other text.';
 
@@ -6912,9 +6935,21 @@
       });
     }
 
+    // Build rich course context
+    var courseName = activeCourse.code + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modTopic = (savedMods[moduleNum] && savedMods[moduleNum].topic) || '';
+    if (!modTopic) {
+      var _startN = activeCourse.moduleStartZero ? 0 : 1;
+      var modCfg = (activeCourse.modules || [])[moduleNum - _startN];
+      if (modCfg) modTopic = modCfg.title || '';
+    }
+
     var prompt = 'Generate a rubric for a Canvas LMS assignment.\n';
+    prompt += 'Course: ' + courseName + '\n';
+    if (modTopic) prompt += 'Module Topic: ' + modTopic + '\n';
     prompt += 'Assignment: "' + actName + '"\n';
-    if (mloTexts.length > 0) prompt += 'Learning Objectives:\n' + mloTexts.join('\n') + '\n';
+    if (mloTexts.length > 0) prompt += 'Learning Objectives (rubric criteria MUST align to these):\n' + mloTexts.join('\n') + '\n';
     if (templateContext) prompt += '\nAssignment Details:\n' + templateContext + '\n';
     prompt += '\nFormat the rubric as a table that Canvas can import:\n';
     prompt += 'Criteria | Excellent | Proficient | Developing | Beginning | Points\n';
