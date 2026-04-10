@@ -2005,19 +2005,6 @@
         html += ' <span style="color:#ccc;">' + (m.label || '') + '</span></div>';
         html += '</div>';
       }
-      // Upcoming milestones from synced data
-      if (synced.milestones && synced.milestones.length > 0) {
-        html += '<div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">';
-        synced.milestones.forEach(function(ms) {
-          var style = ms.urgent ? 'color:#ff6b6b; font-weight:600;' : ms.bold ? 'color:#ffc627;' : 'color:#ccc;';
-          html += '<div style="' + style + ' font-size:10px; margin-bottom:2px;">' +
-            '<span style="color:#999; min-width:42px; display:inline-block;">' + (ms.date || '') + '</span> ' +
-            (ms.label || '') +
-            (ms.statusText ? ' <span style="color:#aaa; font-weight:400;">— ' + ms.statusText + '</span>' : '') +
-            '</div>';
-        });
-        html += '</div>';
-      }
       if (html) {
         meetingEl.innerHTML = html;
         meetingEl.style.display = 'block';
@@ -4125,6 +4112,16 @@
     // Pull synced milestone status from dashboard-data.js
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+
+    // Apply calendar meeting dates to milestones (only if user hasn't manually set a date)
+    if (milestoneStatus) {
+      for (let i = 0; i < milestoneStatus.length && i < dates.length; i++) {
+        const ms = milestoneStatus[i];
+        if (ms && ms.meetingDate && !savedDates[String(i)]) {
+          dates[i] = new Date(ms.meetingDate + 'T00:00:00');
+        }
+      }
+    }
 
     // Load manually completed milestones
     const manualComplete = loadField('milestoneManualComplete') || {};
