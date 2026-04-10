@@ -1817,6 +1817,8 @@
       followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
     } else if (!latestMeeting && c.notes) {
       followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
+    } else if (!followUpBody) {
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}.\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
     }
 
     // ===== CHECK-IN =====
