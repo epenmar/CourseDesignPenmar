@@ -1129,8 +1129,8 @@
         </div>
         <div class="view-toggle">
           <button class="view-btn active">📄 Document Preview</button>
-          <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
-          <button class="view-btn" onclick="downloadDocument()">💾 Download Document</button>
+          <button class="view-btn" onclick="downloadDocument()">💾 Download</button>
+          <button class="view-btn" onclick="exportToGoogleDrive()">📂 Open Drive Folder</button>
         </div>
         <div class="doc-preview" id="doc-preview-content"></div>
       </div>
@@ -7277,14 +7277,9 @@
   function exportToGoogleDrive() {
     const driveUrl = activeCourse.driveFolder;
     if (driveUrl) {
-      // Download the file first, then open the Drive folder
-      downloadDocument();
       window.open(driveUrl, '_blank');
     } else {
-      // No drive folder configured — just download
-      const msg = 'No Google Drive folder is configured for this course. The document has been downloaded to your computer instead. To enable direct Drive export, add a Google Drive folder URL in the course settings.';
-      downloadDocument();
-      setTimeout(() => alert(msg), 500);
+      alert('No Google Drive folder is configured for this course.');
     }
   }
 
