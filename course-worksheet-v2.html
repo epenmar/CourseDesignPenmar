@@ -157,8 +157,13 @@
   /* ===== ACTIVITY ROWS ===== */
   .activity-block { position: relative; border: 1px solid transparent; border-radius: 10px; padding: 0; margin-bottom: 4px; transition: border-color 0.15s, box-shadow 0.15s; }
   .activity-block:hover { border-color: #e0ddd5; }
-  .activity-block.dragging { opacity: 0.5; border-color: #8c1d40; box-shadow: 0 4px 12px rgba(140,29,64,0.15); }
+  .activity-block.dragging { opacity: 0.4; border-color: #8c1d40; box-shadow: 0 4px 12px rgba(140,29,64,0.15); }
   .activity-block.drag-over { border-color: #8c1d40; border-style: dashed; background: #fef3e8; }
+  .activity-block.drag-insert-above { border-top: 3px solid #8c1d40; margin-top: -1px; }
+  .activity-block.drag-insert-below { border-bottom: 3px solid #8c1d40; margin-bottom: -1px; }
+  .material-item.drag-insert-above { border-top: 3px solid #8c1d40; margin-top: -1px; }
+  .material-item.drag-insert-below { border-bottom: 3px solid #8c1d40; margin-bottom: -1px; }
+  .card-header.drag-over { background: #fef9f0; box-shadow: inset 0 0 0 2px #ffc627; border-radius: 8px; }
   .activity-block-toolbar { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
   .activity-block:hover .activity-block-toolbar { display: flex; }
   .act-tool-btn { width: 28px; height: 28px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; color: #888; transition: all 0.15s; }
@@ -5404,7 +5409,7 @@
       var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
-      html += '<div class="card-header" onclick="toggleCard(this)">';
+      html += '<div class="card-header" onclick="toggleCard(this)" data-drop-module="' + m + '" ondragover="overviewHeaderDragOver(event, this)" ondragleave="overviewHeaderDragLeave(this)" ondrop="overviewDrop(event)">';
       html += '<div class="card-title">';
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + m + '</span>';
       html += 'Module ' + m + ': ' + escapeHtml(modTitle);
@@ -5525,7 +5530,7 @@
       var collapsed = isOpen ? '' : ' collapsed';
 
       html += '<div class="card" style="margin-bottom:12px;" data-overview-module="' + m + '">';
-      html += '<div class="card-header" onclick="toggleCard(this)">';
+      html += '<div class="card-header" onclick="toggleCard(this)" data-drop-module="' + m + '" ondragover="overviewHeaderDragOver(event, this)" ondragleave="overviewHeaderDragLeave(this)" ondrop="overviewDrop(event)">';
       html += '<div class="card-title">';
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + m + '</span>';
       html += 'Module ' + m + ': ' + escapeHtml(modTitle);
@@ -5695,40 +5700,89 @@
     var block = e.target.closest('[data-activity-id], [data-material-id]');
     if (block) block.classList.remove('dragging');
     document.querySelectorAll('.drag-over').forEach(function(el) { el.classList.remove('drag-over'); });
+    document.querySelectorAll('.drag-insert-above, .drag-insert-below').forEach(function(el) {
+      el.classList.remove('drag-insert-above', 'drag-insert-below');
+    });
     overviewDragData = null;
+    if (overviewHeaderExpandTimer) { clearTimeout(overviewHeaderExpandTimer); overviewHeaderExpandTimer = null; }
+  }
+
+  var overviewHeaderExpandTimer = null;
+
+  function overviewHeaderDragOver(e, header) {
+    e.preventDefault();
+    e.stopPropagation();
+    header.classList.add('drag-over');
+    // Auto-expand collapsed card body after 400ms hover
+    var body = header.nextElementSibling;
+    if (body && body.classList.contains('collapsed') && !overviewHeaderExpandTimer) {
+      overviewHeaderExpandTimer = setTimeout(function() {
+        body.classList.remove('collapsed');
+        var arrow = header.querySelector('.card-toggle');
+        if (arrow) arrow.classList.add('open');
+        overviewHeaderExpandTimer = null;
+      }, 400);
+    }
+  }
+
+  function overviewHeaderDragLeave(header) {
+    header.classList.remove('drag-over');
+    if (overviewHeaderExpandTimer) { clearTimeout(overviewHeaderExpandTimer); overviewHeaderExpandTimer = null; }
   }
 
   function overviewDragOver(e) {
     e.preventDefault();
     e.currentTarget.classList.add('drag-over');
-    // Auto-expand collapsed accordion on drag hover
-    if (e.currentTarget.classList.contains('collapsed')) {
-      e.currentTarget.classList.remove('collapsed');
-      var toggle = e.currentTarget.previousElementSibling;
-      if (toggle) {
-        var arrow = toggle.querySelector('.card-toggle');
-        if (arrow) arrow.classList.add('open');
+
+    // Show insert indicator on activity/material blocks
+    var blocks = e.currentTarget.querySelectorAll('[data-activity-id], [data-material-id]');
+    blocks.forEach(function(b) { b.classList.remove('drag-insert-above', 'drag-insert-below'); });
+    var targetBlock = e.target.closest('[data-activity-id], [data-material-id]');
+    if (targetBlock && !targetBlock.classList.contains('dragging')) {
+      var rect = targetBlock.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      if (e.clientY < midY) {
+        targetBlock.classList.add('drag-insert-above');
+      } else {
+        targetBlock.classList.add('drag-insert-below');
       }
     }
   }
 
   function overviewDragLeave(e) {
     e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.querySelectorAll('.drag-insert-above, .drag-insert-below').forEach(function(el) {
+      el.classList.remove('drag-insert-above', 'drag-insert-below');
+    });
   }
 
   function overviewDrop(e) {
     e.preventDefault();
     e.currentTarget.classList.remove('drag-over');
+    e.currentTarget.querySelectorAll('.drag-insert-above, .drag-insert-below').forEach(function(el) {
+      el.classList.remove('drag-insert-above', 'drag-insert-below');
+    });
     if (!overviewDragData) return;
     captureUndoState('drag move');
 
-    var targetModule = parseInt(e.currentTarget.getAttribute('data-drop-module'));
+    var dropTarget = e.currentTarget;
+    // If dropped on a card-header, use its data-drop-module and treat as append
+    var targetModule = parseInt(dropTarget.getAttribute('data-drop-module'));
     var sourceModule = overviewDragData.sourceModule;
-    if (!targetModule) return;
+    if (isNaN(targetModule)) return;
 
     // Find the element being dropped onto for position detection
     var targetEl = e.target.closest('[data-activity-id], [data-material-id]');
+    // Don't target the item being dragged
+    if (targetEl && targetEl.classList.contains('dragging')) targetEl = null;
     var targetId = targetEl ? (targetEl.getAttribute('data-activity-id') || targetEl.getAttribute('data-material-id')) : null;
+
+    // Determine insert position: above or below the target element
+    var insertAbove = false;
+    if (targetEl) {
+      var rect = targetEl.getBoundingClientRect();
+      insertAbove = e.clientY < rect.top + rect.height / 2;
+    }
 
     if (overviewDragData.type === 'assignments' && overviewDragData.activityId) {
       var sourceList = courseActivities[sourceModule] || [];
@@ -5741,11 +5795,18 @@
         if (targetId) {
           targetIdx = sourceList.findIndex(function(a) { return a.id === targetId; });
         }
-        if (targetIdx === -1 || targetIdx === idx) return;
+        if (targetIdx === -1) {
+          // Dropped on empty space within module — move to end
+          targetIdx = sourceList.length - 1;
+          insertAbove = false;
+        }
+        if (targetIdx === idx) return;
         var item = sourceList.splice(idx, 1)[0];
         // Adjust target index after removal
         if (idx < targetIdx) targetIdx--;
-        sourceList.splice(targetIdx, 0, item);
+        var finalIdx = insertAbove ? targetIdx : targetIdx + 1;
+        if (finalIdx > sourceList.length) finalIdx = sourceList.length;
+        sourceList.splice(finalIdx, 0, item);
         saveActivityData();
         var openA = getOpenOverviewModules('assignments-overview-cards');
         renderAssignmentsOverview(openA);
@@ -5757,7 +5818,8 @@
         // Insert at target position if dropping onto specific item
         var insertIdx = -1;
         if (targetId) {
-          insertIdx = courseActivities[targetModule].findIndex(function(a) { return a.id === targetId; });
+          var tIdx = courseActivities[targetModule].findIndex(function(a) { return a.id === targetId; });
+          insertIdx = insertAbove ? tIdx : tIdx + 1;
         }
         if (insertIdx >= 0) {
           courseActivities[targetModule].splice(insertIdx, 0, item);
@@ -5780,10 +5842,16 @@
         if (targetId) {
           targetIdx = sourceList.findIndex(function(m) { return m.id === targetId; });
         }
-        if (targetIdx === -1 || targetIdx === idx) return;
+        if (targetIdx === -1) {
+          targetIdx = sourceList.length - 1;
+          insertAbove = false;
+        }
+        if (targetIdx === idx) return;
         var item = sourceList.splice(idx, 1)[0];
         if (idx < targetIdx) targetIdx--;
-        sourceList.splice(targetIdx, 0, item);
+        var finalIdx = insertAbove ? targetIdx : targetIdx + 1;
+        if (finalIdx > sourceList.length) finalIdx = sourceList.length;
+        sourceList.splice(finalIdx, 0, item);
         saveActivityData();
         var openM = getOpenOverviewModules('materials-overview-cards');
         renderMaterialsOverview(openM);
@@ -5793,7 +5861,8 @@
         if (!courseMaterials[targetModule]) courseMaterials[targetModule] = [];
         var insertIdx = -1;
         if (targetId) {
-          insertIdx = courseMaterials[targetModule].findIndex(function(m) { return m.id === targetId; });
+          var tIdx = courseMaterials[targetModule].findIndex(function(m) { return m.id === targetId; });
+          insertIdx = insertAbove ? tIdx : tIdx + 1;
         }
         if (insertIdx >= 0) {
           courseMaterials[targetModule].splice(insertIdx, 0, item);
