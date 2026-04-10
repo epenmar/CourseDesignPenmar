@@ -1395,7 +1395,7 @@
         bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
         'Please store any documents pertaining to the course in this Drive folder. When referencing materials in the development tool, you can provide a link to the document through the user interface.\n\n';
       }
-      bodyText += 'Best,\n' + getProfile().sig + '';
+      bodyText += 'All the best,\n' + getProfile().sig + '';
       const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
       html += `<a href="${wsComposeUrl}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
@@ -1753,25 +1753,23 @@
 
       followUpBody = `Hi ${name},\n\n`;
 
-      // Build warm opening from meeting summary
+      // Build warm opening from meeting summary — intended to be sent same day
       let warmOpen = '';
       const summary = (m.summary || '').replace(/\*\*/g, '').replace(/^-\s*/gm, '').trim();
       if (summary) {
-        // Extract key phrases from summary to craft a personalized compliment
         const sentences = summary.split(/[.;!\n]/).map(s => s.trim()).filter(s => s.length > 15);
-        // Look for faculty-driven insights: decisions, concepts, designs
         const highlights = sentences.filter(s =>
           /design|concept|approach|vision|creative|innovative|strong|excellent|great|insight|idea|model|framework|strategy|plan/i.test(s)
         );
         if (highlights.length > 0) {
           const pick = highlights[0];
-          warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! It's clear you have a strong vision for ${courseLabel} — I especially appreciated your thinking around ${pick.charAt(0).toLowerCase() + pick.slice(1)}.\n\n`;
+          warmOpen = `Thank you for a great meeting today! It's clear you have a strong vision for ${courseLabel} — I especially appreciated your thinking around ${pick.charAt(0).toLowerCase() + pick.slice(1)}.\n\n`;
         } else if (sentences.length > 0) {
-          warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! We covered a lot of ground on ${courseLabel} and I can see how thoughtfully you're approaching the course design.\n\n`;
+          warmOpen = `Thank you for a great meeting today! We covered a lot of ground on ${courseLabel} and I can see how thoughtfully you're approaching the course design.\n\n`;
         }
       }
       if (!warmOpen) {
-        warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! I really enjoyed our conversation about ${courseLabel} — your enthusiasm for this course really comes through.\n\n`;
+        warmOpen = `Thank you for a great meeting today! I really enjoyed our conversation about ${courseLabel} — your enthusiasm for this course really comes through.\n\n`;
       }
       followUpBody += warmOpen;
 
@@ -1812,7 +1810,13 @@
         Object.keys(grouped).forEach(code => {
           const otherCourseFull = Object.values(otherCourses).find(oc => oc.code === code);
           const otherName = otherCourseFull ? (code + ' (' + otherCourseFull.courseName + ')') : code;
-          followUpBody += `As you're thinking about ${otherName} — just a reminder that I can help with:\n`;
+          const otherSession = otherCourseFull ? otherCourseFull.subtitle : '';
+          let crossIntro = `We also touched on ${otherName} today`;
+          if (otherSession) {
+            crossIntro += ` — since that launches in ${otherSession}, we have a bit more runway there`;
+          }
+          crossIntro += `. Here are the next steps we discussed for that course:\n`;
+          followUpBody += crossIntro;
           grouped[code].forEach(t => { followUpBody += `  • ${t}\n`; });
           followUpBody += '\n';
         });
@@ -1821,17 +1825,17 @@
       if (m.decisions && m.decisions.length > 0) {
         const relevantDecisions = m.decisions.filter(d => !isAboutOtherCourse(d));
         if (relevantDecisions.length > 0) {
-          followUpBody += `Just wanted to confirm we're on the same page about:\n`;
+          followUpBody += `Here are the decisions we made today:\n`;
           relevantDecisions.forEach(d => { followUpBody += `  • ${d}\n`; });
           followUpBody += '\n';
         }
       }
 
-      followUpBody += `Let me know if anything has come up or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
+      followUpBody += `Let me know if anything comes up or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
     } else if (!latestMeeting && c.notes) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
     } else if (!followUpBody) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}.\n\nLet me know if you have any questions or if there's anything I can help with!\n\nBest,\n${getProfile().sig}`;
+      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}.\n\nLet me know if you have any questions or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
     }
 
     // ===== CHECK-IN =====
@@ -1850,10 +1854,10 @@
     } else {
       checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
     }
-    checkInBody += `Looking forward to hearing from you.\n\nBest,\n${getProfile().sig}`;
+    checkInBody += `Looking forward to hearing from you.\n\nAll the best,\n${getProfile().sig}`;
 
     // Course readiness body
-    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\n${getProfile().sig}`;
+    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nAll the best,\n${getProfile().sig}`;
 
     const makeMailto = (subj, body) => {
       return `mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
