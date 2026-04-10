@@ -1371,7 +1371,29 @@
   // Read ?course= and ?user= params
   const urlParams = new URLSearchParams(window.location.search);
   const courseId = urlParams.get('course') || 'mns521';
-  const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
+  // Load course config: check hardcoded courses first, then localStorage
+  let activeCourse = worksheetCourses[courseId] || null;
+  if (!activeCourse) {
+    try {
+      var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      if (userCourses[courseId] && userCourses[courseId]._worksheet) {
+        activeCourse = userCourses[courseId]._worksheet;
+      }
+    } catch(e) {}
+  }
+  if (!activeCourse) {
+    // Final fallback — create a minimal course config
+    activeCourse = {
+      code: courseId.toUpperCase(), name: '', fullTitle: courseId.toUpperCase(),
+      instructor: '', email: '', office: '', session: 'TBD', sessionShort: 'TBD',
+      credits: '', prerequisites: '', sectionLines: '', enrollmentCap: '',
+      id: '', textbook: '', driveFolder: '', sessionValue: null,
+      moduleCount: 7, milestonesCompleted: 0, qaDate: null,
+      clos: [], elos: [], flatElos: [], cloEloAlignment: [],
+      modules: Array.from({length: 7}, function(_, i) { return { title: 'Module ' + (i+1), num: i+1, mlos: [] }; }),
+      users: {}
+    };
+  }
 
   // Apply dashboard overrides (edits made via ID Dashboard right-click menu)
   try {
@@ -1383,12 +1405,6 @@
       if (ov.email) activeCourse.email = ov.email;
       if (ov.session) { activeCourse.session = ov.session; activeCourse.sessionShort = ov.session; }
       if (ov.id) activeCourse.id = ov.id;
-    }
-    // Also check user-added courses
-    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
-    var uc = userCourses[courseId];
-    if (uc) {
-      if (uc.driveFolder && !activeCourse.driveFolder) activeCourse.driveFolder = uc.driveFolder;
     }
   } catch(e) {}
 
@@ -2347,11 +2363,13 @@
   function getAllMlos() {
     var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     var moduleOverviewData = loadField('moduleOverviewData') || {};
+    var _sn = activeCourse.moduleStartZero ? 0 : 1;
     var allMlos = [];
     for (var m = 1; m <= modCount; m++) {
       var modData = moduleOverviewData[m] || {};
-      var topic = modData.topic || (activeCourse.modules[m-1] ? activeCourse.modules[m-1].title : '');
-      var mlos = modData.mlos || (activeCourse.modules[m-1] ? activeCourse.modules[m-1].mlos : []) || [];
+      var _ai = m - _sn;
+      var topic = modData.topic || (activeCourse.modules[_ai] ? activeCourse.modules[_ai].title : '');
+      var mlos = modData.mlos || (activeCourse.modules[_ai] ? activeCourse.modules[_ai].mlos : []) || [];
       for (var j = 0; j < mlos.length; j++) {
         if (mlos[j] && mlos[j].trim()) {
           allMlos.push({ modNum: m, mloIdx: j, id: m + '.' + (j+1), text: mlos[j], topic: topic });
@@ -3679,33 +3697,37 @@
     if (ctxTotal > 0) weightedPct += 5 * (ctxFilled / ctxTotal);
 
     // 3. ELOs & CLOs (10%) — 5% for having any ELOs, 5% for having any CLOs
-    var elos = activeCourse.flatElos || [];
-    var realElos = elos.filter(function(e) { return e && e.trim(); });
-    var clos = activeCourse.clos || [];
-    var realClos = clos.filter(function(c) { return c && c.trim(); });
+    // Use saved objectives from localStorage (user's actual work), not hardcoded config
+    var savedFlatElos = loadField('flatElos');
+    var savedClos = loadField('clos');
+    var eloList = savedFlatElos || activeCourse.flatElos || [];
+    var realElos = eloList.filter(function(e) { return e && typeof e === 'string' && e.trim(); });
+    var cloList = savedClos || activeCourse.clos || [];
+    var realClos = cloList.filter(function(c) { return c && typeof c === 'string' && c.trim(); });
     if (realElos.length > 0) weightedPct += 5;
     if (realClos.length > 0) weightedPct += 5;
 
     // 4. Module MLOs (15%) — each module scores up to 1.0:
     //    0.75 for having MLOs defined, 0.25 for all MLOs tagged with at least one ELO
-    var modules = activeCourse.modules || [];
-    var modCount = activeCourse.moduleCount || modules.length || 7;
+    // Use moduleOverviewData from localStorage (user's actual saved data), not hardcoded config
+    var savedModOverview = loadField('moduleOverviewData') || {};
+    var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     var moduleScore = 0;
     var modsWithMlos = 0;
     var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
-    for (var i = 0; i < modCount; i++) {
-      var mod = modules[i];
-      var hasMlos = mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); });
+    for (var i = 1; i <= modCount; i++) {
+      var modData = savedModOverview[i] || {};
+      var mlos = modData.mlos || [];
+      var hasMlos = mlos.length > 0 && mlos.some(function(m) { return m && m.trim(); });
       if (hasMlos) {
         modsWithMlos++;
         moduleScore += 0.75;
         // Check if all non-empty MLOs in this module have at least one ELO tag
-        var modNum = (mod && mod.num) || (i + 1);
-        var nonEmptyMlos = mod.mlos.filter(function(m) { return m && m.trim(); });
+        var nonEmptyMlos = mlos.filter(function(m) { return m && m.trim(); });
         var allTagged = nonEmptyMlos.length > 0;
-        for (var mi = 0; mi < mod.mlos.length; mi++) {
-          if (!mod.mlos[mi] || !mod.mlos[mi].trim()) continue;
-          var mloId = modNum + '.' + (mi + 1);
+        for (var mi = 0; mi < mlos.length; mi++) {
+          if (!mlos[mi] || !mlos[mi].trim()) continue;
+          var mloId = i + '.' + (mi + 1);
           var hasTag = Object.keys(alignment).some(function(eloKey) {
             return alignment[eloKey] && alignment[eloKey].indexOf(mloId) !== -1;
           });
@@ -3734,13 +3756,15 @@
 
     // 7. Module Content Pages (20%) — fraction of modules that have content beyond just MLOs
     //    A module page counts as "started" if it has MLOs AND (activities OR materials)
+    //    Uses savedModOverview (from localStorage) not hardcoded config
     var modsWithContent = 0;
-    for (var ci = 0; ci < modCount; ci++) {
-      var cMod = modules[ci];
-      var hasMlos = cMod && cMod.mlos && cMod.mlos.length > 0 && cMod.mlos.some(function(m) { return m && m.trim(); });
-      var hasActs = courseActivities[ci + 1] && courseActivities[ci + 1].length > 0 && courseActivities[ci + 1].some(function(a) { return a.name && a.name.trim(); });
-      var hasMats = courseMaterials[ci + 1] && courseMaterials[ci + 1].length > 0 && courseMaterials[ci + 1].some(function(m) { return m.title && m.title.trim(); });
-      if (hasMlos && (hasActs || hasMats)) modsWithContent++;
+    for (var ci = 1; ci <= modCount; ci++) {
+      var cModData = savedModOverview[ci] || {};
+      var cMlos = cModData.mlos || [];
+      var cHasMlos = cMlos.length > 0 && cMlos.some(function(m) { return m && m.trim(); });
+      var hasActs = courseActivities[ci] && courseActivities[ci].length > 0 && courseActivities[ci].some(function(a) { return a.name && a.name.trim(); });
+      var hasMats = courseMaterials[ci] && courseMaterials[ci].length > 0 && courseMaterials[ci].some(function(m) { return m.title && m.title.trim(); });
+      if (cHasMlos && (hasActs || hasMats)) modsWithContent++;
     }
     if (modCount > 0) weightedPct += 20 * (modsWithContent / modCount);
 
@@ -3792,11 +3816,9 @@
       }
     }
 
-    // Update sidebar ELOs & CLOs badge
+    // Update sidebar ELOs & CLOs badge — use saved data, not hardcoded config
     var objBadge = document.getElementById('sidebar-obj-badge');
     if (objBadge) {
-      var realElos = (activeCourse.flatElos || []).filter(function(e) { return e && e.trim(); });
-      var realClos = (activeCourse.clos || []).filter(function(c) { return c && c.trim(); });
       var objCount = realElos.length + realClos.length;
       if (objCount > 0) {
         objBadge.className = 'badge badge-done';
@@ -3924,17 +3946,18 @@
       }
     }
 
-    // Update individual module nav item badges
+    // Update individual module nav item badges — use saved moduleOverviewData
     var sidebarModListEl = document.getElementById('sidebar-module-list');
     if (sidebarModListEl) {
       var modNavItems = sidebarModListEl.querySelectorAll('.nav-item');
       for (var mbi = 0; mbi < modNavItems.length; mbi++) {
         var modNavBadge = modNavItems[mbi].querySelector('.badge');
         if (!modNavBadge) continue;
-        var modIdx = mbi;
-        var modData = modules[modIdx];
-        var modHasMlos = modData && modData.mlos && modData.mlos.length > 0 && modData.mlos.some(function(m) { return m && m.trim(); });
-        var modActs = courseActivities[mbi + 1];
+        var modNum = mbi + 1;
+        var modNavData = savedModOverview[modNum] || {};
+        var modNavMlos = modNavData.mlos || [];
+        var modHasMlos = modNavMlos.length > 0 && modNavMlos.some(function(m) { return m && m.trim(); });
+        var modActs = courseActivities[modNum];
         var modHasActs = modActs && modActs.length > 0 && modActs.some(function(a) { return a.name && a.name.trim(); });
         if (modHasMlos && modHasActs) {
           modNavBadge.className = 'badge badge-done';
@@ -3960,18 +3983,22 @@
     const modCount = activeCourse.moduleCount || modules.length || 7;
 
     if (label === 'ELOs and CLOs Review') {
-      const hasElos = (activeCourse.flatElos || []).some(function(e) { return e && e.trim(); });
-      const hasClos = (activeCourse.clos || []).some(function(c) { return c && c.trim(); });
+      const savedFE = loadField('flatElos');
+      const savedCL = loadField('clos');
+      const hasElos = (savedFE || activeCourse.flatElos || []).some(function(e) { return e && typeof e === 'string' && e.trim(); });
+      const hasClos = (savedCL || activeCourse.clos || []).some(function(c) { return c && typeof c === 'string' && c.trim(); });
       if (hasElos && hasClos) return 'done';
       if (hasElos || hasClos) return 'partial';
       return 'empty';
     }
 
     if (label === 'Module MLOs and Topics Review') {
+      const msModOverview = loadField('moduleOverviewData') || {};
       let withMlos = 0;
-      for (let i = 0; i < modCount; i++) {
-        const mod = modules[i];
-        if (mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); })) withMlos++;
+      for (let i = 1; i <= modCount; i++) {
+        const mData = msModOverview[i] || {};
+        const mlos = mData.mlos || [];
+        if (mlos.length > 0 && mlos.some(function(m) { return m && m.trim(); })) withMlos++;
       }
       if (withMlos === modCount) return 'done';
       if (withMlos > 0) return 'partial';
@@ -4001,18 +4028,18 @@
     }
 
     if (label === 'Alignment Audit') {
-      const eloMlo = activeCourse.eloMloAlignment;
+      const eloMlo = loadField('eloMloAlignment') || activeCourse.eloMloAlignment;
       if (eloMlo && Object.keys(eloMlo).length > 0) return 'done';
       return 'empty';
     }
 
-    // Module N
+    // Module N — use saved moduleOverviewData, not hardcoded config
     var modMatch = label.match(/^Module (\d+)$/);
     if (modMatch) {
       var modNum = parseInt(modMatch[1]);
-      var _sn = activeCourse.moduleStartZero ? 0 : 1;
-      var mod = modules[modNum - _sn];
-      var hasMlos = mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); });
+      var msModData = (loadField('moduleOverviewData') || {})[modNum] || {};
+      var msMlos = msModData.mlos || [];
+      var hasMlos = msMlos.length > 0 && msMlos.some(function(m) { return m && m.trim(); });
       var acts = courseActivities[modNum];
       var hasActs = acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); });
       if (hasMlos && hasActs) return 'done';
@@ -4932,7 +4959,8 @@
     // Fix: tabs are 0-indexed, num is 1-indexed
     document.querySelectorAll('.module-tab').forEach((tab,i) => tab.classList.toggle('active', i === num - 1));
     const modules = activeCourse.modules || [];
-    const mod = modules[num - 1];
+    const _sn = activeCourse.moduleStartZero ? 0 : 1;
+    const mod = modules[num - _sn];
     const title = mod ? 'Module ' + num + ': ' + mod.title : 'Module ' + num;
     document.getElementById('module-title').textContent = title;
 
@@ -5011,18 +5039,20 @@
 
   function editModuleTitle() {
     const modules = activeCourse.modules || [];
-    const mod = modules[currentModuleNum - 1];
+    const _sn = activeCourse.moduleStartZero ? 0 : 1;
+    const _ai = currentModuleNum - _sn;
+    const mod = modules[_ai];
     const currentTitle = mod ? mod.title : 'Module ' + currentModuleNum;
     const newTitle = prompt('Enter new module title:', currentTitle);
     if (newTitle !== null && newTitle.trim() !== '') {
       // Update the config
       if (!mod) {
         // Create module entry if it doesn't exist
-        while (modules.length < currentModuleNum) {
+        while (modules.length <= _ai) {
           modules.push({ title: 'Module ' + (modules.length + 1), num: modules.length + 1, mlos: [] });
         }
       }
-      modules[currentModuleNum - 1].title = newTitle.trim();
+      modules[_ai].title = newTitle.trim();
       // Update the display
       document.getElementById('module-title').textContent = 'Module ' + currentModuleNum + ': ' + newTitle.trim();
       // Update sidebar
