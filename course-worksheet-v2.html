@@ -538,6 +538,7 @@
           <a href="tel:1-855-278-5080" target="_blank">UTO 24/7 Canvas & Tech Support</a>
           <a href="https://lib.asu.edu/copyright" target="_blank">ASU Librarians — Copyright Help</a>
           <a href="https://eoss.asu.edu/drc" target="_blank">Disability Resource Center</a>
+          <a href="https://docs.google.com/presentation/d/1rVIuKL6waZ03pnByWMoX_aTNn8QyjsiWMoYNnFbXI44/edit#slide=id.g3baa8fff529_0_22668" target="_blank">Slide Templates</a>
         </div>
       </details>
       <div style="display:flex; gap:6px;">
@@ -662,6 +663,28 @@
         <h1 style="font-size:22px; margin-bottom:4px;">Module Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">Define topics and objectives for all modules. These will populate each module's detail page.</p>
 
+        <!-- Action Verbs Guide Accordion -->
+        <div class="card verb-guide-card" style="margin-bottom:16px; border-color:#c8d8e8; background:#f6f9fc;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title" style="color:#1565c0;">
+              <span style="font-size:16px;">📐</span> Action Verbs &amp; Cognitive Levels
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">Expand for a guide to choosing the right verbs</span>
+            </div>
+            <span class="card-toggle">▾</span>
+          </div>
+          <div class="card-body collapsed">
+            <p style="font-size:13px; color:#555; line-height:1.6; margin-bottom:12px;">Use Bloom's taxonomy to pick the right verb for the level of thinking you're asking students to do.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #e0e0e0;"><div style="font-size:12px; font-weight:600; color:#757575; margin-bottom:3px;">1. Remember</div><div style="font-size:11px; color:#666;">define, list, recall, identify, name, recognize, state</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #90caf9;"><div style="font-size:12px; font-weight:600; color:#1565c0; margin-bottom:3px;">2. Understand</div><div style="font-size:11px; color:#666;">classify, describe, explain, summarize, paraphrase, discuss</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #81c784;"><div style="font-size:12px; font-weight:600; color:#2e7d32; margin-bottom:3px;">3. Apply</div><div style="font-size:11px; color:#666;">execute, implement, solve, use, demonstrate, compute, illustrate</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ffb74d;"><div style="font-size:12px; font-weight:600; color:#e65100; margin-bottom:3px;">4. Analyze</div><div style="font-size:11px; color:#666;">compare, contrast, differentiate, examine, organize, categorize</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ef9a9a;"><div style="font-size:12px; font-weight:600; color:#c62828; margin-bottom:3px;">5. Evaluate</div><div style="font-size:11px; color:#666;">appraise, argue, assess, critique, defend, judge, justify, rank</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ce93d8;"><div style="font-size:12px; font-weight:600; color:#7b1fa2; margin-bottom:3px;">6. Create</div><div style="font-size:11px; color:#666;">design, develop, formulate, construct, compose, generate, plan</div></div>
+            </div>
+          </div>
+        </div>
+
         <!-- Collapsible Course Objectives Reference -->
         <div class="card" style="margin-bottom:20px;">
           <div class="card-header" onclick="toggleCard(this)">
@@ -676,9 +699,15 @@
           </div>
         </div>
 
-        <div class="view-toggle">
-          <button class="view-btn active" onclick="switchOverviewMode('module','card',this)">📋 Card View</button>
-          <button class="view-btn" onclick="switchOverviewMode('module','table',this)">📊 Table View</button>
+        <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:8px; margin-bottom:8px;">
+          <div class="view-toggle" style="margin-bottom:0;">
+            <button class="view-btn active" onclick="switchOverviewMode('module','card',this)">📋 Card View</button>
+            <button class="view-btn" onclick="switchOverviewMode('module','table',this)">📊 Table View</button>
+          </div>
+          <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer;">
+            <input type="checkbox" id="module-start-zero" onchange="toggleModuleStartZero(this.checked)" style="width:14px; height:14px; cursor:pointer;">
+            Start from Module 0
+          </label>
         </div>
         <div id="module-overview-cards">
           <!-- Dynamically rendered module cards -->
@@ -698,6 +727,29 @@
       <div id="view-assignments-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Assignments Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All activities and assignments across all modules. Drag between modules to reorganize.</p>
+
+        <!-- Action Verbs Guide Accordion -->
+        <div class="card verb-guide-card" style="margin-bottom:16px; border-color:#c8d8e8; background:#f6f9fc;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title" style="color:#1565c0;">
+              <span style="font-size:16px;">📐</span> Action Verbs &amp; Cognitive Levels
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">Expand for a guide to choosing the right verbs</span>
+            </div>
+            <span class="card-toggle">▾</span>
+          </div>
+          <div class="card-body collapsed">
+            <p style="font-size:13px; color:#555; line-height:1.6; margin-bottom:12px;">Use Bloom's taxonomy to pick the right verb for the level of thinking you're asking students to do.</p>
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #e0e0e0;"><div style="font-size:12px; font-weight:600; color:#757575; margin-bottom:3px;">1. Remember</div><div style="font-size:11px; color:#666;">define, list, recall, identify, name, recognize, state</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #90caf9;"><div style="font-size:12px; font-weight:600; color:#1565c0; margin-bottom:3px;">2. Understand</div><div style="font-size:11px; color:#666;">classify, describe, explain, summarize, paraphrase, discuss</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #81c784;"><div style="font-size:12px; font-weight:600; color:#2e7d32; margin-bottom:3px;">3. Apply</div><div style="font-size:11px; color:#666;">execute, implement, solve, use, demonstrate, compute, illustrate</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ffb74d;"><div style="font-size:12px; font-weight:600; color:#e65100; margin-bottom:3px;">4. Analyze</div><div style="font-size:11px; color:#666;">compare, contrast, differentiate, examine, organize, categorize</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ef9a9a;"><div style="font-size:12px; font-weight:600; color:#c62828; margin-bottom:3px;">5. Evaluate</div><div style="font-size:11px; color:#666;">appraise, argue, assess, critique, defend, judge, justify, rank</div></div>
+              <div style="padding:10px; background:#fff; border-radius:8px; border-left:4px solid #ce93d8;"><div style="font-size:12px; font-weight:600; color:#7b1fa2; margin-bottom:3px;">6. Create</div><div style="font-size:11px; color:#666;">design, develop, formulate, construct, compose, generate, plan</div></div>
+            </div>
+          </div>
+        </div>
+
         <div id="elo-accordion-assignments" class="course-obj-accordion"></div>
         <div class="view-toggle">
           <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
@@ -705,6 +757,27 @@
         </div>
         <div id="assignments-overview-cards"></div>
         <div id="assignments-overview-table" style="display:none;"></div>
+
+        <!-- Assignment Weighting -->
+        <div class="card" style="margin-top:20px;">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title">
+              <span style="font-size:16px;">⚖️</span> Assignment Weighting
+              <span style="font-size:11px; font-weight:400; color:#666; margin-left:8px;">Define how each category contributes to the final grade</span>
+            </div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">Enter the grading weight for each assignment category. Weights should total 100%.</div>
+            <div id="assignment-weights-container">
+              <!-- Dynamically rendered weight rows -->
+            </div>
+            <div style="display:flex; align-items:center; gap:12px; margin-top:12px;">
+              <button class="btn-add-row" onclick="addWeightRow()">+ Add Category</button>
+              <span id="weight-total" style="font-size:13px; font-weight:600; color:#666;">Total: 0%</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- ===== MATERIALS OVERVIEW ===== -->
@@ -840,19 +913,19 @@
           </div>
           <div class="card-body">
             <div class="field-row">
-              <div class="field-group"><label class="field-label">Course Prefix &amp; Number</label><input type="text" class="field-input" value="MNS 521" /></div>
-              <div class="field-group"><label class="field-label">Course Name</label><input type="text" class="field-input" value="AI Technologies" /></div>
+              <div class="field-group"><label class="field-label">Course Prefix &amp; Number</label><input type="text" id="ci-course-code" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Course Name</label><input type="text" id="ci-course-name" class="field-input" /></div>
             </div>
             <div class="field-row">
-              <div class="field-group"><label class="field-label">Credits</label><input type="text" class="field-input" value="3" /></div>
-              <div class="field-group"><label class="field-label">Prerequisites</label><input type="text" class="field-input" value="None" /></div>
+              <div class="field-group"><label class="field-label">Credits</label><input type="text" id="ci-credits" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Prerequisites</label><input type="text" id="ci-prerequisites" class="field-input" /></div>
             </div>
             <div class="field-row-3">
-              <div class="field-group"><label class="field-label">Session</label><input type="text" class="field-input" value="Summer 2026 — Session B" /></div>
-              <div class="field-group"><label class="field-label">Section Line(s)</label><input type="text" class="field-input" value="87023" /></div>
-              <div class="field-group"><label class="field-label">Enrollment Cap</label><input type="text" class="field-input" value="50" /></div>
+              <div class="field-group"><label class="field-label">Session</label><input type="text" id="ci-session" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Section Line(s)</label><input type="text" id="ci-section-lines" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Enrollment Cap</label><input type="text" id="ci-enrollment-cap" class="field-input" /></div>
             </div>
-            <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" id="gen-studies" class="field-input" /></div>
+            <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" id="ci-gen-studies" class="field-input" /></div>
           </div>
         </div>
         <div class="card">
@@ -862,14 +935,14 @@
           </div>
           <div class="card-body">
             <div class="field-row">
-              <div class="field-group"><label class="field-label">Instructor Name</label><input type="text" class="field-input" value="Dariush Navabi" /></div>
-              <div class="field-group"><label class="field-label">Email</label><input type="text" class="field-input" value="dnavabi@asu.edu" /></div>
+              <div class="field-group"><label class="field-label">Instructor Name</label><input type="text" id="ci-instructor" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Email</label><input type="text" id="ci-email" class="field-input" /></div>
             </div>
             <div class="field-row">
-              <div class="field-group"><label class="field-label">Office</label><input type="text" class="field-input" value="COOR 4422" /></div>
-              <div class="field-group"><label class="field-label">Zoom Link</label><input type="text" id="instructor-zoom" class="field-input" placeholder="https://asu.zoom.us/..." /></div>
+              <div class="field-group"><label class="field-label">Office</label><input type="text" id="ci-office" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Zoom Link</label><input type="text" id="ci-zoom" class="field-input" placeholder="https://asu.zoom.us/..." /></div>
             </div>
-            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="office-hours" class="field-input" /></div>
+            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="ci-office-hours" class="field-input" /></div>
           </div>
         </div>
         <div class="card">
@@ -1021,7 +1094,7 @@
             <span class="card-toggle open">▾</span>
           </div>
           <div class="card-body">
-            <div class="field-group"><label class="field-label">Instructional Design Notes</label><textarea class="field-input auto-expand" style="min-height:80px;" placeholder="Notes from ID perspective..."></textarea></div>
+            <div class="field-group"><label class="field-label">Instructional Design Notes</label><textarea id="ctx-id-notes" class="field-input auto-expand" style="min-height:80px;" placeholder="Notes from ID perspective..."></textarea></div>
           </div>
         </div>
         <button class="btn-mark-complete" id="btn-complete-context" onclick="toggleSectionComplete('context', this)">
@@ -1035,10 +1108,10 @@
         <p style="color:#666; font-size:13px; margin-bottom:24px;">Course-wide required materials. Per-module resources go in each module's detail page.</p>
         <div class="card"><div class="card-body">
           <div class="step-hint">Include name, author, edition, and publisher for each textbook.</div>
-          <div class="field-group"><label class="field-label">Textbook 1</label><input type="text" class="field-input" placeholder="Title, author, edition, publisher" /></div>
-          <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" class="field-input" placeholder="Add another..." /></div>
+          <div class="field-group"><label class="field-label">Textbook 1</label><input type="text" id="mat-textbook-1" class="field-input" placeholder="Title, author, edition, publisher" /></div>
+          <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" id="mat-textbook-2" class="field-input" placeholder="Add another..." /></div>
           <button class="btn-add-row">+ Add textbook</button>
-          <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
+          <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea id="mat-other-materials" class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
         </div></div>
         <button class="btn-mark-complete" id="btn-complete-materials" onclick="toggleSectionComplete('materials', this)">
           <span class="complete-icon">○</span> Mark as Complete
@@ -1047,6 +1120,13 @@
 
       <!-- ===== DOC PREVIEW ===== -->
       <div id="view-preview" style="display:none;">
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
+          <label style="font-size:13px; font-weight:600; color:#555;">Document:</label>
+          <select id="doc-type-select" onchange="renderPreview()" style="padding:6px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; background:#fff;">
+            <option value="development">Course Development Document</option>
+            <option value="syllabus">Syllabus</option>
+          </select>
+        </div>
         <div class="view-toggle">
           <button class="view-btn active">📄 Document Preview</button>
           <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
@@ -1734,6 +1814,12 @@
     // Page title
     document.title = activeCourse.code + ' — Course Development';
 
+    // Restore saved module count and start-from-zero from localStorage
+    const savedModuleCount = loadField('moduleCount');
+    if (savedModuleCount) activeCourse.moduleCount = savedModuleCount;
+    const savedStartZero = loadField('moduleStartZero');
+    if (savedStartZero) activeCourse.moduleStartZero = savedStartZero;
+
     // Restore any saved module titles from localStorage, then render sidebar
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || modules.length || 7;
@@ -1745,14 +1831,16 @@
     }
 
     const sidebarModList = document.getElementById('sidebar-module-list');
+    const sideStartNum = activeCourse.moduleStartZero ? 0 : 1;
     if (sidebarModList) {
       let html = '';
       for (let i = 0; i < modCount; i++) {
         const mod = modules[i];
-        const title = mod ? mod.title : 'Module ' + (i + 1);
-        html += '<div class="nav-item" onclick="showModule(' + (i + 1) + ')">' +
-          '<span class="icon" style="font-size:11px;">' + (i + 1) + '</span> ' + title +
-          '<span class="badge badge-empty" id="sidebar-mod-badge-' + (i + 1) + '">—</span></div>';
+        const num = i + sideStartNum;
+        const title = mod ? mod.title : 'Module ' + num;
+        html += '<div class="nav-item" onclick="showModule(' + num + ')">' +
+          '<span class="icon" style="font-size:11px;">' + num + '</span> ' + title +
+          '<span class="badge badge-empty" id="sidebar-mod-badge-' + num + '">—</span></div>';
       }
       sidebarModList.innerHTML = html;
     }
@@ -1761,37 +1849,38 @@
     const moduleTabs = document.getElementById('module-tabs');
     if (moduleTabs) {
       const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+      const tabStart = activeCourse.moduleStartZero ? 0 : 1;
       let html = '';
-      for (let i = 1; i <= modCount; i++) {
-        html += '<div class="module-tab' + (i === 1 ? ' active' : '') + '" onclick="showModule(' + i + ')">' + i + '</div>';
+      for (let i = 0; i < modCount; i++) {
+        const num = i + tabStart;
+        html += '<div class="module-tab' + (i === 0 ? ' active' : '') + '" onclick="showModule(' + num + ')">' + num + '</div>';
       }
       moduleTabs.innerHTML = html;
     }
 
-    // Course Info fields — populate defaults from course config, but NEVER clear user-saved data.
+    // Course Info fields — populate defaults from course config by ID.
     // restoreAllFields() runs later and will overwrite these with saved values if they exist.
-    if (courseId !== 'mns521') {
-      const courseInfoInputs = document.querySelectorAll('#view-course-info input.field-input');
-      // Only set defaults for fields that are currently empty
-      if (courseInfoInputs[0] && !courseInfoInputs[0].value) courseInfoInputs[0].value = activeCourse.code || '';
-      if (courseInfoInputs[1] && !courseInfoInputs[1].value) courseInfoInputs[1].value = activeCourse.name || '';
-      if (courseInfoInputs[2] && !courseInfoInputs[2].value) courseInfoInputs[2].value = activeCourse.credits || '';
-      if (courseInfoInputs[3] && !courseInfoInputs[3].value) courseInfoInputs[3].value = activeCourse.prerequisites || '';
-      if (courseInfoInputs[4] && !courseInfoInputs[4].value) courseInfoInputs[4].value = activeCourse.session || '';
-      if (courseInfoInputs[5] && !courseInfoInputs[5].value) courseInfoInputs[5].value = activeCourse.sectionLines || '';
-      if (courseInfoInputs[6] && !courseInfoInputs[6].value) courseInfoInputs[6].value = activeCourse.enrollmentCap || '';
-      if (courseInfoInputs[8] && !courseInfoInputs[8].value) courseInfoInputs[8].value = activeCourse.instructor || '';
-      if (courseInfoInputs[9] && !courseInfoInputs[9].value) courseInfoInputs[9].value = activeCourse.email || '';
-      if (courseInfoInputs[10] && !courseInfoInputs[10].value) courseInfoInputs[10].value = activeCourse.office || '';
-      // Do NOT clear CLOs, ELOs, textbooks, or course context Q&A — user data lives there
-    }
+    var ciDefaults = {
+      'ci-course-code': activeCourse.code || '',
+      'ci-course-name': activeCourse.name || '',
+      'ci-credits': activeCourse.credits || '',
+      'ci-prerequisites': activeCourse.prerequisites || '',
+      'ci-session': activeCourse.session || '',
+      'ci-section-lines': activeCourse.sectionLines || '',
+      'ci-enrollment-cap': activeCourse.enrollmentCap || '',
+      'ci-instructor': activeCourse.instructor || '',
+      'ci-email': activeCourse.email || '',
+      'ci-office': activeCourse.office || ''
+    };
+    Object.keys(ciDefaults).forEach(function(id) {
+      var el = document.getElementById(id);
+      if (el && !el.value) el.value = ciDefaults[id];
+    });
 
     // Populate textbook field from config (applies to ALL courses including MNS 521)
     if (activeCourse.textbook) {
-      const matInputs = document.querySelectorAll('#view-materials input.field-input');
-      if (matInputs[0] && !matInputs[0].value) {
-        matInputs[0].value = activeCourse.textbook;
-      }
+      var tb1 = document.getElementById('mat-textbook-1');
+      if (tb1 && !tb1.value) tb1.value = activeCourse.textbook;
     }
 
     // Set the correct session in the dropdown
@@ -2594,18 +2683,24 @@
             if (saved[k]) { openModules[num] = true; foundSaved = true; }
           }
         }
-        if (!foundSaved) openModules['1'] = true;
+        if (!foundSaved) openModules[String(startNum)] = true;
       }
     }
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || 7;
+    const startZero = activeCourse.moduleStartZero || false;
+    const startNum = startZero ? 0 : 1;
     let html = '';
+
+    // Sync checkbox state
+    var zeroChk = document.getElementById('module-start-zero');
+    if (zeroChk) zeroChk.checked = startZero;
 
     // Get saved MLO data from localStorage
     const savedMods = loadField('moduleOverviewData') || {};
 
     for (let m = 0; m < modCount; m++) {
-      const modNum = m + 1;
+      const modNum = m + startNum;
       const modData = modules[m] || {};
       const savedMod = savedMods[modNum] || {};
       const topic = savedMod.topic || modData.title || '';
@@ -2649,11 +2744,14 @@
           html += '</div>';
         }
       } else {
-        // One empty row
-        html += '<div class="obj-entry" style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
-        html += '<span style="width:15px; flex-shrink:0;"></span>';
-        html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0;">' + modNum + '.1</span>';
+        // One empty row with ELO tagging
+        html += '<div class="obj-entry" data-mod="' + modNum + '" data-mlo-idx="0" style="display:flex; align-items:start; gap:8px; margin-bottom:6px;">';
+        html += '<span class="card-mlo-handle" style="color:#ccc; font-size:11px; flex-shrink:0; margin-top:8px; visibility:hidden;">⠿</span>';
+        html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0; margin-top:6px;">' + modNum + '.1</span>';
+        html += '<div style="flex:1; min-width:0;">';
         html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
+        html += buildMloEloTagsHtml(modNum, 0, 'c-');
+        html += '</div>';
         html += '</div>';
       }
 
@@ -2677,7 +2775,7 @@
         '<th style="width:110px;">ELOs</th>' +
         '</tr></thead><tbody>';
       for (var m = 0; m < modCount; m++) {
-        var modNum = m + 1;
+        var modNum = m + startNum;
         var modData = modules[m] || {};
         var savedMod = savedMods[modNum] || {};
         var topic = savedMod.topic || modData.title || '';
@@ -3276,7 +3374,74 @@
     const container = document.getElementById('module-overview-cards');
     const currentCount = container.querySelectorAll('.card[data-mod-num]').length;
     activeCourse.moduleCount = currentCount + 1;
+    saveField('moduleCount', activeCourse.moduleCount);
     renderModuleOverviewCards();
+  }
+
+  function toggleModuleStartZero(checked) {
+    activeCourse.moduleStartZero = checked;
+    saveField('moduleStartZero', checked);
+    renderModuleOverviewCards();
+  }
+
+  // ===== ASSIGNMENT WEIGHTING =====
+  function renderWeightRows() {
+    var weights = loadField('assignmentWeights') || [
+      { category: 'Discussions', weight: '' },
+      { category: 'Assignments', weight: '' },
+      { category: 'Quizzes', weight: '' },
+      { category: 'Final Project', weight: '' }
+    ];
+    var container = document.getElementById('assignment-weights-container');
+    if (!container) return;
+    var html = '';
+    for (var i = 0; i < weights.length; i++) {
+      html += '<div class="field-row" style="align-items:center; margin-bottom:6px;" data-weight-idx="' + i + '">' +
+        '<div class="field-group" style="flex:2;"><input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" /></div>' +
+        '<div class="field-group" style="flex:0 0 80px;"><input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="text-align:center;" oninput="saveWeights()" /></div>' +
+        '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:18px; padding:0 4px;" title="Remove">&times;</button>' +
+        '</div>';
+    }
+    container.innerHTML = html;
+    updateWeightTotal();
+  }
+
+  function saveWeights() {
+    var container = document.getElementById('assignment-weights-container');
+    if (!container) return;
+    var rows = container.querySelectorAll('[data-weight-idx]');
+    var weights = [];
+    rows.forEach(function(row) {
+      var inputs = row.querySelectorAll('input');
+      weights.push({ category: inputs[0].value, weight: inputs[1].value ? parseFloat(inputs[1].value) : '' });
+    });
+    saveField('assignmentWeights', weights);
+    updateWeightTotal();
+  }
+
+  function updateWeightTotal() {
+    var weights = loadField('assignmentWeights') || [];
+    var total = 0;
+    weights.forEach(function(w) { if (w.weight) total += parseFloat(w.weight) || 0; });
+    var el = document.getElementById('weight-total');
+    if (el) {
+      el.textContent = 'Total: ' + total + '%';
+      el.style.color = total === 100 ? '#4caf50' : (total > 100 ? '#c62828' : '#666');
+    }
+  }
+
+  function addWeightRow() {
+    var weights = loadField('assignmentWeights') || [];
+    weights.push({ category: '', weight: '' });
+    saveField('assignmentWeights', weights);
+    renderWeightRows();
+  }
+
+  function removeWeightRow(idx) {
+    var weights = loadField('assignmentWeights') || [];
+    weights.splice(idx, 1);
+    saveField('assignmentWeights', weights);
+    renderWeightRows();
   }
 
   // ===== TIMELINE CALCULATION =====
@@ -3754,11 +3919,18 @@
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
 
+    // Load manually completed milestones
+    const manualComplete = loadField('milestoneManualComplete') || {};
+
     for (let i = 0; i < milestones.length; i++) {
-      const rowClass = i < completed ? 'done' : (i === completed ? 'current' : '');
+      const isManualDone = manualComplete[i] === true;
+      const rowClass = (isManualDone || i < completed) ? 'done' : (i === completed ? 'current' : '');
       let statusLabel, statusColor;
       const ms = milestoneStatus && milestoneStatus[i];
-      if (ms && ms.status === 'done') {
+      if (isManualDone) {
+        statusLabel = '✓ Done';
+        statusColor = '#4caf50';
+      } else if (ms && ms.status === 'done') {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
       } else if (ms && ms.status === 'meeting') {
@@ -3779,10 +3951,11 @@
       const labelHtml = milestones[i].action
         ? `<a href="#" style="color:#8c1d40; text-decoration:none; font-weight:500;" onclick="event.preventDefault(); ${milestones[i].action}">${labelText}</a>`
         : `${labelText}`;
+      const checkedAttr = isManualDone ? ' checked' : '';
       html += `<tr class="${rowClass}">
         <td>${labelHtml}</td>
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
-        <td style="font-size:12px; color:${statusColor}">${statusLabel}</td>
+        <td style="font-size:12px; color:${statusColor}"><label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" data-managed="true"${checkedAttr} onchange="toggleMilestoneComplete(${i}, this.checked)" style="width:14px; height:14px; cursor:pointer;">${statusLabel}</label></td>
       </tr>`;
     }
 
@@ -3875,6 +4048,17 @@
     const dates = loadField('timelineDates') || {};
     dates[index] = value;
     saveField('timelineDates', dates);
+  }
+
+  function toggleMilestoneComplete(index, checked) {
+    const mc = loadField('milestoneManualComplete') || {};
+    if (checked) {
+      mc[index] = true;
+    } else {
+      delete mc[index];
+    }
+    saveField('milestoneManualComplete', mc);
+    recalcTimeline();
   }
 
   // Save QA / live date overrides and update relative status
@@ -6025,6 +6209,8 @@
     restoreAccordionStates();
     // Init module reorder drag-drop (once, uses event delegation)
     initModuleDragDrop();
+    // Render assignment weights
+    renderWeightRows();
     // Re-resize after restore
     setTimeout(function() { document.querySelectorAll('textarea').forEach(function(ta) { if (ta.offsetParent !== null) autoResize(ta); }); }, 100);
   });
@@ -6678,13 +6864,16 @@
     const container = document.getElementById('doc-preview-content');
     if (!container) return;
 
+    const docType = (document.getElementById('doc-type-select') || {}).value || 'development';
+    if (docType === 'syllabus') { renderSyllabusPreview(container); return; }
+
     const esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
     const placeholder = function(text) { return '<span class="placeholder">' + text + '</span>'; };
 
     let html = '';
 
     // Header
-    html += '<h1>Course Development Worksheet</h1>';
+    html += '<h1>Course Development Document</h1>';
     html += '<p class="doc-subtitle">' + esc(activeCourse.fullTitle) + ' &bull; ' + esc(activeCourse.sessionShort || activeCourse.session || '') + '</p>';
 
     // Course info
@@ -6878,6 +7067,99 @@
       }
     });
     if (hasContext) html += contextHtml;
+
+    container.innerHTML = html;
+  }
+
+  function renderSyllabusPreview(container) {
+    const esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
+    const placeholder = function(text) { return '<p style="color:#999; font-style:italic;">' + text + '</p>'; };
+
+    // Read form values by ID for reliability
+    const val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+
+    let html = '';
+    html += '<div style="text-align:center; margin-bottom:24px;">';
+    html += '<h1 style="margin-bottom:4px;">' + esc(val('ci-course-code') || activeCourse.code) + ': ' + esc(val('ci-course-name') || activeCourse.name) + '</h1>';
+    html += '<p style="font-size:14px; color:#666;">Syllabus &bull; ' + esc(val('ci-session') || activeCourse.session || '') + '</p>';
+    html += '</div>';
+
+    // Instructor info
+    html += '<h2>Instructor Information</h2>';
+    html += '<table style="border:none; font-size:13px; margin-bottom:16px;">';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Instructor:</td><td>' + esc(val('ci-instructor') || activeCourse.instructor) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Email:</td><td>' + esc(val('ci-email') || activeCourse.email) + '</td></tr>';
+    var office = val('ci-office');
+    if (office) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office:</td><td>' + esc(office) + '</td></tr>';
+    var officeHrs = val('ci-office-hours');
+    if (officeHrs) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office Hours:</td><td>' + esc(officeHrs) + '</td></tr>';
+    var zoom = val('ci-zoom');
+    if (zoom) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Zoom:</td><td>' + esc(zoom) + '</td></tr>';
+    html += '</table>';
+
+    // Course details
+    html += '<h2>Course Details</h2>';
+    html += '<p><strong>Credits:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
+    var prereqs = val('ci-prerequisites');
+    if (prereqs) html += '<p><strong>Prerequisites:</strong> ' + esc(prereqs) + '</p>';
+
+    // Description
+    var desc = val('course-description');
+    html += '<h2>Course Description</h2>';
+    html += desc ? '<p>' + esc(desc).replace(/\n/g, '<br>') + '</p>' : placeholder('No course description entered.');
+
+    // Learning Outcomes
+    var elos = activeCourse.flatElos || [];
+    if (elos.length > 0) {
+      html += '<h2>Learning Outcomes</h2>';
+      html += '<p>Upon successful completion of this course, students will be able to:</p><ol>';
+      elos.forEach(function(elo) { html += '<li>' + esc(elo) + '</li>'; });
+      html += '</ol>';
+    }
+
+    // Textbooks
+    var tb1 = val('mat-textbook-1'), tb2 = val('mat-textbook-2');
+    if (tb1 || tb2) {
+      html += '<h2>Required Materials</h2><ul>';
+      if (tb1) html += '<li>' + esc(tb1) + '</li>';
+      if (tb2) html += '<li>' + esc(tb2) + '</li>';
+      html += '</ul>';
+    }
+
+    // Grading
+    var weights = loadField('assignmentWeights') || [];
+    var hasWeights = weights.some(function(w) { return w.category && w.weight; });
+    if (hasWeights) {
+      html += '<h2>Grading</h2>';
+      html += '<table style="border-collapse:collapse; width:60%; font-size:13px;"><thead><tr><th style="padding:6px 12px; border:1px solid #ddd; text-align:left; background:#f5f5f0;">Category</th><th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Weight</th></tr></thead><tbody>';
+      weights.forEach(function(w) {
+        if (w.category && w.weight) html += '<tr><td style="padding:4px 12px; border:1px solid #ddd;">' + esc(w.category) + '</td><td style="padding:4px 12px; border:1px solid #ddd; text-align:center;">' + esc(w.weight + '%') + '</td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+
+    // Course schedule
+    var modules = activeCourse.modules || [];
+    var modCount = activeCourse.moduleCount || modules.length || 7;
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var savedMods = loadField('moduleOverviewData') || {};
+    html += '<h2>Course Schedule</h2>';
+    html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Module</th><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Topic</th><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Key Assignments</th></tr></thead><tbody>';
+    for (var m = 0; m < modCount; m++) {
+      var modNum = m + startNum;
+      var mod = modules[m] || {};
+      var savedMod = savedMods[modNum] || {};
+      var topic = savedMod.topic || mod.title || '';
+      var acts = (courseActivities[modNum] || []).map(function(a) { return a.name || 'Unnamed'; }).join(', ');
+      html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40; text-align:center;">M' + modNum + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + esc(topic || 'Module ' + modNum) + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + esc(acts || '—') + '</td></tr>';
+    }
+    html += '</tbody></table>';
+
+    html += '<div style="margin-top:24px; padding:16px; background:#fff8e1; border-radius:8px; font-size:12px; color:#666;">';
+    html += '<strong>Note:</strong> This is a draft syllabus generated from the course development data. To use your college\'s official syllabus template, upload it via the ID Dashboard and it will be populated with this data automatically.';
+    html += '</div>';
 
     container.innerHTML = html;
   }
