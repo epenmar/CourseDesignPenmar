@@ -480,6 +480,7 @@
       <div id="presence-bar" style="display:none; margin-top:8px; padding:6px 8px; background:rgba(255,255,255,0.08); border-radius:6px; font-size:11px; color:#ccc;">
         <div id="presence-users" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;"></div>
       </div>
+      <div id="sidebar-meeting-info" style="display:none; margin-top:8px; padding:8px 10px; background:rgba(255,255,255,0.06); border-radius:6px; font-size:11px; color:#ccc; line-height:1.5;"></div>
     </div>
 
     <div class="nav-section">
@@ -1981,6 +1982,47 @@
 
     // Recalculate timeline with the correct session
     recalcTimeline();
+
+    // Populate sidebar meeting info from synced data
+    (function() {
+      var meetingEl = document.getElementById('sidebar-meeting-info');
+      if (!meetingEl) return;
+      var synced = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
+      if (!synced) return;
+      var html = '';
+      // Next meeting
+      if (synced.nextMeeting) {
+        var m = synced.nextMeeting;
+        var mDate = m.date ? new Date(m.date + 'T00:00:00') : null;
+        var today = new Date(); today.setHours(0,0,0,0);
+        var daysDiff = mDate ? Math.round((mDate - today) / 86400000) : null;
+        var when = daysDiff === 0 ? 'Today' : daysDiff === 1 ? 'Tomorrow' : daysDiff > 0 ? 'in ' + daysDiff + ' days' : '';
+        html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">';
+        html += '<span style="font-size:14px;">📅</span>';
+        html += '<div><span style="color:#ffc627; font-weight:600;">Next Meeting</span>';
+        if (when) html += ' <span style="color:#aaa;">(' + when + ')</span>';
+        html += '<br><span style="color:#e0ddd5;">' + (m.time || '') + '</span>';
+        html += ' <span style="color:#ccc;">' + (m.label || '') + '</span></div>';
+        html += '</div>';
+      }
+      // Upcoming milestones from synced data
+      if (synced.milestones && synced.milestones.length > 0) {
+        html += '<div style="margin-top:4px; border-top:1px solid rgba(255,255,255,0.08); padding-top:4px;">';
+        synced.milestones.forEach(function(ms) {
+          var style = ms.urgent ? 'color:#ff6b6b; font-weight:600;' : ms.bold ? 'color:#ffc627;' : 'color:#ccc;';
+          html += '<div style="' + style + ' font-size:10px; margin-bottom:2px;">' +
+            '<span style="color:#999; min-width:42px; display:inline-block;">' + (ms.date || '') + '</span> ' +
+            (ms.label || '') +
+            (ms.statusText ? ' <span style="color:#aaa; font-weight:400;">— ' + ms.statusText + '</span>' : '') +
+            '</div>';
+        });
+        html += '</div>';
+      }
+      if (html) {
+        meetingEl.innerHTML = html;
+        meetingEl.style.display = 'block';
+      }
+    })();
 
     // Populate Google Drive folder links if configured
     if (activeCourse.driveFolder) {
