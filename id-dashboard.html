@@ -1752,15 +1752,28 @@
       }
 
       followUpBody = `Hi ${name},\n\n`;
-      if (nextMilestone) {
-        const milestoneReadable = nextMilestone
-          .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
-          .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
-          .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
-        followUpBody += `Just checking in ${timeRef} — I wanted to see how things are going with the ${milestoneReadable} for ${courseLabel}.\n\n`;
-      } else {
-        followUpBody += `Just checking in ${timeRef} on ${courseLabel} development.\n\n`;
+
+      // Build warm opening from meeting summary
+      let warmOpen = '';
+      const summary = (m.summary || '').replace(/\*\*/g, '').replace(/^-\s*/gm, '').trim();
+      if (summary) {
+        // Extract key phrases from summary to craft a personalized compliment
+        const sentences = summary.split(/[.;!\n]/).map(s => s.trim()).filter(s => s.length > 15);
+        // Look for faculty-driven insights: decisions, concepts, designs
+        const highlights = sentences.filter(s =>
+          /design|concept|approach|vision|creative|innovative|strong|excellent|great|insight|idea|model|framework|strategy|plan/i.test(s)
+        );
+        if (highlights.length > 0) {
+          const pick = highlights[0];
+          warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! It's clear you have a strong vision for ${courseLabel} — I especially appreciated your thinking around ${pick.charAt(0).toLowerCase() + pick.slice(1)}.\n\n`;
+        } else if (sentences.length > 0) {
+          warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! We covered a lot of ground on ${courseLabel} and I can see how thoughtfully you're approaching the course design.\n\n`;
+        }
       }
+      if (!warmOpen) {
+        warmOpen = `Thank you for a great meeting${daysSince <= 1 ? ' today' : daysSince <= 3 ? ' the other day' : daysSince <= 7 ? ' earlier this week' : ''}! I really enjoyed our conversation about ${courseLabel} — your enthusiasm for this course really comes through.\n\n`;
+      }
+      followUpBody += warmOpen;
 
       const allActions = m.actionItems || [];
       const theirPending = [];
