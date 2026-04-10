@@ -1559,7 +1559,15 @@
 
     // Shared helpers
     const instrFirst = name.toLowerCase();
-    const stripOwner = (text) => text.replace(/^[A-Za-z]+:\s*/, '').replace(/^to\s+/, '');
+    const stripOwner = (text) => {
+      let t = text.replace(/^[A-Za-z]+:\s*/, '').replace(/^to\s+/, '');
+      // Replace faculty name references with "you" to avoid third-person address
+      const firstName = name;
+      const fullName = c.instructor || '';
+      if (fullName) t = t.replace(new RegExp(fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), 'you');
+      if (firstName) t = t.replace(new RegExp('\\b' + firstName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'gi'), 'you');
+      return t;
+    };
     const isInstructor = (a) => {
       const t = a.text.toLowerCase();
       return t.startsWith(instrFirst + ':') || t.startsWith(instrFirst + ' to ');
@@ -1810,7 +1818,7 @@
         Object.keys(grouped).forEach(code => {
           const otherCourseFull = Object.values(otherCourses).find(oc => oc.code === code);
           const otherName = otherCourseFull ? (code + ' (' + otherCourseFull.courseName + ')') : code;
-          const otherSession = otherCourseFull ? otherCourseFull.subtitle : '';
+          const otherSession = otherCourseFull ? (otherCourseFull.session || '') : '';
           let crossIntro = `We also touched on ${otherName} today`;
           if (otherSession) {
             crossIntro += ` — since that launches in ${otherSession}, we have a bit more runway there`;
