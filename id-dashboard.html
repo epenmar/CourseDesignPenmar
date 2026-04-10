@@ -1427,11 +1427,33 @@
     // Development status — mirrors milestone progression
     html += `<div class="detail-section"><h3>Development Status</h3>`;
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
-    const msStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+    const msStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
     const manualComplete = c.milestoneManualComplete || {};
     const devMilestones = [
       'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
     ];
+    // Match calendar meetings to milestones by keyword
+    if (msStatus && syncedCourse.calendarMeetings) {
+      const calMtgs = syncedCourse.calendarMeetings;
+      const allLabels = devMilestones.slice();
+      const modCount2 = c.modules.length || 7;
+      for (let mi = 1; mi <= modCount2; mi++) allLabels.push('Module ' + mi);
+      allLabels.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
+      const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/));
+      calMtgs.forEach(cm => {
+        const cmLower = (cm.label || '').toLowerCase();
+        for (let k = 0; k < keywords.length; k++) {
+          const matched = keywords[k].filter(w => w.length > 2).every(w => cmLower.includes(w));
+          if (matched && (!msStatus[k] || msStatus[k].status === 'pending')) {
+            const d = new Date(cm.date + 'T00:00:00');
+            const mo = d.toLocaleDateString('en-US', {month:'short'});
+            const day = d.getDate();
+            msStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
+            break;
+          }
+        }
+      });
+    }
     const modCount = c.modules.length || 7;
     for (let i = 1; i <= modCount; i++) devMilestones.push('Module ' + i);
     devMilestones.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');

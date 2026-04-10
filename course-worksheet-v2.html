@@ -4101,7 +4101,26 @@
 
     // Pull synced milestone status from dashboard-data.js
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
-    const milestoneStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+    const milestoneStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
+
+    // Match calendar meetings to milestones by keyword
+    if (milestoneStatus && syncedCourse.calendarMeetings) {
+      const calMtgs = syncedCourse.calendarMeetings;
+      const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/));
+      calMtgs.forEach(function(cm) {
+        const cmLower = (cm.label || '').toLowerCase();
+        for (let k = 0; k < msLabels.length; k++) {
+          const matched = msLabels[k].filter(function(w) { return w.length > 2; }).every(function(w) { return cmLower.includes(w); });
+          if (matched && (!milestoneStatus[k] || milestoneStatus[k].status === 'pending')) {
+            const d = new Date(cm.date + 'T00:00:00');
+            const mo = d.toLocaleDateString('en-US', {month:'short'});
+            const day = d.getDate();
+            milestoneStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
+            break;
+          }
+        }
+      });
+    }
 
     // Apply calendar meeting dates to milestones (only if user hasn't manually set a date)
     if (milestoneStatus) {
