@@ -1647,6 +1647,47 @@
       '</div>';
   }
 
+  // ===== TEMPLATE DATA PERSISTENCE =====
+  function saveTemplateField(actId, tplType, sectionLabel, value) {
+    // Find which module this activity belongs to
+    for (var m in courseActivities) {
+      var acts = courseActivities[m];
+      for (var i = 0; i < acts.length; i++) {
+        if (acts[i].id === actId) {
+          if (!acts[i].templateData) acts[i].templateData = {};
+          if (!acts[i].templateData[tplType]) acts[i].templateData[tplType] = {};
+          acts[i].templateData[tplType][sectionLabel] = value;
+          saveActivityData();
+          return;
+        }
+      }
+    }
+  }
+
+  function getTemplateVal(act, tplType, sectionLabel) {
+    if (!act.templateData || !act.templateData[tplType]) return '';
+    return act.templateData[tplType][sectionLabel] || '';
+  }
+
+  function buildTplTextarea(actId, tplType, sectionLabel, placeholder, extraStyle) {
+    var val = '';
+    // Look up value from data model
+    for (var m in courseActivities) {
+      var acts = courseActivities[m];
+      for (var i = 0; i < acts.length; i++) {
+        if (acts[i].id === actId) {
+          val = getTemplateVal(acts[i], tplType, sectionLabel);
+          break;
+        }
+      }
+      if (val) break;
+    }
+    return '<textarea data-managed="true" placeholder="' + placeholder + '"' +
+      ' oninput="saveTemplateField(\'' + actId + '\',\'' + tplType + '\',\'' + sectionLabel.replace(/'/g, "\\'") + '\',this.value); autoGrowTextarea(this)"' +
+      (extraStyle ? ' style="' + extraStyle + '"' : '') +
+      '>' + escapeHtml(val) + '</textarea>';
+  }
+
   // ===== ACTIVITY BLOCK HTML GENERATOR =====
   function buildActivityBlockHtml(act, moduleNum) {
     const id = act.id;
@@ -1703,11 +1744,11 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
               '<h4>Discussion Template</h4>' +
-              '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the discussion topic and purpose..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea data-managed="true" placeholder="Central question or task for students..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea data-managed="true" placeholder="e.g., Reply to at least two classmates..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea data-managed="true" placeholder="List readings, videos, or links..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px;">' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>' +
@@ -1715,11 +1756,11 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
               '<h4>Assignment Template</h4>' +
-              '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the assignment purpose and context..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea data-managed="true" placeholder="List the MLOs this assignment addresses..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Instructions</div><textarea data-managed="true" placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Materials</div><textarea data-managed="true" placeholder="Links, documents, or resources needed..."></textarea></div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>' +
+              '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div>' + buildTplTextarea(id, 'assignment', 'MLOs', 'List the MLOs this assignment addresses...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px;">' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>' +
@@ -1734,7 +1775,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">' +
               '<h4>Blank Page</h4>' +
-              '<div class="template-section"><textarea data-managed="true" placeholder="Write your content here..." style="min-height:160px;"></textarea></div>' +
+              '<div class="template-section">' + buildTplTextarea(id, 'blank', 'Content', 'Write your content here...', 'min-height:160px;') + '</div>' +
               '<div style="margin-top:8px;">' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -1756,8 +1797,8 @@
 
     return '<div class="material-item" data-material-id="' + id + '" data-module-num="' + moduleNum + '" style="border:1px solid #e0ddd5; border-radius:8px; padding:12px; margin-bottom:10px; background:#fff;">' +
       '<div style="display:flex; gap:12px; align-items:center;">' +
-        '<select class="activity-input" data-managed="true" data-field="type" style="width:140px; font-size:12px; padding:6px 8px;">' + typeOptions + '</select>' +
-        '<input type="text" class="activity-input" data-managed="true" data-field="title" placeholder="Material title..." style="flex:1; font-size:12px;" value="' + escapeHtml(mat.title) + '" />' +
+        '<select class="activity-input" data-managed="true" data-field="type" data-material-id="' + id + '" data-module-num="' + moduleNum + '" onchange="syncOverviewMaterial(this)" style="width:140px; font-size:12px; padding:6px 8px;">' + typeOptions + '</select>' +
+        '<input type="text" class="activity-input" data-managed="true" data-field="title" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="syncOverviewMaterial(this)" placeholder="Material title..." style="flex:1; font-size:12px;" value="' + escapeHtml(mat.title) + '" />' +
         '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'mat-attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
         '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteMaterial(this)" style="flex-shrink:0;">✕</button>' +
       '</div>' +
@@ -1779,7 +1820,7 @@
           '<div class="link-input-row"><input type="text" class="activity-input" data-managed="true" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-template">' +
-          '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;"></textarea>' +
+          '<textarea class="field-input" data-managed="true" data-field="richText" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;">' + escapeHtml(mat.richText || '') + '</textarea>' +
         '</div>' +
       '</div>' +
       '</div>' +
@@ -5268,11 +5309,11 @@
     // Discussion template
     html += '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">';
     html += '<h4>Discussion Template</h4>';
-    html += '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the discussion topic and purpose..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div><textarea data-managed="true" placeholder="Central question or task for students..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div><textarea data-managed="true" placeholder="e.g., Reply to at least two classmates..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div><textarea data-managed="true" placeholder="List readings, videos, or links..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>';
@@ -5280,11 +5321,11 @@
     // Assignment template
     html += '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">';
     html += '<h4>Assignment Template</h4>';
-    html += '<div class="template-section"><div class="template-section-label">Overview</div><textarea data-managed="true" placeholder="Describe the assignment purpose and context..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div><textarea data-managed="true" placeholder="List the MLOs this assignment addresses..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Instructions</div><textarea data-managed="true" placeholder="Step-by-step instructions for students..." style="min-height:100px;"></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Materials</div><textarea data-managed="true" placeholder="Links, documents, or resources needed..."></textarea></div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div><textarea data-managed="true" placeholder="Criteria | Points | Description..." style="min-height:80px;"></textarea></div>';
+    html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div>' + buildTplTextarea(act.id, 'assignment', 'MLOs', 'List the MLOs this assignment addresses...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>';
@@ -5299,7 +5340,7 @@
     // Blank page template
     html += '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">';
     html += '<h4>Blank Page</h4>';
-    html += '<div class="template-section"><textarea data-managed="true" placeholder="Write your content here..." style="min-height:160px;"></textarea></div>';
+    html += '<div class="template-section">' + buildTplTextarea(act.id, 'blank', 'Content', 'Write your content here...', 'min-height:160px;') + '</div>';
     html += '<div style="margin-top:8px;">';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -5523,7 +5564,7 @@
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
           html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
-          html += '<textarea class="field-input" data-managed="true" data-field="richText" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;"></textarea></div>';
+          html += '<textarea class="field-input" data-managed="true" data-field="richText" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;">' + escapeHtml(mat.richText || '') + '</textarea></div>';
           html += '</div></div></div>';
         }
       }
@@ -5584,6 +5625,7 @@
     if (!mat) return;
     if (field === 'title') mat.title = el.value;
     else if (field === 'type') mat.type = el.value;
+    else if (field === 'richText') mat.richText = el.value;
     saveActivityData();
   }
 
