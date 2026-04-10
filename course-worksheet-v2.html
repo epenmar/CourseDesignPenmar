@@ -3555,9 +3555,9 @@
     var html = '';
     for (var i = 0; i < weights.length; i++) {
       html += '<div class="field-row" style="align-items:center; margin-bottom:6px;" data-weight-idx="' + i + '">' +
+        '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:18px; padding:0 4px; flex:0 0 auto;" title="Remove">&times;</button>' +
         '<div class="field-group" style="flex:2;"><input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" /></div>' +
         '<div class="field-group" style="flex:0 0 80px;"><input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="text-align:center;" oninput="saveWeights()" /></div>' +
-        '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:18px; padding:0 4px;" title="Remove">&times;</button>' +
         '</div>';
     }
     container.innerHTML = html;
@@ -8018,12 +8018,16 @@ ${clone.innerHTML}
   function getViewSectionId(element) {
     // Walk up to find the view container and return its section ID
     const viewMap = {
-      'view-dashboard': 'dashboard-timeline',
+      'view-dashboard': 'dashboard',
       'view-course-info': 'course-info',
-      'view-textbooks': 'textbooks',
-      'view-course-context': 'course-context',
-      'view-clo-elo': 'clos-elos',
+      'view-materials': 'textbooks',
+      'view-additional': 'additional',
+      'view-objectives': 'clos-elos',
       'view-module-overview': 'module-overview',
+      'view-assignments-overview': 'assignments-overview',
+      'view-materials-overview': 'materials-overview',
+      'view-course-mapping': 'course-mapping',
+      'view-preview': 'preview',
       'view-module': 'module-1',
     };
     let el = element;
