@@ -4731,7 +4731,6 @@
     // Flush any pending debounced saves before switching views
     clearTimeout(saveTimer);
     _doSaveAllFields();
-    if (document.getElementById('module-overview-cards')) saveModuleOverviewSync();
     currentViewId = viewId;
     views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
     const target = document.getElementById('view-'+viewId);
