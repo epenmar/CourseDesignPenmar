@@ -68,7 +68,7 @@
   .main-content { padding: 12px 40px 60px; max-width: 920px; }
 
   /* ===== CARDS ===== */
-  .card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 24px; margin-bottom: 14px; transition: all 0.2s; }
+  .card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; transition: all 0.2s; }
   .card:hover { border-color: #ccc; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
   .card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
   .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
@@ -76,16 +76,16 @@
   .dot-empty { background: #ddd; } .dot-partial { background: #ffc627; } .dot-done { background: #4caf50; }
   .card-toggle { font-size: 18px; color: #999; transition: transform 0.2s; }
   .card-toggle.open { transform: rotate(180deg); }
-  .card-body { margin-top: 16px; }
+  .card-body { margin-top: 10px; }
   .card-body.collapsed { display: none; }
 
   /* ===== FORM ===== */
   .field-group { margin-bottom: 14px; }
   .field-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 5px; display: block; }
   .field-hint { font-size: 11px; color: #999; margin-bottom: 6px; }
-  .field-input { width: 100%; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; }
+  .field-input { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; }
   .field-input:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
-  textarea.field-input { min-height: 38px; overflow: hidden; white-space: pre-wrap; }
+  textarea.field-input { min-height: 0; height: auto; overflow: hidden; white-space: pre-wrap; }
   textarea.field-input.ta-multiline { min-height: 80px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .field-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
@@ -143,7 +143,7 @@
   .mod-overview-table td { padding: 10px 12px; border: 1px solid #e0ddd5; vertical-align: top; }
   .mod-overview-table input, .mod-overview-table textarea { width: 100%; padding: 6px 8px; border: 1px solid transparent; border-radius: 4px; font-size: 13px; font-family: 'Inter', sans-serif; background: transparent; resize: vertical; }
   .mod-overview-table input:focus, .mod-overview-table textarea:focus { outline: none; border-color: #8c1d40; background: #fff; }
-  .mod-overview-table textarea { min-height: 50px; }
+  .mod-overview-table textarea { min-height: 0; }
   .mod-num { font-weight: 700; color: #8c1d40; text-align: center; }
   .clo-tag { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 600; margin: 2px; cursor: pointer; }
   .clo-tag-1 { background: #f2e3ea; color: #8C1D40; }
