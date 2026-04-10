@@ -2826,29 +2826,33 @@
 
   function saveTableMlo(input, modNum, idx) {
     captureUndoOnEdit('edit MLO');
+    var _sn = activeCourse.moduleStartZero ? 0 : 1;
+    var _ai = modNum - _sn;
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
-    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_ai] ? activeCourse.modules[_ai].mlos || [] : []);
     mlos = mlos.slice();
     mlos[idx] = input.value;
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-      activeCourse.modules[modNum - 1].mlos = mlos;
+    if (activeCourse.modules && activeCourse.modules[_ai]) {
+      activeCourse.modules[_ai].mlos = mlos;
     }
   }
 
   function addTableMlo(modNum) {
     captureUndoOnEdit('add MLO');
+    var _sn = activeCourse.moduleStartZero ? 0 : 1;
+    var _ai = modNum - _sn;
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
-    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_ai] ? activeCourse.modules[_ai].mlos || [] : []);
     mlos = mlos.slice();
     mlos.push('');
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-      activeCourse.modules[modNum - 1].mlos = mlos;
+    if (activeCourse.modules && activeCourse.modules[_ai]) {
+      activeCourse.modules[_ai].mlos = mlos;
     }
     renderModuleOverviewCards();
     // Focus the new input
@@ -2865,13 +2869,15 @@
     captureUndoOnEdit('delete MLO');
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
-    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    var _startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var _arrayIdx = modNum - _startNum;
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_arrayIdx] ? activeCourse.modules[_arrayIdx].mlos || [] : []);
     mlos = mlos.slice();
     mlos.splice(idx, 1);
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-      activeCourse.modules[modNum - 1].mlos = mlos;
+    if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
+      activeCourse.modules[_arrayIdx].mlos = mlos;
     }
     renderModuleOverviewCards();
   }
@@ -2882,13 +2888,15 @@
     saveModuleOverviewSync();
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[modNum]) savedMods[modNum] = {};
-    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+    var _startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var _arrayIdx = modNum - _startNum;
+    var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_arrayIdx] ? activeCourse.modules[_arrayIdx].mlos || [] : []);
     mlos = mlos.slice();
     mlos.splice(idx, 1);
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-      activeCourse.modules[modNum - 1].mlos = mlos;
+    if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
+      activeCourse.modules[_arrayIdx].mlos = mlos;
     }
     renderModuleOverviewCards();
   }
@@ -2898,8 +2906,9 @@
 
     function getMloDataForMod(modNum) {
       var savedMods = loadField('moduleOverviewData') || {};
+      var _sn = activeCourse.moduleStartZero ? 0 : 1;
       return (savedMods[modNum] && savedMods[modNum].mlos) ? savedMods[modNum].mlos :
-        (activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+        (activeCourse.modules[modNum - _sn] ? activeCourse.modules[modNum - _sn].mlos || [] : []);
     }
 
     function clearIndicators() {
@@ -3058,13 +3067,14 @@
         if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
+        var _sn = activeCourse.moduleStartZero ? 0 : 1;
         savedMods[dragSrcMod].mlos = srcMlos;
-        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        if (activeCourse.modules[dragSrcMod - _sn]) activeCourse.modules[dragSrcMod - _sn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = (savedMods[targetMod].mlos || []).slice();
         tgtMlos.push(movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
-        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - _sn]) activeCourse.modules[targetMod - _sn].mlos = tgtMlos;
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -3126,8 +3136,9 @@
 
     function getMloData(modNum) {
       var savedMods = loadField('moduleOverviewData') || {};
+      var _sn = activeCourse.moduleStartZero ? 0 : 1;
       return (savedMods[modNum] && savedMods[modNum].mlos) ? savedMods[modNum].mlos :
-        (activeCourse.modules[modNum - 1] ? activeCourse.modules[modNum - 1].mlos || [] : []);
+        (activeCourse.modules[modNum - _sn] ? activeCourse.modules[modNum - _sn].mlos || [] : []);
     }
 
     function clearIndicators() {
@@ -3228,14 +3239,16 @@
     var modules = activeCourse.modules || [];
     var savedMods = loadField('moduleOverviewData') || {};
     var modCount = activeCourse.moduleCount || modules.length;
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
 
     // Build ordered arrays of data keyed by current module number
     var modOrder = [];
-    for (var i = 1; i <= modCount; i++) modOrder.push(i);
+    for (var i = 0; i < modCount; i++) modOrder.push(i + startNum);
 
     // Move fromNum to toNum position
     var fromIdx = modOrder.indexOf(fromNum);
     var toIdx = modOrder.indexOf(toNum);
+    if (fromIdx === -1 || toIdx === -1) return;
     modOrder.splice(fromIdx, 1);
     // After removing fromIdx, if it was before toIdx, toIdx shifts down by 1
     if (fromIdx < toIdx) toIdx--;
@@ -3254,9 +3267,10 @@
 
     for (var i = 0; i < modOrder.length; i++) {
       var oldNum = modOrder[i];
-      var newNum = i + 1;
+      var newNum = i + startNum;
+      var oldArrayIdx = oldNum - startNum;
 
-      newModules[i] = modules[oldNum - 1] || { title: '', mlos: [] };
+      newModules[i] = modules[oldArrayIdx] || { title: '', mlos: [] };
       newSavedMods[newNum] = savedMods[oldNum] || { topic: '', mlos: [] };
       if (courseActivities[oldNum]) newActivities[newNum] = courseActivities[oldNum];
       if (courseMaterials[oldNum]) newMaterials[newNum] = courseMaterials[oldNum];
@@ -3331,12 +3345,13 @@
   // Synchronous save — reads MLO values from card DOM and merges into localStorage
   function saveModuleOverviewSync() {
     clearTimeout(saveTimer);
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
     // Start from existing saved data so we don't erase modules not currently in the DOM
     var data = loadField('moduleOverviewData') || {};
     // Also seed from activeCourse for any modules not yet in localStorage
     var modules = activeCourse.modules || [];
     for (var i = 0; i < modules.length; i++) {
-      var mn = i + 1;
+      var mn = i + startNum;
       if (!data[mn]) {
         data[mn] = { topic: modules[i].title || '', mlos: (modules[i].mlos || []).slice() };
       }
@@ -3351,9 +3366,10 @@
         if (inp.value.trim()) mlos.push(inp.value.trim());
       });
       data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
-      if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-        activeCourse.modules[modNum - 1].mlos = mlos;
-        if (topicInput) activeCourse.modules[modNum - 1].title = topicInput.value;
+      var arrayIdx = modNum - startNum;
+      if (activeCourse.modules && activeCourse.modules[arrayIdx]) {
+        activeCourse.modules[arrayIdx].mlos = mlos;
+        if (topicInput) activeCourse.modules[arrayIdx].title = topicInput.value;
       }
     });
     saveField('moduleOverviewData', data);
@@ -3827,7 +3843,8 @@
     var modMatch = label.match(/^Module (\d+)$/);
     if (modMatch) {
       var modNum = parseInt(modMatch[1]);
-      var mod = modules[modNum - 1];
+      var _sn = activeCourse.moduleStartZero ? 0 : 1;
+      var mod = modules[modNum - _sn];
       var hasMlos = mod && mod.mlos && mod.mlos.length > 0 && mod.mlos.some(function(m) { return m && m.trim(); });
       var acts = courseActivities[modNum];
       var hasActs = acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); });
@@ -5212,11 +5229,13 @@
           if (body && !body.classList.contains('collapsed')) openModules[c.getAttribute('data-overview-module')] = true;
         });
       } else if (!foundAny) {
-        openModules[1] = true; // Default on very first render
+        var _asn = activeCourse.moduleStartZero ? 0 : 1;
+        openModules[_asn] = true; // Default on very first render
       }
     }
-    for (var m = 1; m <= modCount; m++) {
-      var mod = modules[m - 1];
+    var _asn = activeCourse.moduleStartZero ? 0 : 1;
+    for (var m = _asn; m < modCount + _asn; m++) {
+      var mod = modules[m - _asn];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var acts = courseActivities[m] || [];
       var isOpen = !!openModules[m];
@@ -5279,8 +5298,8 @@
     // Table view — fully editable with objective picker, add, delete
     if (tableContainer) {
       var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
-      for (var m = 1; m <= modCount; m++) {
-        var mod = modules[m - 1];
+      for (var m = _asn; m < modCount + _asn; m++) {
+        var mod = modules[m - _asn];
         var acts = courseActivities[m] || [];
         thtml += '<tbody data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < acts.length; i++) {
@@ -5329,11 +5348,13 @@
           if (body && !body.classList.contains('collapsed')) openModules[c.getAttribute('data-overview-module')] = true;
         });
       } else {
-        openModules[1] = true;
+        var _msn = activeCourse.moduleStartZero ? 0 : 1;
+        openModules[_msn] = true;
       }
     }
-    for (var m = 1; m <= modCount; m++) {
-      var mod = modules[m - 1];
+    var _msn = activeCourse.moduleStartZero ? 0 : 1;
+    for (var m = _msn; m < modCount + _msn; m++) {
+      var mod = modules[m - _msn];
       var modTitle = mod ? mod.title : 'Module ' + m;
       var mats = courseMaterials[m] || [];
       var isOpen = !!openModules[m];
@@ -5896,8 +5917,10 @@
     mlos.push('');
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
-    if (activeCourse.modules && activeCourse.modules[modNum - 1]) {
-      activeCourse.modules[modNum - 1].mlos = mlos;
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var arrayIdx = modNum - startNum;
+    if (activeCourse.modules && activeCourse.modules[arrayIdx]) {
+      activeCourse.modules[arrayIdx].mlos = mlos;
     }
     renderModuleOverviewCards();
     // Focus the new input
@@ -6929,9 +6952,10 @@
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || modules.length || 7;
     html += '<h2>Module Design</h2>';
+    const prevStartNum = activeCourse.moduleStartZero ? 0 : 1;
 
-    for (let m = 1; m <= modCount; m++) {
-      const mod = modules[m - 1];
+    for (let m = prevStartNum; m < modCount + prevStartNum; m++) {
+      const mod = modules[m - prevStartNum];
       const title = mod ? 'Module ' + m + ': ' + (mod.title || 'Untitled') : 'Module ' + m;
       html += '<h3>' + esc(title) + '</h3>';
 
