@@ -7073,9 +7073,9 @@
     html += '<p><strong>Instructional Designer:</strong> ' + esc(activeCourse.id || '') + '</p>';
     html += '<p><strong>Credits:</strong> ' + esc(activeCourse.credits || '') + '</p>';
 
-    // Course description — read from the form field
-    const descTextarea = document.querySelector('#view-course-info .card:nth-child(3) textarea.field-input');
-    const courseDesc = descTextarea ? descTextarea.value.trim() : '';
+    // Course description — read from the form field by ID
+    const descEl = document.getElementById('course-description');
+    const courseDesc = descEl ? descEl.value.trim() : '';
     html += '<h2>Course Description</h2>';
     html += courseDesc ? '<p>' + esc(courseDesc).replace(/\n/g, '<br>') + '</p>' : placeholder('No course description entered yet.');
 
