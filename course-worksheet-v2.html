@@ -83,9 +83,9 @@
   .field-group { margin-bottom: 14px; }
   .field-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 5px; display: block; }
   .field-hint { font-size: 11px; color: #999; margin-bottom: 6px; }
-  .field-input { width: 100%; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; }
+  .field-input { width: 100%; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; }
   .field-input:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
-  textarea.field-input { min-height: 38px; overflow: hidden; }
+  textarea.field-input { min-height: 38px; overflow: hidden; white-space: pre-wrap; }
   textarea.field-input.ta-multiline { min-height: 80px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .field-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
@@ -179,7 +179,7 @@
   .activity-header { font-size: 11px; font-weight: 600; color: #999; text-transform: uppercase; letter-spacing: 0.05em; padding-bottom: 4px; }
   .activity-input { padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; width: 100%; }
   .activity-input:focus { outline: none; border-color: #8c1d40; }
-  textarea.activity-input { resize: none; overflow: hidden; min-height: 34px; }
+  textarea.activity-input { resize: none; overflow: hidden; min-height: 34px; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
 
   /* ===== MODULE TABS ===== */
   .module-tabs { display: flex; gap: 4px; margin-bottom: 20px; flex-wrap: wrap; }
@@ -342,7 +342,7 @@
   .template-preview h4 { font-size: 13px; font-weight: 600; color: #8c1d40; margin-bottom: 8px; }
   .template-preview .template-section { margin-bottom: 10px; }
   .template-preview .template-section-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
-  .template-preview textarea { width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; overflow: hidden; }
+  .template-preview textarea { width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; overflow: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
   .template-preview textarea:focus { outline: none; border-color: #8c1d40; }
   .template-type-selector { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
   .template-type-btn { padding: 5px 12px; border: 1px solid #e0ddd5; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: #fff; color: #666; transition: all 0.15s; font-family: 'Inter', sans-serif; }
@@ -498,7 +498,7 @@
 
       <div class="nav-section-label">Course Design</div>
       <div class="nav-item" onclick="showView('module-overview')">
-        <span class="icon">🗺</span> Module Overview
+        <span class="icon">📋</span> Module Overview
         <span class="badge badge-empty" id="sidebar-module-count">—</span>
       </div>
       <div class="nav-item" onclick="showView('assignments-overview')">
@@ -751,15 +751,8 @@
         </div>
 
         <div id="elo-accordion-assignments" class="course-obj-accordion"></div>
-        <div class="view-toggle">
-          <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
-          <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
-        </div>
-        <div id="assignments-overview-cards"></div>
-        <div id="assignments-overview-table" style="display:none;"></div>
-
-        <!-- Assignment Weighting -->
-        <div class="card" style="margin-top:20px;">
+        <!-- Assignment Weighting (card view only, right below ELOs) -->
+        <div id="assignment-weighting-card" class="card" style="margin-bottom:16px;">
           <div class="card-header" onclick="toggleCard(this)">
             <div class="card-title">
               <span style="font-size:16px;">⚖️</span> Assignment Weighting
@@ -778,6 +771,12 @@
             </div>
           </div>
         </div>
+        <div class="view-toggle">
+          <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
+          <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
+        </div>
+        <div id="assignments-overview-cards"></div>
+        <div id="assignments-overview-table" style="display:none;"></div>
       </div>
 
       <!-- ===== MATERIALS OVERVIEW ===== -->
@@ -819,6 +818,14 @@
           </div>
           <p style="font-size:12px; color:#666; margin-bottom:12px;"><strong>Run Audit</strong> generates a structural report — tracing ELOs through MLOs to activities and flagging gaps, orphans, or over-reliance. <strong>AI Double-Check</strong> reads the actual objective text and verifies that your ELO↔MLO tags make pedagogical sense.</p>
           <div id="alignment-audit-report"></div>
+        </div>
+
+        <!-- Faculty Approved -->
+        <div style="text-align:center; margin-top:24px; margin-bottom:12px;">
+          <button id="faculty-approved-btn" onclick="toggleCourseMappingApproval()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+            ✅ Faculty Approved
+          </button>
+          <p id="faculty-approved-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
         </div>
       </div>
 
@@ -1832,12 +1839,14 @@
 
     const sidebarModList = document.getElementById('sidebar-module-list');
     const sideStartNum = activeCourse.moduleStartZero ? 0 : 1;
+    const sidebarSavedMods = loadField('moduleOverviewData') || {};
     if (sidebarModList) {
       let html = '';
       for (let i = 0; i < modCount; i++) {
         const mod = modules[i];
         const num = i + sideStartNum;
-        const title = mod ? mod.title : 'Module ' + num;
+        const savedMod = sidebarSavedMods[num] || {};
+        const title = savedMod.topic || (mod ? mod.title : '') || 'Module ' + num;
         html += '<div class="nav-item" onclick="showModule(' + num + ')">' +
           '<span class="icon" style="font-size:11px;">' + num + '</span> ' + title +
           '<span class="badge badge-empty" id="sidebar-mod-badge-' + num + '">—</span></div>';
@@ -2370,6 +2379,34 @@
     container.innerHTML = html;
   }
 
+  // ===== FACULTY APPROVAL FOR COURSE MAPPING =====
+
+  function toggleCourseMappingApproval() {
+    var current = loadField('courseMappingApproved');
+    var newVal = !current;
+    saveField('courseMappingApproved', newVal);
+    updateFacultyApprovedButton();
+    calculateProgress();
+  }
+
+  function updateFacultyApprovedButton() {
+    var btn = document.getElementById('faculty-approved-btn');
+    var status = document.getElementById('faculty-approved-status');
+    if (!btn) return;
+    var approved = loadField('courseMappingApproved');
+    if (approved) {
+      btn.style.background = '#4caf50';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#4caf50';
+      if (status) status.textContent = 'Approved — click to revoke';
+    } else {
+      btn.style.background = '#fff';
+      btn.style.color = '#4caf50';
+      btn.style.borderColor = '#4caf50';
+      if (status) status.textContent = '';
+    }
+  }
+
   // ===== ALIGNMENT AUDIT =====
 
   function runAlignmentAudit() {
@@ -2725,7 +2762,7 @@
       // Topic field
       html += '<div class="field-group">';
       html += '<label class="field-label">Module Topic</label>';
-      html += '<input type="text" class="field-input" value="' + escapeHtml(topic) + '" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" />';
+      html += '<textarea class="field-input" rows="1" data-managed="true" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();}">' + escapeHtml(topic) + '</textarea>';
       html += '</div>';
 
       // Objectives
@@ -2740,7 +2777,7 @@
           html += '<span class="card-mlo-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#ccc; font-size:11px; cursor:grab; user-select:none; flex-shrink:0; margin-top:8px;">⠿</span>';
           html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0; margin-top:6px;">' + modNum + '.' + (j + 1) + '</span>';
           html += '<div style="flex:1; min-width:0;">';
-          html += '<input type="text" class="field-input" style="margin-bottom:0;" value="' + escapeHtml(mlos[j]) + '" oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
+          html += '<textarea class="field-input" rows="1" data-managed="true" style="margin-bottom:0;" oninput="saveModuleOverview(); autoGrowTextarea(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}">' + escapeHtml(mlos[j]) + '</textarea>';
           html += buildMloEloTagsHtml(modNum, j, 'c-');
           html += '</div>';
           html += '<button onclick="deleteCardMlo(' + modNum + ',' + j + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0 2px; flex-shrink:0; margin-top:6px;" title="Remove">&times;</button>';
@@ -2752,7 +2789,7 @@
         html += '<span class="card-mlo-handle" style="color:#ccc; font-size:11px; flex-shrink:0; margin-top:8px; visibility:hidden;">⠿</span>';
         html += '<span style="font-size:13px; font-weight:600; color:#8c1d40; min-width:30px; flex-shrink:0; margin-top:6px;">' + modNum + '.1</span>';
         html += '<div style="flex:1; min-width:0;">';
-        html += '<input type="text" class="field-input" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview()" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}" />';
+        html += '<textarea class="field-input" rows="1" data-managed="true" style="margin-bottom:0;" placeholder="Enter objective..." oninput="saveModuleOverview(); autoGrowTextarea(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault(); saveModuleOverview(); addObjective(' + modNum + ');}"></textarea>';
         html += buildMloEloTagsHtml(modNum, 0, 'c-');
         html += '</div>';
         html += '</div>';
@@ -2767,6 +2804,15 @@
 
     container.innerHTML = html;
     initCardMloDragDrop(container);
+    // Auto-grow textareas in open cards after layout settles
+    setTimeout(function() {
+      container.querySelectorAll('.card').forEach(function(card) {
+        var body = card.querySelector('.card-body');
+        if (body && !body.classList.contains('collapsed')) {
+          body.querySelectorAll('textarea').forEach(function(ta) { autoGrowTextarea(ta); });
+        }
+      });
+    }, 50);
 
     // Module overview table view
     var tableContainer = document.getElementById('module-overview-table');
@@ -3347,7 +3393,7 @@
 
   // Synchronous save — reads MLO values from card DOM and merges into localStorage
   function saveModuleOverviewSync() {
-    clearTimeout(saveTimer);
+    clearTimeout(modOverviewSaveTimer);
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
     // Start from existing saved data so we don't erase modules not currently in the DOM
     var data = loadField('moduleOverviewData') || {};
@@ -3365,7 +3411,7 @@
       var modNum = parseInt(card.getAttribute('data-mod-num'));
       var topicInput = card.querySelector('[data-mod-topic]');
       var mlos = [];
-      card.querySelectorAll('.obj-entry input').forEach(function(inp) {
+      card.querySelectorAll('.obj-entry textarea.field-input, .obj-entry input.field-input').forEach(function(inp) {
         if (inp.value.trim()) mlos.push(inp.value.trim());
       });
       data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
@@ -3380,10 +3426,11 @@
   }
 
   // Debounced save — for oninput handlers where we don't need immediate persistence
+  // Uses its own timer so saveAllFields() can't clobber it
   function saveModuleOverview() {
     captureUndoOnEdit('edit module');
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(function() {
+    clearTimeout(modOverviewSaveTimer);
+    modOverviewSaveTimer = setTimeout(function() {
       saveModuleOverviewSync();
       showSaveIndicator();
     }, 500);
@@ -3630,9 +3677,9 @@
     }
     if (modCount > 0) weightedPct += 20 * (modsWithContent / modCount);
 
-    // 8. Course Alignment Map (5%) — done if eloMloAlignment has entries
-    var eloMlo = activeCourse.eloMloAlignment || loadField('eloMloAlignment');
-    if (eloMlo && Object.keys(eloMlo).length > 0) weightedPct += 5;
+    // 8. Course Alignment Map (5%) — done only if faculty approved
+    var mappingApproved = loadField('courseMappingApproved');
+    if (mappingApproved) weightedPct += 5;
 
     var pct = Math.round(weightedPct);
     saveField('completionPct', pct);
@@ -3791,16 +3838,22 @@
       }
     }
 
-    // Update sidebar Course Mapping badge
+    // Update sidebar Course Mapping badge — only done if faculty approved
     var mappingBadge = document.getElementById('sidebar-mapping-badge');
     if (mappingBadge) {
-      var eloMlo = activeCourse.eloMloAlignment;
-      if (eloMlo && Object.keys(eloMlo).length > 0) {
+      var mappingApproved = loadField('courseMappingApproved');
+      if (mappingApproved) {
         mappingBadge.className = 'badge badge-done';
         mappingBadge.textContent = '✓';
       } else {
-        mappingBadge.className = 'badge badge-empty';
-        mappingBadge.textContent = '—';
+        var eloMlo = activeCourse.eloMloAlignment;
+        if (eloMlo && Object.keys(eloMlo).length > 0) {
+          mappingBadge.className = 'badge badge-progress';
+          mappingBadge.textContent = '…';
+        } else {
+          mappingBadge.className = 'badge badge-empty';
+          mappingBadge.textContent = '—';
+        }
       }
     }
 
@@ -4177,6 +4230,7 @@
 
   // ===== GLOBAL PERSISTENCE ENGINE =====
   let saveTimer = null;
+  let modOverviewSaveTimer = null;
 
   function _doSaveAllFields() {
     // Sync CLO/ELO textareas back to activeCourse data model
@@ -4222,6 +4276,8 @@
   // Flush any pending save immediately when leaving the page
   window.addEventListener('beforeunload', function() {
     clearTimeout(saveTimer);
+    clearTimeout(modOverviewSaveTimer);
+    saveModuleOverviewSync();
     _doSaveAllFields();
   });
 
@@ -4730,13 +4786,17 @@
   function showView(viewId) {
     // Flush any pending debounced saves before switching views
     clearTimeout(saveTimer);
+    clearTimeout(modOverviewSaveTimer);
+    saveModuleOverviewSync();
     _doSaveAllFields();
     currentViewId = viewId;
     views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
     const target = document.getElementById('view-'+viewId);
     if(target) {
       target.style.display='block';
-      target.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
+      setTimeout(function() {
+        target.querySelectorAll('textarea').forEach(el => { if (el.offsetParent !== null) autoGrowTextarea(el); });
+      }, 50);
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     const names = {'dashboard':'Getting Started / Dashboard','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
@@ -4754,7 +4814,7 @@
     // Render overview content when navigating to overview views
     if (viewId === 'assignments-overview') renderAssignmentsOverview();
     if (viewId === 'materials-overview') renderMaterialsOverview();
-    if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); }
+    if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
     if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
@@ -4800,6 +4860,8 @@
     renderModuleMaterials(num);
 
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
+    // Re-apply comment highlights after module content renders
+    setTimeout(function() { loadAndApplyHighlights(); applyFieldCommentIndicators(); }, 200);
   }
 
   var modDetailMloEditing = false;
@@ -4985,6 +5047,11 @@
     var tableEl = document.getElementById(prefix + '-overview-table');
     if (cardsEl) cardsEl.style.display = mode === 'card' ? 'block' : 'none';
     if (tableEl) tableEl.style.display = mode === 'table' ? 'block' : 'none';
+    // Hide assignment weighting card in table view
+    if (prefix === 'assignments') {
+      var weightCard = document.getElementById('assignment-weighting-card');
+      if (weightCard) weightCard.style.display = mode === 'card' ? 'block' : 'none';
+    }
     // Re-render both views when switching so edits in one sync to the other
     if (prefix === 'module') {
       renderModuleOverviewCards();
@@ -5254,6 +5321,7 @@
     if (!cardsContainer) return;
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
+    var savedMods = loadField('moduleOverviewData') || {};
 
     // Render course objectives accordion at page top
     renderCourseObjectivesAccordion();
@@ -5286,7 +5354,8 @@
     var _asn = activeCourse.moduleStartZero ? 0 : 1;
     for (var m = _asn; m < modCount + _asn; m++) {
       var mod = modules[m - _asn];
-      var modTitle = mod ? mod.title : 'Module ' + m;
+      var savedMod = savedMods[m] || {};
+      var modTitle = savedMod.topic || (mod ? mod.title : '') || 'Module ' + m;
       var acts = courseActivities[m] || [];
       var isOpen = !!openModules[m];
       var collapsed = isOpen ? '' : ' collapsed';
@@ -5381,6 +5450,7 @@
     renderCourseObjectivesAccordion();
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
+    var matSavedMods = loadField('moduleOverviewData') || {};
     var matTypes = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
 
     function buildTypeOptions(selected) {
@@ -5405,7 +5475,8 @@
     var _msn = activeCourse.moduleStartZero ? 0 : 1;
     for (var m = _msn; m < modCount + _msn; m++) {
       var mod = modules[m - _msn];
-      var modTitle = mod ? mod.title : 'Module ' + m;
+      var matSavedMod = matSavedMods[m] || {};
+      var modTitle = matSavedMod.topic || (mod ? mod.title : '') || 'Module ' + m;
       var mats = courseMaterials[m] || [];
       var isOpen = !!openModules[m];
       var collapsed = isOpen ? '' : ' collapsed';
@@ -5749,13 +5820,15 @@
     const isCollapsing = !body.classList.contains('collapsed');
     // Flush any pending debounced saves before collapsing a module card
     if (isCollapsing && h.closest('[data-mod-num]')) {
-      clearTimeout(saveTimer);
+      clearTimeout(modOverviewSaveTimer);
       saveModuleOverviewSync();
     }
     body.classList.toggle('collapsed');
     h.querySelector('.card-toggle').classList.toggle('open');
     if (!body.classList.contains('collapsed')) {
-      body.querySelectorAll('.auto-expand').forEach(el => autoExpand(el));
+      setTimeout(function() {
+        body.querySelectorAll('textarea').forEach(el => autoGrowTextarea(el));
+      }, 20);
     }
     saveAccordionStates();
   }
@@ -5983,7 +6056,7 @@
     requestAnimationFrame(function() {
       var list = document.getElementById('obj-list-' + modNum);
       if (!list) return;
-      var inputs = list.querySelectorAll('.obj-entry input');
+      var inputs = list.querySelectorAll('.obj-entry textarea.field-input, .obj-entry input.field-input');
       var last = inputs[inputs.length - 1];
       if (last) last.focus();
     });
@@ -6000,6 +6073,18 @@
         display.textContent = 'Untitled Module';
         display.style.color = '#999';
         display.style.fontStyle = 'italic';
+      }
+    }
+    // Update sidebar module name
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var sideIdx = modNum - startNum;
+    var sidebarList = document.getElementById('sidebar-module-list');
+    if (sidebarList) {
+      var items = sidebarList.querySelectorAll('.nav-item');
+      if (items[sideIdx]) {
+        var badge = items[sideIdx].querySelector('.badge');
+        items[sideIdx].innerHTML = '<span class="icon" style="font-size:11px;">' + modNum + '</span> ' + (value.trim() || 'Module ' + modNum);
+        if (badge) items[sideIdx].appendChild(badge);
       }
     }
   }
@@ -6741,11 +6826,14 @@
     el.style.height = el.scrollHeight + 'px';
   }
 
-  // Auto-expand all textareas on load
+  // Auto-expand all textareas on load and on input (global delegation)
   document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.auto-expand').forEach(function(el) {
-      autoExpand(el);
+    document.querySelectorAll('textarea').forEach(function(el) {
+      autoGrowTextarea(el);
     });
+  });
+  document.addEventListener('input', function(e) {
+    if (e.target.tagName === 'TEXTAREA') autoGrowTextarea(e.target);
   });
 
   // ===== OBJECTIVES CRUD FUNCTIONS =====
@@ -7007,12 +7095,15 @@
     // Modules with activities and materials
     const modules = activeCourse.modules || [];
     const modCount = activeCourse.moduleCount || modules.length || 7;
+    const prevSavedMods = loadField('moduleOverviewData') || {};
     html += '<h2>Module Design</h2>';
     const prevStartNum = activeCourse.moduleStartZero ? 0 : 1;
 
     for (let m = prevStartNum; m < modCount + prevStartNum; m++) {
       const mod = modules[m - prevStartNum];
-      const title = mod ? 'Module ' + m + ': ' + (mod.title || 'Untitled') : 'Module ' + m;
+      const prevSavedMod = prevSavedMods[m] || {};
+      const modTopic = prevSavedMod.topic || (mod ? mod.title : '') || 'Untitled';
+      const title = 'Module ' + m + ': ' + modTopic;
       html += '<h3>' + esc(title) + '</h3>';
 
       // MLOs
@@ -7248,20 +7339,46 @@
   function downloadDocument() {
     const preview = document.querySelector('.doc-preview');
     if (!preview) return;
+
+    // Clone preview and apply inline styles so Google Docs preserves formatting
+    const clone = preview.cloneNode(true);
+
+    // Inline style maps for elements Google Docs/Word can render
+    const styleMap = {
+      'h1': 'font-family:Calibri,Arial,sans-serif; font-size:24px; color:#8c1d40; margin:0 0 4px 0; line-height:1.3;',
+      'h2': 'font-family:Calibri,Arial,sans-serif; font-size:18px; color:#8c1d40; margin:28px 0 12px 0; padding-bottom:6px; border-bottom:2px solid #ffc627;',
+      'h3': 'font-family:Calibri,Arial,sans-serif; font-size:15px; margin:20px 0 8px 0;',
+      'p':  'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.6; margin:4px 0 8px 0; color:#333;',
+      'li': 'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.7; margin-bottom:4px; color:#333;',
+      'ol': 'padding-left:24px; margin:8px 0 12px 0;',
+      'ul': 'padding-left:24px; margin:8px 0 12px 0;',
+      'table': 'width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'th': 'background-color:#f5f5f0; text-align:left; padding:8px 12px; font-weight:bold; border:1px solid #cccccc; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'td': 'padding:8px 12px; border:1px solid #cccccc; vertical-align:top; font-size:13px; font-family:Calibri,Arial,sans-serif;'
+    };
+
+    Object.keys(styleMap).forEach(function(tag) {
+      clone.querySelectorAll(tag).forEach(function(el) {
+        el.style.cssText = styleMap[tag] + (el.style.cssText || '');
+      });
+    });
+
+    // Style .doc-subtitle
+    clone.querySelectorAll('.doc-subtitle').forEach(function(el) {
+      el.style.cssText = 'font-size:14px; color:#666666; margin-bottom:24px; font-family:Calibri,Arial,sans-serif;';
+    });
+
+    // Style .placeholder
+    clone.querySelectorAll('.placeholder').forEach(function(el) {
+      el.style.cssText = 'color:#cccccc; font-style:italic;';
+    });
+
     const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>${activeCourse.fullTitle} — Course Development Worksheet</title>
-<style>
-  body { font-family: 'Calibri', 'Arial', sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #333; line-height: 1.6; }
-  h1 { color: #8c1d40; font-size: 24px; margin-bottom: 4px; }
-  h2 { color: #8c1d40; font-size: 18px; border-bottom: 2px solid #ffc627; padding-bottom: 4px; margin-top: 28px; }
-  h3 { font-size: 15px; margin-top: 16px; }
-  table { width: 100%; border-collapse: collapse; margin: 12px 0; font-size: 13px; }
-  th { background: #f5f5f0; text-align: left; padding: 8px; font-weight: 600; border: 1px solid #ddd; }
-  td { padding: 8px; border: 1px solid #ddd; vertical-align: top; }
-  .placeholder { color: #ccc; font-style: italic; }
-  p { margin: 4px 0; }
-</style></head><body>${preview.innerHTML}</body></html>`;
+</head><body style="font-family:Calibri,Arial,sans-serif; max-width:800px; margin:40px auto; padding:20px; color:#333333; line-height:1.6;">
+${clone.innerHTML}
+</body></html>`;
 
     const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
     const url = URL.createObjectURL(blob);
@@ -7361,6 +7478,36 @@
         showView(sectionId);
       }
     }
+  }
+
+  function navigateToCommentInContext(sectionId, commentId) {
+    closeCommentPanel();
+    navigateToSection(sectionId);
+    // After navigation and highlight re-application, scroll to the highlighted element
+    setTimeout(function() {
+      // Try to find the highlight mark for this comment
+      var mark = commentId ? document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]') : null;
+      if (!mark && commentId) {
+        // Try field comment — search commentCache for this comment's anchor
+        Object.values(commentCache).forEach(function(comments) {
+          (comments || []).forEach(function(c) {
+            if (c.id === commentId && c.highlight_anchor) {
+              try {
+                var el = document.querySelector(c.highlight_anchor.containerSelector);
+                if (el) mark = el;
+              } catch(e) {}
+            }
+          });
+        });
+      }
+      if (mark) {
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Flash the highlight to draw attention
+        mark.style.transition = 'background 0.3s';
+        mark.style.background = 'rgba(140, 29, 64, 0.2)';
+        setTimeout(function() { mark.style.background = ''; }, 1500);
+      }
+    }, 500);
   }
 
   async function openCommentPanel(sectionId, highlightId) {
@@ -7480,7 +7627,7 @@
       '<div class="comment-text"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
       '<div class="comment-actions">' +
         (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
-        (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToSection(\'' + c.section_id + '\'); closeCommentPanel();">View in context</button>' : '') +
+        (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToCommentInContext(\'' + c.section_id + '\',\'' + (c.id || '') + '\')">View in context</button>' : '') +
         (!c.resolved && !isDeleted && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
         statusTag +
         (!isDeleted && isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
@@ -7943,11 +8090,33 @@
   // Click handler for existing highlight marks
   document.addEventListener('click', function(e) {
     const mark = e.target.closest('.inline-highlight');
-    if (!mark) return;
-    const commentId = mark.dataset.commentId;
-    if (!commentId) return;
-    const sectionId = getViewSectionId(mark);
-    openCommentPanel(sectionId, commentId);
+    if (mark) {
+      const commentId = mark.dataset.commentId;
+      if (!commentId) return;
+      const sectionId = getViewSectionId(mark);
+      openCommentPanel(sectionId, commentId);
+      return;
+    }
+    // Also handle click on field-comment highlighted fields
+    const field = e.target.closest('.has-field-comment');
+    if (field) {
+      // Find the comment for this field
+      const fieldSelector = buildFieldSelector(field);
+      let foundComment = null;
+      Object.values(commentCache).forEach(comments => {
+        (comments || []).forEach(c => {
+          if (c.highlight_anchor && c.highlight_anchor.isField && c.highlight_anchor.containerSelector === fieldSelector && !c.resolved && !c.deleted_at) {
+            foundComment = c;
+          }
+        });
+      });
+      if (foundComment) {
+        openCommentPanel(foundComment.section_id, foundComment.id);
+      } else {
+        // Fall back to section comments
+        openCommentPanel(getViewSectionId(field));
+      }
+    }
   });
 
   // ===== RESTORE HIGHLIGHTS ON PAGE LOAD =====

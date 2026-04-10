@@ -799,7 +799,7 @@
     } catch(e) {}
   });
 
-  // Pull completion progress from worksheet localStorage
+  // Pull completion progress and milestone manual completions from worksheet localStorage
   Object.keys(courseData).forEach(id => {
     try {
       const ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
@@ -808,6 +808,10 @@
         courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
         courseData[id].progressColor = ws.completionPct >= 75 ? '#2e7d32' : (ws.completionPct > 0 ? '#e65100' : '#999');
         courseData[id].fillClass = ws.completionPct >= 75 ? 'fill-green' : (ws.completionPct > 0 ? 'fill-orange' : 'fill-red');
+      }
+      // Store manual milestone completions for use in renderDetail
+      if (ws.milestoneManualComplete) {
+        courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
       }
     } catch(e) {}
   });
@@ -1393,9 +1397,8 @@
         'Note: Documents you upload through the web app will automatically appear in this Drive folder. However, files added directly to Drive will not sync back to the web app — please use the worksheet upload feature for any materials you want tracked in the development tool.\n\n';
       }
       bodyText += 'Best,\n' + getProfile().sig + '';
-      const wsHtmlBody = bodyToHtml(bodyText);
-      const wsComposeUrl = `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${subject}&body=${encodeURIComponent(wsHtmlBody)}&ItemType=Message&deepLinkSource=Other`;
-      html += `<a href="${wsComposeUrl}" target="_blank" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
+      const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
+      html += `<a href="${wsComposeUrl}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
     html += `</div></div>`;
 
@@ -1426,6 +1429,7 @@
     html += `<div class="detail-section"><h3>Development Status</h3>`;
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
     const msStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+    const manualComplete = c.milestoneManualComplete || {};
     const devMilestones = [
       'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
     ];
@@ -1436,8 +1440,9 @@
     html += `<ul class="module-checklist">`;
     devMilestones.forEach((label, i) => {
       let state, statusLabel, statusColor;
+      const isManualDone = manualComplete[i] === true;
       const ms = msStatus && msStatus[i];
-      if (ms && ms.status === 'done') {
+      if (isManualDone || (ms && ms.status === 'done')) {
         state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
       } else if (ms && ms.status === 'meeting') {
         state = 'partial'; statusLabel = '📅 ' + (ms.meetingLabel || 'Meeting'); statusColor = '#1565c0';
@@ -1471,10 +1476,17 @@
 
     // Notes summary
     if (c.notes) {
+      // Split notes text into bullet points by sentence-ish boundaries
+      const noteItems = c.notes.text.split(/(?:\.\s+|;\s+|(?<=\))\.?\s+)/).filter(s => s.trim());
+      const bulletsHtml = noteItems.map(item => {
+        let t = item.trim();
+        if (t && !t.endsWith('.') && !t.endsWith('!') && !t.endsWith('?')) t += '.';
+        return `<li style="margin-bottom:4px;">${t}</li>`;
+      }).join('');
       html += `<div class="detail-section"><h3>Current Status</h3>
         <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.5; color:#444;">
-          <strong style="color:#8c1d40;">${c.notes.author}</strong> <span style="color:#999; font-size:11px;">${c.notes.date}</span><br>
-          ${c.notes.text}
+          <strong style="color:#8c1d40;">${c.notes.author}</strong> <span style="color:#999; font-size:11px;">${c.notes.date}</span>
+          <ul style="margin:8px 0 0 0; padding-left:20px;">${bulletsHtml}</ul>
         </div></div>`;
     }
 
@@ -1830,20 +1842,18 @@
     const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nBest,\n${getProfile().sig}`;
 
     const makeMailto = (subj, body) => {
-      // Use Outlook Web compose for HTML support (embedded links)
-      const htmlBody = bodyToHtml(body);
-      return `https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(htmlBody)}&ItemType=Message&deepLinkSource=Other`;
+      return `mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
     };
 
     // Build dropdown — show kickoff template if applicable, otherwise regular follow-up
     let templateLinks = '';
     if (kickoffBody) {
-      templateLinks += `<a href="${makeMailto('Following Up — ' + courseLabel + ' Kickoff', kickoffBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
+      templateLinks += `<a href="${makeMailto('Following Up — ' + courseLabel + ' Kickoff', kickoffBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">🚀</span><div><div>Kickoff Follow-Up</div><div class="em-desc">Warm follow-up with resources and highlights</div></div>
         </a>`;
     }
     if (followUpBody) {
-      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
+      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
         </a>`;
     }
@@ -1852,13 +1862,13 @@
       <button class="email-dropdown-btn" onclick="event.stopPropagation(); this.nextElementSibling.classList.toggle('open');">📧 ${emailLabel} ▾</button>
       <div class="email-dropdown-menu" id="email-menu-${id}">
         ${templateLinks}
-        <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
+        <a href="${makeMailto('Checking In — ' + courseLabel, checkInBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">👋</span><div><div>Check-In</div><div class="em-desc">Ask about progress and offer help</div></div>
         </a>
-        <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" target="_blank" onclick="this.parentElement.classList.remove('open');">
+        <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📊</span><div><div>Course Readiness Update</div><div class="em-desc">Status and progress summary</div></div>
         </a>
-        <a href="https://outlook.office.com/mail/deeplink/compose?to=${encodeURIComponent(c.email)}&subject=${encodeURIComponent(courseLabel + ' — ')}&ItemType=Message&deepLinkSource=Other" target="_blank" onclick="this.parentElement.classList.remove('open');">
+        <a href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(courseLabel + ' — ')}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">✉️</span><div><div>Blank Email</div><div class="em-desc">Start from scratch</div></div>
         </a>
       </div>
