@@ -2715,7 +2715,10 @@
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + modNum + '</span>';
       html += '<span id="mod-title-display-' + modNum + '">' + (topic || 'Module ' + modNum) + '</span>';
       html += '</div>';
+      html += '<div style="display:flex; align-items:center; gap:4px;">';
+      html += '<button onclick="event.stopPropagation(); deleteModuleCard(' + modNum + ')" title="Delete module" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:2px 6px; line-height:1;">&times;</button>';
       html += '<span class="card-toggle' + (openModules[String(modNum)] ? ' open' : '') + '">▾</span>';
+      html += '</div>';
       html += '</div>';
       html += '<div class="card-body' + collapsed + '">';
 
@@ -3387,11 +3390,55 @@
   }
 
   function addModuleCard() {
+    // Save current state before modifying
+    saveModuleOverviewSync();
     const container = document.getElementById('module-overview-cards');
     const currentCount = container.querySelectorAll('.card[data-mod-num]').length;
     activeCourse.moduleCount = currentCount + 1;
     saveField('moduleCount', activeCourse.moduleCount);
+    // Create a blank entry for the new module so it doesn't inherit stale data
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var newModNum = currentCount + startNum;
+    var savedMods = loadField('moduleOverviewData') || {};
+    savedMods[newModNum] = { topic: '', mlos: [] };
+    saveField('moduleOverviewData', savedMods);
     renderModuleOverviewCards();
+  }
+
+  function deleteModuleCard(modNum) {
+    if (!confirm('Delete Module ' + modNum + '? This will remove its objectives, activities, and materials.')) return;
+    captureUndoState('delete module');
+    saveModuleOverviewSync();
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var modCount = activeCourse.moduleCount || 7;
+    var savedMods = loadField('moduleOverviewData') || {};
+
+    // Build new data by removing the deleted module and renumbering
+    var newSavedMods = {};
+    var newModules = [];
+    var newActivities = {};
+    var newMaterials = {};
+    var newIdx = 0;
+    for (var i = 0; i < modCount; i++) {
+      var oldNum = i + startNum;
+      if (oldNum === modNum) continue; // skip deleted
+      var newNum = newIdx + startNum;
+      newSavedMods[newNum] = savedMods[oldNum] || { topic: '', mlos: [] };
+      newModules.push(activeCourse.modules && activeCourse.modules[i] ? activeCourse.modules[i] : { title: '', mlos: [] });
+      if (courseActivities[oldNum]) newActivities[newNum] = courseActivities[oldNum];
+      if (courseMaterials[oldNum]) newMaterials[newNum] = courseMaterials[oldNum];
+      newIdx++;
+    }
+
+    activeCourse.moduleCount = newIdx;
+    activeCourse.modules = newModules;
+    courseActivities = newActivities;
+    courseMaterials = newMaterials;
+    saveField('moduleCount', newIdx);
+    saveField('moduleOverviewData', newSavedMods);
+    saveActivityData();
+    renderModuleOverviewCards();
+    calculateProgress();
   }
 
   function toggleModuleStartZero(checked) {
@@ -4681,6 +4728,10 @@
   }
 
   function showView(viewId) {
+    // Flush any pending debounced saves before switching views
+    clearTimeout(saveTimer);
+    _doSaveAllFields();
+    if (document.getElementById('module-overview-cards')) saveModuleOverviewSync();
     currentViewId = viewId;
     views.forEach(v => { const el = document.getElementById('view-'+v); if(el) el.style.display='none'; });
     const target = document.getElementById('view-'+viewId);
@@ -5696,6 +5747,12 @@
   function toggleCard(h) {
     if (_suppressCardToggle) { _suppressCardToggle = false; return; }
     const body = h.nextElementSibling;
+    const isCollapsing = !body.classList.contains('collapsed');
+    // Flush any pending debounced saves before collapsing a module card
+    if (isCollapsing && h.closest('[data-mod-num]')) {
+      clearTimeout(saveTimer);
+      saveModuleOverviewSync();
+    }
     body.classList.toggle('collapsed');
     h.querySelector('.card-toggle').classList.toggle('open');
     if (!body.classList.contains('collapsed')) {
