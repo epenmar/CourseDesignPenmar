@@ -1617,7 +1617,8 @@
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
-    const mod = (activeCourse.modules || [])[moduleNum - 1];
+    const _startN = activeCourse.moduleStartZero ? 0 : 1;
+    const mod = (activeCourse.modules || [])[moduleNum - _startN];
     const mlos = mod && mod.mlos ? mod.mlos : [];
     const selected = selectedObjectives || [];
 
@@ -3050,7 +3051,8 @@
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
-        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        var _dsn = activeCourse.moduleStartZero ? 0 : 1;
+        if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = (dragSrcMod === targetMod ? srcMlos : getMloDataForMod(targetMod)).slice();
         var adjIdx = targetIdx;
@@ -3058,7 +3060,7 @@
         var insertIdx = insertAfter ? adjIdx + 1 : adjIdx;
         tgtMlos.splice(insertIdx, 0, movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
-        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -3113,13 +3115,14 @@
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
-        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        var _dsn = activeCourse.moduleStartZero ? 0 : 1;
+        if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = getMloDataForMod(targetMod).slice();
         if (dragSrcMod === targetMod) tgtMlos = srcMlos.slice();
         tgtMlos.push(movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
-        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -3279,7 +3282,8 @@
         var srcMlos = getMloData(dragSrcMod).slice();
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
-        if (activeCourse.modules[dragSrcMod - 1]) activeCourse.modules[dragSrcMod - 1].mlos = srcMlos;
+        var _dsn = activeCourse.moduleStartZero ? 0 : 1;
+        if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         // Insert into target
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = (dragSrcMod === targetMod ? srcMlos : getMloData(targetMod)).slice();
@@ -3294,7 +3298,7 @@
           tgtMlos.push(movedMlo);
         }
         savedMods[targetMod].mlos = tgtMlos;
-        if (activeCourse.modules[targetMod - 1]) activeCourse.modules[targetMod - 1].mlos = tgtMlos;
+        if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -5103,7 +5107,8 @@
   // Helper: get MLO full text for a given ID like "1.2"
   function getMloText(mloId) {
     var parts = mloId.split('.');
-    var modIdx = parseInt(parts[0]) - 1;
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modIdx = parseInt(parts[0]) - _startN;
     var mloIdx = parseInt(parts[1]) - 1;
     var mod = (activeCourse.modules || [])[modIdx];
     if (mod && mod.mlos && mod.mlos[mloIdx]) return mod.mlos[mloIdx];
@@ -5205,7 +5210,8 @@
   var mloAccordionEditMod = null; // which module's MLO accordion is being edited
 
   function buildMloAccordionHtml(moduleNum) {
-    var mod = (activeCourse.modules || [])[moduleNum - 1];
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    var mod = (activeCourse.modules || [])[moduleNum - _startN];
     var mlos = mod && mod.mlos ? mod.mlos : [];
     if (mlos.length === 0) return '';
     var isEditing = mloAccordionEditMod === moduleNum;
@@ -5253,8 +5259,9 @@
     var mlos = [];
     textareas.forEach(function(ta) { mlos.push(ta.value); });
     // Update in-memory
-    if (activeCourse.modules && activeCourse.modules[moduleNum - 1]) {
-      activeCourse.modules[moduleNum - 1].mlos = mlos;
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    if (activeCourse.modules && activeCourse.modules[moduleNum - _startN]) {
+      activeCourse.modules[moduleNum - _startN].mlos = mlos;
     }
     // Update localStorage
     var savedMods = loadField('moduleOverviewData') || {};
