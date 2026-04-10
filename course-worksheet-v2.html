@@ -6356,7 +6356,9 @@
     ta.value = input.value;
     ta.placeholder = input.placeholder;
     ta.style.cssText = input.style.cssText + '; resize:none; overflow:hidden; min-height:34px;';
-    // Copy data attributes
+    // Copy id, name, data attributes, and event handlers
+    if (input.id) ta.id = input.id;
+    if (input.name) ta.name = input.name;
     for (const attr of input.attributes) {
       if (attr.name.startsWith('data-') || attr.name === 'oninput' || attr.name === 'onchange') {
         ta.setAttribute(attr.name, attr.value);
@@ -6381,7 +6383,7 @@
       ta.classList.add('ta-multiline');
     });
     // Convert text inputs in objectives, module topics, and field groups to textareas
-    document.querySelectorAll('.obj-entry input[type="text"].field-input, .obj-list input[type="text"].field-input, .field-group > input[type="text"].field-input').forEach(function(input) {
+    document.querySelectorAll('.obj-entry input[type="text"].field-input, .obj-list input[type="text"].field-input').forEach(function(input) {
       convertInputToTextarea(input);
     });
     // Auto-resize all textareas
