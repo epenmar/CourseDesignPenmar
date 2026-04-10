@@ -1373,6 +1373,25 @@
   const courseId = urlParams.get('course') || 'mns521';
   const activeCourse = worksheetCourses[courseId] || worksheetCourses.mns521;
 
+  // Apply dashboard overrides (edits made via ID Dashboard right-click menu)
+  try {
+    var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+    var ov = overrides[courseId];
+    if (ov) {
+      if (ov.driveFolder) activeCourse.driveFolder = ov.driveFolder;
+      if (ov.instructor) activeCourse.instructor = ov.instructor;
+      if (ov.email) activeCourse.email = ov.email;
+      if (ov.session) { activeCourse.session = ov.session; activeCourse.sessionShort = ov.session; }
+      if (ov.id) activeCourse.id = ov.id;
+    }
+    // Also check user-added courses
+    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    var uc = userCourses[courseId];
+    if (uc) {
+      if (uc.driveFolder && !activeCourse.driveFolder) activeCourse.driveFolder = uc.driveFolder;
+    }
+  } catch(e) {}
+
   // ===== ONE-TIME MIGRATION: reseed module data from hardcoded config =====
   (function() {
     var migrationKey = 'mlo_migration_v2_' + courseId;
