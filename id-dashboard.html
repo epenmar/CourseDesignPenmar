@@ -1432,18 +1432,24 @@
     const devMilestones = [
       'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
     ];
-    // Match calendar meetings to milestones by keyword
+    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
+    function stemWord(w) { return w.replace(/s$/, ''); }
+    function fuzzyWordMatch(word, text) {
+      var s = stemWord(word);
+      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
+    }
     if (msStatus && syncedCourse.calendarMeetings) {
       const calMtgs = syncedCourse.calendarMeetings;
       const allLabels = devMilestones.slice();
       const modCount2 = c.modules.length || 7;
       for (let mi = 1; mi <= modCount2; mi++) allLabels.push('Module ' + mi);
       allLabels.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
-      const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/));
+      const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
       calMtgs.forEach(cm => {
-        const cmLower = (cm.label || '').toLowerCase();
+        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
         for (let k = 0; k < keywords.length; k++) {
-          const matched = keywords[k].filter(w => w.length > 2).every(w => cmLower.includes(w));
+          if (keywords[k].length === 0) continue;
+          const matched = keywords[k].every(w => fuzzyWordMatch(w, cmLower));
           if (matched && (!msStatus[k] || msStatus[k].status === 'pending')) {
             const d = new Date(cm.date + 'T00:00:00');
             const mo = d.toLocaleDateString('en-US', {month:'short'});

@@ -4133,14 +4133,20 @@
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
 
-    // Match calendar meetings to milestones by keyword
+    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
+    function stemWord(w) { return w.replace(/s$/, ''); }
+    function fuzzyWordMatch(word, text) {
+      var s = stemWord(word);
+      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
+    }
     if (milestoneStatus && syncedCourse.calendarMeetings) {
       const calMtgs = syncedCourse.calendarMeetings;
-      const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/));
+      const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; }));
       calMtgs.forEach(function(cm) {
-        const cmLower = (cm.label || '').toLowerCase();
+        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
         for (let k = 0; k < msLabels.length; k++) {
-          const matched = msLabels[k].filter(function(w) { return w.length > 2; }).every(function(w) { return cmLower.includes(w); });
+          if (msLabels[k].length === 0) continue;
+          const matched = msLabels[k].every(function(w) { return fuzzyWordMatch(w, cmLower); });
           if (matched && (!milestoneStatus[k] || milestoneStatus[k].status === 'pending')) {
             const d = new Date(cm.date + 'T00:00:00');
             const mo = d.toLocaleDateString('en-US', {month:'short'});
