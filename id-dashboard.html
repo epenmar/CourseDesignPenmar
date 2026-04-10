@@ -1384,17 +1384,16 @@
       const worksheetUrl = baseUrl + c.devLink + '&user=' + c.instructorSlug;
       const subject = encodeURIComponent('Your ' + c.emailName + ' Course Development Worksheet');
       let bodyText = 'Hi ' + c.instructor.split(/\s*&\s*/)[0].split(/\s+/)[0] + ',\n\n' +
-        'Here is your personalized link to the ' + c.emailName + ' course development worksheet:\n\n' +
+        'Here is your personalized link to the ' + c.emailName + ' course development page:\n' +
         worksheetUrl + '\n\n' +
-        'You can use this link to:\n' +
-        '• Review and edit course content (CLOs, ELOs, module objectives)\n' +
+        'You can use these links to:\n' +
+        '• Review and edit course content including CLOs, ELOs, module objectives, and assignments\n' +
         '• Leave comments and feedback on any section\n' +
-        '• Highlight specific text to start a discussion\n' +
         '• Track development milestones and timeline\n\n' +
         'Your work will be auto-saved. Please bookmark this link for easy access.\n\n';
       if (c.driveFolder) {
         bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
-        'Note: Documents you upload through the web app will automatically appear in this Drive folder. However, files added directly to Drive will not sync back to the web app — please use the worksheet upload feature for any materials you want tracked in the development tool.\n\n';
+        'Please store any documents pertaining to the course in this Drive folder. When referencing materials in the development tool, you can provide a link to the document through the user interface.\n\n';
       }
       bodyText += 'Best,\n' + getProfile().sig + '';
       const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
