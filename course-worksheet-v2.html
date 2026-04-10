@@ -2750,7 +2750,7 @@
       html += '<div class="card-title" style="display:flex; align-items:center; gap:8px;">';
       html += '<span class="mod-drag-handle" draggable="true" data-mod-num="' + modNum + '" title="Drag to reorder module" onclick="event.stopPropagation()" style="color:#bbb; font-size:14px; cursor:grab; user-select:none; flex-shrink:0; padding:2px 0;">☰</span>';
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + modNum + '</span>';
-      html += '<span id="mod-title-display-' + modNum + '">' + (topic || 'Module ' + modNum) + '</span>';
+      html += '<input type="text" id="mod-title-display-' + modNum + '" data-managed="true" data-mod-topic="' + modNum + '" value="' + escapeHtml(topic) + '" placeholder="Module ' + modNum + '" onclick="event.stopPropagation()" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview()" style="border:none; background:transparent; font-size:15px; font-weight:600; font-family:inherit; padding:2px 4px; flex:1; min-width:0; outline:none; border-radius:4px;" onfocus="this.style.background=\'#fff\'; this.style.borderColor=\'#8c1d40\'; this.style.border=\'1px solid #8c1d40\'" onblur="this.style.background=\'transparent\'; this.style.border=\'none\'">';
       html += '</div>';
       html += '<div style="display:flex; align-items:center; gap:4px;">';
       html += '<button onclick="event.stopPropagation(); deleteModuleCard(' + modNum + ')" title="Delete module" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:2px 6px; line-height:1;">&times;</button>';
@@ -2758,12 +2758,6 @@
       html += '</div>';
       html += '</div>';
       html += '<div class="card-body' + collapsed + '">';
-
-      // Topic field
-      html += '<div class="field-group">';
-      html += '<label class="field-label">Module Topic</label>';
-      html += '<textarea class="field-input" rows="1" data-managed="true" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" onkeydown="if(event.key===\'Enter\'&&!event.shiftKey){event.preventDefault();}">' + escapeHtml(topic) + '</textarea>';
-      html += '</div>';
 
       // Objectives
       html += '<div class="field-group">';
@@ -6063,18 +6057,6 @@
   }
 
   function updateModTitle(modNum, value) {
-    const display = document.getElementById('mod-title-display-' + modNum);
-    if (display) {
-      if (value.trim()) {
-        display.textContent = value;
-        display.style.color = '#1a1a1a';
-        display.style.fontStyle = 'normal';
-      } else {
-        display.textContent = 'Untitled Module';
-        display.style.color = '#999';
-        display.style.fontStyle = 'italic';
-      }
-    }
     // Update sidebar module name
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
     var sideIdx = modNum - startNum;
