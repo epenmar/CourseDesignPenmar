@@ -6458,7 +6458,9 @@
   // On page load, convert long-text inputs to textareas and auto-resize all
   document.addEventListener('DOMContentLoaded', function() {
     // Mark existing textareas (course context, descriptions, etc.) as multiline
+    // Skip textareas inside objective entries and data-managed textareas (MLOs, activities)
     document.querySelectorAll('textarea.field-input').forEach(function(ta) {
+      if (ta.closest('.obj-entry') || ta.closest('.obj-list') || ta.hasAttribute('data-managed')) return;
       ta.classList.add('ta-multiline');
     });
     // Convert text inputs in objectives, module topics, and field groups to textareas
