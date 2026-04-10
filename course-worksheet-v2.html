@@ -71,7 +71,7 @@
   .card { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 14px 16px; margin-bottom: 14px; transition: all 0.2s; }
   .card:hover { border-color: #ccc; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
   .card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
-  .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+  .card-title { font-size: 15px; font-weight: 600; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; overflow: hidden; }
   .status-dot { width: 8px; height: 8px; border-radius: 50%; }
   .dot-empty { background: #ddd; } .dot-partial { background: #ffc627; } .dot-done { background: #4caf50; }
   .card-toggle { font-size: 18px; color: #999; transition: transform 0.2s; }
@@ -83,9 +83,9 @@
   .field-group { margin-bottom: 14px; }
   .field-label { font-size: 12px; font-weight: 500; color: #666; margin-bottom: 5px; display: block; }
   .field-hint { font-size: 11px; color: #999; margin-bottom: 6px; }
-  .field-input { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; }
+  .field-input { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }
   .field-input:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
-  textarea.field-input { min-height: 0; height: 32px; overflow: hidden; white-space: pre-wrap; box-sizing: border-box; }
+  textarea.field-input { min-height: 0; height: auto; overflow: hidden; white-space: pre-wrap; box-sizing: border-box; line-height: 1.4; }
   textarea.field-input.ta-multiline { min-height: 80px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .field-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
@@ -2863,8 +2863,8 @@
   }
 
   function autoGrowTextarea(ta) {
-    ta.style.height = '0';
-    ta.style.height = Math.max(ta.scrollHeight, 32) + 'px';
+    ta.style.height = '1px';
+    ta.style.height = ta.scrollHeight + 'px';
   }
 
   function saveTableMlo(input, modNum, idx) {
