@@ -3554,10 +3554,10 @@
     if (!container) return;
     var html = '';
     for (var i = 0; i < weights.length; i++) {
-      html += '<div class="field-row" style="align-items:center; margin-bottom:6px;" data-weight-idx="' + i + '">' +
-        '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:18px; padding:0 4px; flex:0 0 auto;" title="Remove">&times;</button>' +
-        '<div class="field-group" style="flex:2;"><input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" /></div>' +
-        '<div class="field-group" style="flex:0 0 80px;"><input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="text-align:center;" oninput="saveWeights()" /></div>' +
+      html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;" data-weight-idx="' + i + '">' +
+        '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0; line-height:1; flex-shrink:0;" title="Remove">&times;</button>' +
+        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" style="flex:1;" />' +
+        '<input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="width:70px; text-align:center; flex-shrink:0;" oninput="saveWeights()" />' +
         '</div>';
     }
     container.innerHTML = html;
