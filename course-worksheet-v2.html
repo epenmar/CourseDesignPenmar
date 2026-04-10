@@ -2785,7 +2785,7 @@
             if (saved[k]) { openModules[num] = true; foundSaved = true; }
           }
         }
-        if (!foundSaved) openModules[String(startNum)] = true;
+        if (!foundSaved) openModules[String(activeCourse.moduleStartZero ? 0 : 1)] = true;
       }
     }
     const modules = activeCourse.modules || [];
