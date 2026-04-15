@@ -8216,24 +8216,55 @@ ${clone.innerHTML}
           '</div>';
 
       case 'course-schedule':
-        // Read-only summary pointing to module overview
         var savedMods = loadField('moduleOverviewData') || {};
         var _startN = activeCourse.moduleStartZero ? 0 : 1;
         var mc = activeCourse.moduleCount || 7;
         var html = '<div style="padding:12px 0 4px 28px;">';
-        var modSummary = '';
+        html += '<div style="font-size:12px; color:#666; margin-bottom:8px;">Auto-populated from your module and assignment data. Edit modules and assignments on their respective pages.</div>';
+        html += '<div style="overflow-x:auto;">';
+        html += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:12px;">';
+        html += '<thead><tr style="background:#f5f4f0;">';
+        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600; white-space:nowrap;">Week</th>';
+        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Topic / Module</th>';
+        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Assignments Due</th>';
+        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Assoc. ELO / CEPH #</th>';
+        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Level of Coverage</th>';
+        html += '</tr></thead><tbody>';
+        var hasData = false;
         for (var m = _startN; m < _startN + mc; m++) {
-          var mod = savedMods[m];
-          if (mod && mod.topic) {
-            modSummary += '<div style="font-size:12px; color:#555; padding:2px 0;"><strong>Module ' + m + ':</strong> ' + escapeHtml(mod.topic) + '</div>';
+          var mod = savedMods[m] || {};
+          var topic = mod.topic || '';
+          var acts = courseActivities[m] || [];
+          var actNames = acts.filter(function(a) { return a.name && a.name.trim(); }).map(function(a) { return escapeHtml(a.name); });
+          // Collect all ELO/MLO references from activities in this module
+          var eloRefs = [];
+          acts.forEach(function(a) {
+            if (a.objectives && a.objectives.length > 0) {
+              a.objectives.forEach(function(id) { if (eloRefs.indexOf(id) === -1) eloRefs.push(id); });
+            }
+          });
+          // Also include MLO IDs from module overview
+          if (mod.mlos && mod.mlos.length > 0) {
+            mod.mlos.forEach(function(mlo, mi) {
+              var mloId = m + '.' + (mi + 1);
+              if (eloRefs.indexOf(mloId) === -1) eloRefs.push(mloId);
+            });
           }
+          if (topic || actNames.length > 0) hasData = true;
+          html += '<tr>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; text-align:center; font-weight:600;">' + m + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (topic ? escapeHtml(topic) : '<span style="color:#ccc;">—</span>') + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (actNames.length > 0 ? actNames.join('<br>') : '<span style="color:#ccc;">—</span>') + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '<span style="color:#ccc;">—</span>') + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;"><span style="color:#ccc;">—</span></td>';
+          html += '</tr>';
         }
-        if (modSummary) {
-          html += modSummary;
-        } else {
-          html += '<div style="font-size:12px; color:#999; font-style:italic;">No module topics defined yet.</div>';
+        html += '</tbody></table>';
+        html += '</div>';
+        if (!hasData) {
+          html += '<div style="font-size:12px; color:#999; font-style:italic;">No module topics or assignments defined yet.</div>';
         }
-        html += '<button onclick="showView(\'module-overview\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:8px;">Edit on Module Overview →</button>';
+        html += '<button onclick="showView(\'module-overview\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:4px;">Edit on Module Overview →</button>';
         html += '</div>';
         return html;
 
