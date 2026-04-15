@@ -8117,12 +8117,27 @@ ${clone.innerHTML}
   function buildSyllabusSection(itemId) {
     switch (itemId) {
       case 'course-desc':
+        var cwChecked = (loadField('formData') || {})['syl-content-warning-flag'] ? ' checked' : '';
+        var cwTextVal = (loadField('formData') || {})['syl-content-warning'] || '';
         return '<div style="padding:12px 0 4px 28px;">' +
           buildMirrorField('Course Description', 'course-description', 'Course description from catalog...', '80px') +
           buildMirrorField('Course Overview', 'course-overview', 'Expanded course overview...', '80px') +
           '<div class="field-row" style="margin-top:4px;">' +
             buildMirrorInput('Credits', 'ci-credits', 'e.g. 3') +
             buildMirrorInput('Prerequisites / Enrollment Requirements', 'ci-prerequisites', 'Course prerequisites...') +
+          '</div>' +
+          '<div style="margin-top:16px; padding:12px 14px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">' +
+            '<div style="display:flex; align-items:flex-start; gap:8px;">' +
+              '<input type="checkbox" id="syl-content-warning-flag"' + cwChecked + ' onchange="toggleContentWarning(this)" style="width:16px; height:16px; cursor:pointer; flex-shrink:0; margin-top:2px; accent-color:#e65100;">' +
+              '<div>' +
+                '<label for="syl-content-warning-flag" style="font-size:13px; font-weight:500; color:#e65100; cursor:pointer;">This course contains sensitive content</label>' +
+                '<div style="font-size:11px; color:#888; margin-top:2px;">Check this box if course content may be deemed offensive or sensitive. A content warning will be added to the syllabus notifying students and explaining how to bring concerns to the instructor, unit chair, or director.</div>' +
+              '</div>' +
+            '</div>' +
+            '<div id="content-warning-text-wrapper" style="margin-top:10px; display:' + (cwChecked ? 'block' : 'none') + ';">' +
+              '<div class="field-group"><label class="field-label">Content Warning</label>' +
+              '<textarea id="syl-content-warning" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe the nature of the sensitive content and how students can bring concerns to the instructor..." oninput="saveAllFields()">' + escapeHtml(cwTextVal) + '</textarea></div>' +
+            '</div>' +
           '</div>' +
           '</div>';
 
@@ -8174,11 +8189,11 @@ ${clone.innerHTML}
       case 'grading-policy':
         var gradeRoundVal = (loadField('formData') || {})['syl-grade-rounding'] || '';
         return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Edit the grading scale below. Delete rows your course does not use.</div>' +
           '<div class="field-group" style="margin-bottom:12px;">' +
             '<label class="field-label">Grade Rounding Policy</label>' +
             '<textarea id="syl-grade-rounding" class="field-input" style="min-height:40px; font-size:12px;" placeholder="e.g., Grades are not rounded. / Grades ending in .5 or higher are rounded up." oninput="saveAllFields()">' + escapeHtml(gradeRoundVal) + '</textarea>' +
           '</div>' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Edit the grading scale below. Delete rows your course does not use.</div>' +
           renderGradingTable() +
           '</div>';
 
@@ -8237,11 +8252,8 @@ ${clone.innerHTML}
           '</div>';
 
       case 'mental-health':
-        var contentWarnVal = (loadField('formData') || {})['syl-content-warning'] || '';
         return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:6px;">If any course content may be deemed offensive or sensitive, add a content warning and explain how to bring concerns to the instructor.</div>' +
-          '<div class="field-group"><label class="field-label">Content Warning (if applicable)</label>' +
-          '<textarea id="syl-content-warning" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Content warning for sensitive course material..." oninput="saveAllFields()">' + escapeHtml(contentWarnVal) + '</textarea></div>' +
+          '<div style="font-size:12px; color:#666;">The content warning checkbox is in the <strong>Course Description & Overview</strong> section above. If checked, the warning text will be included in the Mental Health section of the syllabus.</div>' +
           '</div>';
 
       default:
@@ -8354,6 +8366,12 @@ ${clone.innerHTML}
     expandState[itemId] = !expandState[itemId];
     saveField('syllabusExpand', expandState);
     renderSyllabusChecklist();
+  }
+
+  function toggleContentWarning(checkbox) {
+    var wrapper = document.getElementById('content-warning-text-wrapper');
+    if (wrapper) wrapper.style.display = checkbox.checked ? 'block' : 'none';
+    saveAllFields();
   }
 
   // ===== COMMENT PANEL =====
