@@ -1311,10 +1311,7 @@
         { id: 'instructor-info', label: 'Instructor Information', linkedSection: 'course-info' },
         { id: 'textbook-info', label: 'Textbook/Materials Information', linkedSection: 'materials' },
         { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives',
-          hint: 'STPH requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).',
-          children: [
-            { id: 'obj-delineate', label: 'Delineate between Course Objectives and ELOs', hint: 'Refer to the ASU provost document on student learning outcomes.' }
-          ]
+          hint: 'STPH requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).'
         },
         { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
@@ -1331,10 +1328,7 @@
         { id: 'instructor-info', label: 'Instructor Information', linkedSection: 'course-info' },
         { id: 'textbook-info', label: 'Textbook/Materials Information', linkedSection: 'materials' },
         { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives',
-          hint: 'CHS requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).',
-          children: [
-            { id: 'obj-delineate', label: 'Delineate between Course Objectives and ELOs', hint: 'Refer to the ASU provost document on student learning outcomes.' }
-          ]
+          hint: 'CHS requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).'
         },
         { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
@@ -7744,9 +7738,7 @@
     }
     html += '</tbody></table>';
 
-    // Alignment & Honors
-    var alignOther = val('syl-alignment-other');
-    html += '<p><strong>Alignment with other outcomes:</strong> ' + (alignOther ? esc(alignOther).replace(/\n/g, '<br>') : '') + '</p>';
+    // Honors
     var honorsContract = formData['ci-honors-contract'];
     html += '<p><strong>Does this class have an honors contract?</strong> ' + (honorsContract ? 'Yes' : 'No') + '</p>';
 
@@ -8534,11 +8526,6 @@ ${clone.innerHTML}
           html += '</ol>';
         }
         html += '<button onclick="showView(\'objectives\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:4px;">Edit on ELOs & CLOs page →</button>';
-        var alignVal = (loadField('formData') || {})['syl-alignment-other'] || '';
-        html += '<div class="field-group" style="margin-top:12px;">' +
-          '<label class="field-label">Alignment with Other Outcomes</label>' +
-          '<textarea id="syl-alignment-other" class="field-input" style="min-height:40px; font-size:12px;" placeholder="e.g., accrediting bodies, certifications, etc." oninput="saveAllFields()">' + escapeHtml(alignVal) + '</textarea>' +
-          '</div>';
         html += '</div>';
         return html;
 
