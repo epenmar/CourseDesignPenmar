@@ -1248,18 +1248,6 @@
     </div>
   </div>
 
-  <!-- API Key Modal -->
-  <div id="api-key-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center;">
-    <div style="background:#fff; border-radius:12px; padding:28px; max-width:420px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15);">
-      <h3 style="margin:0 0 8px; font-size:16px; color:#8c1d40;">Configure AI Assistant</h3>
-      <p style="color:#666; font-size:13px; margin-bottom:16px;">Enter your Anthropic API key to enable the design assistant. Your key is stored locally in your browser only.</p>
-      <input type="password" id="api-key-input" placeholder="sk-ant-..." style="width:100%; padding:10px 14px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; margin-bottom:12px;" />
-      <div style="display:flex; gap:8px; justify-content:flex-end;">
-        <button onclick="closeApiKeyModal()" style="padding:8px 16px; border:1px solid #e0ddd5; border-radius:6px; background:#fff; cursor:pointer; font-size:13px;">Cancel</button>
-        <button onclick="saveApiKey()" style="padding:8px 16px; background:#8c1d40; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Save &amp; Continue</button>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- ===== COMMENT THREAD PANEL ===== -->
@@ -4589,34 +4577,43 @@
   // ===== AI ASSISTANT =====
   let chatHistory = [];
 
-  function getApiKey() {
-    return localStorage.getItem('ai_api_key');
-  }
+  // ── CreateAI (ASU AI/ML Platform) configuration ──
+  var CREATE_AI_CONFIG = {
+    url: 'https://api-main.aiml.asu.edu/query',
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcm9qZWN0X2lkIjoiZTkyOTZiNzEzYmMxNDI4Njg1NmM5NWE5Y2ViYWU1MzQiLCJzZXJ2aWNlX2FwcCI6InduZmxlbWluLWNvbnRlbnRfZ2VuZXJhdGlvbiIsImtleV9pZCI6IjQzMjI1MmU1LTdiOTYtNDU4NS1hZWE4LTJjZTZjZTQwZDg4NSIsInR5cGUiOiJzZXJ2aWNlIiwiYXBpIjoibWFpbiIsImlhdCI6MTc3MzE5NTgxNiwiaXNzIjoiYWRtaW4ifQ.xarTv0tpapbaROfru1aAz84QjCw5Ns8Jiy4Y40wipNQ',
+    model: 'claude4_5_sonnet',
+    provider: 'aws'
+  };
 
-  function showApiKeyModal() {
-    const modal = document.getElementById('api-key-modal');
-    modal.style.display = 'flex';
-  }
-
-  function closeApiKeyModal() {
-    document.getElementById('api-key-modal').style.display = 'none';
-  }
-
-  function saveApiKey() {
-    const key = document.getElementById('api-key-input').value.trim();
-    if (!key) return;
-    localStorage.setItem('ai_api_key', key);
-    closeApiKeyModal();
-    // If there was a pending message, send it
-    if (pendingMessage) {
-      const msg = pendingMessage;
-      pendingMessage = null;
-      if (msg === '__alignment__') {
-        aiSuggestAlignment();
-      } else {
-        doSendAIMessage(msg);
+  async function callCreateAI(query, systemPrompt, maxTokens) {
+    maxTokens = maxTokens || 1024;
+    var payload = {
+      action: 'query',
+      request_source: 'override_params',
+      query: query,
+      model_provider: CREATE_AI_CONFIG.provider,
+      model_name: CREATE_AI_CONFIG.model,
+      model_params: {
+        system_prompt: systemPrompt || '',
+        temperature: 0,
+        max_tokens: maxTokens
       }
+    };
+    var response = await fetch(CREATE_AI_CONFIG.url, {
+      method: 'POST',
+      headers: {
+        'Authorization': 'Bearer ' + CREATE_AI_CONFIG.key,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      var errBody = await response.text().catch(function() { return 'API error'; });
+      throw new Error('CreateAI error (' + response.status + '): ' + errBody);
     }
+    var data = await response.json();
+    return data.response;
+  }
   }
 
   let pendingMessage = null;
@@ -4631,12 +4628,6 @@
     const message = input.value.trim();
     if (!message) return;
     input.value = '';
-
-    if (!getApiKey()) {
-      pendingMessage = message;
-      showApiKeyModal();
-      return;
-    }
 
     doSendAIMessage(message);
   }
@@ -4956,33 +4947,16 @@
     const ctx = gatherWorksheetContext();
     const systemPrompt = buildSystemPrompt(ctx);
 
-    // Keep last 20 messages for context
+    // Keep last 20 messages for context — flatten into single query for CreateAI
     const recentHistory = chatHistory.slice(-20);
+    var queryParts = [];
+    recentHistory.forEach(function(m) {
+      queryParts.push((m.role === 'user' ? 'User' : 'Assistant') + ': ' + m.content);
+    });
+    var query = queryParts.join('\n\n');
 
     try {
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1024,
-          system: systemPrompt,
-          messages: recentHistory
-        })
-      });
-
-      if (!response.ok) {
-        const err = await response.json().catch(function() { return { error: { message: 'API request failed (' + response.status + ')' } }; });
-        throw new Error(err.error?.message || 'API error');
-      }
-
-      const data = await response.json();
-      const assistantText = data.content[0].text;
+      const assistantText = await callCreateAI(query, systemPrompt, 1024);
       chatHistory.push({ role: 'assistant', content: assistantText });
 
       // Replace typing indicator with response (convert markdown-ish to HTML)
@@ -4993,10 +4967,7 @@
         .replace(/\*(.*?)\*/g, '<em>$1</em>');
       typingMsg.querySelector('.ai-msg-body').innerHTML = htmlText;
     } catch (err) {
-      typingMsg.querySelector('.ai-msg-body').innerHTML = '<span style="color:#c62828;">Error: ' + err.message + '</span><br><br><span style="font-size:12px; color:#888;">Check your API key or try again.</span>';
-      if (err.message.includes('401') || err.message.includes('Invalid')) {
-        localStorage.removeItem('ai_api_key');
-      }
+      typingMsg.querySelector('.ai-msg-body').innerHTML = '<span style="color:#c62828;">Error: ' + err.message + '</span><br><br><span style="font-size:12px; color:#888;">Please try again.</span>';
     }
 
     document.getElementById('ai-messages').scrollTop = document.getElementById('ai-messages').scrollHeight;
@@ -6179,11 +6150,6 @@
   }
 
   function aiDoubleCheckAlignment() {
-    if (!getApiKey()) {
-      pendingMessage = '__alignment_check__';
-      showApiKeyModal();
-      return;
-    }
     // Build a summary of current ELO-MLO tagging
     var elos = activeCourse.flatElos || [];
     var allMlos = getAllMlos();
@@ -6935,8 +6901,6 @@
 
   // ===== AI QUIZ GENERATION =====
   async function generateQuizAI(builderId) {
-    var apiKey = getApiKey();
-    if (!apiKey) { showApiKeyModal(); return; }
 
     var container = document.getElementById(builderId);
     var card = container.closest('.activity-block') || container.closest('.card');
@@ -6983,23 +6947,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating...'; }
 
     try {
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      if (!response.ok) throw new Error('API error ' + response.status);
-      var data = await response.json();
-      var text = data.content[0].text.trim();
+      var text = (await callCreateAI(prompt, '', 2048)).trim();
       // Extract JSON from response (handle markdown code blocks)
       var jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
@@ -7026,8 +6974,6 @@
 
   // ===== AI RUBRIC GENERATION =====
   async function generateRubricAI(btn, actId, moduleNum) {
-    var apiKey = getApiKey();
-    if (!apiKey) { showApiKeyModal(); return; }
 
     // Gather activity context
     var actName = '';
@@ -7097,23 +7043,7 @@
     btn.textContent = '⏳ Generating...';
 
     try {
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 2048,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      if (!response.ok) throw new Error('API error ' + response.status);
-      var data = await response.json();
-      var rubricText = data.content[0].text.trim();
+      var rubricText = (await callCreateAI(prompt, '', 2048)).trim();
       if (rubricTextarea) {
         rubricTextarea.value = rubricText;
         rubricTextarea.style.height = 'auto';
@@ -7281,11 +7211,6 @@
       alert('Define both ELOs and CLOs first.');
       return;
     }
-    if (!getApiKey()) {
-      pendingMessage = '__alignment__';
-      showApiKeyModal();
-      return;
-    }
     var btn = document.getElementById('ai-align-btn');
     var origText = btn.innerHTML;
     btn.innerHTML = '⏳ Analyzing...';
@@ -7301,23 +7226,8 @@
     prompt += 'Consider semantic alignment — an ELO supports a CLO when the skill or knowledge in the ELO directly enables or demonstrates the learning described in the CLO. An ELO can support multiple CLOs. Return ONLY the JSON array, no explanation.';
 
     try {
-      var response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': getApiKey(),
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 512,
-          messages: [{ role: 'user', content: prompt }]
-        })
-      });
-      if (!response.ok) throw new Error('API error ' + response.status);
-      var data = await response.json();
-      var text = data.content[0].text.trim();
+      var alignText = await callCreateAI(prompt, '', 512);
+      var text = alignText.trim();
       // Extract JSON array from response
       var match = text.match(/\[[\s\S]*\]/);
       if (!match) throw new Error('Could not parse AI response');
