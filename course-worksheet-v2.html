@@ -205,6 +205,7 @@
   .doc-preview table td { padding: 8px 12px; border: 1px solid #e0ddd5; vertical-align: top; }
   .doc-preview ol, .doc-preview ul { padding-left: 24px; margin: 8px 0 12px; font-size: 14px; line-height: 1.7; }
   .doc-preview li { margin-bottom: 4px; padding-left: 4px; }
+  .doc-preview a { color: #1a0dab; text-decoration: underline; }
 
   .view-toggle { display: inline-flex; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
   .view-btn { padding: 8px 20px; font-size: 13px; border: none; background: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; color: #666; transition: all 0.15s; }
@@ -935,6 +936,9 @@
           </div>
         </div>
         <div id="checklist-items"></div>
+        <button class="btn-mark-complete" id="btn-complete-syllabus" onclick="toggleSectionComplete('syllabus', this)">
+          <span class="complete-icon">○</span> Mark as Complete
+        </button>
       </div>
 
       <!-- ===== COURSE INFO ===== -->
@@ -961,6 +965,23 @@
               <div class="field-group"><label class="field-label">Enrollment Cap</label><input type="text" id="ci-enrollment-cap" class="field-input" /></div>
             </div>
             <div class="field-group"><label class="field-label">General Studies Designation</label><input type="text" id="ci-gen-studies" class="field-input" /></div>
+            <div style="margin-top:12px; display:flex; align-items:center; gap:8px;">
+              <input type="checkbox" id="ci-honors-contract" onchange="saveAllFields()" style="width:16px; height:16px; cursor:pointer; accent-color:#8c1d40;">
+              <label for="ci-honors-contract" style="font-size:13px; color:#555; cursor:pointer;">This class has an honors contract</label>
+            </div>
+            <div style="margin-top:10px; padding:10px 14px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">
+              <div style="display:flex; align-items:flex-start; gap:8px;">
+                <input type="checkbox" id="ci-content-warning-flag" onchange="toggleCourseInfoContentWarning(this); saveAllFields();" style="width:16px; height:16px; cursor:pointer; flex-shrink:0; margin-top:2px; accent-color:#e65100;">
+                <div>
+                  <label for="ci-content-warning-flag" style="font-size:13px; font-weight:500; color:#e65100; cursor:pointer;">This course contains sensitive content</label>
+                  <div style="font-size:11px; color:#888; margin-top:2px;">Check if course content may be deemed offensive or sensitive. A content warning will be added to the syllabus.</div>
+                </div>
+              </div>
+              <div id="ci-content-warning-wrapper" style="margin-top:8px; display:none;">
+                <div class="field-group"><label class="field-label">Content Warning</label>
+                <textarea id="ci-content-warning" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe the nature of the sensitive content..." oninput="saveAllFields()"></textarea></div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -1003,10 +1024,9 @@
             <div class="field-group"><textarea class="field-input" id="course-overview" style="min-height:120px;" placeholder="Expanded course overview..."></textarea></div>
           </div>
         </div>
-        <div style="margin-top:16px; padding:12px 16px; background:#f9f8f5; border:1px solid #e0ddd5; border-radius:8px; display:flex; align-items:center; gap:8px;">
-          <input type="checkbox" id="course-info-complete" onchange="saveAllFields(); calculateProgress();" style="width:16px; height:16px; cursor:pointer;">
-          <label for="course-info-complete" style="font-size:13px; color:#555; cursor:pointer;">Mark Course Info as complete</label>
-        </div>
+        <button class="btn-mark-complete" id="btn-complete-course-info" onclick="toggleSectionComplete('course-info', this)">
+          <span class="complete-icon">○</span> Mark as Complete
+        </button>
       </div>
 
       <!-- ===== ELOs & CLOs ===== -->
@@ -1119,6 +1139,9 @@
             <div id="alignment-matrix" style="overflow-x:auto;"></div>
           </div>
         </div>
+        <button class="btn-mark-complete" id="btn-complete-objectives" onclick="toggleSectionComplete('objectives', this)">
+          <span class="complete-icon">○</span> Mark as Complete
+        </button>
       </div>
 
       <!-- ===== ADDITIONAL Q&A ===== -->
@@ -1298,20 +1321,27 @@
         { id: 'late-policy', label: 'Late/Missing Work Policy' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' },
         { id: 'classroom-behavior', label: 'Classroom Behavior Policy' },
-        { id: 'attendance', label: 'Attendance Policy' },
-        { id: 'mental-health', label: 'Mental Health / Content Warning', hint: 'Add a content warning if course material may be deemed sensitive.' }
+        { id: 'attendance', label: 'Attendance Policy' }
       ]
     },
     CHS: {
       name: 'College of Health Solutions',
       items: [
-        { id: 'course-desc', label: 'Course Description & Overview', linkedSection: 'course-info' },
+        { id: 'course-desc', label: 'Course Description, Overview, etc.', linkedSection: 'course-info' },
         { id: 'instructor-info', label: 'Instructor Information', linkedSection: 'course-info' },
         { id: 'textbook-info', label: 'Textbook/Materials Information', linkedSection: 'materials' },
-        { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives' },
+        { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives',
+          hint: 'CHS requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).',
+          children: [
+            { id: 'obj-delineate', label: 'Delineate between Course Objectives and ELOs', hint: 'Refer to the ASU provost document on student learning outcomes.' }
+          ]
+        },
         { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
+        { id: 'late-policy', label: 'Late/Missing Work Policy' },
+        { id: 'ai-policy', label: 'Generative AI Usage Policy', hint: 'CHS requires one of three AI policy statements.' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' },
+        { id: 'classroom-behavior', label: 'Classroom Behavior Policy' },
         { id: 'attendance', label: 'Attendance Policy' }
       ]
     },
@@ -3781,9 +3811,9 @@
       infoTotal++;
       if (f.value && f.value.trim()) infoFilled++;
     });
-    // Check manual completion checkbox
-    var courseInfoComplete = document.getElementById('course-info-complete');
-    var manuallyComplete = courseInfoComplete && courseInfoComplete.checked;
+    // Check manual completion button
+    var courseInfoBtn = document.getElementById('btn-complete-course-info');
+    var manuallyComplete = courseInfoBtn && courseInfoBtn.classList.contains('completed');
     if (manuallyComplete) {
       weightedPct += 5;
     } else if (infoTotal > 0) {
@@ -3903,9 +3933,9 @@
         infoTotal++;
         if (f.value && f.value.trim()) infoFilled++;
       });
-      // Check manual completion checkbox
-      var courseInfoComplete = document.getElementById('course-info-complete');
-      var manuallyComplete = courseInfoComplete && courseInfoComplete.checked;
+      // Check manual completion button
+      var courseInfoBtn = document.getElementById('btn-complete-course-info');
+      var manuallyComplete = courseInfoBtn && courseInfoBtn.classList.contains('completed');
       // Mark done if ALL fields are filled OR manually marked complete
       if (manuallyComplete || (infoTotal > 0 && infoFilled === infoTotal)) {
         infoBadge.className = 'badge badge-done';
@@ -5031,6 +5061,13 @@
       }, 50);
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+    // Highlight the active nav item in the sidebar
+    var navViewMap = { 'dashboard':'dashboard', 'course-info':'course-info', 'materials':'materials', 'additional':'additional', 'syllabus-checklist':'syllabus-checklist', 'objectives':'objectives', 'module-overview':'module-overview', 'assignments-overview':'assignments-overview', 'materials-overview':'materials-overview', 'course-mapping':'course-mapping', 'preview':'preview' };
+    var navTarget = navViewMap[viewId];
+    if (navTarget) {
+      var navEl = document.querySelector('.nav-item[onclick*="showView(\'' + navTarget + '\')"]');
+      if (navEl) navEl.classList.add('active');
+    }
     const names = {'dashboard':'Getting Started / Dashboard','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
@@ -6400,10 +6437,11 @@
     }
     // Update sidebar badge if applicable
     updateSidebarBadge(section, isComplete);
+    calculateProgress();
   }
 
   function updateSidebarBadge(section, isComplete) {
-    const sidebarMap = { 'context': 'additional', 'materials': 'materials' };
+    const sidebarMap = { 'context': 'additional', 'materials': 'materials', 'course-info': 'course-info', 'objectives': 'objectives', 'syllabus': 'syllabus-checklist' };
     const navId = sidebarMap[section];
     if (!navId) return;
     const navItem = document.querySelector('[onclick*="showView(\'' + navId + '\')"]');
@@ -6421,11 +6459,10 @@
 
   // Restore completion state on load
   document.addEventListener('DOMContentLoaded', function() {
-    ['context', 'materials'].forEach(function(section) {
+    ['context', 'materials', 'course-info', 'objectives', 'syllabus'].forEach(function(section) {
       const key = 'worksheet-complete-' + courseId + '-' + section;
       if (localStorage.getItem(key) === 'true') {
-        const btnId = section === 'context' ? 'btn-complete-context' : 'btn-complete-materials';
-        const btn = document.getElementById(btnId);
+        const btn = document.getElementById('btn-complete-' + section);
         if (btn) {
           btn.classList.add('completed');
           btn.innerHTML = '<span class="complete-icon">✓</span> Completed';
@@ -6666,6 +6703,10 @@
 
     // Restore all saved form data (runs last to override defaults with user edits)
     restoreAllFields();
+    // Restore content warning wrapper visibility based on checkbox state
+    var cwFlag = document.getElementById('ci-content-warning-flag');
+    var cwWrap = document.getElementById('ci-content-warning-wrapper');
+    if (cwFlag && cwWrap) cwWrap.style.display = cwFlag.checked ? 'block' : 'none';
     // Recalculate timeline after restore (select may have changed)
     recalcTimeline();
     // Recalculate progress after restore
@@ -7582,13 +7623,16 @@
       if (formData[id]) return formData[id];
       var el = document.getElementById(id); return el ? el.value.trim() : '';
     };
-    const sectionDivider = '<hr style="border:none; border-top:1px solid #e0ddd5; margin:20px 0;">';
 
     var modCount = activeCourse.moduleCount || 7;
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
     var savedMods = loadField('moduleOverviewData') || {};
     var savedElos = loadField('flatElos') || activeCourse.flatElos || [];
     var savedClos = loadField('clos') || activeCourse.clos || [];
+    var formData = loadField('formData') || {};
+    var college = activeCourse.college || '';
+    var isCHS = (college === 'CHS');
+    var isSTPN = (college === 'STPH');
 
     let html = '';
 
@@ -7604,67 +7648,58 @@
     html += '<p><strong>Course Description:</strong> ' + (desc ? esc(desc).replace(/\n/g, '<br>') : '<em>Not entered</em>') + '</p>';
 
     var overview = val('course-overview');
-    if (overview) html += '<p><strong>Course Overview:</strong> ' + esc(overview).replace(/\n/g, '<br>') + '</p>';
+    html += '<p><strong>Course Overview:</strong> ' + (overview ? esc(overview).replace(/\n/g, '<br>') : '<em>Not entered</em>') + '</p>';
 
     html += '<p><strong>Credit Hours:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
+
     var prereqs = val('ci-prerequisites');
-    if (prereqs) html += '<p><strong>Enrollment Requirements:</strong> ' + esc(prereqs) + '</p>';
+    html += '<p><strong>Enrollment Requirements:</strong> ' + (prereqs ? esc(prereqs) : '<em>Not entered</em>') + '</p>';
 
     html += '<p><strong>Course Access:</strong> Your ASU courses can be accessed by both <a href="http://my.asu.edu">my.asu.edu</a> and <a href="http://myasucourses.asu.edu">myasucourses.asu.edu</a>; bookmark both in the event that one site is down.</p>';
 
-    html += sectionDivider;
-
     // ===== INSTRUCTOR INFORMATION =====
-    html += '<h2>Instructor Information</h2>';
+    html += '<h1>Instructor Information</h1>';
     html += '<table style="border:none; font-size:13px; margin-bottom:16px;">';
     html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Name:</td><td>' + esc(val('ci-instructor') || activeCourse.instructor) + '</td></tr>';
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Email:</td><td>' + esc(val('ci-email') || activeCourse.email) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Email address:</td><td>' + esc(val('ci-email') || activeCourse.email) + '</td></tr>';
     var phone = val('ci-phone');
-    if (phone) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Phone:</td><td>' + esc(phone) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Phone number:</td><td>' + (phone ? esc(phone) : '') + '</td></tr>';
     var office = val('ci-office');
-    if (office) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office/Room:</td><td>' + esc(office) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office/room:</td><td>' + (office ? esc(office) : '') + '</td></tr>';
     var officeHrs = val('ci-office-hours');
-    if (officeHrs) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office Hours:</td><td>' + esc(officeHrs) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office hours:</td><td>' + (officeHrs ? esc(officeHrs) : '') + '</td></tr>';
     html += '</table>';
 
-    html += sectionDivider;
-
     // ===== COURSE BASICS =====
-    html += '<h2>Course Basics</h2>';
+    html += '<h1>Course Basics</h1>';
 
-    // Textbook
+    html += '<h2>Textbook, Materials, Technology and Co-curricular Activities</h2>';
     var tb1 = val('mat-textbook-1'), tb2 = val('mat-textbook-2');
-    html += '<h3>Textbook, Materials, Technology and Co-curricular Activities</h3>';
-    if (tb1 || tb2) {
-      html += '<p><strong>Textbook:</strong></p><ul>';
-      if (tb1) html += '<li>' + esc(tb1) + '</li>';
-      if (tb2) html += '<li>' + esc(tb2) + '</li>';
-      html += '</ul>';
-    } else {
-      html += '<p><strong>Textbook:</strong> <em>Not specified</em></p>';
-    }
+    html += '<p><strong>Textbook:</strong> ' + (tb1 ? esc(tb1) : '') + '</p>';
+    if (tb2) html += '<p>' + esc(tb2) + '</p>';
 
     var specialMats = val('mat-special-materials');
-    if (specialMats) html += '<p><strong>Special Materials:</strong> ' + esc(specialMats).replace(/\n/g, '<br>') + '</p>';
+    html += '<p><strong>Special materials:</strong> ' + (specialMats ? esc(specialMats).replace(/\n/g, '<br>') : '') + '</p>';
 
     var cocurricular = val('mat-cocurricular');
-    if (cocurricular) html += '<p><strong>Co-curricular Activities:</strong> ' + esc(cocurricular).replace(/\n/g, '<br>') + '</p>';
+    html += '<p><strong>Co-curricular activities:</strong> ' + (cocurricular ? esc(cocurricular).replace(/\n/g, '<br>') : '') + '</p>';
 
-    // Required Technology (standardized)
+    // Required Technology
     html += '<p><strong>Required Technology</strong></p>';
     html += '<ol style="font-size:13px;">';
-    html += '<li>Desktop or laptop computer with current/updated operating software</li>';
-    html += '<li>Reliable broadband internet connection (DSL or cable) to stream videos</li>';
-    html += '<li>Web browser updated to the most recent version (Chrome preferred for Canvas)</li>';
+    html += '<li>Desktop or laptop computer with current/updated operating software<br><em style="font-size:12px;">Note: A smartphone, iPad, Chromebook, etc. will not be sufficient for completing your work in ' + (isCHS ? 'your courses' : 'ASU Online courses') + '. While you will be able to access course content with mobile devices, you must use a computer for all assignments, quizzes, and virtual labs.</em></li>';
+    html += '<li>Reliable broadband internet connection (DSL or cable) to stream videos.</li>';
+    html += '<li>Web browser updated to the most recent version. Chrome is preferred for Canvas.</li>';
     html += '<li>Webcam, microphone, headset/earbuds, and speaker</li>';
-    html += '<li>Microsoft Office (Microsoft 365 is free to currently enrolled ASU Students)</li>';
-    html += '<li>Adobe Acrobat Reader (free)</li>';
+    html += '<li>Microsoft Office (<a href="https://myapps.asu.edu/app/microsoft-office-365">Microsoft 365</a> is free to currently enrolled ASU Students)</li>';
+    html += '<li><a href="http://get.adobe.com/reader/">Adobe Acrobat Reader</a> (free)</li>';
     html += '</ol>';
+    html += '<p>Please inform the instructor if any of the above present a hardship for you. ASU may have some resources to help students in need. You have access to <a href="https://uto.asu.edu/experiencecenter">24/7 technical support</a>.</p>';
 
     // Course Objectives (CLOs)
-    html += '<h3>Course Objectives</h3>';
+    html += '<h2>Course Objectives</h2>';
     if (savedClos.length > 0) {
-      html += '<p>Students will learn/understand:</p><ol>';
+      html += '<p>' + (isCHS ? 'This course will cover:' : 'Students will learn/understand:') + '</p><ol>';
       savedClos.forEach(function(clo) { html += '<li>' + esc(typeof clo === 'string' ? clo : (clo.text || '')) + '</li>'; });
       html += '</ol>';
     } else {
@@ -7672,7 +7707,7 @@
     }
 
     // Expected Learning Outcomes (ELOs)
-    html += '<h3>Expected Learning Outcomes</h3>';
+    html += '<h2>Expected Learning Outcomes</h2>';
     if (savedElos.length > 0) {
       html += '<p>Students completing this course will be able to:</p><ol>';
       savedElos.forEach(function(elo) { html += '<li>' + esc(typeof elo === 'string' ? elo : (elo.text || '')) + '</li>'; });
@@ -7685,8 +7720,8 @@
     html += '<h3>Module-level Objectives (MLOs)</h3>';
     html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Module</th>';
-    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Objectives</th>';
-    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Relates to ELO #</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Objectives (3-5 per module)</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Relates to ELO#</th>';
     html += '</tr></thead><tbody>';
     for (var m = startNum; m < startNum + modCount; m++) {
       var mod = savedMods[m] || {};
@@ -7695,7 +7730,6 @@
       mlos.forEach(function(mlo, mi) {
         if (!mlo || !mlo.trim()) return;
         var mloId = m + '.' + (mi + 1);
-        // Find which ELOs this MLO is aligned to
         var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
         var relatedElos = [];
         Object.keys(alignment).forEach(function(eloIdx) {
@@ -7710,33 +7744,34 @@
     }
     html += '</tbody></table>';
 
-    html += sectionDivider;
+    // Alignment & Honors
+    var alignOther = val('syl-alignment-other');
+    html += '<p><strong>Alignment with other outcomes:</strong> ' + (alignOther ? esc(alignOther).replace(/\n/g, '<br>') : '') + '</p>';
+    var honorsContract = formData['ci-honors-contract'];
+    html += '<p><strong>Does this class have an honors contract?</strong> ' + (honorsContract ? 'Yes' : 'No') + '</p>';
 
     // ===== GRADING POLICY =====
     html += '<h2>Grading Policy</h2>';
     var gradeRounding = val('syl-grade-rounding');
     if (gradeRounding) html += '<p>' + esc(gradeRounding).replace(/\n/g, '<br>') + '</p>';
 
-    // Grade breakdown table
+    html += '<p><strong>Grade breakdown:</strong></p>';
     var gradingRows = getGradingPolicy();
-    html += '<p><strong>Grade Breakdown:</strong></p>';
-    html += '<table style="border-collapse:collapse; width:50%; font-size:13px;"><thead><tr>';
-    html += '<th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Letter Grade</th>';
+    html += '<table style="border-collapse:collapse; width:60%; font-size:13px;"><thead><tr>';
+    html += '<th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Letter grade</th>';
     html += '<th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Percentage</th>';
     html += '</tr></thead><tbody>';
     gradingRows.forEach(function(row) {
       if (!row.letter) return;
       html += '<tr><td style="padding:4px 12px; border:1px solid #ddd; text-align:center; font-weight:600;">' + esc(row.letter) + '</td>';
-      html += '<td style="padding:4px 12px; border:1px solid #ddd; text-align:center;">' + esc(row.min) + ' – ' + esc(row.max) + '%</td></tr>';
+      html += '<td style="padding:4px 12px; border:1px solid #ddd; text-align:center;">' + esc(row.min) + ' \u2013 ' + esc(row.max) + '%</td></tr>';
     });
     html += '</tbody></table>';
-
-    html += sectionDivider;
 
     // ===== ASSIGNMENTS / EXAMS =====
     html += '<h2>Assignments/Exams</h2>';
     html += '<p>All assignments, unless otherwise announced, MUST be submitted to the designated area of Canvas. Do not submit an assignment via email.</p>';
-    html += '<p>Assignment due dates/times follow Arizona Standard Time.</p>';
+    html += '<p>Assignment due dates/times follow Arizona Standard Time. View the <a href="http://www.thetimezoneconverter.com/">Time Converter</a> to account for the difference in Time Zones. Note: Arizona does not observe daylight savings time.</p>';
 
     // Assignment summary table
     var allActs = [];
@@ -7753,7 +7788,7 @@
         var pts = parseInt(a.points) || 0;
         totalPts += pts;
         html += '<tr><td style="padding:4px 6px; border:1px solid #ddd;">' + esc(a.name) + '</td>';
-        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + esc(a.points || '—') + '</td></tr>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + esc(a.points || '\u2014') + '</td></tr>';
       });
       html += '<tr style="font-weight:600;"><td style="padding:4px 6px; border:1px solid #ddd;">Total</td>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + totalPts + '</td></tr>';
@@ -7773,17 +7808,27 @@
 
     // Final exam
     var finalExam = val('syl-final-exam');
-    html += '<p><strong>Final Exam:</strong> ' + (finalExam ? esc(finalExam).replace(/\n/g, '<br>') : '<em>Not specified</em>') + '</p>';
+    html += '<p><strong>Final Exam:</strong> ' + (finalExam ? esc(finalExam).replace(/\n/g, '<br>') : '') + '</p>';
 
     // Late/Missing work
     var latePolicy = val('syl-late-policy');
-    html += '<p><strong>Make-up work/late submission general policy:</strong> ' + (latePolicy ? esc(latePolicy).replace(/\n/g, '<br>') : '<em>Not specified</em>') + '</p>';
+    html += '<p><strong>Make-up work/late submission general policy:</strong> ' + (latePolicy ? esc(latePolicy).replace(/\n/g, '<br>') : '') + '</p>';
     html += '<p>Notify the instructor BEFORE an assignment is due if an urgent situation arises and you are unable to submit the assignment on time.</p>';
 
     // Academic Integrity
-    html += '<p><strong>Academic Integrity:</strong> Academic honesty is expected of all students in all examinations, papers, laboratory work, academic transactions and records. The Academic Integrity Policy is strictly enforced for students found in violation.</p>';
+    html += '<p><strong>Academic Integrity</strong></p>';
+    html += '<p>Academic honesty is expected of all students in all examinations, papers, laboratory work, academic transactions and records. The <a href="https://provost.asu.edu/academic-integrity/resources/students">Academic Integrity Policy</a> is strictly enforced for students found in violation. Read more about this policy in the <strong>ASU Policies</strong> section.</p>';
 
-    html += sectionDivider;
+    // Generative AI Usage Policy (CHS only)
+    if (isCHS) {
+      html += '<p><strong>Generative AI Usage Policy</strong></p>';
+      var aiPolicy = val('syl-ai-policy');
+      if (aiPolicy) {
+        html += '<p>' + esc(aiPolicy).replace(/\n/g, '<br>') + '</p>';
+      } else {
+        html += placeholder('No AI policy selected. Choose a policy in the Syllabus Builder.');
+      }
+    }
 
     // ===== COURSE SCHEDULE =====
     html += '<h2>Course Schedule</h2>';
@@ -7791,7 +7836,8 @@
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Week</th>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Topic/Module</th>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Assignments Due</th>';
-    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Assoc. ELO / CEPH #</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">' + (isCHS ? 'Assoc. ELO' : 'Assoc. ELO and or CEPH #') + '</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">' + (isCHS ? 'Points' : 'Level of Coverage') + '</th>';
     html += '</tr></thead><tbody>';
     for (var m = startNum; m < startNum + modCount; m++) {
       var mod = savedMods[m] || {};
@@ -7804,85 +7850,139 @@
       });
       html += '<tr>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; font-weight:600;">' + m + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (topic ? esc(topic) : '—') + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (actNames.length > 0 ? actNames.join(', ') : '—') + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '—') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (topic ? esc(topic) : '') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (actNames.length > 0 ? actNames.join(', ') : '') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;"></td>';
       html += '</tr>';
     }
     html += '</tbody></table>';
-    html += '<p style="font-size:11px; color:#888;"><em>Note: While every effort is made to keep the course evaluation process consistent with what is in the initial syllabus, it is possible that slight changes may have to be made as the semester progresses.</em></p>';
-
-    html += sectionDivider;
+    html += '<p style="font-size:12px;"><strong>Note:</strong> While every effort is made to keep the course evaluation process consistent with what is in the initial syllabus, it is possible that slight changes may have to be made as the semester progresses. These changes will be communicated thoroughly to the students and although total points may potentially fluctuate, the percentages remain constant, meaning there is no intention of harm to the student\u2019s grades. Any changes to the course evaluation process will be posted on Canvas as part of an announcement; however, it is the student\u2019s responsibility to be aware of the points and their grade and be proactive in speaking to the instructor if there are questions or concerns. Students should not rely on Canvas or other students if they have a question on their grade in class, contact the instructor.</p>';
 
     // ===== CLASS EXPECTATIONS =====
-    html += '<h2>Class Expectations</h2>';
+    html += '<h1>Class Expectations</h1>';
 
     // Classroom Behavior
-    html += '<h3>Classroom Behavior Policy</h3>';
+    html += '<h2>Classroom Behavior Policy</h2>';
     var behavior = val('syl-classroom-behavior');
     html += behavior ? '<p>' + esc(behavior).replace(/\n/g, '<br>') + '</p>' : placeholder('Not specified.');
-    html += '<p>Disruptive and violent behavior is not tolerated.</p>';
+    html += '<p>Disruptive and violent behavior is not tolerated. Read more about this policy in the <strong>ASU Policies</strong> section.</p>';
 
     // Attendance
-    html += '<h3>Attendance Policy</h3>';
-    html += '<p>Some absences are excused in accordance with ASU policy, including accommodations for religious practices, University-sanctioned activities, and death of a family member.</p>';
+    html += '<h2>Attendance Policy</h2>';
+    html += '<p>Some absences are excused in accordance with ASU policy. They include accommodations for religious practices, University-sanctioned activities, and death of a family member. Read more about university-excused absences in the <strong>ASU Policies</strong> section.</p>';
     var attendance = val('syl-attendance');
     html += attendance ? '<p>' + esc(attendance).replace(/\n/g, '<br>') + '</p>' : placeholder('Not specified.');
+    html += '<p><em>In the event the instructor fails to indicate a time obligation, the time obligation will be 15 minutes for class sessions lasting 90 minutes or less, and 30 minutes for class sessions lasting more than 90 minutes. Students may be directed to wait longer by someone from the academic unit if they know the instructor will arrive shortly.</em></p>';
 
-    // Student Success Tips (standard)
-    html += '<h3>Student Success Tips</h3>';
+    // Student Success Tips
+    html += '<h2>Student Success Tips</h2>';
     html += '<p>To be successful, you are encouraged to:</p>';
     html += '<ul style="font-size:13px;">';
-    html += '<li>Check the course Canvas site daily</li>';
-    html += '<li>Read announcements</li>';
-    html += '<li>Read and respond to course email messages as needed</li>';
-    html += '<li>Complete assignments by the due dates specified</li>';
-    html += '<li>Communicate regularly with your instructor and peers</li>';
-    html += '<li>Create a study and/or assignment schedule to stay on track</li>';
+    html += '<li>check the course Canvas site daily</li>';
+    html += '<li>read announcements</li>';
+    html += '<li>read and respond to course email messages as needed</li>';
+    html += '<li>complete assignments by the due dates specified</li>';
+    html += '<li>communicate regularly with your instructor and peers</li>';
+    html += '<li>create a study and/or assignment schedule to stay on track</li>';
+    html += '<li>access <a href="https://eoss.asu.edu/family/resources/academic-support">academic support resources</a>, including <a href="https://tutoring.asu.edu/">free tutoring</a><ul><li>ASU Online students, please see <a href="https://rb.gy/wvpxsn">ASU Online Student Resources</a></li></ul></li>';
     html += '</ul>';
+    html += '<p><strong>Available Academic Resources</strong></p>';
+    html += '<p>ASU has a wealth of resources to enable your success. Access the <a href="https://tutoring.asu.edu/">University Academic Success Programs</a> website for information on the writing center, tutoring, supplemental instruction, graduate academic support and more.</p>';
 
-    // Mental Health
-    html += '<h3>Mental Health</h3>';
-    var formData = loadField('formData') || {};
-    var hasContentWarning = formData['syl-content-warning-flag'];
-    var contentWarning = val('syl-content-warning');
+    // Mental Health / Student Well-Being
+    html += '<h2>' + (isCHS ? 'Student Well-Being' : 'Mental Health') + '</h2>';
+    var hasContentWarning = formData['ci-content-warning-flag'];
+    var contentWarning = val('ci-content-warning');
     if (hasContentWarning && contentWarning) {
       html += '<p><strong>Content Warning:</strong> ' + esc(contentWarning).replace(/\n/g, '<br>') + '</p>';
     }
-    html += '<p>Students may experience a range of challenges that can interfere with learning. ASU Counseling Services provides counseling and crisis services for students who are experiencing a mental health concern. Any student may call or walk-in to any ASU counseling center for a same day or future appointment. ASU\'s dedicated crisis line is available 24/7 at 480-921-1006.</p>';
+    html += '<p>Students may experience a range of challenges that can interfere with learning, such as strained relationships, increased anxiety, substance use, feeling down, difficulty concentrating and/or lack of motivation. These emotional health concerns or stressful events may diminish academic performance and/or reduce the ability to participate in daily activities. <a href="https://eoss.asu.edu/counseling">ASU Counseling Services</a> provides counseling and crisis services for students who are experiencing a mental health concern. Any student may call or walk-in to any ASU counseling center for a same day or future appointment to discuss any personal concern. ASU\u2019s dedicated crisis line is available 24/7 for crisis consultation by calling 480-921-1006.</p>';
+    if (isCHS) {
+      html += '<p><a href="https://eoss.asu.edu/health">ASU Health Services</a> provides high-quality health care that is accessible, affordable and compassionate to ensure the well-being and success of students. Login to your My Health Portal or call 480-965-3349 to schedule an appointment or contact a provider.</p>';
+      html += '<p>ASU Online students can access <a href="https://goto.asuonline.asu.edu/success/online-resources.html">360 Life Services</a> to support their physical, mental and emotional wellness.</p>';
+    }
 
-    // Campus Network / Technical Support
-    html += '<h3>Campus Network Outage and Technical Support</h3>';
+    // Campus Network Outage and Technical Support
+    html += '<h2>Campus Network Outage and Technical Support</h2>';
     html += '<p>When access to Canvas is not available for an extended period of time (greater than one entire evening) you can reasonably expect that the due date for assignments will be changed to the next day (assignment still due by 11:59pm).</p>';
-    html += '<p><strong>Technical Support:</strong> For immediate assistance, call ASU at 1-855-278-5080 or visit the ASU Experience Center for 24/7 live chat.</p>';
+    html += '<p>To monitor the status of campus networks and services, please visit the System Health Portal (<a href="http://syshealth.asu.edu/">http://syshealth.asu.edu/</a>).</p>';
+    html += '<p><strong>Technical Support</strong></p>';
+    html += '<p>This course uses Canvas to deliver content. You can access Canvas through your <a href="https://webapp4.asu.edu/myasu/">MyASU</a> portal.</p>';
+    html += '<p>To contact the help desk you have two options:</p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li>For immediate assistance, call ASU at 1-855-278-5080.<ul><li>Visit the <a href="https://uto.asu.edu/experiencecenter">ASU Experience Center</a> to get personalized support through 24/7 live chat or submit your request online (<a href="https://my.asu.edu/service">https://my.asu.edu/service</a>).</li></ul></li>';
+    html += '</ul>';
+    html += '<p>For more information on Canvas the following resources are suggested:</p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li><a href="https://asuonline.wistia.com/medias/tnh0qlwpw1">Canvas Course Tour Video</a></li>';
+    html += '<li><a href="https://community.canvaslms.com/docs/DOC-10701">Canvas Student guide</a></li>';
+    html += '<li><a href="https://asu.digication.com/new_digital_portfolio_help_resources/why-use-a-digital-portfolio/published">Digital Portfolios Help Resources</a></li>';
+    html += '<li><a href="https://libguides.asu.edu/online">Library Resources for Students</a></li>';
+    html += '<li><a href="https://community.canvaslms.com/docs/DOC-10624">Best Practices for Setting Course Notifications</a></li>';
+    html += '<li>Canvas Student App - Download through Google Play (<a href="https://community.canvaslms.com/docs/DOC-9811">Android</a>) or the App Store (<a href="https://community.canvaslms.com/docs/DOC-9867">iOS</a>)</li>';
+    html += '</ul>';
 
-    // Third-Party Software
-    html += '<h3>Third-Party Software and FERPA</h3>';
-    html += '<p>During this course you might have the opportunity to use public online services and/or software applications. You need not make any personally identifying information on a public site. Where appropriate you may use a pseudonym or nickname.</p>';
+    // Third-Party Software and FERPA
+    html += '<h2>Third-Party Software and FERPA</h2>';
+    html += '<p>During this course you might have the opportunity to use public online services and/or software applications sometimes called third-party software such as a blog or wiki. While some of these are required assignments, you need <strong>not</strong> make any personally identifying information on a public site. Do not post or provide any private information about yourself or your classmates. Where appropriate you may use a pseudonym or nickname. Some written assignments posted publicly may require personal reflection/comments, but the assignments will not require you to disclose any personally identifiable/sensitive information. If you have any concerns about this, please contact your instructor.</p>';
 
-    // Disability
-    html += '<h3>Disability Accommodations</h3>';
-    html += '<p>Reasonable accommodations are determined on a case-by-case, course-by-course basis. Students with disabilities who require accommodations must register with Student Accessibility and Inclusive Learning Services and submit appropriate documentation.</p>';
+    // Disability Accommodations
+    html += '<h2>Disability Accommodations</h2>';
+    html += '<p>Reasonable accommodations are determined on a case-by-case, course-by-course basis to mitigate barriers experienced due to a disability (<a href="https://www.asu.edu/aad/manuals/ssm/ssm701-02.html">SSM 701-02</a>). Students with disabilities who require accommodations must register with the <a href="https://eoss.asu.edu/accessibility">Student Accessibility and Inclusive Learning Services</a> and submit appropriate documentation. It is recommended students complete this process at the beginning of the term and communicate as appropriate with their instructor.</p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li>Email: <a href="mailto:Student.Accessibility@asu.edu">Student.Accessibility@asu.edu</a></li>';
+    html += '<li>Phone: (480) 965\u20111234</li>';
+    html += '<li>FAX: (480) 965\u20110441</li>';
+    html += '</ul>';
 
-    // Inclusive Excellence
-    html += '<h3>Inclusive Excellence and Health Equity</h3>';
-    html += '<p>The college is committed to the idea that every member of our society should have the opportunity for good health and wellness throughout their lifespans. We embrace and support inclusive excellence in everything we do.</p>';
+    // Inclusive Excellence and Health Equity
+    html += '<h2>Inclusive Excellence and Health Equity</h2>';
+    if (isCHS) {
+      html += '<p>The College of Health Solutions has a mission to improve the mental and physical health of our larger and immediate communities by better understanding the challenges that individuals and populations face, while striving to be part of the solution. The college is committed to the idea that every member of our society should have the opportunity for good health and wellness throughout their lifespans. In an effort to actualize this ideal, we embrace and support inclusive excellence in everything we do, including teaching, research, service and clinical practice.</p>';
+      html += '<p>Learn more about the College of Health Solutions\u2019 commitments to inclusive excellence on the <a href="https://chs.asu.edu/inclusive-excellence">college website</a>.</p>';
+    } else {
+      html += '<p>The School of Technology for Public Health has a mission to improve the mental and physical health of our larger and immediate communities by better understanding the challenges that individuals and populations face, while striving to be part of the solution. The college is committed to the idea that every member of our society should have the opportunity for good health and wellness throughout their lifespans. In an effort to actualize this ideal, we embrace and support inclusive excellence in everything we do, including teaching, research, service and clinical practice.</p>';
+      html += '<p>Students have access to the <a href="https://cfo.asu.edu/DEI">ASU Office of Advancing Inclusion and Culture</a>, which is dedicated to supporting and fostering a culture of inclusiveness, promoting and assisting with equal opportunity and diversity initiatives.</p>';
+    }
 
-    // Title IX
-    html += '<h3>Prohibition Against Discrimination, Harassment, &amp; Retaliation</h3>';
-    html += '<p>Title IX is a federal law that provides that no person be excluded on the basis of sex from participation in, be denied benefits of, or be subjected to discrimination under any education program or activity. For information and resources, visit sexualviolenceprevention.asu.edu/faqs.</p>';
+    // Prohibition Against Discrimination
+    html += '<h2>Prohibition Against Discrimination, Harassment, &amp; Retaliation</h2>';
+    html += '<p>Title IX is a federal law that provides that no person be excluded on the basis of sex from participation in, be denied benefits of, or be subjected to discrimination under any education program or activity. Both Title IX and university policy make clear that sexual violence and harassment based on sex is prohibited. An individual who believes they have been subjected to sexual violence or harassed on the basis of sex can seek support, including counseling and academic support, from the university. If you or someone you know has been harassed on the basis of sex or sexually assaulted, you can find information and resources at <a href="https://sexualviolenceprevention.asu.edu/faqs">https://sexualviolenceprevention.asu.edu/faqs</a>.</p>';
+    if (isCHS) {
+      html += '<p>As a mandated reporter, I am obligated to report any information I become aware of regarding alleged acts of sexual discrimination, including sexual violence and dating violence. <a href="https://eoss.asu.edu/counseling">ASU Counseling Services</a> is available if you wish to discuss any concerns confidentially and privately.</p>';
+    } else {
+      html += '<p>As a mandated reporter, I am obligated to report any information I become aware of regarding alleged acts of sexual discrimination, including sexual violence and dating violence. <a href="https://eoss.asu.edu/counseling">ASU Counseling Services</a> is available if you wish to discuss any concerns confidentially and privately. ASU online students may access 360 Life Services, <a href="https://goto.asuonline.asu.edu/success/online-resources.html">https://goto.asuonline.asu.edu/success/online-resources.html</a>.</p>';
+    }
 
-    html += sectionDivider;
-
-    // ===== ASU POLICIES =====
-    html += '<h2>ASU Policies</h2>';
-    html += '<p>Review ASU Policies at the official ASU policy page.</p>';
+    // ASU Policies
+    if (isCHS) {
+      html += '<h1>ASU POLICIES</h1>';
+      html += '<h2>ASU Online Course Policies</h2>';
+      html += '<p>View the <a href="https://asuonline.asu.edu/course-policies/">ASU Online Course Policies</a>.</p>';
+      html += '<h2>Add/Drop/Withdraw</h2>';
+      html += '<p>Access the <a href="https://students.asu.edu/registration">University Registrar</a> website for information on grades, the academic calendar, and add/drop/withdrawal options among other things. NOTE: If you are considering withdrawing, please check with financial aid as it may be impacted by a withdrawal.</p>';
+      html += '<h2>University Excused Absences</h2>';
+      html += '<p><strong>Accommodation for Religious practices in accordance with ACD 304-04</strong></p>';
+      html += '<p>The university community should, in all its activities, be sensitive to the religious practices of the various religious faiths represented in its student body and employees. Faculty are asked to recognize the obligations of their students who may be participating in the observance of religious holidays. Students should notify faculty at the beginning of the semester about the need to be absent from class due to religious observances.</p>';
+      html += '<p><strong>Missed class due to University-sanctioned activities in accordance with ACD 304-02</strong></p>';
+      html += '<p>Students who participate in university-sanctioned activities that require classes to be missed, shall be given opportunities to make up examinations and other graded in-class work. However, absence from class or examinations due to university-sanctioned activities does not relieve students from responsibility for any part of the course work required during the period of the absence.</p>';
+      html += '<h2>Academic Integrity</h2>';
+      html += '<p>Academic honesty is expected of all students in any materials intended to be used for an academic evaluation, including, but not limited to: all examinations, papers, presentations, laboratory work, academic transactions, and records. The possible sanctions for academic integrity violations include but are not limited to, appropriate grade penalties, course failure (indicated on the transcript as a grade of E), course failure due to academic dishonesty (indicated on the transcript as a grade of XE), loss of registration privileges, disqualification, and dismissal. For more information, see the <a href="https://provost.asu.edu/academic-integrity">Academic Integrity website</a>.</p>';
+      html += '<p>Plagiarism of any kind will not be tolerated. Students must take the exams independently without assistance from other students. Students may not submit papers written by persons other than themselves.</p>';
+      html += '<p>Information on the Academic Integrity procedure within the College of Health Solutions can be found in the <a href="https://catalog.asu.edu/">Academic Catalog</a>.</p>';
+      html += '<h2>Disruptive or Violent Behavior</h2>';
+      html += '<p>In the classroom and out, students are required to conduct themselves in a manner that promotes an environment that is safe and conducive to learning and conducting other university-related business. All incidents and allegations of violent or threatening conduct by an ASU student will be reported to the ASU Police Department (ASU PD) and the Office of the Dean of Students. Such incidents will be dealt with in accordance with the policies and procedures described in Section 104-02 of the Student Services Manual.</p>';
+    } else {
+      html += '<h1><a href="https://docs.google.com/document/d/1E2yI0yfGmn3CiuKdIrCp1NHN2SadR8wydwDGqpS6vVY/edit?usp=sharing">Review ASU POLICIES here</a></h1>';
+    }
 
     // Copyright
-    html += '<h3>Copyright</h3>';
-    html += '<p>Students must refrain from uploading to any course shell material that is not the student\'s original work, unless the students first comply with all applicable copyright laws. The course syllabus and all other class materials are intellectual property of Arizona State University and are not to be publicly distributed or otherwise commercialized.</p>';
+    html += '<h2>Copyright</h2>';
+    html += '<p>Students must refrain from uploading to any course shell, discussion board, or website used by the course instructor or other course forum, material that is not the student\u2019s original work, unless the students first comply with all applicable copyright laws; faculty members reserve the right to delete materials on the grounds of suspected copyright infringement. For more information, see the Computer, Internet, &amp; Electronic Communications Policy at <a href="http://www.asu.edu/aad/manuals/acd/acd125.html">http://www.asu.edu/aad/manuals/acd/acd125.html</a></p>';
+    html += '<p>The course syllabus and all other class materials (slide presentations, handouts, assignments, digital recordings, exams, quizzes, etc.) are intellectual property of Arizona State University and are not to be publicly distributed or otherwise commercialized since these materials are copyright protected. Such materials are for sole use in that designated semester. It cannot be used in any other form unless via a written statement of approval from the instructor. Commercial note taking services are prohibited in accordance with ACD 304-06 available at <a href="http://www.asu.edu/aad/manuals/acd/acd304-06.html">http://www.asu.edu/aad/manuals/acd/acd304-06.html</a></p>';
 
-    html += '<p style="font-size:12px; color:#888; margin-top:16px;"><em>Information in this syllabus, other than grade and absence policies, is subject to change with reasonable advance notice. Please consult Canvas regularly.</em></p>';
+    html += '<p style="margin-top:16px;"><strong><em>Information in this syllabus, other than grade and absence policies, is subject to change with reasonable advance notice. Please consult Canvas regularly.</em></strong></p>';
 
     container.innerHTML = html;
   }
@@ -7906,7 +8006,8 @@
       'ul': 'padding-left:24px; margin:8px 0 12px 0;',
       'table': 'width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; font-family:Calibri,Arial,sans-serif;',
       'th': 'background-color:#f5f5f0; text-align:left; padding:8px 12px; font-weight:bold; border:1px solid #cccccc; font-size:13px; font-family:Calibri,Arial,sans-serif;',
-      'td': 'padding:8px 12px; border:1px solid #cccccc; vertical-align:top; font-size:13px; font-family:Calibri,Arial,sans-serif;'
+      'td': 'padding:8px 12px; border:1px solid #cccccc; vertical-align:top; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'a': 'color:#1a0dab; text-decoration:underline;'
     };
 
     Object.keys(styleMap).forEach(function(tag) {
@@ -8067,8 +8168,52 @@ ${clone.innerHTML}
     return labels[viewId] || viewId || '';
   }
 
+  // ===== SESSION TIME TRACKING =====
+  var _sessionStart = Date.now();
+  var _sessionActive = true;
+  var _sessionAccumulated = 0; // ms accumulated while tab is visible
+
+  function _flushSessionTime() {
+    if (_sessionActive) {
+      _sessionAccumulated += Date.now() - _sessionStart;
+      _sessionStart = Date.now();
+    }
+    // Read existing analytics
+    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + courseId) || '{}');
+    analytics.totalMs = (analytics.totalMs || 0) + _sessionAccumulated;
+    analytics.lastVisit = new Date().toISOString();
+    analytics.sessions = (analytics.sessions || 0);
+    localStorage.setItem('worksheet_analytics_' + courseId, JSON.stringify(analytics));
+    _sessionAccumulated = 0;
+  }
+
+  // Pause tracking when tab is hidden, resume when visible
+  document.addEventListener('visibilitychange', function() {
+    if (document.hidden) {
+      _sessionAccumulated += Date.now() - _sessionStart;
+      _sessionActive = false;
+    } else {
+      _sessionStart = Date.now();
+      _sessionActive = true;
+    }
+  });
+
+  // Flush every 30 seconds so data isn't lost on crash
+  setInterval(_flushSessionTime, 30000);
+
   // Clean up on page unload
   window.addEventListener('beforeunload', function() {
+    // Final flush and increment session count
+    if (_sessionActive) {
+      _sessionAccumulated += Date.now() - _sessionStart;
+      _sessionActive = false;
+    }
+    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + courseId) || '{}');
+    analytics.totalMs = (analytics.totalMs || 0) + _sessionAccumulated;
+    analytics.lastVisit = new Date().toISOString();
+    analytics.sessions = (analytics.sessions || 0) + 1;
+    localStorage.setItem('worksheet_analytics_' + courseId, JSON.stringify(analytics));
+    _sessionAccumulated = 0;
     if (presenceChannel) {
       presenceChannel.untrack();
     }
@@ -8337,8 +8482,6 @@ ${clone.innerHTML}
   function buildSyllabusSection(itemId) {
     switch (itemId) {
       case 'course-desc':
-        var cwChecked = (loadField('formData') || {})['syl-content-warning-flag'] ? ' checked' : '';
-        var cwTextVal = (loadField('formData') || {})['syl-content-warning'] || '';
         return '<div style="padding:12px 0 4px 28px;">' +
           buildMirrorField('Course Description', 'course-description', 'Course description from catalog...', '80px') +
           buildMirrorField('Course Overview', 'course-overview', 'Expanded course overview...', '80px') +
@@ -8346,19 +8489,7 @@ ${clone.innerHTML}
             buildMirrorInput('Credits', 'ci-credits', 'e.g. 3') +
             buildMirrorInput('Prerequisites / Enrollment Requirements', 'ci-prerequisites', 'Course prerequisites...') +
           '</div>' +
-          '<div style="margin-top:16px; padding:12px 14px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px;">' +
-            '<div style="display:flex; align-items:flex-start; gap:8px;">' +
-              '<input type="checkbox" id="syl-content-warning-flag"' + cwChecked + ' onchange="toggleContentWarning(this)" style="width:16px; height:16px; cursor:pointer; flex-shrink:0; margin-top:2px; accent-color:#e65100;">' +
-              '<div>' +
-                '<label for="syl-content-warning-flag" style="font-size:13px; font-weight:500; color:#e65100; cursor:pointer;">This course contains sensitive content</label>' +
-                '<div style="font-size:11px; color:#888; margin-top:2px;">Check this box if course content may be deemed offensive or sensitive. A content warning will be added to the syllabus notifying students and explaining how to bring concerns to the instructor, unit chair, or director.</div>' +
-              '</div>' +
-            '</div>' +
-            '<div id="content-warning-text-wrapper" style="margin-top:10px; display:' + (cwChecked ? 'block' : 'none') + ';">' +
-              '<div class="field-group"><label class="field-label">Content Warning</label>' +
-              '<textarea id="syl-content-warning" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe the nature of the sensitive content and how students can bring concerns to the instructor..." oninput="saveAllFields()">' + escapeHtml(cwTextVal) + '</textarea></div>' +
-            '</div>' +
-          '</div>' +
+          '<div style="margin-top:8px; font-size:11px; color:#888; padding:6px 8px; background:#f0f7ff; border-radius:4px;">Honors contract and content warning settings are on the <button onclick="showView(\'course-info\')" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; text-decoration:underline; padding:0; font-family:inherit;">Course Info</button> page.</div>' +
           '</div>';
 
       case 'instructor-info':
@@ -8403,6 +8534,11 @@ ${clone.innerHTML}
           html += '</ol>';
         }
         html += '<button onclick="showView(\'objectives\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:4px;">Edit on ELOs & CLOs page →</button>';
+        var alignVal = (loadField('formData') || {})['syl-alignment-other'] || '';
+        html += '<div class="field-group" style="margin-top:12px;">' +
+          '<label class="field-label">Alignment with Other Outcomes</label>' +
+          '<textarea id="syl-alignment-other" class="field-input" style="min-height:40px; font-size:12px;" placeholder="e.g., accrediting bodies, certifications, etc." oninput="saveAllFields()">' + escapeHtml(alignVal) + '</textarea>' +
+          '</div>';
         html += '</div>';
         return html;
 
@@ -8433,6 +8569,22 @@ ${clone.innerHTML}
         return '<div style="padding:12px 0 4px 28px;">' +
           '<div class="field-group"><label class="field-label">Make-up Work / Late Submission Policy</label>' +
           '<textarea id="syl-late-policy" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Describe your policies for late submissions and make-up work..." oninput="saveAllFields()">' + escapeHtml(latePolicyVal) + '</textarea></div>' +
+          '</div>';
+
+      case 'ai-policy':
+        var aiPolicyVal = (loadField('formData') || {})['syl-ai-policy'] || '';
+        var aiPolicyChoice = (loadField('formData') || {})['syl-ai-policy-choice'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">CHS requires one of three AI policy statements. Select the appropriate policy and customize if needed.</div>' +
+          '<div class="field-group"><label class="field-label">AI Policy Type</label>' +
+          '<select id="syl-ai-policy-choice" class="field-input" style="font-size:12px;" onchange="prefillAiPolicy(this.value); saveAllFields();">' +
+            '<option value=""' + (aiPolicyChoice === '' ? ' selected' : '') + '>— Select a policy —</option>' +
+            '<option value="permitted"' + (aiPolicyChoice === 'permitted' ? ' selected' : '') + '>Generally Permitted with Guidelines</option>' +
+            '<option value="some"' + (aiPolicyChoice === 'some' ? ' selected' : '') + '>Permitted Under Some Circumstances</option>' +
+            '<option value="none"' + (aiPolicyChoice === 'none' ? ' selected' : '') + '>No Generative AI Use Permitted</option>' +
+          '</select></div>' +
+          '<div class="field-group"><label class="field-label">Policy Text (editable)</label>' +
+          '<textarea id="syl-ai-policy" class="field-input" style="min-height:100px; font-size:12px;" placeholder="Select a policy above to pre-fill, then customize..." oninput="saveAllFields()">' + escapeHtml(aiPolicyVal) + '</textarea></div>' +
           '</div>';
 
       case 'course-schedule':
@@ -8500,11 +8652,6 @@ ${clone.innerHTML}
         return '<div style="padding:12px 0 4px 28px;">' +
           '<div style="font-size:12px; color:#666; margin-bottom:6px;">Include consequences, advance notification expectations, and how students obtain missed information.</div>' +
           '<div class="field-group"><textarea id="syl-attendance" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Add a statement regarding the absence policy for this course..." oninput="saveAllFields()">' + escapeHtml(attendanceVal) + '</textarea></div>' +
-          '</div>';
-
-      case 'mental-health':
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666;">The content warning checkbox is in the <strong>Course Description & Overview</strong> section above. If checked, the warning text will be included in the Mental Health section of the syllabus.</div>' +
           '</div>';
 
       default:
@@ -8610,6 +8757,16 @@ ${clone.innerHTML}
     }, 50);
   }
 
+  function prefillAiPolicy(choice) {
+    var texts = {
+      permitted: 'Artificial Intelligence (AI), including ChatGPT, are being used in workplaces all over the world to save time and improve outcomes by generating text, images, computer code, audio, or other media. Use of AI tools is generally welcome and even encouraged in this class with attribution aligned with disciplinary guidelines. AI tools might be employed to brainstorm, draft, edit, revise, etc. I will provide examples of how to properly cite use. Any submitted course assignment not explicitly identified as having used generative AI will be assumed to be your original work. Using AI tools to generate content without proper attribution will be considered a violation of the ASU Academic Integrity Policy, and students may be sanctioned for confirmed, non-allowable use. If at any point you have questions about what is permitted, contact the instructor to discuss before submitting work.',
+      some: 'Some assignments in this course may include or allow use of Artificial Intelligence (AI), including ChatGPT or related tools for the creation of text, images, computer code, audio, or other media. The instructor will inform you when, where and how you may use these tools, and provide guidance for attribution. Use of generative AI tools in any other context in this course will be considered a violation of the ASU Academic Integrity Policy, and students may be sanctioned for confirmed, non-allowable use. If at any point you have questions about what is permitted, contact the instructor to discuss before submitting work.',
+      none: 'In this course, all assignments must be completed by the student. Artificial Intelligence (AI), including ChatGPT and other related tools used for creating of text, images, computer code, audio, or other media, are not permitted for use in any work in this class. Use of these generative AI tools will be considered a violation of the ASU Academic Integrity Policy, and students may be sanctioned for confirmed, non-allowable use in this course.'
+    };
+    var ta = document.getElementById('syl-ai-policy');
+    if (ta && texts[choice]) { ta.value = texts[choice]; autoResize(ta); }
+  }
+
   function toggleSyllabusExpand(itemId, event) {
     // Don't toggle if clicking on a checkbox or button
     if (event && (event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON')) return;
@@ -8623,6 +8780,11 @@ ${clone.innerHTML}
     var wrapper = document.getElementById('content-warning-text-wrapper');
     if (wrapper) wrapper.style.display = checkbox.checked ? 'block' : 'none';
     saveAllFields();
+  }
+
+  function toggleCourseInfoContentWarning(checkbox) {
+    var wrapper = document.getElementById('ci-content-warning-wrapper');
+    if (wrapper) wrapper.style.display = checkbox.checked ? 'block' : 'none';
   }
 
   // ===== COMMENT PANEL =====
