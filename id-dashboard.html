@@ -113,6 +113,9 @@
   .status-behind { background: #ffebee; color: #c62828; }
   .status-complete { background: #e3f2fd; color: #1565c0; }
   .status-not-started { background: #f5f5f5; color: #999; }
+  .status-inactive { background: #f0f0f0; color: #aaa; font-style: italic; }
+  tr.row-inactive { opacity: 0.5; }
+  tr.row-inactive:hover { opacity: 0.75; }
 
   /* Phase badge */
   .phase-badge { font-size: 11px; color: #666; }
@@ -1086,16 +1089,49 @@
     renderTable();
   }
 
+  function getInactiveCourses() {
+    try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
+  }
+
+  function toggleCourseInactive(courseId, isInactive) {
+    var map = getInactiveCourses();
+    if (isInactive) {
+      map[courseId] = { note: '', date: new Date().toISOString() };
+      document.getElementById('inactive-note-area').style.display = 'block';
+      document.getElementById('inactive-note-area').style.marginTop = '8px';
+    } else {
+      delete map[courseId];
+      document.getElementById('inactive-note-area').style.display = 'none';
+    }
+    localStorage.setItem('inactive_courses', JSON.stringify(map));
+    renderTable();
+    renderFilters();
+    // Refresh the status pill in the open detail panel
+    renderDetail(courseId);
+  }
+
+  function saveCourseInactiveNote(courseId, note) {
+    var map = getInactiveCourses();
+    if (map[courseId]) {
+      map[courseId].note = note;
+      localStorage.setItem('inactive_courses', JSON.stringify(map));
+    }
+  }
+
   function renderTable() {
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
     const tbody = document.getElementById('course-table-body');
     let html = '';
     var starredSet = getStarredCourses();
+    var inactiveMap = getInactiveCourses();
     getSortedCourseKeys().forEach(id => {
       const c = courseData[id];
-      const dataStatus = statusMap[c.status] || 'not-started';
+      const isInactive = !!inactiveMap[id];
+      const dataStatus = isInactive ? 'inactive' : (statusMap[c.status] || 'not-started');
+      const displayStatus = isInactive ? 'Inactive' : c.status;
+      const displayStatusClass = isInactive ? 'status-inactive' : c.statusClass;
       const starred = starredSet.indexOf(id) !== -1;
-      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}">
+      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}" class="${isInactive ? 'row-inactive' : ''}">`;
         <td style="padding:0 4px; text-align:center;"><button class="star-btn${starred ? ' starred' : ''}" onclick="toggleStar('${id}', event)" title="${starred ? 'Unstar' : 'Star'} course">${starred ? '★' : '☆'}</button></td>
         <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
@@ -1107,7 +1143,7 @@
           <div class="progress-text">${c.progressLabel}</div>
         </td>
         <td><span class="phase-badge">${c.phase}</span></td>
-        <td><span class="status-pill ${c.statusClass}">${c.status}</span></td>
+        <td><span class="status-pill ${displayStatusClass}">${displayStatus}</span></td>
         <td><span class="qa-date qa-ok">${c.qaShort}</span></td>
         <td><span class="last-active${c.lastActiveStale ? ' stale' : ''}">${c.lastActive}</span></td>
       </tr>`;
@@ -1366,9 +1402,14 @@
     let html = '';
 
     // Header
+    var inactiveMap = getInactiveCourses();
+    var isInactive = !!inactiveMap[id];
+    var inactiveNote = (inactiveMap[id] && inactiveMap[id].note) || '';
+    var detailStatusClass = isInactive ? 'status-inactive' : c.statusClass;
+    var detailStatus = isInactive ? 'Inactive' : c.status;
     html += `<div class="detail-header">
       <h2>${c.title}</h2>
-      <p>${c.subtitle} &bull; <span class="status-pill ${c.statusClass}">${c.status}</span></p>
+      <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span></p>
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
     if (c.devLink) {
       html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor Development</a>`;
@@ -1399,7 +1440,22 @@
       const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
       html += `<a href="${wsComposeUrl}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
     }
-    html += `</div></div>`;
+    html += `</div>`;
+
+    // Inactive toggle + note
+    html += `<div style="margin-top:12px; padding:10px 14px; background:${isInactive ? '#fafafa' : '#fff'}; border:1px solid ${isInactive ? '#e0ddd5' : '#eee'}; border-radius:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#666;">
+          <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer;">
+          Mark as Inactive
+        </label>
+      </div>
+      <div id="inactive-note-area" style="margin-top:${isInactive ? '8' : '0'}px; display:${isInactive ? 'block' : 'none'};">
+        <textarea id="inactive-note" placeholder="Reason (e.g., instructor on leave, course postponed...)" oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:50px; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:12px; font-family:Inter,sans-serif; resize:vertical; background:#fff;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
+      </div>
+    </div>`;
+
+    html += `</div>`;
 
     // Stats
     html += `<div class="detail-stat-row" style="margin-top:16px;">
@@ -2044,17 +2100,23 @@
   // ===== DYNAMIC FILTER BUTTONS =====
   function renderFilters() {
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
-    const counts = { total: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0 };
-    Object.values(courseData).forEach(c => {
+    const counts = { total: 0, active: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0, 'inactive': 0 };
+    var inactiveMap = getInactiveCourses();
+    Object.keys(courseData).forEach(id => {
       counts.total++;
-      const key = statusMap[c.status] || 'not-started';
-      if (counts[key] !== undefined) counts[key]++;
+      if (inactiveMap[id]) { counts['inactive']++; }
+      else {
+        counts.active++;
+        const key = statusMap[courseData[id].status] || 'not-started';
+        if (counts[key] !== undefined) counts[key]++;
+      }
     });
     document.getElementById('filters-row').innerHTML =
-      `<button class="filter-btn active" onclick="filterCourses('all', this)">All (${counts.total})</button>` +
+      `<button class="filter-btn active" onclick="filterCourses('all', this)">Active (${counts.active})</button>` +
       `<button class="filter-btn" onclick="filterCourses('on-track', this)">On Track (${counts['on-track']})</button>` +
       `<button class="filter-btn" onclick="filterCourses('at-risk', this)">At Risk (${counts['at-risk']})</button>` +
       `<button class="filter-btn" onclick="filterCourses('not-started', this)">Not Started (${counts['not-started']})</button>` +
+      (counts['inactive'] > 0 ? `<button class="filter-btn" onclick="filterCourses('inactive', this)" style="font-style:italic;">Inactive (${counts['inactive']})</button>` : '') +
       `<div style="flex:1;"></div>` +
       `<input type="text" class="filter-search" placeholder="Search courses or instructors..." oninput="searchCourses(this.value)" />`;
   }
@@ -2078,8 +2140,11 @@
       const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
       if (!id || !courseData[id]) return;
       const c = courseData[id];
-      const show =
-        (activeStatusFilter === 'all' || row.dataset.status === activeStatusFilter) &&
+      const isInactiveRow = row.dataset.status === 'inactive';
+      const statusMatch = activeStatusFilter === 'all' ? !isInactiveRow :
+                          activeStatusFilter === 'inactive' ? isInactiveRow :
+                          row.dataset.status === activeStatusFilter;
+      const show = statusMatch &&
         (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
         (!fp || c.program === fp) &&
         (!fc || c.college === fc) &&
