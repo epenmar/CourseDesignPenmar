@@ -487,10 +487,6 @@
       <div class="nav-item active" onclick="showView('dashboard')">
         <span class="icon">📊</span> Dashboard &amp; Timeline
       </div>
-      <div class="nav-item" onclick="showView('syllabus-checklist')">
-        <span class="icon">✅</span> Syllabus Checklist
-        <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
-      </div>
       <div class="nav-item" onclick="showView('course-info')">
         <span class="icon">📋</span> Course Info
         <span class="badge badge-empty" id="sidebar-info-badge">—</span>
@@ -502,6 +498,10 @@
       <div class="nav-item" onclick="showView('additional')">
         <span class="icon">🧩</span> Course Context Q&amp;A
         <span class="badge badge-empty" id="sidebar-context-badge">—</span>
+      </div>
+      <div class="nav-item" onclick="showView('syllabus-checklist')">
+        <span class="icon">✅</span> Syllabus Builder
+        <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('objectives')">
         <span class="icon">🎯</span> ELOs &amp; CLOs
@@ -923,7 +923,7 @@
 
       <!-- ===== SYLLABUS CHECKLIST ===== -->
       <div id="view-syllabus-checklist" style="display:none;">
-        <h1 style="font-size:22px; margin-bottom:4px;">Syllabus Checklist</h1>
+        <h1 style="font-size:22px; margin-bottom:4px;">Syllabus Builder</h1>
         <p id="checklist-template-label" style="color:#666; font-size:13px; margin-bottom:20px;"></p>
         <div id="checklist-progress-bar" style="margin-bottom:20px;">
           <div style="display:flex; justify-content:space-between; font-size:12px; color:#666; margin-bottom:4px;">
@@ -974,10 +974,13 @@
               <div class="field-group"><label class="field-label">Email</label><input type="text" id="ci-email" class="field-input" /></div>
             </div>
             <div class="field-row">
-              <div class="field-group"><label class="field-label">Office</label><input type="text" id="ci-office" class="field-input" /></div>
-              <div class="field-group"><label class="field-label">Zoom Link</label><input type="text" id="ci-zoom" class="field-input" placeholder="https://asu.zoom.us/..." /></div>
+              <div class="field-group"><label class="field-label">Phone Number</label><input type="text" id="ci-phone" class="field-input" placeholder="(480) 965-XXXX" /></div>
+              <div class="field-group"><label class="field-label">Office / Room</label><input type="text" id="ci-office" class="field-input" /></div>
             </div>
-            <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="ci-office-hours" class="field-input" /></div>
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Zoom Link</label><input type="text" id="ci-zoom" class="field-input" placeholder="https://asu.zoom.us/..." /></div>
+              <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="ci-office-hours" class="field-input" /></div>
+            </div>
           </div>
         </div>
         <div class="card">
@@ -986,8 +989,18 @@
             <span class="card-toggle open">▾</span>
           </div>
           <div class="card-body">
-            <div class="step-hint">Write a paragraph or two about the course content. You may reference the <a href="#" style="color:#8c1d40;">Catalog Description</a>.</div>
-            <div class="field-group"><textarea class="field-input" id="course-description" style="min-height:120px;" placeholder="Course description..."></textarea></div>
+            <div class="step-hint">Copy from the <a href="https://catalog.apps.asu.edu/catalog/courses?term=2267" target="_blank" style="color:#8c1d40;">Course Catalog</a>. This is the official catalog description.</div>
+            <div class="field-group"><textarea class="field-input" id="course-description" style="min-height:120px;" placeholder="Course description from catalog..."></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Course Overview</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">An expanded description of the course used across all sections. This goes beyond the catalog description to give students a fuller picture.</div>
+            <div class="field-group"><textarea class="field-input" id="course-overview" style="min-height:120px;" placeholder="Expanded course overview..."></textarea></div>
           </div>
         </div>
         <div style="margin-top:16px; padding:12px 16px; background:#f9f8f5; border:1px solid #e0ddd5; border-radius:8px; display:flex; align-items:center; gap:8px;">
@@ -1147,6 +1160,8 @@
           <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" id="mat-textbook-2" class="field-input" placeholder="Add another..." /></div>
           <button class="btn-add-row">+ Add textbook</button>
           <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea id="mat-other-materials" class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
+          <div class="field-group" style="margin-top:16px;"><label class="field-label">Special Materials</label><textarea id="mat-special-materials" class="field-input" placeholder="Lab coat, safety gear, lab kit, bookstore license, etc."></textarea></div>
+          <div class="field-group" style="margin-top:16px;"><label class="field-label">Co-curricular Activities</label><textarea id="mat-cocurricular" class="field-input" placeholder="Activities outside the normal meeting method required for this course..."></textarea></div>
         </div></div>
         <button class="btn-mark-complete" id="btn-complete-materials" onclick="toggleSectionComplete('materials', this)">
           <span class="complete-icon">○</span> Mark as Complete
@@ -1283,7 +1298,8 @@
         { id: 'late-policy', label: 'Late/Missing Work Policy' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' },
         { id: 'classroom-behavior', label: 'Classroom Behavior Policy' },
-        { id: 'attendance', label: 'Attendance Policy' }
+        { id: 'attendance', label: 'Attendance Policy' },
+        { id: 'mental-health', label: 'Mental Health / Content Warning', hint: 'Add a content warning if course material may be deemed sensitive.' }
       ]
     },
     CHS: {
@@ -5015,7 +5031,7 @@
       }, 50);
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-    const names = {'dashboard':'Getting Started / Dashboard','syllabus-checklist':'Getting Started / Syllabus Checklist','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -7942,9 +7958,301 @@ ${clone.innerHTML}
     }
   }
 
+  // Read a form field value: check saved formData first (authoritative), fall back to DOM
+  function getFieldValue(fieldId) {
+    var formData = loadField('formData') || {};
+    if (formData[fieldId]) return formData[fieldId];
+    var el = document.getElementById(fieldId);
+    if (el && el.value) return el.value;
+    return '';
+  }
+
+  // Write a form field value: update DOM and saved formData
+  function setFieldValue(fieldId, value) {
+    var el = document.getElementById(fieldId);
+    if (el) el.value = value;
+    var formData = loadField('formData') || {};
+    formData[fieldId] = value;
+    saveField('formData', formData);
+  }
+
+  // Build a mirrored textarea that reads/writes to a source field
+  function buildMirrorField(label, sourceFieldId, placeholder, minHeight) {
+    var val = getFieldValue(sourceFieldId);
+    var h = minHeight || '80px';
+    return '<div class="field-group" style="margin-bottom:12px;">' +
+      '<label class="field-label">' + escapeHtml(label) + '</label>' +
+      '<textarea data-managed="true" data-mirror="' + sourceFieldId + '" class="field-input syl-mirror" style="min-height:' + h + ';" placeholder="' + escapeHtml(placeholder) + '" oninput="syncSyllabusMirror(this)">' + escapeHtml(val) + '</textarea>' +
+      '</div>';
+  }
+
+  // Build a mirrored text input
+  function buildMirrorInput(label, sourceFieldId, placeholder) {
+    var val = getFieldValue(sourceFieldId);
+    return '<div class="field-group">' +
+      '<label class="field-label">' + escapeHtml(label) + '</label>' +
+      '<input type="text" data-managed="true" data-mirror="' + sourceFieldId + '" class="field-input syl-mirror" placeholder="' + escapeHtml(placeholder) + '" value="' + escapeHtml(val) + '" oninput="syncSyllabusMirror(this)" />' +
+      '</div>';
+  }
+
+  // Sync mirrored field back to source
+  function syncSyllabusMirror(el) {
+    var sourceId = el.getAttribute('data-mirror');
+    if (!sourceId) return;
+    setFieldValue(sourceId, el.value);
+    showSaveIndicator();
+  }
+
+  // Save syllabus-only fields (policies, grading, etc.)
+  function saveSyllabusField(el) {
+    // These have unique ids and are saved by saveAllFields automatically
+    saveAllFields();
+  }
+
+  // ---- Grading Policy Table ----
+  function getGradingPolicy() {
+    return loadField('gradingPolicy') || [
+      { letter: 'A+', min: '97', max: '100' },
+      { letter: 'A', min: '94', max: '96.99' },
+      { letter: 'A-', min: '90', max: '93.99' },
+      { letter: 'B+', min: '87', max: '89.99' },
+      { letter: 'B', min: '84', max: '86.99' },
+      { letter: 'B-', min: '80', max: '83.99' },
+      { letter: 'C+', min: '77', max: '79.99' },
+      { letter: 'C', min: '70', max: '76.99' },
+      { letter: 'D', min: '60', max: '69.99' },
+      { letter: 'E', min: '0', max: '59.99' }
+    ];
+  }
+
+  function saveGradingPolicy(rows) {
+    saveField('gradingPolicy', rows);
+  }
+
+  function renderGradingTable() {
+    var rows = getGradingPolicy();
+    var html = '<table style="width:100%; border-collapse:collapse; font-size:13px; margin-bottom:12px;">';
+    html += '<thead><tr style="background:#f5f4f0;">';
+    html += '<th style="padding:6px 10px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Letter Grade</th>';
+    html += '<th style="padding:6px 10px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Min %</th>';
+    html += '<th style="padding:6px 10px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Max %</th>';
+    html += '<th style="padding:6px 10px; text-align:center; border:1px solid #e0ddd5; width:40px;"></th>';
+    html += '</tr></thead><tbody>';
+    rows.forEach(function(row, i) {
+      html += '<tr>';
+      html += '<td style="padding:4px 8px; border:1px solid #e0ddd5;"><input type="text" data-managed="true" value="' + escapeHtml(row.letter) + '" onchange="updateGradeRow(' + i + ', \'letter\', this.value)" style="border:none; width:100%; font-size:13px; font-weight:600; font-family:inherit; background:transparent;" /></td>';
+      html += '<td style="padding:4px 8px; border:1px solid #e0ddd5;"><input type="text" data-managed="true" value="' + escapeHtml(row.min) + '" onchange="updateGradeRow(' + i + ', \'min\', this.value)" style="border:none; width:100%; font-size:13px; font-family:inherit; background:transparent;" /></td>';
+      html += '<td style="padding:4px 8px; border:1px solid #e0ddd5;"><input type="text" data-managed="true" value="' + escapeHtml(row.max) + '" onchange="updateGradeRow(' + i + ', \'max\', this.value)" style="border:none; width:100%; font-size:13px; font-family:inherit; background:transparent;" /></td>';
+      html += '<td style="padding:4px 8px; border:1px solid #e0ddd5; text-align:center;"><button onclick="deleteGradeRow(' + i + ')" style="border:none; background:none; color:#c62828; cursor:pointer; font-size:14px;" title="Delete row">×</button></td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    html += '<button onclick="addGradeRow()" style="border:1px dashed #ccc; background:#fafaf7; color:#8c1d40; font-size:12px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit;">+ Add row</button>';
+    return html;
+  }
+
+  function updateGradeRow(idx, field, value) {
+    var rows = getGradingPolicy();
+    if (rows[idx]) { rows[idx][field] = value; saveGradingPolicy(rows); }
+  }
+
+  function addGradeRow() {
+    var rows = getGradingPolicy();
+    rows.push({ letter: '', min: '', max: '' });
+    saveGradingPolicy(rows);
+    renderSyllabusChecklist();
+  }
+
+  function deleteGradeRow(idx) {
+    var rows = getGradingPolicy();
+    rows.splice(idx, 1);
+    saveGradingPolicy(rows);
+    renderSyllabusChecklist();
+  }
+
+  // ---- Assignment Descriptions for Syllabus ----
+  function getAssignmentDescriptions() {
+    return loadField('assignmentDescriptions') || {};
+  }
+
+  function saveAssignmentDescription(actId, value) {
+    var descs = getAssignmentDescriptions();
+    descs[actId] = value;
+    saveField('assignmentDescriptions', descs);
+  }
+
+  function renderSyllabusAssignments() {
+    var descs = getAssignmentDescriptions();
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modCount = activeCourse.moduleCount || 7;
+    var html = '';
+    var hasAny = false;
+
+    for (var m = _startN; m < _startN + modCount; m++) {
+      var acts = courseActivities[m] || [];
+      if (acts.length === 0) continue;
+      acts.forEach(function(act) {
+        if (!act.name || !act.name.trim()) return;
+        hasAny = true;
+        var desc = descs[act.id] || '';
+        html += '<div style="background:#fafaf7; border:1px solid #e0ddd5; border-radius:6px; padding:10px 14px; margin-bottom:8px;">';
+        html += '<div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">';
+        html += '<span style="font-size:13px; font-weight:600; color:#333;">' + escapeHtml(act.name) + '</span>';
+        html += '<span style="font-size:11px; color:#888;">Module ' + m + '</span>';
+        if (act.points) html += '<span style="font-size:11px; color:#888;">· ' + escapeHtml(act.points) + ' pts</span>';
+        html += '</div>';
+        html += '<textarea data-managed="true" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe how this assignment advances mastery of ELOs or competencies..." oninput="saveAssignmentDescription(\'' + act.id + '\', this.value)">' + escapeHtml(desc) + '</textarea>';
+        html += '</div>';
+      });
+    }
+
+    if (!hasAny) {
+      html = '<div style="color:#999; font-size:13px; font-style:italic;">No assignments added yet. Add activities on the module pages first.</div>';
+    }
+
+    return html;
+  }
+
+  // ---- Build section content for each checklist item ----
+  function buildSyllabusSection(itemId) {
+    switch (itemId) {
+      case 'course-desc':
+        return '<div style="padding:12px 0 4px 28px;">' +
+          buildMirrorField('Course Description', 'course-description', 'Course description from catalog...', '80px') +
+          buildMirrorField('Course Overview', 'course-overview', 'Expanded course overview...', '80px') +
+          '<div class="field-row" style="margin-top:4px;">' +
+            buildMirrorInput('Credits', 'ci-credits', 'e.g. 3') +
+            buildMirrorInput('Prerequisites / Enrollment Requirements', 'ci-prerequisites', 'Course prerequisites...') +
+          '</div>' +
+          '</div>';
+
+      case 'instructor-info':
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div class="field-row">' +
+            buildMirrorInput('Instructor Name', 'ci-instructor', 'Name') +
+            buildMirrorInput('Email', 'ci-email', 'Email address') +
+          '</div>' +
+          '<div class="field-row">' +
+            buildMirrorInput('Phone', 'ci-phone', '(480) 965-XXXX') +
+            buildMirrorInput('Office / Room', 'ci-office', 'Office location') +
+          '</div>' +
+          buildMirrorInput('Office Hours', 'ci-office-hours', 'Office hours') +
+          '</div>';
+
+      case 'textbook-info':
+        return '<div style="padding:12px 0 4px 28px;">' +
+          buildMirrorInput('Textbook 1', 'mat-textbook-1', 'Title, author, edition, publisher') +
+          buildMirrorInput('Textbook 2', 'mat-textbook-2', 'Add another...') +
+          buildMirrorField('Special Materials', 'mat-special-materials', 'Lab coat, safety gear, lab kit, bookstore license, etc.', '60px') +
+          buildMirrorField('Co-curricular Activities', 'mat-cocurricular', 'Activities outside the normal meeting method...', '60px') +
+          '<div style="font-size:11px; color:#888; margin-top:4px; padding:6px 8px; background:#f0f7ff; border-radius:4px;">Required Technology (standardized by program) is included automatically in the syllabus output.</div>' +
+          '</div>';
+
+      case 'objectives':
+        // Read-only summary of ELOs and CLOs
+        var eloList = loadField('flatElos') || activeCourse.flatElos || [];
+        var cloList = loadField('clos') || activeCourse.clos || [];
+        var html = '<div style="padding:12px 0 4px 28px;">';
+        if (eloList.length > 0) {
+          html += '<div style="margin-bottom:8px;"><span style="font-size:12px; font-weight:600; color:#555;">Expected Learning Outcomes:</span></div>';
+          html += '<ol style="margin:0 0 12px 16px; padding:0; font-size:12px; color:#555; line-height:1.7;">';
+          eloList.forEach(function(e) { html += '<li>' + escapeHtml(typeof e === 'string' ? e : (e.text || '')) + '</li>'; });
+          html += '</ol>';
+        } else {
+          html += '<div style="font-size:12px; color:#999; font-style:italic; margin-bottom:8px;">No ELOs defined yet.</div>';
+        }
+        if (cloList.length > 0) {
+          html += '<div style="margin-bottom:8px;"><span style="font-size:12px; font-weight:600; color:#555;">Course Level Objectives:</span></div>';
+          html += '<ol style="margin:0 0 8px 16px; padding:0; font-size:12px; color:#555; line-height:1.7;">';
+          cloList.forEach(function(c) { html += '<li>' + escapeHtml(typeof c === 'string' ? c : (c.text || '')) + '</li>'; });
+          html += '</ol>';
+        }
+        html += '<button onclick="showView(\'objectives\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:4px;">Edit on ELOs & CLOs page →</button>';
+        html += '</div>';
+        return html;
+
+      case 'grading-policy':
+        var gradeRoundVal = (loadField('formData') || {})['syl-grade-rounding'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Edit the grading scale below. Delete rows your course does not use.</div>' +
+          '<div class="field-group" style="margin-bottom:12px;">' +
+            '<label class="field-label">Grade Rounding Policy</label>' +
+            '<textarea id="syl-grade-rounding" class="field-input" style="min-height:40px; font-size:12px;" placeholder="e.g., Grades are not rounded. / Grades ending in .5 or higher are rounded up." oninput="saveAllFields()">' + escapeHtml(gradeRoundVal) + '</textarea>' +
+          '</div>' +
+          renderGradingTable() +
+          '</div>';
+
+      case 'assignments-exams':
+        var finalExamVal = (loadField('formData') || {})['syl-final-exam'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Describe how each assignment advances mastery of ELOs or CEPH competencies (2-3 sentences each).</div>' +
+          renderSyllabusAssignments() +
+          '<div style="margin-top:12px; border-top:1px solid #e0ddd5; padding-top:12px;">' +
+            '<div class="field-group"><label class="field-label">Final Exam</label>' +
+            '<textarea id="syl-final-exam" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe how the final exam (if any) will be conducted..." oninput="saveAllFields()">' + escapeHtml(finalExamVal) + '</textarea></div>' +
+          '</div>' +
+          '</div>';
+
+      case 'late-policy':
+        var latePolicyVal = (loadField('formData') || {})['syl-late-policy'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div class="field-group"><label class="field-label">Make-up Work / Late Submission Policy</label>' +
+          '<textarea id="syl-late-policy" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Describe your policies for late submissions and make-up work..." oninput="saveAllFields()">' + escapeHtml(latePolicyVal) + '</textarea></div>' +
+          '</div>';
+
+      case 'course-schedule':
+        // Read-only summary pointing to module overview
+        var savedMods = loadField('moduleOverviewData') || {};
+        var _startN = activeCourse.moduleStartZero ? 0 : 1;
+        var mc = activeCourse.moduleCount || 7;
+        var html = '<div style="padding:12px 0 4px 28px;">';
+        var modSummary = '';
+        for (var m = _startN; m < _startN + mc; m++) {
+          var mod = savedMods[m];
+          if (mod && mod.topic) {
+            modSummary += '<div style="font-size:12px; color:#555; padding:2px 0;"><strong>Module ' + m + ':</strong> ' + escapeHtml(mod.topic) + '</div>';
+          }
+        }
+        if (modSummary) {
+          html += modSummary;
+        } else {
+          html += '<div style="font-size:12px; color:#999; font-style:italic;">No module topics defined yet.</div>';
+        }
+        html += '<button onclick="showView(\'module-overview\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:8px;">Edit on Module Overview →</button>';
+        html += '</div>';
+        return html;
+
+      case 'classroom-behavior':
+        var behaviorVal = (loadField('formData') || {})['syl-classroom-behavior'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:6px;">Expectations for classroom behavior, respectful communication, use of electronics, and recording devices.</div>' +
+          '<div class="field-group"><textarea id="syl-classroom-behavior" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Add a statement regarding expectation of classroom behavior..." oninput="saveAllFields()">' + escapeHtml(behaviorVal) + '</textarea></div>' +
+          '</div>';
+
+      case 'attendance':
+        var attendanceVal = (loadField('formData') || {})['syl-attendance'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:6px;">Include consequences, advance notification expectations, and how students obtain missed information.</div>' +
+          '<div class="field-group"><textarea id="syl-attendance" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Add a statement regarding the absence policy for this course..." oninput="saveAllFields()">' + escapeHtml(attendanceVal) + '</textarea></div>' +
+          '</div>';
+
+      case 'mental-health':
+        var contentWarnVal = (loadField('formData') || {})['syl-content-warning'] || '';
+        return '<div style="padding:12px 0 4px 28px;">' +
+          '<div style="font-size:12px; color:#666; margin-bottom:6px;">If any course content may be deemed offensive or sensitive, add a content warning and explain how to bring concerns to the instructor.</div>' +
+          '<div class="field-group"><label class="field-label">Content Warning (if applicable)</label>' +
+          '<textarea id="syl-content-warning" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Content warning for sensitive course material..." oninput="saveAllFields()">' + escapeHtml(contentWarnVal) + '</textarea></div>' +
+          '</div>';
+
+      default:
+        return '';
+    }
+  }
+
   function renderSyllabusChecklist() {
     var template = getActiveTemplate();
     var state = getSyllabusChecklistState();
+    var expandState = loadField('syllabusExpand') || {};
     var total = countChecklistItems(template);
     var checked = countChecklistChecked(template, state);
     var pct = total > 0 ? Math.round(100 * checked / total) : 0;
@@ -7972,24 +8280,41 @@ ${clone.innerHTML}
     var html = '';
     template.items.forEach(function(item, idx) {
       var isChecked = !!state[item.id];
-      html += '<div style="background:#fff; border:1px solid ' + (isChecked ? '#c8e6c9' : '#e0ddd5') + '; border-radius:8px; padding:12px 16px; margin-bottom:8px; transition:border-color 0.2s;">';
-      html += '<div style="display:flex; align-items:flex-start; gap:10px;">';
-      html += '<input type="checkbox" ' + (isChecked ? 'checked' : '') + ' onchange="toggleChecklistItem(\'' + item.id + '\')" style="width:18px; height:18px; cursor:pointer; flex-shrink:0; margin-top:1px; accent-color:#8c1d40;">';
+      var isExpanded = !!expandState[item.id];
+      var sectionContent = buildSyllabusSection(item.id);
+      var hasContent = sectionContent.length > 0;
+
+      html += '<div style="background:#fff; border:1px solid ' + (isChecked ? '#c8e6c9' : '#e0ddd5') + '; border-radius:8px; margin-bottom:8px; transition:border-color 0.2s;">';
+
+      // Header row
+      html += '<div style="display:flex; align-items:flex-start; gap:10px; padding:12px 16px; cursor:' + (hasContent ? 'pointer' : 'default') + ';" ' + (hasContent ? 'onclick="toggleSyllabusExpand(\'' + item.id + '\', event)"' : '') + '>';
+      html += '<input type="checkbox" ' + (isChecked ? 'checked' : '') + ' onchange="event.stopPropagation(); toggleChecklistItem(\'' + item.id + '\')" style="width:18px; height:18px; cursor:pointer; flex-shrink:0; margin-top:1px; accent-color:#8c1d40;">';
       html += '<div style="flex:1; min-width:0;">';
       html += '<div style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">';
+      if (hasContent) {
+        html += '<span style="font-size:12px; color:#999; transition:transform 0.2s; transform:rotate(' + (isExpanded ? '90' : '0') + 'deg);">▶</span>';
+      }
       html += '<span style="font-size:14px; font-weight:500; color:' + (isChecked ? '#999' : '#333') + '; text-decoration:' + (isChecked ? 'line-through' : 'none') + ';">' + escapeHtml(item.label) + '</span>';
       if (item.linkedSection) {
-        html += '<button onclick="showView(\'' + item.linkedSection + '\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:inherit;">Go →</button>';
+        html += '<button onclick="event.stopPropagation(); showView(\'' + item.linkedSection + '\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:2px 8px; border-radius:4px; cursor:pointer; font-family:inherit;">Go →</button>';
       }
       html += '</div>';
       if (item.hint) {
-        html += '<div style="font-size:12px; color:#888; margin-top:4px;">' + escapeHtml(item.hint) + '</div>';
+        html += '<div style="font-size:12px; color:#888; margin-top:4px; margin-left:' + (hasContent ? '20px' : '0') + ';">' + escapeHtml(item.hint) + '</div>';
       }
       html += '</div>';
       html += '</div>';
 
+      // Expandable content section
+      if (hasContent && isExpanded) {
+        html += '<div style="border-top:1px solid #f0ede5; padding:0 16px 12px 16px;">';
+        html += sectionContent;
+        html += '</div>';
+      }
+
+      // Children (sub-items)
       if (item.children && item.children.length > 0) {
-        html += '<div style="margin-left:28px; margin-top:8px; padding-left:12px; border-left:2px solid #e0ddd5;">';
+        html += '<div style="margin-left:28px; padding:0 16px 12px 12px; border-left:2px solid #e0ddd5;">';
         item.children.forEach(function(child) {
           var childChecked = !!state[child.id];
           html += '<div style="display:flex; align-items:flex-start; gap:8px; margin-bottom:6px;">';
@@ -8010,6 +8335,25 @@ ${clone.innerHTML}
 
     container.innerHTML = html;
     updateChecklistBadge();
+
+    // Auto-resize any textareas that were just rendered
+    setTimeout(function() {
+      container.querySelectorAll('textarea').forEach(function(ta) {
+        if (ta.value && ta.offsetParent !== null) {
+          ta.style.height = 'auto';
+          ta.style.height = Math.max(ta.scrollHeight, parseInt(ta.style.minHeight) || 60) + 'px';
+        }
+      });
+    }, 50);
+  }
+
+  function toggleSyllabusExpand(itemId, event) {
+    // Don't toggle if clicking on a checkbox or button
+    if (event && (event.target.tagName === 'INPUT' || event.target.tagName === 'BUTTON')) return;
+    var expandState = loadField('syllabusExpand') || {};
+    expandState[itemId] = !expandState[itemId];
+    saveField('syllabusExpand', expandState);
+    renderSyllabusChecklist();
   }
 
   // ===== COMMENT PANEL =====
