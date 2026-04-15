@@ -7577,92 +7577,312 @@
   function renderSyllabusPreview(container) {
     const esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
     const placeholder = function(text) { return '<p style="color:#999; font-style:italic;">' + text + '</p>'; };
+    const val = function(id) {
+      var formData = loadField('formData') || {};
+      if (formData[id]) return formData[id];
+      var el = document.getElementById(id); return el ? el.value.trim() : '';
+    };
+    const sectionDivider = '<hr style="border:none; border-top:1px solid #e0ddd5; margin:20px 0;">';
 
-    // Read form values by ID for reliability
-    const val = function(id) { var el = document.getElementById(id); return el ? el.value.trim() : ''; };
+    var modCount = activeCourse.moduleCount || 7;
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var savedMods = loadField('moduleOverviewData') || {};
+    var savedElos = loadField('flatElos') || activeCourse.flatElos || [];
+    var savedClos = loadField('clos') || activeCourse.clos || [];
 
     let html = '';
+
+    // ===== HEADER =====
     html += '<div style="text-align:center; margin-bottom:24px;">';
-    html += '<h1 style="margin-bottom:4px;">' + esc(val('ci-course-code') || activeCourse.code) + ': ' + esc(val('ci-course-name') || activeCourse.name) + '</h1>';
-    html += '<p style="font-size:14px; color:#666;">Syllabus &bull; ' + esc(val('ci-session') || activeCourse.session || '') + '</p>';
+    html += '<h1 style="margin-bottom:4px;">' + esc(val('ci-course-code') || activeCourse.code) + '</h1>';
+    html += '<p style="font-size:16px; font-weight:600;">' + esc(val('ci-course-name') || activeCourse.name) + '</p>';
+    html += '<p style="font-size:14px; color:#666;">' + esc(val('ci-session') || activeCourse.session || '') + '</p>';
     html += '</div>';
 
-    // Instructor info
+    // ===== COURSE DESCRIPTION =====
+    var desc = val('course-description');
+    html += '<p><strong>Course Description:</strong> ' + (desc ? esc(desc).replace(/\n/g, '<br>') : '<em>Not entered</em>') + '</p>';
+
+    var overview = val('course-overview');
+    if (overview) html += '<p><strong>Course Overview:</strong> ' + esc(overview).replace(/\n/g, '<br>') + '</p>';
+
+    html += '<p><strong>Credit Hours:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
+    var prereqs = val('ci-prerequisites');
+    if (prereqs) html += '<p><strong>Enrollment Requirements:</strong> ' + esc(prereqs) + '</p>';
+
+    html += '<p><strong>Course Access:</strong> Your ASU courses can be accessed by both <a href="http://my.asu.edu">my.asu.edu</a> and <a href="http://myasucourses.asu.edu">myasucourses.asu.edu</a>; bookmark both in the event that one site is down.</p>';
+
+    html += sectionDivider;
+
+    // ===== INSTRUCTOR INFORMATION =====
     html += '<h2>Instructor Information</h2>';
     html += '<table style="border:none; font-size:13px; margin-bottom:16px;">';
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Instructor:</td><td>' + esc(val('ci-instructor') || activeCourse.instructor) + '</td></tr>';
+    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Name:</td><td>' + esc(val('ci-instructor') || activeCourse.instructor) + '</td></tr>';
     html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Email:</td><td>' + esc(val('ci-email') || activeCourse.email) + '</td></tr>';
+    var phone = val('ci-phone');
+    if (phone) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Phone:</td><td>' + esc(phone) + '</td></tr>';
     var office = val('ci-office');
-    if (office) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office:</td><td>' + esc(office) + '</td></tr>';
+    if (office) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office/Room:</td><td>' + esc(office) + '</td></tr>';
     var officeHrs = val('ci-office-hours');
     if (officeHrs) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office Hours:</td><td>' + esc(officeHrs) + '</td></tr>';
-    var zoom = val('ci-zoom');
-    if (zoom) html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Zoom:</td><td>' + esc(zoom) + '</td></tr>';
     html += '</table>';
 
-    // Course details
-    html += '<h2>Course Details</h2>';
-    html += '<p><strong>Credits:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
-    var prereqs = val('ci-prerequisites');
-    if (prereqs) html += '<p><strong>Prerequisites:</strong> ' + esc(prereqs) + '</p>';
+    html += sectionDivider;
 
-    // Description
-    var desc = val('course-description');
-    html += '<h2>Course Description</h2>';
-    html += desc ? '<p>' + esc(desc).replace(/\n/g, '<br>') + '</p>' : placeholder('No course description entered.');
+    // ===== COURSE BASICS =====
+    html += '<h2>Course Basics</h2>';
 
-    // Learning Outcomes
-    var elos = activeCourse.flatElos || [];
-    if (elos.length > 0) {
-      html += '<h2>Learning Outcomes</h2>';
-      html += '<p>Upon successful completion of this course, students will be able to:</p><ol>';
-      elos.forEach(function(elo) { html += '<li>' + esc(elo) + '</li>'; });
-      html += '</ol>';
-    }
-
-    // Textbooks
+    // Textbook
     var tb1 = val('mat-textbook-1'), tb2 = val('mat-textbook-2');
+    html += '<h3>Textbook, Materials, Technology and Co-curricular Activities</h3>';
     if (tb1 || tb2) {
-      html += '<h2>Required Materials</h2><ul>';
+      html += '<p><strong>Textbook:</strong></p><ul>';
       if (tb1) html += '<li>' + esc(tb1) + '</li>';
       if (tb2) html += '<li>' + esc(tb2) + '</li>';
       html += '</ul>';
+    } else {
+      html += '<p><strong>Textbook:</strong> <em>Not specified</em></p>';
     }
 
-    // Grading
-    var weights = loadField('assignmentWeights') || [];
-    var hasWeights = weights.some(function(w) { return w.category && w.weight; });
-    if (hasWeights) {
-      html += '<h2>Grading</h2>';
-      html += '<table style="border-collapse:collapse; width:60%; font-size:13px;"><thead><tr><th style="padding:6px 12px; border:1px solid #ddd; text-align:left; background:#f5f5f0;">Category</th><th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Weight</th></tr></thead><tbody>';
-      weights.forEach(function(w) {
-        if (w.category && w.weight) html += '<tr><td style="padding:4px 12px; border:1px solid #ddd;">' + esc(w.category) + '</td><td style="padding:4px 12px; border:1px solid #ddd; text-align:center;">' + esc(w.weight + '%') + '</td></tr>';
+    var specialMats = val('mat-special-materials');
+    if (specialMats) html += '<p><strong>Special Materials:</strong> ' + esc(specialMats).replace(/\n/g, '<br>') + '</p>';
+
+    var cocurricular = val('mat-cocurricular');
+    if (cocurricular) html += '<p><strong>Co-curricular Activities:</strong> ' + esc(cocurricular).replace(/\n/g, '<br>') + '</p>';
+
+    // Required Technology (standardized)
+    html += '<p><strong>Required Technology</strong></p>';
+    html += '<ol style="font-size:13px;">';
+    html += '<li>Desktop or laptop computer with current/updated operating software</li>';
+    html += '<li>Reliable broadband internet connection (DSL or cable) to stream videos</li>';
+    html += '<li>Web browser updated to the most recent version (Chrome preferred for Canvas)</li>';
+    html += '<li>Webcam, microphone, headset/earbuds, and speaker</li>';
+    html += '<li>Microsoft Office (Microsoft 365 is free to currently enrolled ASU Students)</li>';
+    html += '<li>Adobe Acrobat Reader (free)</li>';
+    html += '</ol>';
+
+    // Course Objectives (CLOs)
+    html += '<h3>Course Objectives</h3>';
+    if (savedClos.length > 0) {
+      html += '<p>Students will learn/understand:</p><ol>';
+      savedClos.forEach(function(clo) { html += '<li>' + esc(typeof clo === 'string' ? clo : (clo.text || '')) + '</li>'; });
+      html += '</ol>';
+    } else {
+      html += placeholder('No course objectives defined.');
+    }
+
+    // Expected Learning Outcomes (ELOs)
+    html += '<h3>Expected Learning Outcomes</h3>';
+    if (savedElos.length > 0) {
+      html += '<p>Students completing this course will be able to:</p><ol>';
+      savedElos.forEach(function(elo) { html += '<li>' + esc(typeof elo === 'string' ? elo : (elo.text || '')) + '</li>'; });
+      html += '</ol>';
+    } else {
+      html += placeholder('No ELOs defined.');
+    }
+
+    // Module-level Objectives table
+    html += '<h3>Module-level Objectives (MLOs)</h3>';
+    html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Module</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Objectives</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Relates to ELO #</th>';
+    html += '</tr></thead><tbody>';
+    for (var m = startNum; m < startNum + modCount; m++) {
+      var mod = savedMods[m] || {};
+      var mlos = mod.mlos || [];
+      if (mlos.length === 0) continue;
+      mlos.forEach(function(mlo, mi) {
+        if (!mlo || !mlo.trim()) return;
+        var mloId = m + '.' + (mi + 1);
+        // Find which ELOs this MLO is aligned to
+        var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
+        var relatedElos = [];
+        Object.keys(alignment).forEach(function(eloIdx) {
+          if ((alignment[eloIdx] || []).indexOf(mloId) !== -1) relatedElos.push('ELO ' + (parseInt(eloIdx) + 1));
+        });
+        html += '<tr>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; font-weight:600;">' + m + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + esc(mlo) + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (relatedElos.length > 0 ? relatedElos.join(', ') : '—') + '</td>';
+        html += '</tr>';
       });
-      html += '</tbody></table>';
-    }
-
-    // Course schedule
-    var modules = activeCourse.modules || [];
-    var modCount = activeCourse.moduleCount || modules.length || 7;
-    var startNum = activeCourse.moduleStartZero ? 0 : 1;
-    var savedMods = loadField('moduleOverviewData') || {};
-    html += '<h2>Course Schedule</h2>';
-    html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Module</th><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Topic</th><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Key Assignments</th></tr></thead><tbody>';
-    for (var m = 0; m < modCount; m++) {
-      var modNum = m + startNum;
-      var mod = modules[m] || {};
-      var savedMod = savedMods[modNum] || {};
-      var topic = savedMod.topic || mod.title || '';
-      var acts = (courseActivities[modNum] || []).map(function(a) { return a.name || 'Unnamed'; }).join(', ');
-      html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40; text-align:center;">M' + modNum + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + esc(topic || 'Module ' + modNum) + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + esc(acts || '—') + '</td></tr>';
     }
     html += '</tbody></table>';
 
-    html += '<div style="margin-top:24px; padding:16px; background:#fff8e1; border-radius:8px; font-size:12px; color:#666;">';
-    html += '<strong>Note:</strong> This is a draft syllabus generated from the course development data. To use your college\'s official syllabus template, upload it via the ID Dashboard and it will be populated with this data automatically.';
-    html += '</div>';
+    html += sectionDivider;
+
+    // ===== GRADING POLICY =====
+    html += '<h2>Grading Policy</h2>';
+    var gradeRounding = val('syl-grade-rounding');
+    if (gradeRounding) html += '<p>' + esc(gradeRounding).replace(/\n/g, '<br>') + '</p>';
+
+    // Grade breakdown table
+    var gradingRows = getGradingPolicy();
+    html += '<p><strong>Grade Breakdown:</strong></p>';
+    html += '<table style="border-collapse:collapse; width:50%; font-size:13px;"><thead><tr>';
+    html += '<th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Letter Grade</th>';
+    html += '<th style="padding:6px 12px; border:1px solid #ddd; text-align:center; background:#f5f5f0;">Percentage</th>';
+    html += '</tr></thead><tbody>';
+    gradingRows.forEach(function(row) {
+      if (!row.letter) return;
+      html += '<tr><td style="padding:4px 12px; border:1px solid #ddd; text-align:center; font-weight:600;">' + esc(row.letter) + '</td>';
+      html += '<td style="padding:4px 12px; border:1px solid #ddd; text-align:center;">' + esc(row.min) + ' – ' + esc(row.max) + '%</td></tr>';
+    });
+    html += '</tbody></table>';
+
+    html += sectionDivider;
+
+    // ===== ASSIGNMENTS / EXAMS =====
+    html += '<h2>Assignments/Exams</h2>';
+    html += '<p>All assignments, unless otherwise announced, MUST be submitted to the designated area of Canvas. Do not submit an assignment via email.</p>';
+    html += '<p>Assignment due dates/times follow Arizona Standard Time.</p>';
+
+    // Assignment summary table
+    var allActs = [];
+    for (var m = startNum; m < startNum + modCount; m++) {
+      (courseActivities[m] || []).forEach(function(a) { if (a.name && a.name.trim()) allActs.push(a); });
+    }
+    if (allActs.length > 0) {
+      html += '<table style="border-collapse:collapse; width:100%; font-size:12px; margin:12px 0;"><thead><tr>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Assignment</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Points</th>';
+      html += '</tr></thead><tbody>';
+      var totalPts = 0;
+      allActs.forEach(function(a) {
+        var pts = parseInt(a.points) || 0;
+        totalPts += pts;
+        html += '<tr><td style="padding:4px 6px; border:1px solid #ddd;">' + esc(a.name) + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + esc(a.points || '—') + '</td></tr>';
+      });
+      html += '<tr style="font-weight:600;"><td style="padding:4px 6px; border:1px solid #ddd;">Total</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + totalPts + '</td></tr>';
+      html += '</tbody></table>';
+    }
+
+    // Assignment descriptions
+    var descs = getAssignmentDescriptions();
+    var hasDescs = false;
+    allActs.forEach(function(a) { if (descs[a.id]) hasDescs = true; });
+    if (hasDescs) {
+      allActs.forEach(function(a) {
+        if (!descs[a.id]) return;
+        html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(descs[a.id]).replace(/\n/g, '<br>') + '</p>';
+      });
+    }
+
+    // Final exam
+    var finalExam = val('syl-final-exam');
+    html += '<p><strong>Final Exam:</strong> ' + (finalExam ? esc(finalExam).replace(/\n/g, '<br>') : '<em>Not specified</em>') + '</p>';
+
+    // Late/Missing work
+    var latePolicy = val('syl-late-policy');
+    html += '<p><strong>Make-up work/late submission general policy:</strong> ' + (latePolicy ? esc(latePolicy).replace(/\n/g, '<br>') : '<em>Not specified</em>') + '</p>';
+    html += '<p>Notify the instructor BEFORE an assignment is due if an urgent situation arises and you are unable to submit the assignment on time.</p>';
+
+    // Academic Integrity
+    html += '<p><strong>Academic Integrity:</strong> Academic honesty is expected of all students in all examinations, papers, laboratory work, academic transactions and records. The Academic Integrity Policy is strictly enforced for students found in violation.</p>';
+
+    html += sectionDivider;
+
+    // ===== COURSE SCHEDULE =====
+    html += '<h2>Course Schedule</h2>';
+    html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Week</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Topic/Module</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Assignments Due</th>';
+    html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Assoc. ELO / CEPH #</th>';
+    html += '</tr></thead><tbody>';
+    for (var m = startNum; m < startNum + modCount; m++) {
+      var mod = savedMods[m] || {};
+      var topic = mod.topic || '';
+      var acts = courseActivities[m] || [];
+      var actNames = acts.filter(function(a) { return a.name && a.name.trim(); }).map(function(a) { return esc(a.name); });
+      var eloRefs = [];
+      acts.forEach(function(a) {
+        (a.objectives || []).forEach(function(id) { if (eloRefs.indexOf(id) === -1) eloRefs.push(id); });
+      });
+      html += '<tr>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; font-weight:600;">' + m + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (topic ? esc(topic) : '—') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (actNames.length > 0 ? actNames.join(', ') : '—') + '</td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '—') + '</td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '<p style="font-size:11px; color:#888;"><em>Note: While every effort is made to keep the course evaluation process consistent with what is in the initial syllabus, it is possible that slight changes may have to be made as the semester progresses.</em></p>';
+
+    html += sectionDivider;
+
+    // ===== CLASS EXPECTATIONS =====
+    html += '<h2>Class Expectations</h2>';
+
+    // Classroom Behavior
+    html += '<h3>Classroom Behavior Policy</h3>';
+    var behavior = val('syl-classroom-behavior');
+    html += behavior ? '<p>' + esc(behavior).replace(/\n/g, '<br>') + '</p>' : placeholder('Not specified.');
+    html += '<p>Disruptive and violent behavior is not tolerated.</p>';
+
+    // Attendance
+    html += '<h3>Attendance Policy</h3>';
+    html += '<p>Some absences are excused in accordance with ASU policy, including accommodations for religious practices, University-sanctioned activities, and death of a family member.</p>';
+    var attendance = val('syl-attendance');
+    html += attendance ? '<p>' + esc(attendance).replace(/\n/g, '<br>') + '</p>' : placeholder('Not specified.');
+
+    // Student Success Tips (standard)
+    html += '<h3>Student Success Tips</h3>';
+    html += '<p>To be successful, you are encouraged to:</p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li>Check the course Canvas site daily</li>';
+    html += '<li>Read announcements</li>';
+    html += '<li>Read and respond to course email messages as needed</li>';
+    html += '<li>Complete assignments by the due dates specified</li>';
+    html += '<li>Communicate regularly with your instructor and peers</li>';
+    html += '<li>Create a study and/or assignment schedule to stay on track</li>';
+    html += '</ul>';
+
+    // Mental Health
+    html += '<h3>Mental Health</h3>';
+    var formData = loadField('formData') || {};
+    var hasContentWarning = formData['syl-content-warning-flag'];
+    var contentWarning = val('syl-content-warning');
+    if (hasContentWarning && contentWarning) {
+      html += '<p><strong>Content Warning:</strong> ' + esc(contentWarning).replace(/\n/g, '<br>') + '</p>';
+    }
+    html += '<p>Students may experience a range of challenges that can interfere with learning. ASU Counseling Services provides counseling and crisis services for students who are experiencing a mental health concern. Any student may call or walk-in to any ASU counseling center for a same day or future appointment. ASU\'s dedicated crisis line is available 24/7 at 480-921-1006.</p>';
+
+    // Campus Network / Technical Support
+    html += '<h3>Campus Network Outage and Technical Support</h3>';
+    html += '<p>When access to Canvas is not available for an extended period of time (greater than one entire evening) you can reasonably expect that the due date for assignments will be changed to the next day (assignment still due by 11:59pm).</p>';
+    html += '<p><strong>Technical Support:</strong> For immediate assistance, call ASU at 1-855-278-5080 or visit the ASU Experience Center for 24/7 live chat.</p>';
+
+    // Third-Party Software
+    html += '<h3>Third-Party Software and FERPA</h3>';
+    html += '<p>During this course you might have the opportunity to use public online services and/or software applications. You need not make any personally identifying information on a public site. Where appropriate you may use a pseudonym or nickname.</p>';
+
+    // Disability
+    html += '<h3>Disability Accommodations</h3>';
+    html += '<p>Reasonable accommodations are determined on a case-by-case, course-by-course basis. Students with disabilities who require accommodations must register with Student Accessibility and Inclusive Learning Services and submit appropriate documentation.</p>';
+
+    // Inclusive Excellence
+    html += '<h3>Inclusive Excellence and Health Equity</h3>';
+    html += '<p>The college is committed to the idea that every member of our society should have the opportunity for good health and wellness throughout their lifespans. We embrace and support inclusive excellence in everything we do.</p>';
+
+    // Title IX
+    html += '<h3>Prohibition Against Discrimination, Harassment, &amp; Retaliation</h3>';
+    html += '<p>Title IX is a federal law that provides that no person be excluded on the basis of sex from participation in, be denied benefits of, or be subjected to discrimination under any education program or activity. For information and resources, visit sexualviolenceprevention.asu.edu/faqs.</p>';
+
+    html += sectionDivider;
+
+    // ===== ASU POLICIES =====
+    html += '<h2>ASU Policies</h2>';
+    html += '<p>Review ASU Policies at the official ASU policy page.</p>';
+
+    // Copyright
+    html += '<h3>Copyright</h3>';
+    html += '<p>Students must refrain from uploading to any course shell material that is not the student\'s original work, unless the students first comply with all applicable copyright laws. The course syllabus and all other class materials are intellectual property of Arizona State University and are not to be publicly distributed or otherwise commercialized.</p>';
+
+    html += '<p style="font-size:12px; color:#888; margin-top:16px;"><em>Information in this syllabus, other than grade and absence policies, is subject to change with reasonable advance notice. Please consult Canvas regularly.</em></p>';
 
     container.innerHTML = html;
   }
