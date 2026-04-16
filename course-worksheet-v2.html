@@ -2972,11 +2972,12 @@
       }
 
       html += '</div>';
-      // AI Suggest ELO Tags button (only if ELOs exist and MLOs exist)
+      html += '<div style="display:flex; justify-content:space-between; align-items:center;">';
+      html += '<button class="btn-add-row" onclick="addObjective(' + modNum + ')" style="margin:0;">+ Add objective</button>';
       if ((activeCourse.flatElos || []).length > 0 && mloCount > 0) {
-        html += '<button onclick="aiSuggestEloTags(' + modNum + ', this)" style="margin-bottom:8px; padding:5px 12px; border:1px solid #e0ddd5; border-radius:6px; background:#fafaf7; color:#8c1d40; font-size:11px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">✨ Suggest ELO Tags</button>';
+        html += '<button onclick="aiSuggestEloTags(' + modNum + ', this)" style="padding:5px 12px; border:1px solid #e0ddd5; border-radius:6px; background:#fafaf7; color:#8c1d40; font-size:11px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">✨ Suggest ELO Tags</button>';
       }
-      html += '<button class="btn-add-row" onclick="addObjective(' + modNum + ')">+ Add objective</button>';
+      html += '</div>';
       html += '</div>';
 
       html += '</div></div>';
