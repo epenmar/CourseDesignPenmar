@@ -4251,11 +4251,13 @@
       var s = stemWord(word);
       return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
     }
+    var unmatchedMeetings = [];
     if (milestoneStatus && syncedCourse.calendarMeetings) {
       const calMtgs = syncedCourse.calendarMeetings;
       const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; }));
       calMtgs.forEach(function(cm) {
         const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+        var wasMatched = false;
         for (let k = 0; k < msLabels.length; k++) {
           if (msLabels[k].length === 0) continue;
           const matched = msLabels[k].every(function(w) { return fuzzyWordMatch(w, cmLower); });
@@ -4264,10 +4266,14 @@
             const mo = d.toLocaleDateString('en-US', {month:'short'});
             const day = d.getDate();
             milestoneStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
+            wasMatched = true;
             break;
           }
         }
+        if (!wasMatched) unmatchedMeetings.push(cm);
       });
+    } else if (syncedCourse && syncedCourse.calendarMeetings) {
+      unmatchedMeetings = syncedCourse.calendarMeetings.slice();
     }
 
     // Apply calendar meeting dates to milestones (only if user hasn't manually set a date)
@@ -4318,6 +4324,21 @@
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
         <td style="font-size:12px; color:${statusColor}"><label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" data-managed="true"${checkedAttr} onchange="toggleMilestoneComplete(${i}, this.checked)" style="width:14px; height:14px; cursor:pointer;">${statusLabel}</label></td>
       </tr>`;
+    }
+
+    // Unmatched calendar meetings (not tied to a specific milestone)
+    if (unmatchedMeetings.length > 0) {
+      unmatchedMeetings.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
+      unmatchedMeetings.forEach(function(cm) {
+        var d = new Date(cm.date + 'T00:00:00');
+        var mtgFmt = fmt(d);
+        var mtgPretty = d.toLocaleDateString('en-US', {month:'short'}) + ' ' + d.getDate() + (cm.time ? ' at ' + cm.time : '');
+        html += `<tr style="background:#e3f2fd;">
+          <td>📅 ${cm.label || 'Scheduled Meeting'}</td>
+          <td><input type="date" class="date-input" value="${mtgFmt}" disabled style="background:transparent; border-color:#90caf9;" /></td>
+          <td style="font-size:12px; color:#1565c0;">${mtgPretty}</td>
+        </tr>`;
+      });
     }
 
     // Fixed end rows
