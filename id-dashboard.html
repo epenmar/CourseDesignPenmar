@@ -1089,6 +1089,102 @@
     renderTable();
   }
 
+  // ===== REVIEWERS =====
+  function getReviewers(courseId) {
+    try { var all = JSON.parse(localStorage.getItem('course_reviewers') || '{}'); return all[courseId] || []; } catch(e) { return []; }
+  }
+
+  function saveReviewers(courseId, list) {
+    var all = JSON.parse(localStorage.getItem('course_reviewers') || '{}');
+    all[courseId] = list;
+    localStorage.setItem('course_reviewers', JSON.stringify(all));
+  }
+
+  function toggleReviewerForm(courseId) {
+    var form = document.getElementById('reviewer-form-' + courseId);
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addReviewer(courseId) {
+    var nameInput = document.getElementById('reviewer-name-' + courseId);
+    var emailInput = document.getElementById('reviewer-email-' + courseId);
+    var name = nameInput.value.trim();
+    var email = emailInput.value.trim();
+    if (!name || !email) { alert('Enter both name and email.'); return; }
+
+    var slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    var reviewers = getReviewers(courseId);
+    // Check for duplicate
+    if (reviewers.some(function(r) { return r.slug === slug; })) {
+      alert(name + ' is already a reviewer.');
+      return;
+    }
+    reviewers.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
+    saveReviewers(courseId, reviewers);
+
+    // Also add to worksheet user_courses so the worksheet recognizes this reviewer
+    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    if (userCourses[courseId] && userCourses[courseId]._worksheet) {
+      if (!userCourses[courseId]._worksheet.users) userCourses[courseId]._worksheet.users = {};
+      userCourses[courseId]._worksheet.users[slug] = { name: name, role: 'reviewer' };
+      localStorage.setItem('user_courses', JSON.stringify(userCourses));
+    }
+
+    // Compose email
+    var c = courseData[courseId];
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var reviewUrl = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer';
+    var subject = encodeURIComponent('Review Invitation: ' + (c.emailName || c.code));
+    var firstName = name.split(/\s+/)[0];
+    var bodyText = 'Hi ' + firstName + ',\n\n' +
+      'You\'ve been invited to review the ' + (c.emailName || c.code) + ' course development worksheet.\n\n' +
+      'Your personalized reviewer link:\n' + reviewUrl + '\n\n' +
+      'You can use this link to:\n' +
+      '• Review course content including CLOs, ELOs, module objectives, and assignments\n' +
+      '• Leave comments and feedback on any section\n\n' +
+      'Your comments will be attributed to your name. Please bookmark this link for easy access.\n\n' +
+      'Thank you,\n' + getProfile().sig;
+    var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
+    window.open(mailto, '_blank');
+
+    // Refresh the side panel
+    nameInput.value = '';
+    emailInput.value = '';
+    renderDetail(courseId);
+  }
+
+  function removeReviewer(courseId, idx) {
+    var reviewers = getReviewers(courseId);
+    var removed = reviewers.splice(idx, 1)[0];
+    saveReviewers(courseId, reviewers);
+
+    // Also remove from worksheet users
+    if (removed) {
+      var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      if (userCourses[courseId] && userCourses[courseId]._worksheet && userCourses[courseId]._worksheet.users) {
+        delete userCourses[courseId]._worksheet.users[removed.slug];
+        localStorage.setItem('user_courses', JSON.stringify(userCourses));
+      }
+    }
+    renderDetail(courseId);
+  }
+
+  function copyReviewerLink(courseId, idx) {
+    var reviewers = getReviewers(courseId);
+    var r = reviewers[idx];
+    if (!r) return;
+    var c = courseData[courseId];
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var url = baseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
+    navigator.clipboard.writeText(url).then(function() {
+      // Brief visual feedback
+      var btns = document.querySelectorAll('[onclick*="copyReviewerLink"]');
+      btns.forEach(function(b) { if (b.textContent === '✓') b.textContent = '📋'; });
+      event.target.textContent = '✓';
+      setTimeout(function() { event.target.textContent = '📋'; }, 1500);
+    });
+  }
+
   function getInactiveCourses() {
     try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
   }
@@ -1420,27 +1516,36 @@
     if (c.email) {
       html += buildEmailDropdown(id, c);
     }
-    if (c.email && c.devLink && c.instructorSlug) {
-      const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-      const worksheetUrl = baseUrl + c.devLink + '&user=' + c.instructorSlug;
-      const subject = encodeURIComponent('Your ' + c.emailName + ' Course Development Worksheet');
-      let bodyText = 'Hi ' + c.instructor.split(/\s*&\s*/)[0].split(/\s+/)[0] + ',\n\n' +
-        'Here is your personalized link to the ' + c.emailName + ' course development page:\n' +
-        worksheetUrl + '\n\n' +
-        'You can use these links to:\n' +
-        '• Review and edit course content including CLOs, ELOs, module objectives, and assignments\n' +
-        '• Leave comments and feedback on any section\n' +
-        '• Track development milestones and timeline\n\n' +
-        'Your work will be auto-saved. Please bookmark this link for easy access.\n\n';
-      if (c.driveFolder) {
-        bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
-        'Please store any documents pertaining to the course in this Drive folder. When referencing materials in the development tool, you can provide a link to the document through the user interface.\n\n';
-      }
-      bodyText += 'All the best,\n' + getProfile().sig + '';
-      const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
-      html += `<a href="${wsComposeUrl}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
-    }
+    html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
     html += `</div>`;
+
+    // Reviewer invite form (hidden by default)
+    html += `<div id="reviewer-form-${id}" style="display:none; margin-top:10px; padding:12px 14px; background:#f0faf0; border:1px solid #c8e6c9; border-radius:8px;">
+      <div style="font-size:12px; font-weight:600; color:#2e7d32; margin-bottom:8px;">Invite a Reviewer</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="reviewer-name-${id}" placeholder="Full name" style="flex:1; min-width:120px; padding:6px 10px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <input type="email" id="reviewer-email-${id}" placeholder="Email" style="flex:1; min-width:160px; padding:6px 10px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <button onclick="addReviewer('${id}')" style="padding:6px 14px; background:#4caf50; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif; white-space:nowrap;">Send Invite</button>
+      </div>
+    </div>`;
+
+    // Existing reviewers list
+    var reviewers = getReviewers(id);
+    if (reviewers.length > 0) {
+      html += `<div style="margin-top:10px;">
+        <div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">Reviewers</div>`;
+      var rBaseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+      reviewers.forEach(function(r, ri) {
+        var rUrl = rBaseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
+        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+          <span style="flex:1; font-weight:500;">${r.name}</span>
+          <span style="color:#888; font-size:11px;">${r.email}</span>
+          <button onclick="copyReviewerLink('${id}', ${ri})" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
+          <button onclick="removeReviewer('${id}', ${ri})" title="Remove reviewer" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
 
     // Inactive toggle + note
     html += `<div style="margin-top:12px; padding:10px 14px; background:${isInactive ? '#fafafa' : '#fff'}; border:1px solid ${isInactive ? '#e0ddd5' : '#eee'}; border-radius:8px;">

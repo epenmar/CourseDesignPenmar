@@ -427,6 +427,7 @@
   .comment-author .role-tag { font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px; margin-left: 6px; }
   .role-tag.id { background: #e8f0fe; color: #1565c0; }
   .role-tag.instructor { background: #fef3e8; color: #8c1d40; }
+  .role-tag.reviewer { background: #e8f5e9; color: #2e7d32; }
   .comment-date { font-size: 10px; color: #999; }
   .comment-text { font-size: 13px; line-height: 1.5; color: #333; }
   .comment-actions { margin-top: 6px; display: flex; gap: 8px; }
@@ -1288,6 +1289,7 @@
       <select id="comment-role-input">
         <option value="id">Instructional Designer</option>
         <option value="instructor">Instructor / Faculty</option>
+        <option value="reviewer">Reviewer</option>
       </select>
       <button onclick="saveCommentIdentity()">Save & Continue</button>
     </div>
@@ -1989,9 +1991,16 @@
 
   // URL-based auto-identity for commenting
   const userParam = urlParams.get('user');
+  const roleParam = urlParams.get('role');
   let urlIdentity = null;
   if (userParam && activeCourse.users && activeCourse.users[userParam]) {
     urlIdentity = activeCourse.users[userParam];
+    // Override role if URL specifies it
+    if (roleParam) urlIdentity = { name: urlIdentity.name, role: roleParam };
+  } else if (userParam && roleParam === 'reviewer') {
+    // Reviewer not in users map yet — derive name from slug
+    var reviewerName = userParam.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    urlIdentity = { name: reviewerName, role: 'reviewer' };
   }
 
   // Populate page with course-specific data
@@ -9014,8 +9023,8 @@ ${clone.innerHTML}
   function renderCommentItem(c, isThread) {
     const date = new Date(c.created_at);
     const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
-    const roleLabel = c.author_role === 'id' ? 'ID' : 'Faculty';
-    const roleClass = c.author_role === 'id' ? 'id' : 'instructor';
+    const roleLabel = c.author_role === 'id' ? 'ID' : c.author_role === 'reviewer' ? 'Reviewer' : 'Faculty';
+    const roleClass = c.author_role === 'id' ? 'id' : c.author_role === 'reviewer' ? 'reviewer' : 'instructor';
     const identity = getCommentIdentity();
     const isOwn = identity && c.author_name === identity.name;
     const isDeleted = !!c.deleted_at;
