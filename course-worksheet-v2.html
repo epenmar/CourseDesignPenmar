@@ -452,6 +452,7 @@
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
   .has-field-comment { box-shadow: inset 0 -3px 0 #ffc627; border-left: 3px solid #ffc627 !important; background: #fffde6 !important; }
   .has-field-comment:hover { box-shadow: inset 0 -3px 0 #ffc627, 0 0 0 1px rgba(255,198,39,0.4); }
+  .has-section-comment { border-left: 3px solid #ffc627 !important; }
   .comment-history-toggle.active { background: #8c1d40 !important; color: #fff !important; border-color: #8c1d40 !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
@@ -5824,18 +5825,21 @@
           var ovMatId = 'ov-' + mat.id;
           html += '<div class="material-item" draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)" ';
-          html += 'style="display:flex; gap:8px; align-items:center; padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff; flex-wrap:wrap;">';
+          html += 'style="padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff;">';
+          // Row 1: drag handle, type, title, optional, content toggle, delete
+          html += '<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">';
           html += '<span class="act-drag-handle" title="Drag to move between modules" style="cursor:grab;">⠿</span>';
-          // Type dropdown
           html += '<select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="width:110px; font-size:11px; padding:4px 6px; flex-shrink:0;">' + buildTypeOptions(mat.type) + '</select>';
-          // Title input - responsive
           html += '<textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" placeholder="Material title..." style="flex:1; min-width:120px; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)">' + escapeHtml(mat.title) + '</textarea>';
-          // Objectives picker
-          html += buildObjPickerHtml('ovm-' + mat.id, mat.objectives || [], m);
-          // Inline content toggle
+          html += '<label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#888; flex-shrink:0; cursor:pointer;" title="Mark as optional reading/material"><input type="checkbox" data-managed="true" data-field="optional" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)"' + (mat.optional ? ' checked' : '') + ' style="cursor:pointer;"> Optional</label>';
           html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.material-item\').nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>';
-          // Delete button
           html += '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="flex-shrink:0;">✕</button>';
+          html += '</div>';
+          // Row 2: objectives + notes
+          html += '<div style="display:flex; gap:8px; align-items:start; margin-top:6px; padding-left:28px; flex-wrap:wrap;">';
+          html += '<div style="flex:1; min-width:140px;">' + buildObjPickerHtml('ovm-' + mat.id, mat.objectives || [], m) + '</div>';
+          html += '<textarea class="activity-input" data-managed="true" data-field="notes" data-material-id="' + mat.id + '" data-module-num="' + m + '" placeholder="Notes..." style="flex:1; min-width:140px; font-size:11px; min-height:24px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; border:1px dashed #ddd; border-radius:4px;" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)">' + escapeHtml(mat.notes || '') + '</textarea>';
+          html += '</div>';
           html += '</div>';
           // Content body (below row, toggled)
           html += '<div class="overview-content-body" style="margin-left:24px; margin-bottom:6px;">';
@@ -5915,6 +5919,8 @@
     if (field === 'title') mat.title = el.value;
     else if (field === 'type') mat.type = el.value;
     else if (field === 'richText') mat.richText = el.value;
+    else if (field === 'optional') mat.optional = el.checked;
+    else if (field === 'notes') mat.notes = el.value;
     saveActivityData();
   }
 
@@ -9322,16 +9328,49 @@ ${clone.innerHTML}
   function applyFieldCommentIndicators() {
     // Remove existing indicators
     document.querySelectorAll('.has-field-comment').forEach(el => el.classList.remove('has-field-comment'));
-    // Check all comments for field anchors
-    Object.values(commentCache).forEach(comments => {
-      (comments || []).forEach(c => {
+    document.querySelectorAll('.has-section-comment').forEach(el => el.classList.remove('has-section-comment'));
+
+    // Map section IDs to view container selectors
+    var sectionViewMap = {
+      'course-info': '#view-course-info .card',
+      'clos-elos': '#view-objectives .card',
+      'textbooks': '#view-materials .card',
+      'additional': '#view-additional .card',
+      'module-overview': '#view-module-overview',
+      'assignments-overview': '#view-assignments-overview',
+      'materials-overview': '#view-materials-overview',
+      'course-mapping': '#view-course-mapping'
+    };
+
+    Object.keys(commentCache).forEach(function(sectionId) {
+      var comments = commentCache[sectionId] || [];
+      var hasUnresolved = comments.some(function(c) { return !c.resolved && !c.deleted_at; });
+
+      // Apply field-level highlights
+      comments.forEach(function(c) {
         if (c.highlight_anchor && c.highlight_anchor.isField && !c.resolved && !c.deleted_at) {
           try {
-            const field = document.querySelector(c.highlight_anchor.containerSelector);
+            var field = document.querySelector(c.highlight_anchor.containerSelector);
             if (field) field.classList.add('has-field-comment');
           } catch(e) {}
         }
       });
+
+      // Apply section-level highlight (yellow left border on the section's card/container)
+      if (hasUnresolved) {
+        var selector = sectionViewMap[sectionId];
+        if (selector) {
+          document.querySelectorAll(selector).forEach(function(el) {
+            el.classList.add('has-section-comment');
+          });
+        }
+        // Module-specific sections (module-1, module-2, etc.)
+        var modMatch = sectionId.match(/^module-(\d+)$/);
+        if (modMatch) {
+          var modCard = document.querySelector('#view-module .card, [data-module-num="' + modMatch[1] + '"]');
+          if (modCard) modCard.classList.add('has-section-comment');
+        }
+      }
     });
   }
 
