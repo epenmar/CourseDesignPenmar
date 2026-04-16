@@ -1192,7 +1192,7 @@
     var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
     navigator.clipboard.writeText(url).then(function() {
       var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
-      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function() { btn.textContent = '📋 Copy Instructor Link'; }, 1500); }
+      if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor Link'; }, 1500); }
     });
   }
 
@@ -1521,7 +1521,7 @@
     if (c.devLink) {
       var instrLink = c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
       html += `<a href="${instrLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor View</a>`;
-      html += `<button onclick="copyInstructorLink('${id}')" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
+      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:4px 8px; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
     if (c.driveFolder) {
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
@@ -1561,15 +1561,13 @@
     }
 
     // Inactive toggle + note
-    html += `<div style="margin-top:12px; padding:10px 14px; background:${isInactive ? '#fafafa' : '#fff'}; border:1px solid ${isInactive ? '#e0ddd5' : '#eee'}; border-radius:8px;">
-      <div style="display:flex; align-items:center; gap:8px;">
-        <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-size:12px; color:#666;">
-          <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer;">
-          Mark as Inactive
-        </label>
-      </div>
-      <div id="inactive-note-area" style="margin-top:${isInactive ? '8' : '0'}px; display:${isInactive ? 'block' : 'none'};">
-        <textarea id="inactive-note" placeholder="Reason (e.g., instructor on leave, course postponed...)" oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:50px; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:12px; font-family:Inter,sans-serif; resize:vertical; background:#fff;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
+    html += `<div style="margin-top:10px;">
+      <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; color:#999;">
+        <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:13px; height:13px;">
+        Mark as Inactive
+      </label>
+      <div id="inactive-note-area" style="margin-top:${isInactive ? '6' : '0'}px; display:${isInactive ? 'block' : 'none'};">
+        <textarea id="inactive-note" placeholder="Reason..." oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
       </div>
     </div>`;
 
