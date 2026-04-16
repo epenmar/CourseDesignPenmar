@@ -1521,7 +1521,6 @@
     if (c.devLink) {
       var instrLink = c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
       html += `<a href="${instrLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor View</a>`;
-      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:4px 8px; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
     if (c.driveFolder) {
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
@@ -1530,6 +1529,16 @@
       html += buildEmailDropdown(id, c);
     }
     html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
+    html += `</div>`;
+    // Small utility row below buttons
+    html += `<div style="margin-top:6px; display:flex; align-items:center; gap:12px;">`;
+    if (c.devLink) {
+      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
+    }
+    html += `<label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#999;">
+        <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:12px; height:12px;">
+        Mark as Inactive
+      </label>`;
     html += `</div>`;
 
     // Reviewer invite form (hidden by default)
@@ -1560,15 +1569,9 @@
       html += `</div>`;
     }
 
-    // Inactive toggle + note
-    html += `<div style="margin-top:10px;">
-      <label style="display:inline-flex; align-items:center; gap:5px; cursor:pointer; font-size:11px; color:#999;">
-        <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:13px; height:13px;">
-        Mark as Inactive
-      </label>
-      <div id="inactive-note-area" style="margin-top:${isInactive ? '6' : '0'}px; display:${isInactive ? 'block' : 'none'};">
-        <textarea id="inactive-note" placeholder="Reason..." oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
-      </div>
+    // Inactive note (shown when checkbox is checked)
+    html += `<div id="inactive-note-area" style="margin-top:${isInactive ? '6' : '0'}px; display:${isInactive ? 'block' : 'none'};">
+      <textarea id="inactive-note" placeholder="Reason..." oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
     </div>`;
 
     html += `</div>`;
