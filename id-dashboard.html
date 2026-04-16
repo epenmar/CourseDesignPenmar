@@ -1185,6 +1185,17 @@
     });
   }
 
+  function copyInstructorLink(courseId) {
+    var c = courseData[courseId];
+    if (!c || !c.devLink) return;
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
+    navigator.clipboard.writeText(url).then(function() {
+      var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
+      if (btn) { btn.textContent = '✓ Copied!'; setTimeout(function() { btn.textContent = '📋 Copy Instructor Link'; }, 1500); }
+    });
+  }
+
   function getInactiveCourses() {
     try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
   }
@@ -1508,7 +1519,9 @@
       <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span></p>
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
     if (c.devLink) {
-      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor Development</a>`;
+      var instrLink = c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
+      html += `<a href="${instrLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor View</a>`;
+      html += `<button onclick="copyInstructorLink('${id}')" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
     if (c.driveFolder) {
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;

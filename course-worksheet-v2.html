@@ -2035,10 +2035,27 @@
   const userParam = urlParams.get('user');
   const roleParam = urlParams.get('role');
   let urlIdentity = null;
-  if (userParam && activeCourse.users && activeCourse.users[userParam]) {
-    urlIdentity = activeCourse.users[userParam];
-    // Override role if URL specifies it
-    if (roleParam) urlIdentity = { name: urlIdentity.name, role: roleParam };
+  // Try exact slug match first, then fall back to last-name match
+  var _userMatch = null;
+  if (userParam && activeCourse.users) {
+    if (activeCourse.users[userParam]) {
+      _userMatch = activeCourse.users[userParam];
+    } else {
+      // Try matching by last name (dashboard uses last-name-only slugs)
+      var _lowerParam = userParam.toLowerCase();
+      Object.keys(activeCourse.users).forEach(function(k) {
+        if (!_userMatch) {
+          var uName = activeCourse.users[k].name || '';
+          var uParts = uName.split(/\s+/);
+          var uLast = uParts[uParts.length - 1].toLowerCase();
+          if (uLast === _lowerParam) _userMatch = activeCourse.users[k];
+        }
+      });
+    }
+  }
+  if (_userMatch) {
+    urlIdentity = _userMatch;
+    if (roleParam) urlIdentity = { name: _userMatch.name, role: roleParam };
   } else if (userParam && roleParam === 'reviewer') {
     // Reviewer not in users map yet — derive name from slug
     var reviewerName = userParam.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
