@@ -1627,6 +1627,19 @@
         });
       }
     }
+    // Re-sync counters after restore
+    Object.values(courseActivities).forEach(function(arr) {
+      (arr || []).forEach(function(a) {
+        var num = parseInt((a.id || '').replace('act-', ''), 10);
+        if (!isNaN(num) && num >= activityCounter) activityCounter = num + 1;
+      });
+    });
+    Object.values(courseMaterials).forEach(function(arr) {
+      (arr || []).forEach(function(m) {
+        var num = parseInt((m.id || '').replace('mat-', ''), 10);
+        if (!isNaN(num) && num >= materialCount) materialCount = num + 1;
+      });
+    });
     // Persist
     saveActivityData();
     saveObjectivesState();
@@ -1769,6 +1782,20 @@
         ];
       }
     }
+
+    // Sync counters to be higher than any existing IDs to prevent overwrites
+    Object.values(courseActivities).forEach(function(arr) {
+      (arr || []).forEach(function(a) {
+        var num = parseInt((a.id || '').replace('act-', ''), 10);
+        if (!isNaN(num) && num >= activityCounter) activityCounter = num + 1;
+      });
+    });
+    Object.values(courseMaterials).forEach(function(arr) {
+      (arr || []).forEach(function(m) {
+        var num = parseInt((m.id || '').replace('mat-', ''), 10);
+        if (!isNaN(num) && num >= materialCount) materialCount = num + 1;
+      });
+    });
   }
 
   function saveActivityData() {
