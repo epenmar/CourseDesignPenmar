@@ -1022,7 +1022,10 @@
           </div>
           <div class="card-body">
             <div class="step-hint">An expanded description of the course used across all sections. This goes beyond the catalog description to give students a fuller picture.</div>
-            <div class="field-group"><textarea class="field-input" id="course-overview" style="min-height:120px;" placeholder="Expanded course overview..."></textarea></div>
+            <div class="field-group">
+              <textarea class="field-input" id="course-overview" style="min-height:120px;" placeholder="Expanded course overview..."></textarea>
+              <button onclick="generateCourseOverview(this)" style="margin-top:6px; padding:6px 14px; border:1px solid #e0ddd5; border-radius:6px; background:#fafaf7; color:#8c1d40; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">✨ Generate with AI</button>
+            </div>
           </div>
         </div>
         <button class="btn-mark-complete" id="btn-complete-course-info" onclick="toggleSectionComplete('course-info', this)">
@@ -6957,6 +6960,63 @@
     if (!data || data.questions.length <= 1) return;
     data.questions.splice(qIdx, 1);
     renderQuizBuilder(document.getElementById(builderId));
+  }
+
+  // ===== AI COURSE OVERVIEW GENERATION =====
+  async function generateCourseOverview(btn) {
+    var description = (document.getElementById('course-description') || {}).value || '';
+    if (!description.trim()) {
+      alert('Enter the catalog course description first so the AI has context to work with.');
+      return;
+    }
+
+    var courseName = (activeCourse.code || '') + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var modules = activeCourse.modules || [];
+    var moduleInfo = '';
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (modules.length > 0) {
+      moduleInfo = '\n\nModule topics:\n';
+      modules.forEach(function(m, i) {
+        var saved = savedMods[m.num || (i + 1)] || {};
+        var topic = saved.topic || m.title || ('Module ' + (i + 1));
+        moduleInfo += '- ' + topic + '\n';
+      });
+    }
+
+    var elos = (activeCourse.flatElos || []);
+    var eloInfo = '';
+    if (elos.length > 0) {
+      eloInfo = '\n\nExpected Learning Outcomes:\n';
+      elos.forEach(function(e, i) { eloInfo += (i + 1) + '. ' + e + '\n'; });
+    }
+
+    var prompt = 'Write an expanded course overview for a university course. This goes beyond the catalog description to give students a fuller picture of what they will learn and experience.\n\n' +
+      'Course: ' + courseName + '\n' +
+      'Catalog Description: ' + description + eloInfo + moduleInfo +
+      '\n\nWrite 2-3 paragraphs that:\n' +
+      '- Expand on the catalog description with more detail about the course experience\n' +
+      '- Reference the key topics and skills students will develop\n' +
+      '- Use a welcoming, professional tone appropriate for a syllabus\n' +
+      '- Do NOT repeat the catalog description verbatim\n' +
+      'Return ONLY the overview text, no headings or labels.';
+
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = '⏳ Generating...';
+
+    try {
+      var result = await callCreateAI(prompt, 'You are an instructional design expert writing course materials for ASU Online.', 1024);
+      var textarea = document.getElementById('course-overview');
+      textarea.value = result.trim();
+      textarea.style.height = 'auto';
+      textarea.style.height = textarea.scrollHeight + 'px';
+      saveAllFields();
+    } catch (err) {
+      alert('AI generation failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
   }
 
   // ===== AI QUIZ GENERATION =====
