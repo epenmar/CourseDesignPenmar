@@ -1627,17 +1627,23 @@
         });
       }
     }
-    // Re-sync counters after restore
-    Object.values(courseActivities).forEach(function(arr) {
-      (arr || []).forEach(function(a) {
+    // Re-sync counters and fix any duplicate IDs after restore
+    var _seenA = {};
+    Object.keys(courseActivities).forEach(function(mod) {
+      (courseActivities[mod] || []).forEach(function(a) {
         var num = parseInt((a.id || '').replace('act-', ''), 10);
         if (!isNaN(num) && num >= activityCounter) activityCounter = num + 1;
+        if (_seenA[a.id]) { activityCounter++; a.id = 'act-' + activityCounter; }
+        _seenA[a.id] = true;
       });
     });
-    Object.values(courseMaterials).forEach(function(arr) {
-      (arr || []).forEach(function(m) {
+    var _seenM = {};
+    Object.keys(courseMaterials).forEach(function(mod) {
+      (courseMaterials[mod] || []).forEach(function(m) {
         var num = parseInt((m.id || '').replace('mat-', ''), 10);
         if (!isNaN(num) && num >= materialCount) materialCount = num + 1;
+        if (_seenM[m.id]) { materialCount++; m.id = 'mat-' + materialCount; }
+        _seenM[m.id] = true;
       });
     });
     // Persist
@@ -1783,19 +1789,27 @@
       }
     }
 
-    // Sync counters to be higher than any existing IDs to prevent overwrites
-    Object.values(courseActivities).forEach(function(arr) {
-      (arr || []).forEach(function(a) {
+    // Fix duplicate IDs from prior bug, then sync counters
+    var seenActIds = {};
+    Object.keys(courseActivities).forEach(function(mod) {
+      (courseActivities[mod] || []).forEach(function(a) {
         var num = parseInt((a.id || '').replace('act-', ''), 10);
         if (!isNaN(num) && num >= activityCounter) activityCounter = num + 1;
+        if (seenActIds[a.id]) { activityCounter++; a.id = 'act-' + activityCounter; }
+        seenActIds[a.id] = true;
       });
     });
-    Object.values(courseMaterials).forEach(function(arr) {
-      (arr || []).forEach(function(m) {
+    var seenMatIds = {};
+    var matDataChanged = false;
+    Object.keys(courseMaterials).forEach(function(mod) {
+      (courseMaterials[mod] || []).forEach(function(m) {
         var num = parseInt((m.id || '').replace('mat-', ''), 10);
         if (!isNaN(num) && num >= materialCount) materialCount = num + 1;
+        if (seenMatIds[m.id]) { materialCount++; m.id = 'mat-' + materialCount; matDataChanged = true; }
+        seenMatIds[m.id] = true;
       });
     });
+    if (matDataChanged) saveField('courseMaterials', courseMaterials);
   }
 
   function saveActivityData() {
