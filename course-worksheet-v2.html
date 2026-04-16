@@ -651,6 +651,7 @@
               <button class="btn-sm" onclick="resetTimelineDates()" title="Reset to auto-calculated dates" style="padding:4px 10px; font-size:12px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#999;">↺ Reset</button>
             </div>
 
+            <div id="meeting-assign-box" style="display:none;"></div>
             <table class="timeline-table" id="timeline-table">
               <thead>
                 <tr>
@@ -4286,20 +4287,34 @@
       }
     }
 
-    // Load manually completed milestones
+    // Load manually completed milestones and meeting assignments
     const manualComplete = loadField('milestoneManualComplete') || {};
+    const meetingAssignments = loadField('meetingAssignments') || {};
+
+    // Remove assigned meetings from unmatched list
+    Object.keys(meetingAssignments).forEach(function(k) {
+      var a = meetingAssignments[k];
+      unmatchedMeetings = unmatchedMeetings.filter(function(cm) {
+        return cm.date !== a.date || (cm.label || '') !== a.label;
+      });
+    });
 
     for (let i = 0; i < milestones.length; i++) {
       const isManualDone = manualComplete[i] === true;
       const rowClass = (isManualDone || i < completed) ? 'done' : (i === completed ? 'current' : '');
       let statusLabel, statusColor;
       const ms = milestoneStatus && milestoneStatus[i];
+      const ma = meetingAssignments[String(i)];
       if (isManualDone) {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
       } else if (ms && ms.status === 'done') {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
+      } else if (ma) {
+        var mad = new Date(ma.date + 'T00:00:00');
+        statusLabel = '📅 Meeting ' + mad.toLocaleDateString('en-US', {month:'short'}) + ' ' + mad.getDate() + (ma.time ? ' at ' + ma.time : '');
+        statusColor = '#1565c0';
       } else if (ms && ms.status === 'meeting') {
         statusLabel = '📅 Meeting ' + ms.meetingLabel;
         statusColor = '#1565c0';
@@ -4324,21 +4339,6 @@
         <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
         <td style="font-size:12px; color:${statusColor}"><label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" data-managed="true"${checkedAttr} onchange="toggleMilestoneComplete(${i}, this.checked)" style="width:14px; height:14px; cursor:pointer;">${statusLabel}</label></td>
       </tr>`;
-    }
-
-    // Unmatched calendar meetings (not tied to a specific milestone)
-    if (unmatchedMeetings.length > 0) {
-      unmatchedMeetings.sort(function(a, b) { return a.date < b.date ? -1 : 1; });
-      unmatchedMeetings.forEach(function(cm) {
-        var d = new Date(cm.date + 'T00:00:00');
-        var mtgFmt = fmt(d);
-        var mtgPretty = d.toLocaleDateString('en-US', {month:'short'}) + ' ' + d.getDate() + (cm.time ? ' at ' + cm.time : '');
-        html += `<tr style="background:#e3f2fd;">
-          <td>📅 ${cm.label || 'Scheduled Meeting'}</td>
-          <td><input type="date" class="date-input" value="${mtgFmt}" disabled style="background:transparent; border-color:#90caf9;" /></td>
-          <td style="font-size:12px; color:#1565c0;">${mtgPretty}</td>
-        </tr>`;
-      });
     }
 
     // Fixed end rows
@@ -4378,6 +4378,48 @@
       <td></td></tr>`;
 
     tbody.innerHTML = html;
+
+    // Render unmatched meeting notification box
+    var assignBox = document.getElementById('meeting-assign-box');
+    if (assignBox) {
+      if (unmatchedMeetings.length > 0) {
+        var boxHtml = '';
+        unmatchedMeetings.forEach(function(cm, idx) {
+          var d = new Date(cm.date + 'T00:00:00');
+          var mtgPretty = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + (cm.time ? ' at ' + cm.time : '');
+          boxHtml += '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;' + (idx > 0 ? ' margin-top:8px; padding-top:8px; border-top:1px solid #bbdefb;' : '') + '">' +
+            '<span style="font-size:13px; flex:1; min-width:200px;">📅 <strong>' + (cm.label || 'Meeting') + '</strong> — ' + mtgPretty + '</span>' +
+            '<select onchange="assignMeetingToMilestone(this.value, \'' + cm.date + '\', \'' + (cm.time || '') + '\', \'' + (cm.label || 'Meeting').replace(/'/g, "\\'") + '\')" ' +
+            'style="padding:4px 8px; border:1px solid #90caf9; border-radius:4px; font-size:12px; font-family:Inter,sans-serif; background:#fff; cursor:pointer;">' +
+            '<option value="">Assign to milestone...</option>';
+          milestones.forEach(function(m, mi) {
+            boxHtml += '<option value="' + mi + '">' + m.label + '</option>';
+          });
+          boxHtml += '</select></div>';
+        });
+        assignBox.innerHTML = boxHtml;
+        assignBox.style.display = 'block';
+        assignBox.style.cssText = 'display:block; background:#e3f2fd; border:1px solid #90caf9; border-radius:8px; padding:12px 16px; margin-bottom:12px;';
+      } else {
+        assignBox.style.display = 'none';
+        assignBox.innerHTML = '';
+      }
+    }
+  }
+
+  function assignMeetingToMilestone(milestoneIdx, meetingDate, meetingTime, meetingLabel) {
+    if (milestoneIdx === '') return;
+    var idx = parseInt(milestoneIdx);
+    var courseId = activeCourse.id || new URLSearchParams(window.location.search).get('course');
+    // Save the meeting date as the milestone's target date
+    var savedDates = loadField('timelineDates') || {};
+    savedDates[String(idx)] = meetingDate;
+    saveField('timelineDates', savedDates);
+    // Save meeting assignment so it shows as a meeting status
+    var assignments = loadField('meetingAssignments') || {};
+    assignments[String(idx)] = { date: meetingDate, time: meetingTime, label: meetingLabel };
+    saveField('meetingAssignments', assignments);
+    recalcTimeline();
   }
 
   function prettyDate(d) {
