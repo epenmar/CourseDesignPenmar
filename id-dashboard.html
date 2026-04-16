@@ -1131,7 +1131,7 @@
       const displayStatus = isInactive ? 'Inactive' : c.status;
       const displayStatusClass = isInactive ? 'status-inactive' : c.statusClass;
       const starred = starredSet.indexOf(id) !== -1;
-      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}" class="${isInactive ? 'row-inactive' : ''}">`;
+      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}" class="${isInactive ? 'row-inactive' : ''}">
         <td style="padding:0 4px; text-align:center;"><button class="star-btn${starred ? ' starred' : ''}" onclick="toggleStar('${id}', event)" title="${starred ? 'Unstar' : 'Star'} course">${starred ? '★' : '☆'}</button></td>
         <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
