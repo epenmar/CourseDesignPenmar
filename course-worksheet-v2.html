@@ -1564,7 +1564,7 @@
       clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
       flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
       alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+      moduleOverviewData: loadField('moduleOverviewData') || null
     });
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     redoStack = []; // clear redo on new action
@@ -1580,7 +1580,7 @@
       clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
       flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
       alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+      moduleOverviewData: loadField('moduleOverviewData') || null
     });
     var state = undoStack.pop();
     restoreState(state);
@@ -1596,7 +1596,7 @@
       clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
       flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
       alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: JSON.parse(localStorage.getItem(courseId + '_moduleOverviewData') || 'null')
+      moduleOverviewData: loadField('moduleOverviewData') || null
     });
     var state = redoStack.pop();
     restoreState(state);
