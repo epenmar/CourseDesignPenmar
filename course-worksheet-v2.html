@@ -85,7 +85,8 @@
   .field-hint { font-size: 11px; color: #999; margin-bottom: 6px; }
   .field-input { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 14px; font-family: 'Inter', sans-serif; transition: border-color 0.2s; resize: none; overflow: hidden; word-wrap: break-word; overflow-wrap: break-word; box-sizing: border-box; }
   .field-input:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
-  textarea.field-input { min-height: 0; height: auto; overflow: hidden; white-space: pre-wrap; box-sizing: border-box; line-height: 1.4; padding: 5px 10px; }
+  textarea.field-input { min-height: 28px; overflow: hidden; white-space: pre-wrap; box-sizing: border-box; line-height: 1.4; padding: 4px 10px; }
+  textarea.field-input[rows="1"] { padding: 4px 10px; }
   textarea.field-input.ta-multiline { min-height: 80px; }
   .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .field-row-3 { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 16px; }
@@ -3048,7 +3049,7 @@
   }
 
   function autoGrowTextarea(ta) {
-    ta.style.height = 'auto';
+    ta.style.height = '0';
     ta.style.height = ta.scrollHeight + 'px';
   }
 
@@ -7254,6 +7255,15 @@
   });
   document.addEventListener('input', function(e) {
     if (e.target.tagName === 'TEXTAREA') autoGrowTextarea(e.target);
+  });
+  var _resizeTimer;
+  window.addEventListener('resize', function() {
+    clearTimeout(_resizeTimer);
+    _resizeTimer = setTimeout(function() {
+      document.querySelectorAll('textarea.field-input, textarea.activity-input').forEach(function(ta) {
+        if (ta.offsetParent !== null) autoGrowTextarea(ta);
+      });
+    }, 150);
   });
 
   // ===== OBJECTIVES CRUD FUNCTIONS =====
