@@ -7,6 +7,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <title>ID Dashboard — ASU Online Course Development</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-sync.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -318,9 +321,18 @@
         <div class="account-field"><span class="account-label">Booking Link</span><span class="account-value" id="account-display-booking" style="font-size:11px; word-break:break-all;">Set in profile</span></div>
         <div class="account-field"><span class="account-label">Signature</span><span class="account-value" id="account-display-sig">Elisa</span></div>
         <button class="account-edit-btn" onclick="toggleAccountEdit()">✏️ Edit Profile</button>
-        <button class="account-edit-btn" onclick="exportAllLocalData()" style="margin-top:6px; background:#fff; color:#8c1d40; border:1.5px solid #8c1d40;">💾 Backup All Data (JSON)</button>
-        <button class="account-edit-btn" onclick="document.getElementById('import-data-file').click()" style="margin-top:6px; background:#fff; color:#666; border:1.5px solid #aaa;">📥 Restore from Backup</button>
-        <input type="file" id="import-data-file" accept="application/json" style="display:none;" onchange="importAllLocalData(this.files[0])" />
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #eee;">
+          <div style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Cloud Sync (Supabase)</div>
+          <button class="account-edit-btn" onclick="syncPushToCloud()" style="background:#2e7d32; color:#fff; border:none;">☁️ Sync to Cloud</button>
+          <button class="account-edit-btn" onclick="syncPullFromCloud()" style="margin-top:6px; background:#fff; color:#2e7d32; border:1.5px solid #2e7d32;">☁️ Pull from Cloud</button>
+          <div id="sync-status" style="font-size:11px; color:#666; margin-top:6px; min-height:14px;"></div>
+        </div>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #eee;">
+          <div style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Local Backup</div>
+          <button class="account-edit-btn" onclick="exportAllLocalData()" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40;">💾 Backup to JSON</button>
+          <button class="account-edit-btn" onclick="document.getElementById('import-data-file').click()" style="margin-top:6px; background:#fff; color:#666; border:1.5px solid #aaa;">📥 Restore from JSON</button>
+          <input type="file" id="import-data-file" accept="application/json" style="display:none;" onchange="importAllLocalData(this.files[0])" />
+        </div>
       </div>
       <div class="account-popover-body" id="account-edit-mode" style="display:none;">
         <div class="edit-field"><label>Full Name</label><input type="text" id="acct-name" /></div>
@@ -2749,6 +2761,46 @@
     a.download = 'course-development-backup-' + stamp + '.json';
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  async function syncPushToCloud() {
+    var status = document.getElementById('sync-status');
+    if (!window.SupabaseSync) { status.textContent = 'Supabase not loaded'; return; }
+    status.style.color = '#666'; status.textContent = 'Pushing to cloud…';
+    try {
+      var r = await window.SupabaseSync.pushAllToCloud();
+      if (r.errors.length) {
+        status.style.color = '#c62828';
+        status.textContent = 'Errors: ' + r.errors.join('; ');
+      } else {
+        status.style.color = '#2e7d32';
+        status.textContent = '✓ Pushed ' + r.pushed.worksheets + ' courses, ' + r.pushed.dashboardState + ' settings, ' + r.pushed.userCourses + ' user courses';
+      }
+    } catch (e) {
+      status.style.color = '#c62828';
+      status.textContent = 'Failed: ' + e.message;
+    }
+  }
+
+  async function syncPullFromCloud() {
+    var status = document.getElementById('sync-status');
+    if (!window.SupabaseSync) { status.textContent = 'Supabase not loaded'; return; }
+    if (!confirm('This will overwrite your current local data with the cloud copy. Continue?')) return;
+    status.style.color = '#666'; status.textContent = 'Pulling from cloud…';
+    try {
+      var r = await window.SupabaseSync.pullAllFromCloud();
+      if (r.errors.length) {
+        status.style.color = '#c62828';
+        status.textContent = 'Errors: ' + r.errors.join('; ');
+      } else {
+        status.style.color = '#2e7d32';
+        status.textContent = '✓ Pulled ' + r.pulled.worksheets + ' courses, ' + r.pulled.dashboardState + ' settings. Reloading…';
+        setTimeout(function() { location.reload(); }, 1000);
+      }
+    } catch (e) {
+      status.style.color = '#c62828';
+      status.textContent = 'Failed: ' + e.message;
+    }
   }
 
   function importAllLocalData(file) {
