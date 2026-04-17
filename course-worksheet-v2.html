@@ -484,6 +484,7 @@
           </button>
         </div>
       </div>
+      <div id="cloud-sync-indicator" style="font-size:10px; color:#2e7d32; margin-top:4px; min-height:12px;"></div>
       <div id="presence-bar" style="display:none; margin-top:8px; padding:6px 8px; background:rgba(255,255,255,0.08); border-radius:6px; font-size:11px; color:#ccc;">
         <div id="presence-users" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;"></div>
       </div>
@@ -2065,8 +2066,21 @@
     urlIdentity = { name: reviewerName, role: 'reviewer' };
   }
 
+  // Pull latest cloud copy for this course (so instructor/reviewer in a fresh browser sees up-to-date content)
+  async function pullCurrentCourseFromCloud() {
+    if (!window._sbClient || !courseId) return;
+    try {
+      var r = await window._sbClient.from('worksheets').select('data').eq('course_id', courseId).maybeSingle();
+      if (r.error || !r.data) return;
+      if (r.data.data && typeof r.data.data === 'object') {
+        localStorage.setItem(storageKey, JSON.stringify(r.data.data));
+      }
+    } catch(e) { console.warn('[cloud pull] failed:', e.message); }
+  }
+
   // Populate page with course-specific data
-  document.addEventListener('DOMContentLoaded', function() {
+  document.addEventListener('DOMContentLoaded', async function() {
+    await pullCurrentCourseFromCloud();
     initDataModel();
 
     // Sidebar course name
@@ -4520,11 +4534,27 @@
   // ===== LOCAL STORAGE PERSISTENCE =====
   const storageKey = 'worksheet_' + (courseId || 'default');
 
+  // Debounced cloud push — runs after 2s of quiet writes
+  var _cloudPushTimer = null;
+  function scheduleCloudPush() {
+    if (!window._sbClient || !courseId) return;
+    clearTimeout(_cloudPushTimer);
+    _cloudPushTimer = setTimeout(function() {
+      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      window._sbClient.from('worksheets').upsert({ course_id: courseId, data: data }, { onConflict: 'course_id' })
+        .then(function(r) {
+          if (r.error) console.warn('[cloud push] failed:', r.error.message);
+          else { var el = document.getElementById('cloud-sync-indicator'); if (el) { el.textContent = '☁ saved'; el.style.color = '#2e7d32'; setTimeout(function() { el.textContent = ''; }, 2000); } }
+        });
+    }, 2000);
+  }
+
   function saveField(key, value) {
     try {
       const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
       data[key] = value;
       localStorage.setItem(storageKey, JSON.stringify(data));
+      scheduleCloudPush();
     } catch(e) {
       console.error('Failed to save field "' + key + '":', e);
       if (e.name === 'QuotaExceededError') {
