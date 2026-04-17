@@ -318,6 +318,9 @@
         <div class="account-field"><span class="account-label">Booking Link</span><span class="account-value" id="account-display-booking" style="font-size:11px; word-break:break-all;">Set in profile</span></div>
         <div class="account-field"><span class="account-label">Signature</span><span class="account-value" id="account-display-sig">Elisa</span></div>
         <button class="account-edit-btn" onclick="toggleAccountEdit()">✏️ Edit Profile</button>
+        <button class="account-edit-btn" onclick="exportAllLocalData()" style="margin-top:6px; background:#fff; color:#8c1d40; border:1.5px solid #8c1d40;">💾 Backup All Data (JSON)</button>
+        <button class="account-edit-btn" onclick="document.getElementById('import-data-file').click()" style="margin-top:6px; background:#fff; color:#666; border:1.5px solid #aaa;">📥 Restore from Backup</button>
+        <input type="file" id="import-data-file" accept="application/json" style="display:none;" onchange="importAllLocalData(this.files[0])" />
       </div>
       <div class="account-popover-body" id="account-edit-mode" style="display:none;">
         <div class="edit-field"><label>Full Name</label><input type="text" id="acct-name" /></div>
@@ -2729,6 +2732,41 @@
 
   function getProfile() {
     try { return Object.assign({}, defaultProfile, JSON.parse(localStorage.getItem('id_profile') || '{}')); } catch(e) { return Object.assign({}, defaultProfile); }
+  }
+
+  function exportAllLocalData() {
+    var dump = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      dump[k] = localStorage.getItem(k);
+    }
+    var payload = { exportedAt: new Date().toISOString(), version: 1, data: dump };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = 'course-development-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importAllLocalData(file) {
+    if (!file) return;
+    if (!confirm('This will overwrite existing localStorage data with the backup. Continue?')) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var parsed = JSON.parse(e.target.result);
+        var data = parsed.data || parsed;
+        Object.keys(data).forEach(function(k) { localStorage.setItem(k, data[k]); });
+        alert('Restored ' + Object.keys(data).length + ' keys. Reloading page...');
+        location.reload();
+      } catch (err) {
+        alert('Failed to import: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
   }
 
   function toggleAccountPopover(e) {
