@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <title>Course Development — v2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -8419,11 +8421,14 @@ ${clone.innerHTML}
 
   // ===== IDENTITY =====
   function getCommentIdentity() {
-    // URL-derived identity takes priority
-    if (urlIdentity) return urlIdentity;
+    // Locally saved identity takes priority — URL identity is only a default
+    // for first-time visitors (e.g., an instructor opening their link in a fresh browser).
     try {
-      return JSON.parse(localStorage.getItem('comment_identity'));
-    } catch(e) { return null; }
+      var local = JSON.parse(localStorage.getItem('comment_identity'));
+      if (local && local.name) return local;
+    } catch(e) {}
+    if (urlIdentity) return urlIdentity;
+    return null;
   }
 
   function saveCommentIdentity() {
