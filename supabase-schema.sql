@@ -16,19 +16,29 @@ create table if not exists dashboard_state (
   updated_at timestamptz not null default now()
 );
 
--- Comments posted on any field or section of a course worksheet
-create table if not exists comments (
+-- Drop the earlier (wrong) comments table if it was created with placeholder columns.
+-- Safe to run — we haven't written any comments to it yet.
+drop table if exists comments cascade;
+
+-- Comments posted on any field or section of a course worksheet.
+-- Column names must match what the existing comments code uses.
+create table comments (
   id uuid primary key default gen_random_uuid(),
   course_id text not null,
-  field_id text,
-  section text,
+  section_id text,
+  parent_id uuid references comments(id) on delete cascade,
   author_name text not null,
   author_role text not null,
-  text text not null,
+  content text not null,
+  highlight_text text,
+  highlight_anchor jsonb,
   resolved boolean default false,
+  deleted_at timestamptz,
   created_at timestamptz not null default now()
 );
 create index if not exists idx_comments_course on comments(course_id);
+create index if not exists idx_comments_section on comments(section_id);
+create index if not exists idx_comments_parent on comments(parent_id);
 
 -- User-created courses (ones added from the dashboard, not hardcoded)
 create table if not exists user_courses (

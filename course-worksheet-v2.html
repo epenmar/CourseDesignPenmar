@@ -8226,8 +8226,9 @@ ${clone.innerHTML}
   }
 
   // ===== SUPABASE COMMENTS SYSTEM =====
-  const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
+  // Uses the shared project config loaded via supabase-config.js
+  const SUPABASE_URL = window.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = window.SUPABASE_PUBLISHABLE_KEY;
   let supabaseClient = null;
   let currentCommentSection = null;
   let currentHighlightCommentId = null; // When viewing a highlight thread
