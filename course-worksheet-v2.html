@@ -2245,9 +2245,12 @@
     renderModuleOverviewCards();
 
     // ===== CALCULATE PROGRESS =====
-    // Defer past the other DOMContentLoaded listener (which calls restoreAllFields)
-    // and past the pre-pull guard — 300ms is empirically enough for both to finish.
+    // The other DOMContentLoaded listener calls restoreAllFields synchronously while
+    // the cloud pull is still in-flight, so DOM inputs get populated from pre-pull
+    // localStorage. Re-run restoreAllFields now that the pull has completed and
+    // localStorage is fresh, then calculate progress.
     setTimeout(function() {
+      if (typeof restoreAllFields === 'function') restoreAllFields();
       calculateProgress();
       updateChecklistBadge();
     }, 300);
