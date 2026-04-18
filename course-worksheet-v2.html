@@ -126,6 +126,20 @@
   .timeline-table .date-input:focus { outline: none; border-color: #8c1d40; }
   .timeline-alert { font-size: 11px; color: #e65100; margin-top: 2px; }
 
+  /* Alternating module bands in overview tables */
+  #assignments-overview-table tbody.mod-band-alt > tr > td,
+  #materials-overview-table tbody.mod-band-alt > tr > td,
+  #module-overview-table tr.mod-band-alt > td { background-color: #faf6ea; }
+
+  /* Tighten vertical padding in overview tables */
+  #assignments-overview-table .timeline-table td,
+  #materials-overview-table .timeline-table td { padding: 2px 8px; }
+
+  /* Drop indicator for table-view rows (border-collapse: collapse hides tr borders) */
+  .timeline-table tr.activity-block.drag-insert-above > td { border-top: 3px solid #8c1d40; }
+  .timeline-table tr.activity-block.drag-insert-below > td { border-bottom: 3px solid #8c1d40; }
+  .timeline-table tr.activity-block.dragging > td { opacity: 0.4; }
+
   /* ===== CLO / ELO PAIRED LAYOUT ===== */
   .clo-elo-pairs { display: flex; flex-direction: column; gap: 10px; }
   .clo-elo-row { display: grid; grid-template-columns: 28px 1fr 24px 1fr; gap: 8px; align-items: start; padding: 10px 8px; border: 1px solid #e8e5dd; border-radius: 8px; background: #fafaf7; }
@@ -3115,14 +3129,15 @@
         var topic = savedMod.topic || modData.title || '';
         var mlos = savedMod.mlos || modData.mlos || [];
         var mloCount = Math.max(mlos.length, 1);
+        var bandClass = (modNum % 2 === 0) ? ' class="mod-band-alt"' : '';
         // First row: module label + topic span full MLO rows
-        thtml += '<tr data-mod="' + modNum + '">';
+        thtml += '<tr data-mod="' + modNum + '"' + bandClass + '>';
         thtml += '<td rowspan="' + (mloCount + 1) + '" class="mod-reorder-cell" data-mod-num="' + modNum + '" style="font-weight:600; color:#8c1d40; vertical-align:top; text-align:center; background:#fafaf7; cursor:grab; user-select:none;"><span class="mod-table-drag" draggable="true" data-mod-num="' + modNum + '" style="display:block;">☰<br>M' + modNum + '</span></td>';
-        thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top; background:#fff;"><textarea class="activity-input" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; min-height:28px; line-height:1.4; font-family:Inter,sans-serif;">' + escapeHtml(topic) + '</textarea></td>';
+        thtml += '<td rowspan="' + (mloCount + 1) + '" style="vertical-align:top;"><textarea class="activity-input" data-mod-topic="' + modNum + '" oninput="updateModTitle(' + modNum + ', this.value); saveModuleOverview(); autoGrowTextarea(this)" style="border:none; background:transparent; width:100%; font-size:12px; resize:none; overflow:hidden; min-height:28px; line-height:1.4; font-family:Inter,sans-serif;">' + escapeHtml(topic) + '</textarea></td>';
         // MLO rows
         if (mlos.length > 0) {
           for (var j = 0; j < mlos.length; j++) {
-            if (j > 0) thtml += '<tr data-mod="' + modNum + '">';
+            if (j > 0) thtml += '<tr data-mod="' + modNum + '"' + bandClass + '>';
             thtml += '<td class="mlo-cell" data-mod="' + modNum + '" data-mlo-idx="' + j + '">' +
               '<div style="display:flex; align-items:flex-start; gap:4px;">' +
               '<span class="mlo-drag-handle" draggable="true" data-mod="' + modNum + '" data-mlo-idx="' + j + '" style="color:#999; font-size:10px; cursor:grab; flex-shrink:0; user-select:none; line-height:1.3;">⠿</span>' +
@@ -3139,7 +3154,7 @@
           thtml += '<td class="mlo-cell" data-mod="' + modNum + '" style="color:#ccc; font-style:italic; font-size:12px;">No objectives yet</td><td class="mlo-cell"></td></tr>';
         }
         // Add MLO row
-        thtml += '<tr data-mod="' + modNum + '"><td style="padding:2px 8px; border-bottom:2px solid #e0ddd5;">' +
+        thtml += '<tr data-mod="' + modNum + '"' + bandClass + '><td style="padding:2px 8px; border-bottom:2px solid #e0ddd5;">' +
           '<button onclick="addTableMlo(' + modNum + ')" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; font-weight:600; padding:2px 0;">+ Add objective</button>' +
           '</td><td style="border-bottom:2px solid #e0ddd5;"></td></tr>';
       }
@@ -5866,15 +5881,15 @@
       for (var m = _asn; m < modCount + _asn; m++) {
         var mod = modules[m - _asn];
         var acts = courseActivities[m] || [];
-        thtml += '<tbody data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
+        thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
           thtml += '<tr class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
           thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
-          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
-          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:20px; resize:none; overflow:hidden; font-size:10px; line-height:1.3; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:16px; resize:none; overflow:hidden; font-size:10px; line-height:1.3; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
@@ -5992,14 +6007,14 @@
       var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
-        thtml += '<tbody data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
+        thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
           thtml += '<tr draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
           thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
-          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:32px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
           thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
           thtml += '</tr>';
         }
