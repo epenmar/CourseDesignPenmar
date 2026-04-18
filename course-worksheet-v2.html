@@ -5196,8 +5196,11 @@
   function updateGlobalCommentBtn() {
     var countEl = document.getElementById('global-comment-count');
     if (!countEl) return;
-    var section = getCurrentSection();
-    var count = (window._commentCache || []).filter(function(c) { return c.section_id === section && !c.resolved; }).length;
+    // Show count of ALL unresolved, non-deleted comments across the whole course,
+    // regardless of which section the user is currently viewing.
+    var count = (window._commentCache || []).filter(function(c) {
+      return !c.resolved && !c.deleted_at;
+    }).length;
     if (count > 0) {
       countEl.textContent = count;
       countEl.style.display = '';
