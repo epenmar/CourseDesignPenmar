@@ -489,6 +489,7 @@
       <div id="cloud-sync-indicator" style="font-size:10px; color:#2e7d32; margin-top:4px; min-height:12px;"></div>
       <div id="presence-bar" style="display:none; margin-top:8px; padding:6px 8px; background:rgba(255,255,255,0.08); border-radius:6px; font-size:11px; color:#ccc;">
         <div id="presence-users" style="display:flex; flex-wrap:wrap; gap:4px; align-items:center;"></div>
+        <button onclick="changeCommentIdentity()" style="background:none; border:none; color:#999; font-size:9px; cursor:pointer; padding:2px 0; margin-top:3px; text-decoration:underline;">not you? change identity</button>
       </div>
     </div>
 
@@ -8452,6 +8453,16 @@ ${clone.innerHTML}
     document.getElementById('comment-identity-modal').style.display = 'none';
     if (currentCommentSection) openCommentPanel(currentCommentSection);
     else if (pendingHighlight) startHighlightComment();
+  }
+
+  // Let a user reset an incorrect saved identity (e.g., was saved as the instructor while viewing via ?user=... link)
+  function changeCommentIdentity() {
+    localStorage.removeItem('comment_identity');
+    var nameInput = document.getElementById('comment-name-input');
+    var roleInput = document.getElementById('comment-role-input');
+    if (nameInput) nameInput.value = '';
+    if (roleInput) roleInput.value = 'id';
+    document.getElementById('comment-identity-modal').style.display = 'flex';
   }
 
   function ensureIdentity() {
