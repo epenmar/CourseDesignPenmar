@@ -2672,7 +2672,7 @@
     var newVal = !current;
     saveField('courseMappingApproved', newVal);
     updateFacultyApprovedButton();
-    calculateProgress();
+    calculateProgress(true);
   }
 
   function updateFacultyApprovedButton() {
@@ -3798,7 +3798,7 @@
     saveActivityData();
     renderModuleOverviewCards();
     rebuildSidebarModules();
-    calculateProgress();
+    calculateProgress(true);
   }
 
   function toggleModuleStartZero(checked) {
@@ -3890,11 +3890,12 @@
   const milestones = buildMilestones(activeCourse);
 
   // ===== DYNAMIC PROGRESS CALCULATION =====
-  function calculateProgress() {
+  // When persist=false (default for load-time calls), calculate + display but
+  // don't write completionPct to localStorage/cloud. User edits pass persist=true.
+  // This prevents multiple tabs from racing each other on page load.
+  function calculateProgress(persist) {
     // Skip while the initial cloud pull is in-flight; otherwise we'd compute from
     // pre-pull DOM and overwrite the cloud's correct completionPct.
-    // Each tab opens its own scheduleProgressUpdate on load, so without this guard,
-    // multi-tab opens race and each tab pushes its own stale value.
     if (!window._cloudPullComplete) return;
     // Weighted progress: each section contributes a fixed % of the total
     // Course Info: 5%, Course Context: 5%, ELOs & CLOs: 10%, Module MLOs: 15%,
@@ -4006,7 +4007,7 @@
     if (mappingApproved) weightedPct += 5;
 
     var pct = Math.round(weightedPct);
-    saveField('completionPct', pct);
+    if (persist) saveField('completionPct', pct);
 
     // Recompute modulesStarted for badge updates below
     var modulesStarted = modsWithMlos;
@@ -4287,12 +4288,12 @@
     return 'empty';
   }
 
-  // Debounced progress updater
+  // Debounced progress updater — called from user input events, so persist the result.
   var _progressTimer = null;
   function scheduleProgressUpdate() {
     if (_progressTimer) clearTimeout(_progressTimer);
     _progressTimer = setTimeout(function() {
-      calculateProgress();
+      calculateProgress(true);
     }, 500);
   }
 
@@ -6597,7 +6598,7 @@
     }
     // Update sidebar badge if applicable
     updateSidebarBadge(section, isComplete);
-    calculateProgress();
+    calculateProgress(true);
   }
 
   function updateSidebarBadge(section, isComplete) {
