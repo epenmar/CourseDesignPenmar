@@ -2070,14 +2070,24 @@
 
   // Pull latest cloud copy for this course (so instructor/reviewer in a fresh browser sees up-to-date content)
   async function pullCurrentCourseFromCloud() {
-    if (!window._sbClient || !courseId) return;
+    function setIndicator(msg, color) {
+      var el = document.getElementById('cloud-sync-indicator');
+      if (el) { el.textContent = msg; el.style.color = color || '#999'; }
+    }
+    if (!window._sbClient) { console.warn('[cloud pull] Supabase client not ready'); setIndicator('☁ offline', '#c62828'); return; }
+    if (!courseId) { console.warn('[cloud pull] no courseId'); return; }
+    setIndicator('☁ pulling…', '#999');
     try {
-      var r = await window._sbClient.from('worksheets').select('data').eq('course_id', courseId).maybeSingle();
-      if (r.error || !r.data) return;
+      var r = await window._sbClient.from('worksheets').select('data, updated_at').eq('course_id', courseId).maybeSingle();
+      if (r.error) { console.warn('[cloud pull] error:', r.error.message); setIndicator('☁ pull error', '#c62828'); return; }
+      if (!r.data) { console.info('[cloud pull] no cloud copy for', courseId); setIndicator('☁ new course', '#999'); return; }
       if (r.data.data && typeof r.data.data === 'object') {
         localStorage.setItem(storageKey, JSON.stringify(r.data.data));
+        var t = r.data.updated_at ? new Date(r.data.updated_at).toLocaleTimeString() : 'now';
+        console.info('[cloud pull] loaded', courseId, 'updated at', t);
+        setIndicator('☁ pulled ' + t, '#2e7d32');
       }
-    } catch(e) { console.warn('[cloud pull] failed:', e.message); }
+    } catch(e) { console.warn('[cloud pull] failed:', e.message); setIndicator('☁ pull failed', '#c62828'); }
   }
 
   // Populate page with course-specific data
