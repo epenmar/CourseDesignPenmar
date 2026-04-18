@@ -481,7 +481,7 @@
         </div>
         <div style="display:flex; gap:2px; align-items:center;">
           <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
-          <button class="comment-btn" id="global-comment-btn" title="Comments" onclick="openCommentPanel(getCurrentSection())">
+          <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
             💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
           </button>
         </div>
@@ -9081,10 +9081,90 @@ ${clone.innerHTML}
     }, 500);
   }
 
+  // Human-readable label for a section_id. Module sections come through as 'module-1', etc.
+  function getSectionLabel(sectionId) {
+    if (!sectionId) return '';
+    var modMatch = sectionId.match(/^module-(\d+)$/);
+    if (modMatch) return 'Module ' + modMatch[1];
+    var map = {
+      'dashboard': 'Dashboard', 'dashboard-timeline': 'Dashboard',
+      'course-info': 'Course Info', 'clos-elos': 'ELOs & CLOs',
+      'additional': 'Course Context', 'textbooks': 'Textbooks',
+      'module-overview': 'Module Overview', 'assignments-overview': 'Assignments',
+      'materials-overview': 'Materials', 'course-mapping': 'Course Mapping',
+      'preview': 'Document Preview', 'syllabus-checklist': 'Syllabus Builder'
+    };
+    return map[sectionId] || sectionId.replace(/-/g, ' ').replace(/\b\w/g, function(c) { return c.toUpperCase(); });
+  }
+
+  // Open the comment panel showing ALL active comments across the whole course,
+  // grouped by section. Each comment has a "View in context" button.
+  async function openAllCommentsPanel() {
+    if (!ensureIdentity()) return;
+    if (!supabaseClient) return;
+    currentCommentSection = null;
+    currentHighlightCommentId = null;
+
+    var panel = document.getElementById('comment-panel');
+    var titleEl = document.getElementById('comment-panel-title');
+    var inputArea = document.getElementById('comment-input-area');
+    var msgContainer = document.getElementById('comment-messages');
+
+    titleEl.textContent = 'All Comments';
+    panel.classList.add('open');
+    // Reply input doesn't apply to the all-comments view — comments belong to a specific section.
+    if (inputArea) inputArea.style.display = 'none';
+    msgContainer.innerHTML = '<div class="comment-empty">Loading...</div>';
+
+    try {
+      var { data, error } = await supabaseClient
+        .from('comments')
+        .select('*')
+        .eq('course_id', courseId)
+        .is('parent_id', null)
+        .is('resolved', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      renderAllComments(data || []);
+    } catch(e) {
+      console.error('Failed to load all comments:', e);
+      msgContainer.innerHTML = '<div class="comment-empty">Failed to load comments.</div>';
+    }
+  }
+
+  function renderAllComments(comments) {
+    var msgContainer = document.getElementById('comment-messages');
+    if (!comments || comments.length === 0) {
+      msgContainer.innerHTML = '<div class="comment-empty">No active comments in this course.</div>';
+      return;
+    }
+    // Group by section
+    var bySection = {};
+    comments.forEach(function(c) {
+      var s = c.section_id || 'unknown';
+      if (!bySection[s]) bySection[s] = [];
+      bySection[s].push(c);
+    });
+    var html = '';
+    Object.keys(bySection).forEach(function(sectionId) {
+      html += '<div style="padding:6px 14px; font-size:11px; font-weight:600; color:#8c1d40; background:#faf7f2; border-top:1px solid #e0ddd5; border-bottom:1px solid #e0ddd5; text-transform:uppercase; letter-spacing:0.04em;">' +
+        escapeHtml(getSectionLabel(sectionId)) +
+        '</div>';
+      bySection[sectionId].forEach(function(c) {
+        html += renderCommentItem(c, false);
+      });
+    });
+    msgContainer.innerHTML = html;
+  }
+
   async function openCommentPanel(sectionId, highlightId) {
     if (!ensureIdentity()) { currentCommentSection = sectionId; return; }
     currentCommentSection = sectionId;
     currentHighlightCommentId = highlightId || null;
+    // Restore the reply input in case it was hidden by the all-comments view
+    var inputArea = document.getElementById('comment-input-area');
+    if (inputArea) inputArea.style.display = '';
 
     // Navigate to the correct view if not already there
     var currentSection = getCurrentSection();
