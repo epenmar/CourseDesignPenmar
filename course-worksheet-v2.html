@@ -2245,10 +2245,12 @@
     renderModuleOverviewCards();
 
     // ===== CALCULATE PROGRESS =====
+    // Defer past the other DOMContentLoaded listener (which calls restoreAllFields)
+    // and past the pre-pull guard — 300ms is empirically enough for both to finish.
     setTimeout(function() {
       calculateProgress();
       updateChecklistBadge();
-    }, 100);
+    }, 300);
   });
 
   // ===== OBJECTIVES: MIGRATION, RENDER, AND CRUD =====
@@ -3886,6 +3888,11 @@
 
   // ===== DYNAMIC PROGRESS CALCULATION =====
   function calculateProgress() {
+    // Skip while the initial cloud pull is in-flight; otherwise we'd compute from
+    // pre-pull DOM and overwrite the cloud's correct completionPct.
+    // Each tab opens its own scheduleProgressUpdate on load, so without this guard,
+    // multi-tab opens race and each tab pushes its own stale value.
+    if (!window._cloudPullComplete) return;
     // Weighted progress: each section contributes a fixed % of the total
     // Course Info: 5%, Course Context: 5%, ELOs & CLOs: 10%, Module MLOs: 15%,
     // Assignments: 20%, Materials: 20%, Module Content Pages: 20%, Alignment Map: 5%

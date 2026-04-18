@@ -1427,10 +1427,33 @@
     if (changed) localStorage.setItem('user_courses', JSON.stringify(saved));
   })();
 
+  // Re-read per-course progress from (possibly just-pulled) localStorage.
+  function refreshCourseProgressFromStorage() {
+    Object.keys(courseData).forEach(function(id) {
+      try {
+        var ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
+        if (typeof ws.completionPct === 'number') {
+          courseData[id].progress = ws.completionPct;
+          courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
+          courseData[id].progressColor = ws.completionPct >= 75 ? '#2e7d32' : (ws.completionPct > 0 ? '#e65100' : '#999');
+          courseData[id].fillClass = ws.completionPct >= 75 ? 'fill-green' : (ws.completionPct > 0 ? 'fill-orange' : 'fill-red');
+        }
+        if (ws.milestoneManualComplete) courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
+      } catch(e) {}
+    });
+  }
+
   // ===== INIT =====
-  renderSummary();
-  renderUpcoming();
-  renderTable();
+  // Pull latest cloud state first so the table reflects fresh per-course completionPct
+  (async function bootDashboard() {
+    if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
+      try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
+      refreshCourseProgressFromStorage();
+    }
+    renderSummary();
+    renderUpcoming();
+    renderTable();
+  })();
 
   // ===== LIVE SYNC =====
   // Fetches fresh data from local sync server (Outlook calendar + Obsidian notes)
