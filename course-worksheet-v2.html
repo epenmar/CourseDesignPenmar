@@ -2074,8 +2074,8 @@
       var el = document.getElementById('cloud-sync-indicator');
       if (el) { el.textContent = msg; el.style.color = color || '#999'; }
     }
-    if (!window._sbClient) { console.warn('[cloud pull] Supabase client not ready'); setIndicator('☁ offline', '#c62828'); return; }
-    if (!courseId) { console.warn('[cloud pull] no courseId'); return; }
+    if (!window._sbClient) { console.warn('[cloud pull] Supabase client not ready'); setIndicator('☁ offline', '#c62828'); window._cloudPullComplete = true; return; }
+    if (!courseId) { console.warn('[cloud pull] no courseId'); window._cloudPullComplete = true; return; }
     setIndicator('☁ pulling…', '#999');
     try {
       var r = await window._sbClient.from('worksheets').select('data, updated_at').eq('course_id', courseId).maybeSingle();
@@ -2088,6 +2088,7 @@
         setIndicator('☁ pulled ' + t, '#2e7d32');
       }
     } catch(e) { console.warn('[cloud pull] failed:', e.message); setIndicator('☁ pull failed', '#c62828'); }
+    finally { window._cloudPullComplete = true; }
   }
 
   // Populate page with course-specific data
@@ -4546,10 +4547,12 @@
   // ===== LOCAL STORAGE PERSISTENCE =====
   const storageKey = 'worksheet_' + (courseId || 'default');
 
-  // Debounced cloud push — runs after 2s of quiet writes
+  // Debounced cloud push — runs after 2s of quiet writes.
+  // Gated on window._cloudPullComplete so stale pre-pull local data can't overwrite the cloud.
   var _cloudPushTimer = null;
   function scheduleCloudPush() {
     if (!window._sbClient || !courseId) return;
+    if (!window._cloudPullComplete) { console.info('[cloud push] skipped (pull not complete)'); return; }
     clearTimeout(_cloudPushTimer);
     _cloudPushTimer = setTimeout(function() {
       var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
