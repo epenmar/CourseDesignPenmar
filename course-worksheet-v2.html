@@ -8455,14 +8455,23 @@ ${clone.innerHTML}
     else if (pendingHighlight) startHighlightComment();
   }
 
-  // Let a user reset an incorrect saved identity (e.g., was saved as the instructor while viewing via ?user=... link)
+  // Let a user reset an incorrect saved identity (e.g., was saved as the instructor while viewing via ?user=... link).
+  // We also suppress the URL identity for this session so getCommentIdentity() doesn't immediately fall back to it.
   function changeCommentIdentity() {
     localStorage.removeItem('comment_identity');
+    urlIdentity = null;
+    var modal = document.getElementById('comment-identity-modal');
     var nameInput = document.getElementById('comment-name-input');
     var roleInput = document.getElementById('comment-role-input');
     if (nameInput) nameInput.value = '';
     if (roleInput) roleInput.value = 'id';
-    document.getElementById('comment-identity-modal').style.display = 'flex';
+    if (modal) {
+      modal.style.display = 'flex';
+      modal.style.zIndex = '10000';
+    }
+    if (nameInput) nameInput.focus();
+    // Re-render presence so the stale "(you)" badge clears immediately
+    if (typeof renderPresence === 'function') renderPresence();
   }
 
   function ensureIdentity() {
