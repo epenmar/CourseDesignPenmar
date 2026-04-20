@@ -9,7 +9,8 @@ const path = require('path');
 const fs = require('fs');
 
 const PORT = 3456;
-const SYNC_SCRIPT = path.join(__dirname, 'sync-calendar.js');
+const SYNC_SCRIPT   = path.join(__dirname, 'sync-calendar.js');
+const GRANOLA_SCRIPT = path.join(__dirname, 'scripts', 'sync-granola.mjs');
 const DATA_FILE = path.join(__dirname, 'dashboard-data.js');
 
 // Throttle: don't re-sync if last sync was <60s ago
@@ -32,16 +33,26 @@ const server = http.createServer((req, res) => {
       return;
     }
 
-    console.log(`[sync-server] Running sync...`);
+    console.log(`[sync-server] Running sync (calendar + granola)...`);
+    // 1) Outlook calendar + legacy Obsidian notes
     execFile(process.execPath, [SYNC_SCRIPT], { timeout: 30000 }, (err, stdout, stderr) => {
       if (err) {
-        console.error(`[sync-server] Sync failed: ${err.message}`);
+        console.error(`[sync-server] Calendar sync failed: ${err.message}`);
         if (stderr) console.error(stderr);
-      } else {
+      } else if (stdout) {
         console.log(stdout.trim());
-        lastSync = Date.now();
       }
-      serveData(res);
+      // 2) Granola meeting notes (runs after, overlays course entries it matches)
+      execFile(process.execPath, [GRANOLA_SCRIPT], { timeout: 45000 }, (gErr, gOut, gStderr) => {
+        if (gErr) {
+          console.error(`[sync-server] Granola sync failed: ${gErr.message}`);
+          if (gStderr) console.error(gStderr);
+        } else if (gOut) {
+          console.log(gOut.trim());
+        }
+        lastSync = Date.now();
+        serveData(res);
+      });
     });
   } else {
     res.writeHead(404);
