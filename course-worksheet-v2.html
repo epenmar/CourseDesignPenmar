@@ -7379,7 +7379,26 @@
       });
     }
 
-    var filename = (title ? title.textContent.replace(/[^a-zA-Z0-9]/g, '_') : 'template') + '.txt';
+    // Build filename following the convention: "{Course Code} - Module {N} - {Assignment Name}"
+    // Extract activity id from templateId (formats: "act-{n}-tpl-{type}" or "ov-act-{n}-tpl-{type}")
+    var actIdMatch = templateId.match(/^(?:ov-)?(act-\d+)-tpl-/);
+    var actId = actIdMatch ? actIdMatch[1] : null;
+    var moduleNum = null;
+    var activityName = '';
+    if (actId) {
+      for (var mod = 1; mod <= (activeCourse.moduleCount || 12); mod++) {
+        var acts = (typeof courseActivities !== 'undefined' && courseActivities[mod]) || [];
+        var found = acts.find(function(a) { return a.id === actId; });
+        if (found) { moduleNum = mod; activityName = (found.name || '').trim(); break; }
+      }
+    }
+    var courseCode = (activeCourse && activeCourse.code ? activeCourse.code : '').trim();
+    var parts = [];
+    if (courseCode) parts.push(courseCode);
+    if (moduleNum) parts.push('Module ' + moduleNum);
+    parts.push(activityName || (title ? title.textContent : 'Template'));
+    // Replace filesystem-unfriendly chars with spaces, collapse multiples
+    var filename = parts.join(' - ').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.txt';
     var blob = new Blob([content], { type: 'text/plain' });
 
     // Upload directly to the course's Drive folder if configured; otherwise fall back to local download.
@@ -8318,7 +8337,8 @@ ${clone.innerHTML}
 </body></html>`;
 
     const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
-    const filename = (activeCourse.code || 'course').replace(/\s+/g, '_') + '_Development_Worksheet.doc';
+    const courseCode = (activeCourse.code || 'course').trim();
+    const filename = (courseCode + ' - Development Worksheet').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
     return { blob: blob, filename: filename };
   }
 
