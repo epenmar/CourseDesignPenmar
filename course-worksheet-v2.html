@@ -1941,7 +1941,6 @@
       '</div>' +
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
-          '<a class="drive-folder-link" id="drive-link-' + id + '" href="' + escapeHtml(driveHref) + '" style="display:' + driveDisplay + ';" target="_blank">📂 Open Google Drive Folder</a>' +
           '<div class="content-attach-tabs">' +
             '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
             '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
@@ -1979,7 +1978,7 @@
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px;">' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
-                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
@@ -1991,21 +1990,21 @@
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px;">' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
-                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
               '<div id="' + id + '-quiz-builder"></div>' +
               '<div style="margin-top:8px;">' +
-                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\')">📂 Export to Google Drive</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
             '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">' +
               '<h4>Blank Page</h4>' +
               '<div class="template-section">' + buildTplTextarea(id, 'blank', 'Content', 'Write your content here...', 'min-height:160px;') + '</div>' +
               '<div style="margin-top:8px;">' +
-                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>' +
+                '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
           '</div>' +
@@ -5713,7 +5712,6 @@
     html += '<div class="overview-content-body">';
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
-    html += '<a class="drive-folder-link" href="' + escapeHtml(driveHref) + '" style="display:' + driveDisplay + ';" target="_blank">📂 Open Google Drive Folder</a>';
     html += '<div class="content-attach-tabs">';
     html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
     html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
@@ -5751,7 +5749,7 @@
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
-    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\')">📂 Export to Google Drive</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     // Assignment template
     html += '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">';
@@ -5763,21 +5761,21 @@
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
-    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\')">📂 Export to Google Drive</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     // Quiz template (will be modernized in task 18)
     html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
     html += '<h4>Quiz Template</h4>';
     html += '<div id="' + id + '-quiz-builder"></div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
-    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\')">📂 Export to Google Drive</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     // Blank page template
     html += '<div class="template-preview' + (activeType !== 'blank' ? ' hidden' : '') + '" id="' + id + '-tpl-blank">';
     html += '<h4>Blank Page</h4>';
     html += '<div class="template-section">' + buildTplTextarea(act.id, 'blank', 'Content', 'Write your content here...', 'min-height:160px;') + '</div>';
     html += '<div style="margin-top:8px;">';
-    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\')">📂 Export to Google Drive</button>';
+    html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     html += '</div>'; // template body
     html += '</div></div>'; // content-attach-inner + content-attach
@@ -7343,7 +7341,25 @@
   }
 
   // ===== EXPORT TEMPLATE TO GOOGLE DRIVE =====
-  function exportTemplateToGDrive(templateId) {
+  // After a successful upload, replace the clicked button with
+  // "Open Document" + "Save New Copy" so users can revisit or re-export.
+  // saveAgain: callback invoked when "Save New Copy" is clicked; receives the new button.
+  function _replaceExportButton(btn, webViewLink, saveAgain) {
+    if (!btn || !btn.parentElement) return;
+    var parent = btn.parentElement;
+    var openBtn = document.createElement('button');
+    openBtn.className = 'btn-add-row';
+    openBtn.textContent = '📄 Open Document';
+    openBtn.onclick = function() { window.open(webViewLink, '_blank'); };
+    var saveBtn = document.createElement('button');
+    saveBtn.className = 'btn-add-row';
+    saveBtn.textContent = '💾 Save New Copy';
+    saveBtn.onclick = function() { saveAgain(saveBtn); };
+    parent.replaceChild(openBtn, btn);
+    openBtn.after(saveBtn);
+  }
+
+  function exportTemplateToGDrive(templateId, btn) {
     var template = document.getElementById(templateId);
     if (!template) return;
 
@@ -7411,17 +7427,29 @@
       alert('No Google Drive folder is configured for this course. Template downloaded locally instead.');
       return;
     }
+    var origText = btn ? btn.textContent : null;
+    if (btn) { btn.textContent = '⏳ Uploading…'; btn.disabled = true; }
     window.GDrive.uploadBlob(activeCourse.driveFolder, filename, blob, 'text/plain').then(function(res) {
-      if (res.webViewLink) window.open(res.webViewLink, '_blank');
+      console.log('[Drive] template uploaded', res);
+      var expectedFolderId = window.GDrive.folderIdFromUrl(activeCourse.driveFolder);
+      var actualParents = res.parents || [];
+      if (actualParents.indexOf(expectedFolderId) === -1) {
+        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+      }
+      if (res.webViewLink) {
+        _replaceExportButton(btn, res.webViewLink, function(newBtn) { exportTemplateToGDrive(templateId, newBtn); });
+      } else if (btn) {
+        btn.textContent = origText; btn.disabled = false;
+      }
     }).catch(function(err) {
-      // Fall back to local download + open folder so the user isn't stranded
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+      // Fall back to local download so the user isn't stranded
       var a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
       a.download = filename;
       a.click();
       URL.revokeObjectURL(a.href);
-      window.open(activeCourse.driveFolder, '_blank');
-      alert('Drive upload failed (' + (err.message || 'unknown') + '). File downloaded locally; drop it into the Drive folder manually.');
+      alert('Drive upload failed (' + (err.message || 'unknown') + '). File downloaded locally instead.');
     });
   }
 
@@ -8378,18 +8406,16 @@ ${clone.innerHTML}
     const origText = btn ? btn.textContent : null;
     if (btn) { btn.textContent = '⏳ Uploading to Drive…'; btn.disabled = true; }
     window.GDrive.uploadBlob(driveUrl, exp.filename, exp.blob, 'application/vnd.ms-word').then(function(res) {
-      if (btn) { btn.textContent = '✓ Uploaded'; setTimeout(function() { btn.textContent = origText; btn.disabled = false; }, 3000); }
-      console.log('[Drive] uploaded', res);
+      console.log('[Drive] worksheet uploaded', res);
       var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
       var actualParents = res.parents || [];
-      var inExpectedFolder = actualParents.indexOf(expectedFolderId) !== -1;
-      var locationNote = inExpectedFolder
-        ? 'File uploaded to the course Drive folder.'
-        : 'Warning: file did not land in the expected folder.\nExpected: ' + expectedFolderId + '\nActual parents: ' + actualParents.join(', ') + '\nSearch Drive for "' + res.name + '" to locate it.';
-      if (res.webViewLink) {
-        if (confirm(locationNote + '\n\nOpen in Google Drive?')) {
-          window.open(res.webViewLink, '_blank');
-        }
+      if (actualParents.indexOf(expectedFolderId) === -1) {
+        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+      }
+      if (btn && res.webViewLink) {
+        _replaceExportButton(btn, res.webViewLink, function() { exportToGoogleDrive(); });
+      } else if (btn) {
+        btn.textContent = origText; btn.disabled = false;
       }
     }).catch(function(err) {
       if (btn) { btn.textContent = origText; btn.disabled = false; }
