@@ -2049,16 +2049,27 @@
       html += `<div style="font-size:12px; color:#888;">No Jira Epic mapped yet. Edit Course Info to add an Epic key (e.g. EDL-XXXX).</div>`;
     } else {
       var epicLink = 'https://asudev.jira.com/browse/' + encodeURIComponent(jiraEpic);
+      // Consume any cached Jira data so re-renders (e.g., session poll) don't blank the panel.
+      var cached = (window._jiraStatusCache && window._jiraStatusCache[id]) || null;
+      var currentTxt = 'Loading…';
+      if (cached && cached.status) currentTxt = cached.status;
+      else if (cached && cached.error) currentTxt = cached.error;
+      var transitionsOpts = '<option value="">Change status…</option>';
+      var dropdownDisabled = 'disabled';
+      if (cached && cached.transitions && cached.transitions.length) {
+        transitionsOpts += cached.transitions.map(function(t) {
+          return '<option value="' + t.id + '">→ ' + String(t.name || '').replace(/</g,'&lt;') + '</option>';
+        }).join('');
+        dropdownDisabled = '';
+      }
       html += `<div class="jira-status-row">
         <a class="jira-status-epic" href="${epicLink}" target="_blank" title="Open in Jira">${jiraEpic} ↗</a>
-        <span class="jira-status-current" id="jira-current-${id}">Loading…</span>
-        <select class="jira-status-dropdown" id="jira-transitions-${id}" onchange="applyJiraTransition('${id}','${jiraEpic}', this.value)" disabled>
-          <option value="">Change status…</option>
-        </select>
+        <span class="jira-status-current" id="jira-current-${id}">${currentTxt}</span>
+        <select class="jira-status-dropdown" id="jira-transitions-${id}" onchange="applyJiraTransition('${id}','${jiraEpic}', this.value)" ${dropdownDisabled}>${transitionsOpts}</select>
         <button class="jira-worklog-btn" id="jira-worklog-btn-${id}" onclick="syncJiraWorklog('${id}','${jiraEpic}')" title="Push unsynced worksheet time as a Jira worklog on the Epic">Sync time ⇢ Jira</button>
       </div>
       <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
-      <div class="jira-children" id="jira-children-${id}"></div>`;
+      <div class="jira-children" id="jira-children-${id}">${(cached && cached.childrenHtml) || ''}</div>`;
     }
     html += `</div>`;
 
@@ -2722,61 +2733,71 @@
   async function loadJiraStatus(courseId) {
     var epic = getCourseJiraEpic(courseId);
     if (!epic) return;
-    var currentEl  = document.getElementById('jira-current-' + courseId);
-    var dropdownEl = document.getElementById('jira-transitions-' + courseId);
-    var childrenEl = document.getElementById('jira-children-' + courseId);
-    if (!currentEl || !dropdownEl) return; // detail panel closed or Epic not rendered
+    // Quick guard: if the sync-server isn't running, fail fast without triple-fetching.
     try {
       var base = 'http://127.0.0.1:3456';
+      // 3.5s timeout so we don't hang forever if the server is unreachable.
+      var ctrl = new AbortController();
+      var timer = setTimeout(function() { ctrl.abort(); }, 3500);
       var [issueRes, transRes, childRes] = await Promise.all([
-        fetch(base + '/jira/issue/' + epic),
-        fetch(base + '/jira/transitions/' + epic),
-        fetch(base + '/jira/children/' + epic)
+        fetch(base + '/jira/issue/' + epic, { signal: ctrl.signal }),
+        fetch(base + '/jira/transitions/' + epic, { signal: ctrl.signal }),
+        fetch(base + '/jira/children/' + epic, { signal: ctrl.signal })
       ]);
+      clearTimeout(timer);
       var issue     = await issueRes.json();
       var transData = await transRes.json();
       var childData = await childRes.json();
 
+      var cacheEntry = { status: null, transitions: [], childrenHtml: '', error: null };
       if (issue && issue.fields && issue.fields.status) {
-        currentEl.textContent = issue.fields.status.name || '—';
-        window._jiraStatusCache[courseId] = issue.fields.status.name;
+        cacheEntry.status = issue.fields.status.name || '—';
       } else {
-        currentEl.textContent = issue && issue.error ? 'Error' : '—';
-        if (issue && issue.error) currentEl.title = issue.error;
+        cacheEntry.error = (issue && issue.error) ? 'Error' : '—';
       }
-
       var transitions = (transData && transData.transitions) || [];
-      dropdownEl.innerHTML = '<option value="">Change status…</option>' +
-        transitions.map(function(t) {
-          return '<option value="' + t.id + '">→ ' + (t.to && t.to.name || t.name) + '</option>';
-        }).join('');
-      dropdownEl.disabled = transitions.length === 0;
+      cacheEntry.transitions = transitions.map(function(t) {
+        return { id: t.id, name: (t.to && t.to.name) || t.name };
+      });
+      var children = (childData && childData.issues) || [];
+      cacheEntry.childrenHtml = children.map(function(c) {
+        var s = (c.fields && c.fields.status && c.fields.status.name) || '—';
+        var sCat = (c.fields && c.fields.status && c.fields.status.statusCategory && c.fields.status.statusCategory.key) || '';
+        var cls = sCat === 'done' ? 'done' : sCat === 'indeterminate' ? 'progress' : '';
+        var summary = (c.fields && c.fields.summary) || c.key;
+        return '<div class="jira-child-row">' +
+                 '<a href="https://asudev.jira.com/browse/' + encodeURIComponent(c.key) + '" target="_blank">' +
+                   c.key + ' — ' + String(summary).replace(/</g, '&lt;') +
+                 '</a>' +
+                 '<span class="jira-child-status ' + cls + '">' + String(s).replace(/</g, '&lt;') + '</span>' +
+               '</div>';
+      }).join('');
+      window._jiraStatusCache[courseId] = cacheEntry;
 
-      if (childrenEl) {
-        var children = (childData && childData.issues) || [];
-        if (children.length === 0) {
-          childrenEl.innerHTML = '';
-        } else {
-          childrenEl.innerHTML = children.map(function(c) {
-            var s = (c.fields && c.fields.status && c.fields.status.name) || '—';
-            var sCat = (c.fields && c.fields.status && c.fields.status.statusCategory && c.fields.status.statusCategory.key) || '';
-            var cls = sCat === 'done' ? 'done' : sCat === 'indeterminate' ? 'progress' : '';
-            var summary = (c.fields && c.fields.summary) || c.key;
-            return '<div class="jira-child-row">' +
-                     '<a href="https://asudev.jira.com/browse/' + encodeURIComponent(c.key) + '" target="_blank">' +
-                       c.key + ' — ' + String(summary).replace(/</g, '&lt;') +
-                     '</a>' +
-                     '<span class="jira-child-status ' + cls + '">' + String(s).replace(/</g, '&lt;') + '</span>' +
-                   '</div>';
+      // Re-query the DOM fresh — in case renderDetail re-ran while we were fetching.
+      var currentEl  = document.getElementById('jira-current-' + courseId);
+      var dropdownEl = document.getElementById('jira-transitions-' + courseId);
+      var childrenEl = document.getElementById('jira-children-' + courseId);
+      if (currentEl)  currentEl.textContent = cacheEntry.status || cacheEntry.error || '—';
+      if (dropdownEl) {
+        dropdownEl.innerHTML = '<option value="">Change status…</option>' +
+          cacheEntry.transitions.map(function(t) {
+            return '<option value="' + t.id + '">→ ' + String(t.name).replace(/</g,'&lt;') + '</option>';
           }).join('');
-        }
+        dropdownEl.disabled = cacheEntry.transitions.length === 0;
       }
+      if (childrenEl) childrenEl.innerHTML = cacheEntry.childrenHtml;
     } catch (e) {
-      if (currentEl) {
-        currentEl.textContent = 'Sync-server offline';
-        currentEl.title = 'Start sync-server at 127.0.0.1:3456 to enable Jira controls';
+      window._jiraStatusCache[courseId] = {
+        error: e.name === 'AbortError' ? 'Sync-server offline' : 'Sync-server error'
+      };
+      var currentEl2 = document.getElementById('jira-current-' + courseId);
+      var dropdownEl2 = document.getElementById('jira-transitions-' + courseId);
+      if (currentEl2) {
+        currentEl2.textContent = window._jiraStatusCache[courseId].error;
+        currentEl2.title = 'Start sync-server at 127.0.0.1:3456 to enable Jira controls (run: node sync-server.js)';
       }
-      if (dropdownEl) dropdownEl.disabled = true;
+      if (dropdownEl2) dropdownEl2.disabled = true;
     }
   }
 
