@@ -16,7 +16,7 @@
     'starred_courses', 'course_last_viewed', 'dashboard_hidden_cols',
     'dashboard_resource_links', 'dashboard_comments_seen',
     'id_profile', 'meetingAssignments', 'meeting_action_items_state',
-    'privateNotes', 'course_airtable_urls'
+    'privateNotes', 'course_airtable_urls', 'course_jira_epics'
   ];
 
   function parseJson(s, fallback) {

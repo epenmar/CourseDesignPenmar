@@ -267,6 +267,28 @@
   .activity-role-chip.reviewer   { background: #e8f0fe; color: #1565c0; }
   .activity-empty { font-size: 12px; color: #999; font-style: italic; }
 
+  /* ===== JIRA STATUS WIDGET ===== */
+  .jira-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .jira-status-epic { font-size: 11px; font-weight: 600; color: #1565c0; background: #e8f0fe; border: 1px solid #bbd4f7; padding: 3px 8px; border-radius: 10px; text-decoration: none; }
+  .jira-status-epic:hover { text-decoration: underline; }
+  .jira-status-current { font-size: 12px; font-weight: 600; color: #444; background: #f5f3ee; border: 1px solid #e0ddd5; padding: 3px 10px; border-radius: 10px; }
+  .jira-status-dropdown { font-size: 12px; font-family: 'Inter', sans-serif; padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; color: #444; cursor: pointer; }
+  .jira-status-dropdown:focus { outline: none; border-color: #8c1d40; }
+  .jira-status-msg { font-size: 11px; color: #888; font-style: italic; }
+  .jira-status-msg.err { color: #c62828; font-style: normal; font-weight: 600; }
+  .jira-status-msg.ok { color: #2e7d32; font-style: normal; font-weight: 600; }
+  .jira-worklog-btn { font-size: 12px; font-weight: 600; padding: 4px 10px; border: 1px solid #bbd4f7; background: #e8f0fe; color: #1565c0; border-radius: 6px; cursor: pointer; }
+  .jira-worklog-btn:hover { background: #d4e3fc; }
+  .jira-worklog-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+  .jira-children { margin-top: 10px; font-size: 12px; }
+  .jira-child-row { display: flex; justify-content: space-between; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f5f3ee; }
+  .jira-child-row:last-child { border-bottom: none; }
+  .jira-child-row a { color: #1565c0; text-decoration: none; font-weight: 500; }
+  .jira-child-row a:hover { text-decoration: underline; }
+  .jira-child-status { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; background: #f5f3ee; color: #666; text-transform: uppercase; letter-spacing: 0.03em; white-space: nowrap; }
+  .jira-child-status.done { background: #e8f5e9; color: #2e7d32; }
+  .jira-child-status.progress { background: #fff3e0; color: #e65100; }
+
   /* ===== COLUMN FILTERS ===== */
   .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
   .col-filter-row label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -619,6 +641,10 @@
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Airtable Record URL <span style="font-weight:400; color:#999;">(opens this course's row in "Developments")</span></label>
         <input type="text" id="nc-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/… (optional)" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
       </div>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Jira Epic Key <span style="font-weight:400; color:#999;">(e.g. EDL-7802 — used for comments, status, and worklog)</span></label>
+        <input type="text" id="nc-jira-epic" placeholder="EDL-XXXX (optional)" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; text-transform:uppercase;" />
+      </div>
     </div>
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
       <button onclick="closeAddCourseModal()" style="padding:8px 20px; background:#fff; color:#666; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
@@ -653,6 +679,7 @@
       <div class="edit-field"><label>College</label><input type="text" id="edit-college" placeholder="e.g. New College"></div>
       <div class="edit-field"><label>Google Drive Link</label><input type="text" id="edit-drive" placeholder="https://drive.google.com/..."></div>
       <div class="edit-field"><label>Airtable Record URL <span style="color:#999; font-weight:400;">(opens this course's row in the "Developments" table)</span></label><input type="text" id="edit-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/…"></div>
+      <div class="edit-field"><label>Jira Epic Key <span style="color:#999; font-weight:400;">(e.g. EDL-7802)</span></label><input type="text" id="edit-jira-epic" placeholder="EDL-XXXX" style="text-transform:uppercase;"></div>
       <div class="edit-field"><label>Instructional Designer</label><input type="text" id="edit-id" placeholder="e.g. Elisa Penmar"></div>
       <div style="display:flex; gap:12px;">
         <div class="edit-field" style="flex:1;"><label>Status</label>
@@ -1655,7 +1682,7 @@
     try {
       var r = await window._sbClient
         .from('worksheet_sessions')
-        .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit');
+        .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit, jira_synced_ms');
       if (r.error) { console.warn('[sessions] load failed:', r.error.message); return; }
       var bucket = {};
       (r.data || []).forEach(function(row) {
@@ -1696,16 +1723,45 @@
   }
 
   // ===== JIRA EPIC MAP (courseId → parent Epic key) =====
-  // Seeded with known Epics; future courses can be added here or via a UI we add later.
+  // Built-in mappings discovered from the EDL project. Users can override or
+  // add new mappings via the "Jira Epic" field in Course Info.
   var COURSE_JIRA_EPICS = {
-    'BST605': 'EDL-7802' // BST605-Biostatistical Data Analysis
+    mns522:    'EDL-7828',   // MNS522-Python for Scientific Computing
+    lsc598gen: 'EDL-7829',   // LSC598/STP494-Special Topics: Data Science for Genomics
+    bst515:    'EDL-7825',   // BST515/BMI515-Biostatistics in Medicine and Informatics
+    bst605:    'EDL-7802',   // BST605-Biostatistical Data Analysis
+    bst606:    'EDL-7797',   // BST606-Applied Clinical Trial Design and Analysis
+    bst609:    'EDL-7803',   // BST609-Categorical Data Analysis in Health Sciences
+    tph501:    'EDL-7824',   // TPH501-Foundations of Public Health I
+    tph550:    'EDL-7805',   // TPH550-Data Science for Public Health
+    tph557:    'EDL-7804'    // TPH557-Public Health Technology Ethics, Policy and Law
   };
+  function readJiraEpicOverrides() {
+    try { return JSON.parse(localStorage.getItem('course_jira_epics') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveJiraEpicOverridesMap(map) {
+    localStorage.setItem('course_jira_epics', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_jira_epics', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[jiraEpics] cloud sync failed:', r.error.message); });
+    }
+  }
   function getCourseJiraEpic(courseId) {
     if (!courseId) return '';
+    var overrides = readJiraEpicOverrides();
+    if (overrides[courseId]) return overrides[courseId];
     if (COURSE_JIRA_EPICS[courseId]) return COURSE_JIRA_EPICS[courseId];
-    // Tolerate "BST 605" or trailing suffixes
+    // Fallback for legacy/whitespace variants
     var bare = String(courseId).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
-    return COURSE_JIRA_EPICS[bare] || '';
+    return COURSE_JIRA_EPICS[bare.toLowerCase()] || '';
+  }
+  function setCourseJiraEpic(courseId, epicKey) {
+    var map = readJiraEpicOverrides();
+    var trimmed = (epicKey || '').trim().toUpperCase();
+    if (trimmed) map[courseId] = trimmed; else delete map[courseId];
+    saveJiraEpicOverridesMap(map);
   }
 
   // ===== PRIVATE NOTES (multi-target) =====
@@ -1976,6 +2032,25 @@
         </tr>`;
       });
       html += `</tbody></table>`;
+    }
+    html += `</div>`;
+
+    // ===== Jira Status: change the Epic's status + children from the side panel =====
+    html += `<div class="detail-section" style="margin-top:16px;"><h3>Jira Status</h3>`;
+    if (!jiraEpic) {
+      html += `<div style="font-size:12px; color:#888;">No Jira Epic mapped yet. Edit Course Info to add an Epic key (e.g. EDL-XXXX).</div>`;
+    } else {
+      var epicLink = 'https://asudev.jira.com/browse/' + encodeURIComponent(jiraEpic);
+      html += `<div class="jira-status-row">
+        <a class="jira-status-epic" href="${epicLink}" target="_blank" title="Open in Jira">${jiraEpic} ↗</a>
+        <span class="jira-status-current" id="jira-current-${id}">Loading…</span>
+        <select class="jira-status-dropdown" id="jira-transitions-${id}" onchange="applyJiraTransition('${id}','${jiraEpic}', this.value)" disabled>
+          <option value="">Change status…</option>
+        </select>
+        <button class="jira-worklog-btn" id="jira-worklog-btn-${id}" onclick="syncJiraWorklog('${id}','${jiraEpic}')" title="Push unsynced worksheet time as a Jira worklog on the Epic">Sync time ⇢ Jira</button>
+      </div>
+      <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
+      <div class="jira-children" id="jira-children-${id}"></div>`;
     }
     html += `</div>`;
 
@@ -2625,10 +2700,156 @@
     document.getElementById('detail-panel').scrollTop = 0;
     // Opportunistic refresh — picks up visits made since the last poll
     loadWorksheetSessions();
+    // Pull live Jira status + children + worklog sync state
+    loadJiraStatus(courseId);
   }
 
   function closeDetail() {
     document.getElementById('detail-overlay').classList.remove('open');
+  }
+
+  // ===== JIRA STATUS PANEL =====
+  // Fetches the Epic's current status + available transitions + ADDIE child tasks.
+  // Falls back silently if the local sync-server proxy (127.0.0.1:3456) isn't running.
+  window._jiraStatusCache = window._jiraStatusCache || {};
+  async function loadJiraStatus(courseId) {
+    var epic = getCourseJiraEpic(courseId);
+    if (!epic) return;
+    var currentEl  = document.getElementById('jira-current-' + courseId);
+    var dropdownEl = document.getElementById('jira-transitions-' + courseId);
+    var childrenEl = document.getElementById('jira-children-' + courseId);
+    if (!currentEl || !dropdownEl) return; // detail panel closed or Epic not rendered
+    try {
+      var base = 'http://127.0.0.1:3456';
+      var [issueRes, transRes, childRes] = await Promise.all([
+        fetch(base + '/jira/issue/' + epic),
+        fetch(base + '/jira/transitions/' + epic),
+        fetch(base + '/jira/children/' + epic)
+      ]);
+      var issue     = await issueRes.json();
+      var transData = await transRes.json();
+      var childData = await childRes.json();
+
+      if (issue && issue.fields && issue.fields.status) {
+        currentEl.textContent = issue.fields.status.name || '—';
+        window._jiraStatusCache[courseId] = issue.fields.status.name;
+      } else {
+        currentEl.textContent = issue && issue.error ? 'Error' : '—';
+        if (issue && issue.error) currentEl.title = issue.error;
+      }
+
+      var transitions = (transData && transData.transitions) || [];
+      dropdownEl.innerHTML = '<option value="">Change status…</option>' +
+        transitions.map(function(t) {
+          return '<option value="' + t.id + '">→ ' + (t.to && t.to.name || t.name) + '</option>';
+        }).join('');
+      dropdownEl.disabled = transitions.length === 0;
+
+      if (childrenEl) {
+        var children = (childData && childData.issues) || [];
+        if (children.length === 0) {
+          childrenEl.innerHTML = '';
+        } else {
+          childrenEl.innerHTML = children.map(function(c) {
+            var s = (c.fields && c.fields.status && c.fields.status.name) || '—';
+            var sCat = (c.fields && c.fields.status && c.fields.status.statusCategory && c.fields.status.statusCategory.key) || '';
+            var cls = sCat === 'done' ? 'done' : sCat === 'indeterminate' ? 'progress' : '';
+            var summary = (c.fields && c.fields.summary) || c.key;
+            return '<div class="jira-child-row">' +
+                     '<a href="https://asudev.jira.com/browse/' + encodeURIComponent(c.key) + '" target="_blank">' +
+                       c.key + ' — ' + String(summary).replace(/</g, '&lt;') +
+                     '</a>' +
+                     '<span class="jira-child-status ' + cls + '">' + String(s).replace(/</g, '&lt;') + '</span>' +
+                   '</div>';
+          }).join('');
+        }
+      }
+    } catch (e) {
+      if (currentEl) {
+        currentEl.textContent = 'Sync-server offline';
+        currentEl.title = 'Start sync-server at 127.0.0.1:3456 to enable Jira controls';
+      }
+      if (dropdownEl) dropdownEl.disabled = true;
+    }
+  }
+
+  async function applyJiraTransition(courseId, epic, transitionId) {
+    if (!transitionId) return;
+    var msgEl = document.getElementById('jira-status-msg-' + courseId);
+    var dropdownEl = document.getElementById('jira-transitions-' + courseId);
+    if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Applying transition…'; }
+    if (dropdownEl) dropdownEl.disabled = true;
+    try {
+      var r = await fetch('http://127.0.0.1:3456/jira/transitions/' + epic, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ transitionId: transitionId })
+      });
+      var data = await r.json();
+      if (r.ok && data.ok) {
+        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Status updated ✓'; }
+        // Re-load to show the new status + updated transitions list
+        setTimeout(function() { loadJiraStatus(courseId); }, 400);
+      } else {
+        if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || data.errorMessages && data.errorMessages[0] || 'Unknown'); }
+        if (dropdownEl) { dropdownEl.disabled = false; dropdownEl.value = ''; }
+      }
+    } catch (e) {
+      if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Request failed: ' + e.message; }
+      if (dropdownEl) { dropdownEl.disabled = false; dropdownEl.value = ''; }
+    }
+  }
+
+  async function syncJiraWorklog(courseId, epic) {
+    var msgEl = document.getElementById('jira-status-msg-' + courseId);
+    var btnEl = document.getElementById('jira-worklog-btn-' + courseId);
+    // Sum UN-SYNCED ms across all sessions for this course
+    var sessions = (window._worksheetSessions && window._worksheetSessions[courseId]) || [];
+    var unsyncedMs = sessions.reduce(function(sum, s) {
+      var synced = Number(s.jira_synced_ms || 0);
+      var total  = Number(s.total_ms || 0);
+      return sum + Math.max(0, total - synced);
+    }, 0);
+    if (unsyncedMs < 60000) {
+      if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Nothing to sync (need at least 1 minute of unsynced time).'; }
+      return;
+    }
+    var seconds = Math.floor(unsyncedMs / 1000);
+    var mins = Math.round(seconds / 60);
+    if (!confirm('Log ' + mins + ' minute' + (mins === 1 ? '' : 's') + ' as a worklog on ' + epic + '?')) return;
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Syncing…'; }
+    if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Posting worklog to Jira…'; }
+    try {
+      var r = await fetch('http://127.0.0.1:3456/jira/worklog/' + epic, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timeSpentSeconds: seconds,
+          comment: 'Dashboard worksheet time (' + courseId + ')'
+        })
+      });
+      var data = await r.json();
+      if (r.ok && data.ok) {
+        // Mark each session as synced — writes jira_synced_ms = total_ms in Supabase
+        if (window._sbClient) {
+          await Promise.all(sessions.map(function(s) {
+            return window._sbClient.from('worksheet_sessions')
+              .update({ jira_synced_ms: Number(s.total_ms || 0) })
+              .eq('course_id', s.course_id)
+              .eq('identity_name', s.identity_name)
+              .eq('identity_role', s.identity_role);
+          }));
+        }
+        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Logged ' + mins + 'm to ' + epic + ' ✓'; }
+        loadWorksheetSessions(); // refresh local cache
+      } else {
+        if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || 'Unknown'); }
+      }
+    } catch (e) {
+      if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Request failed: ' + e.message; }
+    } finally {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Sync time ⇢ Jira'; }
+    }
   }
 
   // ===== DYNAMIC FILTER BUTTONS =====
@@ -2721,6 +2942,7 @@
     const credits = document.getElementById('nc-credits').value.trim() || '3';
     const drive = document.getElementById('nc-drive').value.trim();
     const airtableUrl = document.getElementById('nc-airtable').value.trim();
+    const jiraEpic = document.getElementById('nc-jira-epic').value.trim().toUpperCase();
 
     // Generate key
     const key = code.toLowerCase().replace(/\s+/g, '');
@@ -2801,6 +3023,8 @@
 
     // Airtable URL lives in its own dashboard_state key
     if (airtableUrl) setCourseAirtableUrl(key, airtableUrl);
+    // Jira Epic key lives in its own dashboard_state key
+    if (jiraEpic) setCourseJiraEpic(key, jiraEpic);
 
     // Re-render
     renderSummary();
@@ -2810,7 +3034,7 @@
     closeAddCourseModal();
 
     // Clear form
-    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-airtable','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
+    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-airtable','nc-jira-epic','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('nc-college').value = '';
     document.getElementById('nc-session').value = '';
     document.getElementById('nc-modules').value = '7';
@@ -3060,6 +3284,7 @@
     document.getElementById('edit-college').value = c.college || '';
     document.getElementById('edit-drive').value = c.driveFolder || '';
     document.getElementById('edit-airtable').value = getCourseAirtableUrl(editCourseId);
+    document.getElementById('edit-jira-epic').value = getCourseJiraEpic(editCourseId);
     document.getElementById('edit-id').value = (c.id || '').replace(/&amp;/g, '&');
     document.getElementById('edit-status').value = c.status || 'Not Started';
     document.getElementById('edit-progress').value = c.progress || 0;
@@ -3086,6 +3311,7 @@
     var college = document.getElementById('edit-college').value.trim();
     var drive = document.getElementById('edit-drive').value.trim();
     var airtableUrl = document.getElementById('edit-airtable').value.trim();
+    var jiraEpic = document.getElementById('edit-jira-epic').value.trim().toUpperCase();
     var id = document.getElementById('edit-id').value.trim();
     var status = document.getElementById('edit-status').value;
     var progress = parseInt(document.getElementById('edit-progress').value) || 0;
@@ -3132,6 +3358,8 @@
 
     // Airtable URL lives in its own dashboard_state key
     setCourseAirtableUrl(editCourseId, airtableUrl);
+    // Jira Epic key lives in its own dashboard_state key
+    setCourseJiraEpic(editCourseId, jiraEpic);
 
     renderTable();
     closeEditCourse();
