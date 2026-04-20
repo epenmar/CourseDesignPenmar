@@ -15,7 +15,8 @@
     'inactive_courses', 'course_overrides', 'course_reviewers',
     'starred_courses', 'course_last_viewed', 'dashboard_hidden_cols',
     'dashboard_resource_links', 'dashboard_comments_seen',
-    'id_profile', 'meetingAssignments', 'meeting_action_items_state'
+    'id_profile', 'meetingAssignments', 'meeting_action_items_state',
+    'privateNotes', 'course_airtable_urls'
   ];
 
   function parseJson(s, fallback) {

@@ -213,6 +213,38 @@
   .meeting-transcript-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; padding: 4px 10px; background: #f5f5f0; border: 1px solid #e0ddd5; border-radius: 12px; font-size: 11px; color: #8c1d40; text-decoration: none; font-weight: 500; transition: background 0.12s, border-color 0.12s; }
   .meeting-transcript-link:hover { background: #fdf2f4; border-color: #8c1d40; }
 
+  /* ===== PRIVATE NOTES (multi-target: Self / Jira / Airtable) ===== */
+  .pn-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .pn-add-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; background: #8c1d40; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .pn-add-btn:hover { background: #6d1732; }
+  .pn-composer { background: #fffdf5; border: 1px solid #ffc627; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .pn-composer textarea { width: 100%; min-height: 72px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
+  .pn-composer textarea:focus { outline: none; border-color: #8c1d40; }
+  .pn-targets { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+  .pn-targets label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #444; cursor: pointer; }
+  .pn-targets input[type="checkbox"] { accent-color: #8c1d40; width: 13px; height: 13px; cursor: pointer; }
+  .pn-composer-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+  .pn-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .pn-save { background: #8c1d40; color: #fff; }
+  .pn-save:hover { background: #6d1732; }
+  .pn-save:disabled { background: #ccc; cursor: not-allowed; }
+  .pn-cancel { background: #eee; color: #666; }
+  .pn-cancel:hover { background: #ddd; }
+  .pn-note-card { background: #fffdf5; border: 1px solid #ffc627; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; position: relative; }
+  .pn-note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .pn-note-date { font-size: 11px; color: #888; }
+  .pn-note-actions { display: flex; gap: 4px; opacity: 0.5; transition: opacity 0.12s; }
+  .pn-note-card:hover .pn-note-actions { opacity: 1; }
+  .pn-note-actions button { background: none; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; color: #888; font-family: 'Inter', sans-serif; }
+  .pn-note-actions .pn-edit:hover { color: #1565c0; }
+  .pn-note-actions .pn-del:hover { color: #c62828; }
+  .pn-note-text { font-size: 13px; color: #333; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+  .pn-note-targets { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .pn-target-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #f5f5f0; color: #666; border: 1px solid #e0ddd5; }
+  .pn-target-chip.self { background: #fdf2f4; color: #8c1d40; border-color: #e6b8c4; }
+  .pn-target-chip.jira { background: #e8f0fe; color: #1565c0; border-color: #bbd4f7; }
+  .pn-target-chip.airtable { background: #fff3e0; color: #e65100; border-color: #ffd8a8; }
+
   /* ===== COLUMN FILTERS ===== */
   .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
   .col-filter-row label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -561,6 +593,10 @@
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Google Drive Folder URL</label>
         <input type="text" id="nc-drive" placeholder="Optional" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
       </div>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Airtable Record URL <span style="font-weight:400; color:#999;">(opens this course's row in "Developments")</span></label>
+        <input type="text" id="nc-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/… (optional)" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
     </div>
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
       <button onclick="closeAddCourseModal()" style="padding:8px 20px; background:#fff; color:#666; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
@@ -594,6 +630,7 @@
       <div class="edit-field"><label>Program</label><input type="text" id="edit-program" placeholder="e.g. Bio Data Science MS"></div>
       <div class="edit-field"><label>College</label><input type="text" id="edit-college" placeholder="e.g. New College"></div>
       <div class="edit-field"><label>Google Drive Link</label><input type="text" id="edit-drive" placeholder="https://drive.google.com/..."></div>
+      <div class="edit-field"><label>Airtable Record URL <span style="color:#999; font-weight:400;">(opens this course's row in the "Developments" table)</span></label><input type="text" id="edit-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/…"></div>
       <div class="edit-field"><label>Instructional Designer</label><input type="text" id="edit-id" placeholder="e.g. Elisa Penmar"></div>
       <div style="display:flex; gap:12px;">
         <div class="edit-field" style="flex:1;"><label>Status</label>
@@ -1561,6 +1598,172 @@
     if (state[k] && typeof state[k][idx] === 'boolean') return state[k][idx];
     return !!defaultDone;
   }
+  // ===== AIRTABLE RECORD URLS (per course) =====
+  // Kept as a separate dashboard_state key so edits don't collide with course_overrides.
+  function readAirtableUrls() {
+    try { return JSON.parse(localStorage.getItem('course_airtable_urls') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveAirtableUrlsMap(map) {
+    localStorage.setItem('course_airtable_urls', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_airtable_urls', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[airtableUrls] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getCourseAirtableUrl(courseId) { return readAirtableUrls()[courseId] || ''; }
+  function setCourseAirtableUrl(courseId, url) {
+    var map = readAirtableUrls();
+    var trimmed = (url || '').trim();
+    if (trimmed) map[courseId] = trimmed; else delete map[courseId];
+    saveAirtableUrlsMap(map);
+  }
+
+  // ===== JIRA EPIC MAP (courseId → parent Epic key) =====
+  // Seeded with known Epics; future courses can be added here or via a UI we add later.
+  var COURSE_JIRA_EPICS = {
+    'BST605': 'EDL-7802' // BST605-Biostatistical Data Analysis
+  };
+  function getCourseJiraEpic(courseId) {
+    if (!courseId) return '';
+    if (COURSE_JIRA_EPICS[courseId]) return COURSE_JIRA_EPICS[courseId];
+    // Tolerate "BST 605" or trailing suffixes
+    var bare = String(courseId).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+    return COURSE_JIRA_EPICS[bare] || '';
+  }
+
+  // ===== PRIVATE NOTES (multi-target) =====
+  // Shape: { [courseId]: [{ id, text, createdAt, targets: ['self','jira','airtable'] }, ...] }
+  function readPrivateNotes() {
+    try { return JSON.parse(localStorage.getItem('privateNotes') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function savePrivateNotesMap(map) {
+    localStorage.setItem('privateNotes', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'privateNotes', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[privateNotes] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getCoursePrivateNotes(courseId) {
+    var all = readPrivateNotes();
+    return (all[courseId] || []).slice().sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+  }
+  function fmtPrivateNoteDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+           ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  window.togglePrivateNoteComposer = function(courseId) {
+    var el = document.getElementById('pn-composer-' + courseId);
+    if (!el) return;
+    var show = el.style.display === 'none' || !el.style.display;
+    el.style.display = show ? 'block' : 'none';
+    if (show) {
+      var ta = document.getElementById('pn-text-' + courseId);
+      if (ta) ta.focus();
+    }
+  };
+  window.savePrivateNote = function(courseId) {
+    var ta = document.getElementById('pn-text-' + courseId);
+    var text = (ta && ta.value || '').trim();
+    if (!text) return;
+    var self  = document.getElementById('pn-t-self-' + courseId);
+    var jira  = document.getElementById('pn-t-jira-' + courseId);
+    var atbl  = document.getElementById('pn-t-airtable-' + courseId);
+    var targets = [];
+    if (self && self.checked)  targets.push('self');
+    if (jira && jira.checked)  targets.push('jira');
+    if (atbl && atbl.checked)  targets.push('airtable');
+    if (targets.length === 0) targets.push('self'); // default if user unchecks everything
+    var all = readPrivateNotes();
+    var list = all[courseId] || [];
+    var editingId = ta && ta.dataset.editingId;
+    var note;
+    if (editingId) {
+      note = list.find(function(n) { return n.id === editingId; });
+      if (note) { note.text = text; note.targets = targets; note.updatedAt = new Date().toISOString(); }
+    } else {
+      note = {
+        id: 'pn_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        text: text,
+        createdAt: new Date().toISOString(),
+        targets: targets,
+      };
+      list.push(note);
+    }
+    all[courseId] = list;
+    savePrivateNotesMap(all);
+
+    // Fire-and-forget: if Jira target is selected, post to the course's Epic via the local proxy.
+    if (note && targets.indexOf('jira') !== -1) {
+      var epicKey = getCourseJiraEpic(courseId);
+      if (!epicKey) {
+        note.jira = { status: 'error', error: 'No Jira Epic mapped for ' + courseId };
+        savePrivateNotesMap(all);
+        renderDetail(courseId);
+      } else if (!note.jira || note.jira.status !== 'posted') {
+        note.jira = { status: 'pending', epicKey: epicKey };
+        savePrivateNotesMap(all);
+        fetch('http://127.0.0.1:3456/jira/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ issueKey: epicKey, text: text })
+        }).then(function(r) {
+          return r.json().then(function(j) { return { ok: r.ok, body: j }; });
+        }).then(function(res) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          if (res.ok) n.jira = { status: 'posted', epicKey: epicKey, commentId: res.body.id, postedAt: new Date().toISOString() };
+          else n.jira = { status: 'error', epicKey: epicKey, error: (res.body && res.body.error) || 'unknown' };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        }).catch(function(err) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          n.jira = { status: 'error', epicKey: epicKey, error: String(err && err.message || err) + ' (is sync-server running?)' };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        });
+      }
+    }
+
+    renderDetail(courseId);
+  };
+  window.cancelPrivateNote = function(courseId) {
+    var ta = document.getElementById('pn-text-' + courseId);
+    if (ta) { ta.value = ''; delete ta.dataset.editingId; }
+    var composer = document.getElementById('pn-composer-' + courseId);
+    if (composer) composer.style.display = 'none';
+  };
+  window.editPrivateNote = function(courseId, noteId) {
+    var notes = getCoursePrivateNotes(courseId);
+    var note = notes.find(function(n) { return n.id === noteId; });
+    if (!note) return;
+    var composer = document.getElementById('pn-composer-' + courseId);
+    if (composer) composer.style.display = 'block';
+    var ta = document.getElementById('pn-text-' + courseId);
+    if (ta) { ta.value = note.text; ta.dataset.editingId = noteId; ta.focus(); }
+    ['self', 'jira', 'airtable'].forEach(function(t) {
+      var cb = document.getElementById('pn-t-' + t + '-' + courseId);
+      if (cb) cb.checked = note.targets.indexOf(t) !== -1;
+    });
+  };
+  window.deletePrivateNote = function(courseId, noteId) {
+    if (!confirm('Delete this note?')) return;
+    var all = readPrivateNotes();
+    all[courseId] = (all[courseId] || []).filter(function(n) { return n.id !== noteId; });
+    if (all[courseId].length === 0) delete all[courseId];
+    savePrivateNotesMap(all);
+    renderDetail(courseId);
+  };
+
   window.toggleActionItem = function(courseId, mKey, idx, el) {
     const state = readActionState();
     const k = courseId + '::' + mKey;
@@ -1808,7 +2011,60 @@
         </div></div>`;
     }
 
-    // Meeting history (inline)
+    // Development Notes (multi-target: Self / Jira / Airtable). Its own section,
+    // always rendered so the "+ Add Note" button is reachable on every course.
+    var privateNotes = getCoursePrivateNotes(id);
+    html += `<div class="detail-section"><h3>Development Notes</h3>`;
+    html += `<div class="pn-toolbar">
+      <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
+      <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
+    </div>`;
+    var jiraEpic = getCourseJiraEpic(id);
+    var jiraLabel = jiraEpic
+      ? `<label title="Posts as a comment on ${jiraEpic}"><input type="checkbox" id="pn-t-jira-${id}"> Jira (${jiraEpic})</label>`
+      : `<label title="No Epic mapped for ${id} yet" style="opacity:0.55;"><input type="checkbox" id="pn-t-jira-${id}" disabled> Jira (Epic comment)</label>`;
+    html += `<div id="pn-composer-${id}" class="pn-composer" style="display:none;">
+      <textarea id="pn-text-${id}" placeholder="Type a note for this course…"></textarea>
+      <div class="pn-targets">
+        <label><input type="checkbox" id="pn-t-self-${id}" checked> Self (dashboard)</label>
+        ${jiraLabel}
+        <label title="Available after Airtable deep-link ships" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (open record)</label>
+      </div>
+      <div class="pn-composer-actions">
+        <button class="pn-btn pn-cancel" onclick="cancelPrivateNote('${id}')">Cancel</button>
+        <button class="pn-btn pn-save" onclick="savePrivateNote('${id}')">Save note</button>
+      </div>
+    </div>`;
+    privateNotes.forEach(function(n) {
+      var targetsHtml = (n.targets || []).map(function(t) {
+        var label = t === 'self' ? '📝 Self' : t === 'jira' ? '🔗 Jira' : '📋 Airtable';
+        var suffix = '';
+        if (t === 'jira' && n.jira) {
+          if (n.jira.status === 'pending') suffix = ' · posting…';
+          else if (n.jira.status === 'posted') suffix = ' · ' + (n.jira.epicKey || 'posted') + ' ✓';
+          else if (n.jira.status === 'error') suffix = ' · failed';
+        }
+        return '<span class="pn-target-chip ' + t + '" title="' + (t === 'jira' && n.jira && n.jira.error ? String(n.jira.error).replace(/"/g, '&quot;') : '') + '">' + label + suffix + '</span>';
+      }).join('');
+      var safeText = String(n.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html += `<div class="pn-note-card">
+        <div class="pn-note-header">
+          <div class="pn-note-date">${fmtPrivateNoteDate(n.createdAt)}${n.updatedAt ? ' · edited' : ''}</div>
+          <div class="pn-note-actions">
+            <button class="pn-edit" onclick="editPrivateNote('${id}','${n.id}')" title="Edit">✎</button>
+            <button class="pn-del" onclick="deletePrivateNote('${id}','${n.id}')" title="Delete">🗑</button>
+          </div>
+        </div>
+        <div class="pn-note-text">${safeText}</div>
+        ${targetsHtml ? '<div class="pn-note-targets">' + targetsHtml + '</div>' : ''}
+      </div>`;
+    });
+    if (privateNotes.length === 0) {
+      html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
+    }
+    html += `</div>`; // close Development Notes section
+
+    // Meeting history — only renders when Granola meetings exist for this course.
     if (c.meetings && c.meetings.length > 0) {
       html += `<div class="detail-section"><h3>Meeting Notes</h3>`;
       c.meetings.forEach((m, idx) => {
@@ -1855,7 +2111,7 @@
 
         html += `</div></div>`; // close body + card
       });
-      html += `</div>`; // close section
+      html += `</div>`; // close detail-section (Meeting Notes)
     }
 
     // Google Calendar section
@@ -2390,6 +2646,7 @@
     const modCount = parseInt(document.getElementById('nc-modules').value) || 7;
     const credits = document.getElementById('nc-credits').value.trim() || '3';
     const drive = document.getElementById('nc-drive').value.trim();
+    const airtableUrl = document.getElementById('nc-airtable').value.trim();
 
     // Generate key
     const key = code.toLowerCase().replace(/\s+/g, '');
@@ -2468,6 +2725,9 @@
     saved[key]._worksheet = worksheetEntry;
     localStorage.setItem('user_courses', JSON.stringify(saved));
 
+    // Airtable URL lives in its own dashboard_state key
+    if (airtableUrl) setCourseAirtableUrl(key, airtableUrl);
+
     // Re-render
     renderSummary();
     renderTable();
@@ -2476,7 +2736,7 @@
     closeAddCourseModal();
 
     // Clear form
-    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
+    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-airtable','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('nc-college').value = '';
     document.getElementById('nc-session').value = '';
     document.getElementById('nc-modules').value = '7';
@@ -2725,6 +2985,7 @@
     document.getElementById('edit-program').value = c.program || '';
     document.getElementById('edit-college').value = c.college || '';
     document.getElementById('edit-drive').value = c.driveFolder || '';
+    document.getElementById('edit-airtable').value = getCourseAirtableUrl(editCourseId);
     document.getElementById('edit-id').value = (c.id || '').replace(/&amp;/g, '&');
     document.getElementById('edit-status').value = c.status || 'Not Started';
     document.getElementById('edit-progress').value = c.progress || 0;
@@ -2750,6 +3011,7 @@
     var program = document.getElementById('edit-program').value.trim();
     var college = document.getElementById('edit-college').value.trim();
     var drive = document.getElementById('edit-drive').value.trim();
+    var airtableUrl = document.getElementById('edit-airtable').value.trim();
     var id = document.getElementById('edit-id').value.trim();
     var status = document.getElementById('edit-status').value;
     var progress = parseInt(document.getElementById('edit-progress').value) || 0;
@@ -2793,6 +3055,9 @@
       id: id, status: status, progress: progress, phase: phase
     };
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
+
+    // Airtable URL lives in its own dashboard_state key
+    setCourseAirtableUrl(editCourseId, airtableUrl);
 
     renderTable();
     closeEditCourse();
