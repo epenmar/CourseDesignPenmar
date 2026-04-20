@@ -4,7 +4,11 @@
 // course's existing Google Drive folder (driveFolder URL).
 
 (function() {
-  var SCOPE = 'https://www.googleapis.com/auth/drive.file';
+  // Full drive scope: drive.file is too narrow — it can't see folders
+  // created outside this app, which returns 404 when uploading to a
+  // pre-existing course folder. Our OAuth screen is Internal (ASU only),
+  // so the broader scope doesn't require Google verification.
+  var SCOPE = 'https://www.googleapis.com/auth/drive';
   var accessToken = null;
   var tokenExpiresAt = 0;
   var pendingTokenResolvers = [];
@@ -72,7 +76,7 @@
       form.append('file', blob);
       return new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,name,webViewLink,webContentLink');
+        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink,webContentLink');
         xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         if (onProgress && xhr.upload) {
           xhr.upload.addEventListener('progress', function(e) {
