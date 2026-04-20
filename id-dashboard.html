@@ -3438,8 +3438,9 @@
   initResourceLinks();
 
   // ===== COMMENT NOTIFICATIONS =====
-  const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
-  const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
+  // URL + key come from supabase-config.js so there's a single source of truth.
+  const SUPABASE_URL = window.SUPABASE_URL;
+  const SUPABASE_ANON_KEY = window.SUPABASE_PUBLISHABLE_KEY;
   let dashSupabase = null;
 
   try {

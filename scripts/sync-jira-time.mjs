@@ -30,8 +30,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DASHBOARD_DATA_FILE = path.join(__dirname, '..', 'dashboard-data.js');
 
 const ENV_FILE = '/Users/epenmar/conductor/.env';
-const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_G_EPvRxbrjl1EWjDbWR7Yg_Z7IKBkFg';
+// Must match supabase-config.js in the repo root (single source of truth).
+const SUPABASE_URL = 'https://gflnymqjraxonbdtbxma.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_di7j_DR1Ie3GJdOtHb8NlQ_rI5eiP4Y';
 
 const DRY = process.argv.includes('--dry');
 const minArg = (process.argv.find(a => a.startsWith('--min=')) || '').split('=')[1];
