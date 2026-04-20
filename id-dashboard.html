@@ -1680,9 +1680,16 @@
   async function loadWorksheetSessions() {
     if (!window._sbClient) return;
     try {
+      // Try to include jira_synced_ms; fall back if the column hasn't been added yet.
       var r = await window._sbClient
         .from('worksheet_sessions')
         .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit, jira_synced_ms');
+      if (r.error && /jira_synced_ms/.test(r.error.message || '')) {
+        console.warn('[sessions] jira_synced_ms column missing — run the schema migration; loading without it');
+        r = await window._sbClient
+          .from('worksheet_sessions')
+          .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit');
+      }
       if (r.error) { console.warn('[sessions] load failed:', r.error.message); return; }
       var bucket = {};
       (r.data || []).forEach(function(row) {
@@ -2036,6 +2043,7 @@
     html += `</div>`;
 
     // ===== Jira Status: change the Epic's status + children from the side panel =====
+    var jiraEpic = getCourseJiraEpic(id);
     html += `<div class="detail-section" style="margin-top:16px;"><h3>Jira Status</h3>`;
     if (!jiraEpic) {
       html += `<div style="font-size:12px; color:#888;">No Jira Epic mapped yet. Edit Course Info to add an Epic key (e.g. EDL-XXXX).</div>`;
@@ -2166,7 +2174,6 @@
       <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
       <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
     </div>`;
-    var jiraEpic = getCourseJiraEpic(id);
     var jiraLabel = jiraEpic
       ? `<label title="Posts as a comment on ${jiraEpic}"><input type="checkbox" id="pn-t-jira-${id}"> Jira (${jiraEpic})</label>`
       : `<label title="No Epic mapped for ${id} yet" style="opacity:0.55;"><input type="checkbox" id="pn-t-jira-${id}" disabled> Jira (Epic comment)</label>`;
