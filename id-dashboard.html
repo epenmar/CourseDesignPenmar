@@ -7,6 +7,9 @@
 <meta http-equiv="Pragma" content="no-cache">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
 <title>ID Dashboard — ASU Online Course Development</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
+<script src="supabase-sync.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -113,6 +116,9 @@
   .status-behind { background: #ffebee; color: #c62828; }
   .status-complete { background: #e3f2fd; color: #1565c0; }
   .status-not-started { background: #f5f5f5; color: #999; }
+  .status-inactive { background: #f0f0f0; color: #aaa; font-style: italic; }
+  tr.row-inactive { opacity: 0.5; }
+  tr.row-inactive:hover { opacity: 0.75; }
 
   /* Phase badge */
   .phase-badge { font-size: 11px; color: #666; }
@@ -127,9 +133,9 @@
   .last-active.stale { color: #c62828; font-weight: 500; }
 
   /* ===== DETAIL PANEL ===== */
-  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 200; display: none; }
+  .detail-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 260; display: none; }
   .detail-overlay.open { display: flex; justify-content: flex-end; }
-  .detail-panel { width: 520px; background: #fff; height: 100vh; overflow-y: auto; box-shadow: -4px 0 20px rgba(0,0,0,0.1); padding: 28px 32px; }
+  .detail-panel { width: 520px; background: #fff; height: 100vh; overflow-y: auto; box-shadow: -4px 0 20px rgba(0,0,0,0.1); padding: 28px 32px; box-sizing: border-box; }
   .detail-close { border: none; background: none; font-size: 22px; cursor: pointer; color: #999; float: right; }
   .comment-notif { background: #8c1d40; color: #fff; font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 10px; margin-left: 6px; white-space: nowrap; }
   .comment-notif-bar { display: flex; align-items: center; gap: 8px; padding: 10px 14px; background: #fef3e8; border: 1px solid #ffc627; border-radius: 8px; margin-bottom: 16px; cursor: pointer; transition: background 0.15s; }
@@ -200,8 +206,44 @@
   .meeting-decision { font-size: 12px; color: #444; padding: 3px 0; padding-left: 14px; position: relative; }
   .meeting-decision::before { content: "→"; position: absolute; left: 0; color: #8c1d40; }
   .meeting-action { font-size: 12px; color: #444; padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
-  .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; }
+  .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+  .meeting-action .check:hover { border-color: #8c1d40; }
   .meeting-action .check.done { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+  .meeting-action .action-text.done { text-decoration: line-through; color: #999; }
+  .meeting-transcript-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; padding: 4px 10px; background: #f5f5f0; border: 1px solid #e0ddd5; border-radius: 12px; font-size: 11px; color: #8c1d40; text-decoration: none; font-weight: 500; transition: background 0.12s, border-color 0.12s; }
+  .meeting-transcript-link:hover { background: #fdf2f4; border-color: #8c1d40; }
+
+  /* ===== PRIVATE NOTES (multi-target: Self / Jira / Airtable) ===== */
+  .pn-toolbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .pn-add-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; background: #8c1d40; color: #fff; border: none; border-radius: 6px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .pn-add-btn:hover { background: #6d1732; }
+  .pn-composer { background: #fffdf5; border: 1px solid #ffc627; border-radius: 10px; padding: 12px 14px; margin-bottom: 12px; }
+  .pn-composer textarea { width: 100%; min-height: 72px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
+  .pn-composer textarea:focus { outline: none; border-color: #8c1d40; }
+  .pn-targets { display: flex; gap: 14px; margin-top: 10px; flex-wrap: wrap; }
+  .pn-targets label { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #444; cursor: pointer; }
+  .pn-targets input[type="checkbox"] { accent-color: #8c1d40; width: 13px; height: 13px; cursor: pointer; }
+  .pn-composer-actions { display: flex; gap: 8px; margin-top: 10px; justify-content: flex-end; }
+  .pn-btn { font-size: 11px; font-weight: 600; padding: 5px 12px; border-radius: 6px; border: none; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .pn-save { background: #8c1d40; color: #fff; }
+  .pn-save:hover { background: #6d1732; }
+  .pn-save:disabled { background: #ccc; cursor: not-allowed; }
+  .pn-cancel { background: #eee; color: #666; }
+  .pn-cancel:hover { background: #ddd; }
+  .pn-note-card { background: #fffdf5; border: 1px solid #ffc627; border-radius: 10px; padding: 12px 14px; margin-bottom: 10px; position: relative; }
+  .pn-note-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .pn-note-date { font-size: 11px; color: #888; }
+  .pn-note-actions { display: flex; gap: 4px; opacity: 0.5; transition: opacity 0.12s; }
+  .pn-note-card:hover .pn-note-actions { opacity: 1; }
+  .pn-note-actions button { background: none; border: none; font-size: 11px; cursor: pointer; padding: 2px 4px; color: #888; font-family: 'Inter', sans-serif; }
+  .pn-note-actions .pn-edit:hover { color: #1565c0; }
+  .pn-note-actions .pn-del:hover { color: #c62828; }
+  .pn-note-text { font-size: 13px; color: #333; line-height: 1.55; white-space: pre-wrap; word-wrap: break-word; }
+  .pn-note-targets { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
+  .pn-target-chip { font-size: 10px; font-weight: 600; padding: 2px 8px; border-radius: 10px; background: #f5f5f0; color: #666; border: 1px solid #e0ddd5; }
+  .pn-target-chip.self { background: #fdf2f4; color: #8c1d40; border-color: #e6b8c4; }
+  .pn-target-chip.jira { background: #e8f0fe; color: #1565c0; border-color: #bbd4f7; }
+  .pn-target-chip.airtable { background: #fff3e0; color: #e65100; border-color: #ffd8a8; }
 
   /* ===== COLUMN FILTERS ===== */
   .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
@@ -315,6 +357,18 @@
         <div class="account-field"><span class="account-label">Booking Link</span><span class="account-value" id="account-display-booking" style="font-size:11px; word-break:break-all;">Set in profile</span></div>
         <div class="account-field"><span class="account-label">Signature</span><span class="account-value" id="account-display-sig">Elisa</span></div>
         <button class="account-edit-btn" onclick="toggleAccountEdit()">✏️ Edit Profile</button>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #eee;">
+          <div style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Cloud Sync (Supabase)</div>
+          <button class="account-edit-btn" onclick="syncPushToCloud()" style="background:#2e7d32; color:#fff; border:none;">☁️ Sync to Cloud</button>
+          <button class="account-edit-btn" onclick="syncPullFromCloud()" style="margin-top:6px; background:#fff; color:#2e7d32; border:1.5px solid #2e7d32;">☁️ Pull from Cloud</button>
+          <div id="sync-status" style="font-size:11px; color:#666; margin-top:6px; min-height:14px;"></div>
+        </div>
+        <div style="margin-top:10px; padding-top:10px; border-top:1px solid #eee;">
+          <div style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px;">Local Backup</div>
+          <button class="account-edit-btn" onclick="exportAllLocalData()" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40;">💾 Backup to JSON</button>
+          <button class="account-edit-btn" onclick="document.getElementById('import-data-file').click()" style="margin-top:6px; background:#fff; color:#666; border:1.5px solid #aaa;">📥 Restore from JSON</button>
+          <input type="file" id="import-data-file" accept="application/json" style="display:none;" onchange="importAllLocalData(this.files[0])" />
+        </div>
       </div>
       <div class="account-popover-body" id="account-edit-mode" style="display:none;">
         <div class="edit-field"><label>Full Name</label><input type="text" id="acct-name" /></div>
@@ -539,6 +593,10 @@
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Google Drive Folder URL</label>
         <input type="text" id="nc-drive" placeholder="Optional" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
       </div>
+      <div style="grid-column:1/-1;">
+        <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Airtable Record URL <span style="font-weight:400; color:#999;">(opens this course's row in "Developments")</span></label>
+        <input type="text" id="nc-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/… (optional)" style="width:100%; padding:8px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif;" />
+      </div>
     </div>
     <div style="margin-top:20px; display:flex; gap:10px; justify-content:flex-end;">
       <button onclick="closeAddCourseModal()" style="padding:8px 20px; background:#fff; color:#666; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; cursor:pointer; font-family:'Inter',sans-serif;">Cancel</button>
@@ -572,6 +630,7 @@
       <div class="edit-field"><label>Program</label><input type="text" id="edit-program" placeholder="e.g. Bio Data Science MS"></div>
       <div class="edit-field"><label>College</label><input type="text" id="edit-college" placeholder="e.g. New College"></div>
       <div class="edit-field"><label>Google Drive Link</label><input type="text" id="edit-drive" placeholder="https://drive.google.com/..."></div>
+      <div class="edit-field"><label>Airtable Record URL <span style="color:#999; font-weight:400;">(opens this course's row in the "Developments" table)</span></label><input type="text" id="edit-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/…"></div>
       <div class="edit-field"><label>Instructional Designer</label><input type="text" id="edit-id" placeholder="e.g. Elisa Penmar"></div>
       <div style="display:flex; gap:12px;">
         <div class="edit-field" style="flex:1;"><label>Status</label>
@@ -1086,16 +1145,156 @@
     renderTable();
   }
 
+  // ===== REVIEWERS =====
+  function getReviewers(courseId) {
+    try { var all = JSON.parse(localStorage.getItem('course_reviewers') || '{}'); return all[courseId] || []; } catch(e) { return []; }
+  }
+
+  function saveReviewers(courseId, list) {
+    var all = JSON.parse(localStorage.getItem('course_reviewers') || '{}');
+    all[courseId] = list;
+    localStorage.setItem('course_reviewers', JSON.stringify(all));
+  }
+
+  function toggleReviewerForm(courseId) {
+    var form = document.getElementById('reviewer-form-' + courseId);
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+
+  function addReviewer(courseId) {
+    var nameInput = document.getElementById('reviewer-name-' + courseId);
+    var emailInput = document.getElementById('reviewer-email-' + courseId);
+    var name = nameInput.value.trim();
+    var email = emailInput.value.trim();
+    if (!name || !email) { alert('Enter both name and email.'); return; }
+
+    var slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    var reviewers = getReviewers(courseId);
+    // Check for duplicate
+    if (reviewers.some(function(r) { return r.slug === slug; })) {
+      alert(name + ' is already a reviewer.');
+      return;
+    }
+    reviewers.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
+    saveReviewers(courseId, reviewers);
+
+    // Also add to worksheet user_courses so the worksheet recognizes this reviewer
+    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    if (userCourses[courseId] && userCourses[courseId]._worksheet) {
+      if (!userCourses[courseId]._worksheet.users) userCourses[courseId]._worksheet.users = {};
+      userCourses[courseId]._worksheet.users[slug] = { name: name, role: 'reviewer' };
+      localStorage.setItem('user_courses', JSON.stringify(userCourses));
+    }
+
+    // Compose email
+    var c = courseData[courseId];
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var reviewUrl = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer';
+    var subject = encodeURIComponent('Review Invitation: ' + (c.emailName || c.code));
+    var firstName = name.split(/\s+/)[0];
+    var bodyText = 'Hi ' + firstName + ',\n\n' +
+      'You\'ve been invited to review the ' + (c.emailName || c.code) + ' course development worksheet.\n\n' +
+      'Your personalized reviewer link:\n' + reviewUrl + '\n\n' +
+      'You can use this link to:\n' +
+      '• Review course content including CLOs, ELOs, module objectives, and assignments\n' +
+      '• Leave comments and feedback on any section\n\n' +
+      'Your comments will be attributed to your name. Please bookmark this link for easy access.\n\n' +
+      'Thank you,\n' + getProfile().sig;
+    var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
+    window.open(mailto, '_blank');
+
+    // Refresh the side panel
+    nameInput.value = '';
+    emailInput.value = '';
+    renderDetail(courseId);
+  }
+
+  function removeReviewer(courseId, idx) {
+    var reviewers = getReviewers(courseId);
+    var removed = reviewers.splice(idx, 1)[0];
+    saveReviewers(courseId, reviewers);
+
+    // Also remove from worksheet users
+    if (removed) {
+      var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      if (userCourses[courseId] && userCourses[courseId]._worksheet && userCourses[courseId]._worksheet.users) {
+        delete userCourses[courseId]._worksheet.users[removed.slug];
+        localStorage.setItem('user_courses', JSON.stringify(userCourses));
+      }
+    }
+    renderDetail(courseId);
+  }
+
+  function copyReviewerLink(courseId, idx) {
+    var reviewers = getReviewers(courseId);
+    var r = reviewers[idx];
+    if (!r) return;
+    var c = courseData[courseId];
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var url = baseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
+    navigator.clipboard.writeText(url).then(function() {
+      // Brief visual feedback
+      var btns = document.querySelectorAll('[onclick*="copyReviewerLink"]');
+      btns.forEach(function(b) { if (b.textContent === '✓') b.textContent = '📋'; });
+      event.target.textContent = '✓';
+      setTimeout(function() { event.target.textContent = '📋'; }, 1500);
+    });
+  }
+
+  function copyInstructorLink(courseId) {
+    var c = courseData[courseId];
+    if (!c || !c.devLink) return;
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
+    navigator.clipboard.writeText(url).then(function() {
+      var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
+      if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor Link'; }, 1500); }
+    });
+  }
+
+  function getInactiveCourses() {
+    try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
+  }
+
+  function toggleCourseInactive(courseId, isInactive) {
+    var map = getInactiveCourses();
+    if (isInactive) {
+      map[courseId] = { note: '', date: new Date().toISOString() };
+      document.getElementById('inactive-note-area').style.display = 'block';
+      document.getElementById('inactive-note-area').style.marginTop = '8px';
+    } else {
+      delete map[courseId];
+      document.getElementById('inactive-note-area').style.display = 'none';
+    }
+    localStorage.setItem('inactive_courses', JSON.stringify(map));
+    renderTable();
+    renderFilters();
+    // Refresh the status pill in the open detail panel
+    renderDetail(courseId);
+  }
+
+  function saveCourseInactiveNote(courseId, note) {
+    var map = getInactiveCourses();
+    if (map[courseId]) {
+      map[courseId].note = note;
+      localStorage.setItem('inactive_courses', JSON.stringify(map));
+    }
+  }
+
   function renderTable() {
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
     const tbody = document.getElementById('course-table-body');
     let html = '';
     var starredSet = getStarredCourses();
+    var inactiveMap = getInactiveCourses();
     getSortedCourseKeys().forEach(id => {
       const c = courseData[id];
-      const dataStatus = statusMap[c.status] || 'not-started';
+      const isInactive = !!inactiveMap[id];
+      const dataStatus = isInactive ? 'inactive' : (statusMap[c.status] || 'not-started');
+      const displayStatus = isInactive ? 'Inactive' : c.status;
+      const displayStatusClass = isInactive ? 'status-inactive' : c.statusClass;
       const starred = starredSet.indexOf(id) !== -1;
-      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}">
+      html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}" class="${isInactive ? 'row-inactive' : ''}">
         <td style="padding:0 4px; text-align:center;"><button class="star-btn${starred ? ' starred' : ''}" onclick="toggleStar('${id}', event)" title="${starred ? 'Unstar' : 'Star'} course">${starred ? '★' : '☆'}</button></td>
         <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
@@ -1107,7 +1306,7 @@
           <div class="progress-text">${c.progressLabel}</div>
         </td>
         <td><span class="phase-badge">${c.phase}</span></td>
-        <td><span class="status-pill ${c.statusClass}">${c.status}</span></td>
+        <td><span class="status-pill ${displayStatusClass}">${displayStatus}</span></td>
         <td><span class="qa-date qa-ok">${c.qaShort}</span></td>
         <td><span class="last-active${c.lastActiveStale ? ' stale' : ''}">${c.lastActive}</span></td>
       </tr>`;
@@ -1269,10 +1468,33 @@
     if (changed) localStorage.setItem('user_courses', JSON.stringify(saved));
   })();
 
+  // Re-read per-course progress from (possibly just-pulled) localStorage.
+  function refreshCourseProgressFromStorage() {
+    Object.keys(courseData).forEach(function(id) {
+      try {
+        var ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
+        if (typeof ws.completionPct === 'number') {
+          courseData[id].progress = ws.completionPct;
+          courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
+          courseData[id].progressColor = ws.completionPct >= 75 ? '#2e7d32' : (ws.completionPct > 0 ? '#e65100' : '#999');
+          courseData[id].fillClass = ws.completionPct >= 75 ? 'fill-green' : (ws.completionPct > 0 ? 'fill-orange' : 'fill-red');
+        }
+        if (ws.milestoneManualComplete) courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
+      } catch(e) {}
+    });
+  }
+
   // ===== INIT =====
-  renderSummary();
-  renderUpcoming();
-  renderTable();
+  // Pull latest cloud state first so the table reflects fresh per-course completionPct
+  (async function bootDashboard() {
+    if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
+      try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
+      refreshCourseProgressFromStorage();
+    }
+    renderSummary();
+    renderUpcoming();
+    renderTable();
+  })();
 
   // ===== LIVE SYNC =====
   // Fetches fresh data from local sync server (Outlook calendar + Obsidian notes)
@@ -1356,6 +1578,208 @@
   }
 
   // ===== RENDER DETAIL PANEL =====
+  // ===== MEETING ACTION-ITEM STATE =====
+  // Stable key per meeting: Granola UUID when available, else date|title.
+  function meetingKey(m) {
+    if (m && m.granola) {
+      const match = m.granola.match(/\/d\/([a-f0-9-]+)/i);
+      if (match) return 'g:' + match[1];
+    }
+    const safeTitle = String((m && m.title) || '').replace(/['"\\]/g, '');
+    return 'k:' + ((m && m.date) || '') + '|' + safeTitle;
+  }
+  function readActionState() {
+    try { return JSON.parse(localStorage.getItem('meeting_action_items_state') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function isActionChecked(courseId, mKey, idx, defaultDone) {
+    const state = readActionState();
+    const k = courseId + '::' + mKey;
+    if (state[k] && typeof state[k][idx] === 'boolean') return state[k][idx];
+    return !!defaultDone;
+  }
+  // ===== AIRTABLE RECORD URLS (per course) =====
+  // Kept as a separate dashboard_state key so edits don't collide with course_overrides.
+  function readAirtableUrls() {
+    try { return JSON.parse(localStorage.getItem('course_airtable_urls') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveAirtableUrlsMap(map) {
+    localStorage.setItem('course_airtable_urls', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_airtable_urls', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[airtableUrls] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getCourseAirtableUrl(courseId) { return readAirtableUrls()[courseId] || ''; }
+  function setCourseAirtableUrl(courseId, url) {
+    var map = readAirtableUrls();
+    var trimmed = (url || '').trim();
+    if (trimmed) map[courseId] = trimmed; else delete map[courseId];
+    saveAirtableUrlsMap(map);
+  }
+
+  // ===== JIRA EPIC MAP (courseId → parent Epic key) =====
+  // Seeded with known Epics; future courses can be added here or via a UI we add later.
+  var COURSE_JIRA_EPICS = {
+    'BST605': 'EDL-7802' // BST605-Biostatistical Data Analysis
+  };
+  function getCourseJiraEpic(courseId) {
+    if (!courseId) return '';
+    if (COURSE_JIRA_EPICS[courseId]) return COURSE_JIRA_EPICS[courseId];
+    // Tolerate "BST 605" or trailing suffixes
+    var bare = String(courseId).toUpperCase().replace(/\s+/g, '').replace(/[^A-Z0-9]/g, '');
+    return COURSE_JIRA_EPICS[bare] || '';
+  }
+
+  // ===== PRIVATE NOTES (multi-target) =====
+  // Shape: { [courseId]: [{ id, text, createdAt, targets: ['self','jira','airtable'] }, ...] }
+  function readPrivateNotes() {
+    try { return JSON.parse(localStorage.getItem('privateNotes') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function savePrivateNotesMap(map) {
+    localStorage.setItem('privateNotes', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'privateNotes', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[privateNotes] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getCoursePrivateNotes(courseId) {
+    var all = readPrivateNotes();
+    return (all[courseId] || []).slice().sort(function(a, b) { return (b.createdAt || '').localeCompare(a.createdAt || ''); });
+  }
+  function fmtPrivateNoteDate(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) +
+           ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  }
+  window.togglePrivateNoteComposer = function(courseId) {
+    var el = document.getElementById('pn-composer-' + courseId);
+    if (!el) return;
+    var show = el.style.display === 'none' || !el.style.display;
+    el.style.display = show ? 'block' : 'none';
+    if (show) {
+      var ta = document.getElementById('pn-text-' + courseId);
+      if (ta) ta.focus();
+    }
+  };
+  window.savePrivateNote = function(courseId) {
+    var ta = document.getElementById('pn-text-' + courseId);
+    var text = (ta && ta.value || '').trim();
+    if (!text) return;
+    var self  = document.getElementById('pn-t-self-' + courseId);
+    var jira  = document.getElementById('pn-t-jira-' + courseId);
+    var atbl  = document.getElementById('pn-t-airtable-' + courseId);
+    var targets = [];
+    if (self && self.checked)  targets.push('self');
+    if (jira && jira.checked)  targets.push('jira');
+    if (atbl && atbl.checked)  targets.push('airtable');
+    if (targets.length === 0) targets.push('self'); // default if user unchecks everything
+    var all = readPrivateNotes();
+    var list = all[courseId] || [];
+    var editingId = ta && ta.dataset.editingId;
+    var note;
+    if (editingId) {
+      note = list.find(function(n) { return n.id === editingId; });
+      if (note) { note.text = text; note.targets = targets; note.updatedAt = new Date().toISOString(); }
+    } else {
+      note = {
+        id: 'pn_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+        text: text,
+        createdAt: new Date().toISOString(),
+        targets: targets,
+      };
+      list.push(note);
+    }
+    all[courseId] = list;
+    savePrivateNotesMap(all);
+
+    // Fire-and-forget: if Jira target is selected, post to the course's Epic via the local proxy.
+    if (note && targets.indexOf('jira') !== -1) {
+      var epicKey = getCourseJiraEpic(courseId);
+      if (!epicKey) {
+        note.jira = { status: 'error', error: 'No Jira Epic mapped for ' + courseId };
+        savePrivateNotesMap(all);
+        renderDetail(courseId);
+      } else if (!note.jira || note.jira.status !== 'posted') {
+        note.jira = { status: 'pending', epicKey: epicKey };
+        savePrivateNotesMap(all);
+        fetch('http://127.0.0.1:3456/jira/comment', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ issueKey: epicKey, text: text })
+        }).then(function(r) {
+          return r.json().then(function(j) { return { ok: r.ok, body: j }; });
+        }).then(function(res) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          if (res.ok) n.jira = { status: 'posted', epicKey: epicKey, commentId: res.body.id, postedAt: new Date().toISOString() };
+          else n.jira = { status: 'error', epicKey: epicKey, error: (res.body && res.body.error) || 'unknown' };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        }).catch(function(err) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          n.jira = { status: 'error', epicKey: epicKey, error: String(err && err.message || err) + ' (is sync-server running?)' };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        });
+      }
+    }
+
+    renderDetail(courseId);
+  };
+  window.cancelPrivateNote = function(courseId) {
+    var ta = document.getElementById('pn-text-' + courseId);
+    if (ta) { ta.value = ''; delete ta.dataset.editingId; }
+    var composer = document.getElementById('pn-composer-' + courseId);
+    if (composer) composer.style.display = 'none';
+  };
+  window.editPrivateNote = function(courseId, noteId) {
+    var notes = getCoursePrivateNotes(courseId);
+    var note = notes.find(function(n) { return n.id === noteId; });
+    if (!note) return;
+    var composer = document.getElementById('pn-composer-' + courseId);
+    if (composer) composer.style.display = 'block';
+    var ta = document.getElementById('pn-text-' + courseId);
+    if (ta) { ta.value = note.text; ta.dataset.editingId = noteId; ta.focus(); }
+    ['self', 'jira', 'airtable'].forEach(function(t) {
+      var cb = document.getElementById('pn-t-' + t + '-' + courseId);
+      if (cb) cb.checked = note.targets.indexOf(t) !== -1;
+    });
+  };
+  window.deletePrivateNote = function(courseId, noteId) {
+    if (!confirm('Delete this note?')) return;
+    var all = readPrivateNotes();
+    all[courseId] = (all[courseId] || []).filter(function(n) { return n.id !== noteId; });
+    if (all[courseId].length === 0) delete all[courseId];
+    savePrivateNotesMap(all);
+    renderDetail(courseId);
+  };
+
+  window.toggleActionItem = function(courseId, mKey, idx, el) {
+    const state = readActionState();
+    const k = courseId + '::' + mKey;
+    if (!state[k]) state[k] = {};
+    const next = !state[k][idx];
+    state[k][idx] = next;
+    localStorage.setItem('meeting_action_items_state', JSON.stringify(state));
+    const row = el.closest('.meeting-action');
+    if (row) {
+      el.classList.toggle('done', next);
+      el.textContent = next ? '✓' : '';
+      const txt = row.querySelector('.action-text');
+      if (txt) txt.classList.toggle('done', next);
+    }
+  };
+
   function renderDetail(id) {
     const c = courseData[id];
     if (!c) return;
@@ -1366,12 +1790,17 @@
     let html = '';
 
     // Header
+    var inactiveMap = getInactiveCourses();
+    var isInactive = !!inactiveMap[id];
+    var inactiveNote = (inactiveMap[id] && inactiveMap[id].note) || '';
+    var detailStatusClass = isInactive ? 'status-inactive' : c.statusClass;
+    var detailStatus = isInactive ? 'Inactive' : c.status;
     html += `<div class="detail-header">
       <h2>${c.title}</h2>
-      <p>${c.subtitle} &bull; <span class="status-pill ${c.statusClass}">${c.status}</span></p>
+      <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span></p>
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
     if (c.devLink) {
-      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Instructor Development</a>`;
+      html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Worksheet</a>`;
     }
     if (c.driveFolder) {
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
@@ -1379,32 +1808,97 @@
     if (c.email) {
       html += buildEmailDropdown(id, c);
     }
-    if (c.email && c.devLink && c.instructorSlug) {
-      const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-      const worksheetUrl = baseUrl + c.devLink + '&user=' + c.instructorSlug;
-      const subject = encodeURIComponent('Your ' + c.emailName + ' Course Development Worksheet');
-      let bodyText = 'Hi ' + c.instructor.split(/\s*&\s*/)[0].split(/\s+/)[0] + ',\n\n' +
-        'Here is your personalized link to the ' + c.emailName + ' course development page:\n' +
-        worksheetUrl + '\n\n' +
-        'You can use these links to:\n' +
-        '• Review and edit course content including CLOs, ELOs, module objectives, and assignments\n' +
-        '• Leave comments and feedback on any section\n' +
-        '• Track development milestones and timeline\n\n' +
-        'Your work will be auto-saved. Please bookmark this link for easy access.\n\n';
-      if (c.driveFolder) {
-        bodyText += 'Shared Google Drive folder for this course:\n' + c.driveFolder + '\n\n' +
-        'Please store any documents pertaining to the course in this Drive folder. When referencing materials in the development tool, you can provide a link to the document through the user interface.\n\n';
-      }
-      bodyText += 'All the best,\n' + getProfile().sig + '';
-      const wsComposeUrl = `mailto:${encodeURIComponent(c.email)}?subject=${subject}&body=${encodeURIComponent(bodyText)}`;
-      html += `<a href="${wsComposeUrl}" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; text-decoration:none; padding:8px 16px;">🔗 Send Worksheet Link</a>`;
+    html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
+    html += `</div>`;
+    // Small utility row below buttons
+    html += `<div style="margin-top:6px; display:flex; align-items:center; gap:12px;">`;
+    if (c.devLink) {
+      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
-    html += `</div></div>`;
+    html += `<label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#999;">
+        <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:12px; height:12px;">
+        Mark as Inactive
+      </label>`;
+    html += `</div>`;
+
+    // Reviewer invite form (hidden by default)
+    html += `<div id="reviewer-form-${id}" style="display:none; margin-top:10px; padding:12px 14px; background:#f0faf0; border:1px solid #c8e6c9; border-radius:8px;">
+      <div style="font-size:12px; font-weight:600; color:#2e7d32; margin-bottom:8px;">Invite a Reviewer</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="reviewer-name-${id}" placeholder="Full name" style="flex:1; min-width:120px; padding:6px 10px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <input type="email" id="reviewer-email-${id}" placeholder="Email" style="flex:1; min-width:160px; padding:6px 10px; border:1px solid #c8e6c9; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <button onclick="addReviewer('${id}')" style="padding:6px 14px; background:#4caf50; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif; white-space:nowrap;">Send Invite</button>
+      </div>
+    </div>`;
+
+    // Existing reviewers list
+    var reviewers = getReviewers(id);
+    if (reviewers.length > 0) {
+      html += `<div style="margin-top:10px;">
+        <div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">Reviewers</div>`;
+      var rBaseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+      reviewers.forEach(function(r, ri) {
+        var rUrl = rBaseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
+        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+          <span style="flex:1; font-weight:500;">${r.name}</span>
+          <span style="color:#888; font-size:11px;">${r.email}</span>
+          <button onclick="copyReviewerLink('${id}', ${ri})" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
+          <button onclick="removeReviewer('${id}', ${ri})" title="Remove reviewer" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    // Inactive note (shown when checkbox is checked)
+    html += `<div id="inactive-note-area" style="margin-top:${isInactive ? '6' : '0'}px; display:${isInactive ? 'block' : 'none'};">
+      <textarea id="inactive-note" placeholder="Reason..." oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
+    </div>`;
+
+    html += `</div>`;
 
     // Stats
     html += `<div class="detail-stat-row" style="margin-top:16px;">
       <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
       <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
+    </div>`;
+
+    // Instructor analytics
+    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + id) || '{}');
+    var totalMs = analytics.totalMs || 0;
+    var sessions = analytics.sessions || 0;
+    var lastVisit = analytics.lastVisit || '';
+    var timeStr = '—';
+    if (totalMs > 0) {
+      var totalMin = Math.round(totalMs / 60000);
+      if (totalMin < 60) timeStr = totalMin + ' min';
+      else { var h = Math.floor(totalMin / 60); var m = totalMin % 60; timeStr = h + 'h ' + (m > 0 ? m + 'm' : ''); }
+    }
+    var lastStr = '—';
+    if (lastVisit) {
+      var d = new Date(lastVisit);
+      var now = new Date();
+      var diffDays = Math.floor((now - d) / 86400000);
+      if (diffDays === 0) lastStr = 'Today';
+      else if (diffDays === 1) lastStr = 'Yesterday';
+      else if (diffDays < 7) lastStr = diffDays + ' days ago';
+      else lastStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
+    html += `<div class="detail-section" style="margin-top:16px; margin-bottom:0;">
+      <h3 style="margin-bottom:8px;">Instructor Activity</h3>
+      <div style="display:flex; gap:12px;">
+        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
+          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${timeStr}</div>
+          <div style="font-size:11px; color:#888; margin-top:2px;">Total Time</div>
+        </div>
+        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
+          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${sessions}</div>
+          <div style="font-size:11px; color:#888; margin-top:2px;">Sessions</div>
+        </div>
+        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
+          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${lastStr}</div>
+          <div style="font-size:11px; color:#888; margin-top:2px;">Last Visit</div>
+        </div>
+      </div>
     </div>`;
 
     // Comment notification bar
@@ -1427,11 +1921,39 @@
     // Development status — mirrors milestone progression
     html += `<div class="detail-section"><h3>Development Status</h3>`;
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
-    const msStatus = syncedCourse ? syncedCourse.milestoneStatus : null;
+    const msStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
     const manualComplete = c.milestoneManualComplete || {};
     const devMilestones = [
       'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
     ];
+    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
+    function stemWord(w) { return w.replace(/s$/, ''); }
+    function fuzzyWordMatch(word, text) {
+      var s = stemWord(word);
+      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
+    }
+    if (msStatus && syncedCourse.calendarMeetings) {
+      const calMtgs = syncedCourse.calendarMeetings;
+      const allLabels = devMilestones.slice();
+      const modCount2 = c.modules.length || 7;
+      for (let mi = 1; mi <= modCount2; mi++) allLabels.push('Module ' + mi);
+      allLabels.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
+      const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
+      calMtgs.forEach(cm => {
+        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+        for (let k = 0; k < keywords.length; k++) {
+          if (keywords[k].length === 0) continue;
+          const matched = keywords[k].every(w => fuzzyWordMatch(w, cmLower));
+          if (matched && (!msStatus[k] || msStatus[k].status === 'pending')) {
+            const d = new Date(cm.date + 'T00:00:00');
+            const mo = d.toLocaleDateString('en-US', {month:'short'});
+            const day = d.getDate();
+            msStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
+            break;
+          }
+        }
+      });
+    }
     const modCount = c.modules.length || 7;
     for (let i = 1; i <= modCount; i++) devMilestones.push('Module ' + i);
     devMilestones.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
@@ -1473,23 +1995,76 @@
       html += `</div>`;
     }
 
-    // Notes summary
-    if (c.notes) {
-      // Split notes text into bullet points by sentence-ish boundaries
-      const noteItems = c.notes.text.split(/(?:\.\s+|;\s+|(?<=\))\.?\s+)/).filter(s => s.trim());
-      const bulletsHtml = noteItems.map(item => {
-        let t = item.trim();
-        if (t && !t.endsWith('.') && !t.endsWith('!') && !t.endsWith('?')) t += '.';
-        return `<li style="margin-bottom:4px;">${t}</li>`;
-      }).join('');
+    // Current Status summary — prefer latest meeting summary, fall back to notes.text.
+    // Render as a short paragraph (first 2 sentences), not a bullet split.
+    const latestMeeting = (c.meetings && c.meetings.length) ? c.meetings[0] : null;
+    const summaryText = (latestMeeting && latestMeeting.summary) || (c.notes && c.notes.text) || '';
+    if (summaryText) {
+      const sents = summaryText.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+      const shortSummary = sents ? sents.slice(0, 2).join(' ').trim() : summaryText;
+      const authorLabel = (c.notes && c.notes.author) || (latestMeeting && latestMeeting.people ? latestMeeting.people.join(', ') : '');
+      const dateLabel = (latestMeeting && latestMeeting.date) || (c.notes && c.notes.date) || '';
       html += `<div class="detail-section"><h3>Current Status</h3>
-        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.5; color:#444;">
-          <strong style="color:#8c1d40;">${c.notes.author}</strong> <span style="color:#999; font-size:11px;">${c.notes.date}</span>
-          <ul style="margin:8px 0 0 0; padding-left:20px;">${bulletsHtml}</ul>
+        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.55; color:#444;">
+          ${authorLabel ? `<div style="margin-bottom:6px;"><strong style="color:#8c1d40;">${authorLabel}</strong>${dateLabel ? ` <span style="color:#999; font-size:11px;">${dateLabel}</span>` : ''}</div>` : ''}
+          <div>${shortSummary}</div>
         </div></div>`;
     }
 
-    // Meeting history (inline)
+    // Development Notes (multi-target: Self / Jira / Airtable). Its own section,
+    // always rendered so the "+ Add Note" button is reachable on every course.
+    var privateNotes = getCoursePrivateNotes(id);
+    html += `<div class="detail-section"><h3>Development Notes</h3>`;
+    html += `<div class="pn-toolbar">
+      <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
+      <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
+    </div>`;
+    var jiraEpic = getCourseJiraEpic(id);
+    var jiraLabel = jiraEpic
+      ? `<label title="Posts as a comment on ${jiraEpic}"><input type="checkbox" id="pn-t-jira-${id}"> Jira (${jiraEpic})</label>`
+      : `<label title="No Epic mapped for ${id} yet" style="opacity:0.55;"><input type="checkbox" id="pn-t-jira-${id}" disabled> Jira (Epic comment)</label>`;
+    html += `<div id="pn-composer-${id}" class="pn-composer" style="display:none;">
+      <textarea id="pn-text-${id}" placeholder="Type a note for this course…"></textarea>
+      <div class="pn-targets">
+        <label><input type="checkbox" id="pn-t-self-${id}" checked> Self (dashboard)</label>
+        ${jiraLabel}
+        <label title="Available after Airtable deep-link ships" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (open record)</label>
+      </div>
+      <div class="pn-composer-actions">
+        <button class="pn-btn pn-cancel" onclick="cancelPrivateNote('${id}')">Cancel</button>
+        <button class="pn-btn pn-save" onclick="savePrivateNote('${id}')">Save note</button>
+      </div>
+    </div>`;
+    privateNotes.forEach(function(n) {
+      var targetsHtml = (n.targets || []).map(function(t) {
+        var label = t === 'self' ? '📝 Self' : t === 'jira' ? '🔗 Jira' : '📋 Airtable';
+        var suffix = '';
+        if (t === 'jira' && n.jira) {
+          if (n.jira.status === 'pending') suffix = ' · posting…';
+          else if (n.jira.status === 'posted') suffix = ' · ' + (n.jira.epicKey || 'posted') + ' ✓';
+          else if (n.jira.status === 'error') suffix = ' · failed';
+        }
+        return '<span class="pn-target-chip ' + t + '" title="' + (t === 'jira' && n.jira && n.jira.error ? String(n.jira.error).replace(/"/g, '&quot;') : '') + '">' + label + suffix + '</span>';
+      }).join('');
+      var safeText = String(n.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html += `<div class="pn-note-card">
+        <div class="pn-note-header">
+          <div class="pn-note-date">${fmtPrivateNoteDate(n.createdAt)}${n.updatedAt ? ' · edited' : ''}</div>
+          <div class="pn-note-actions">
+            <button class="pn-edit" onclick="editPrivateNote('${id}','${n.id}')" title="Edit">✎</button>
+            <button class="pn-del" onclick="deletePrivateNote('${id}','${n.id}')" title="Delete">🗑</button>
+          </div>
+        </div>
+        <div class="pn-note-text">${safeText}</div>
+        ${targetsHtml ? '<div class="pn-note-targets">' + targetsHtml + '</div>' : ''}
+      </div>`;
+    });
+    if (privateNotes.length === 0) {
+      html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
+    }
+    html += `</div>`; // close Development Notes section
+
+    // Meeting history — only renders when Granola meetings exist for this course.
     if (c.meetings && c.meetings.length > 0) {
       html += `<div class="detail-section"><h3>Meeting Notes</h3>`;
       c.meetings.forEach((m, idx) => {
@@ -1513,22 +2088,30 @@
           });
         }
 
-        // Action items
+        // Action items (interactive checkboxes, state persisted per meeting)
         if (m.actionItems && m.actionItems.length > 0) {
+          const mKey = meetingKey(m);
           html += `<div class="meeting-section-label">Action Items</div>`;
-          m.actionItems.forEach(a => {
-            html += `<div class="meeting-action"><span class="check${a.done ? ' done' : ''}">${a.done ? '✓' : ''}</span> <span${a.done ? ' style="text-decoration:line-through; color:#999;"' : ''}>${a.text}</span></div>`;
+          m.actionItems.forEach((a, aIdx) => {
+            const checked = isActionChecked(id, mKey, aIdx, a.done);
+            const safeText = (a.text || '').replace(/"/g, '&quot;');
+            html += `<div class="meeting-action">`
+              + `<span class="check${checked ? ' done' : ''}" onclick="toggleActionItem('${id}','${mKey}',${aIdx}, this)">${checked ? '✓' : ''}</span>`
+              + `<span class="action-text${checked ? ' done' : ''}">${safeText}</span>`
+              + `</div>`;
           });
         }
 
-        // Source link
-        if (m.granola) {
-          html += `<div style="margin-top:10px; font-size:11px;"><a href="${m.granola}" target="_blank" style="color:#8c1d40;">View full transcript in Granola →</a></div>`;
+        // Granola links: prefer the actual transcript URL; fall back to the doc URL
+        if (m.transcriptUrl || m.granola) {
+          const label = m.transcriptUrl ? 'View full transcript in Granola →' : 'Open in Granola →';
+          const href = m.transcriptUrl || m.granola;
+          html += `<a class="meeting-transcript-link" href="${href}" target="_blank">${label}</a>`;
         }
 
         html += `</div></div>`; // close body + card
       });
-      html += `</div>`; // close section
+      html += `</div>`; // close detail-section (Meeting Notes)
     }
 
     // Google Calendar section
@@ -1977,17 +2560,23 @@
   // ===== DYNAMIC FILTER BUTTONS =====
   function renderFilters() {
     const statusMap = { 'On Track': 'on-track', 'At Risk': 'at-risk', 'Not Started': 'not-started', 'Complete': 'complete' };
-    const counts = { total: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0 };
-    Object.values(courseData).forEach(c => {
+    const counts = { total: 0, active: 0, 'on-track': 0, 'at-risk': 0, 'not-started': 0, 'inactive': 0 };
+    var inactiveMap = getInactiveCourses();
+    Object.keys(courseData).forEach(id => {
       counts.total++;
-      const key = statusMap[c.status] || 'not-started';
-      if (counts[key] !== undefined) counts[key]++;
+      if (inactiveMap[id]) { counts['inactive']++; }
+      else {
+        counts.active++;
+        const key = statusMap[courseData[id].status] || 'not-started';
+        if (counts[key] !== undefined) counts[key]++;
+      }
     });
     document.getElementById('filters-row').innerHTML =
-      `<button class="filter-btn active" onclick="filterCourses('all', this)">All (${counts.total})</button>` +
+      `<button class="filter-btn active" onclick="filterCourses('all', this)">Active (${counts.active})</button>` +
       `<button class="filter-btn" onclick="filterCourses('on-track', this)">On Track (${counts['on-track']})</button>` +
       `<button class="filter-btn" onclick="filterCourses('at-risk', this)">At Risk (${counts['at-risk']})</button>` +
       `<button class="filter-btn" onclick="filterCourses('not-started', this)">Not Started (${counts['not-started']})</button>` +
+      (counts['inactive'] > 0 ? `<button class="filter-btn" onclick="filterCourses('inactive', this)" style="font-style:italic;">Inactive (${counts['inactive']})</button>` : '') +
       `<div style="flex:1;"></div>` +
       `<input type="text" class="filter-search" placeholder="Search courses or instructors..." oninput="searchCourses(this.value)" />`;
   }
@@ -2011,8 +2600,11 @@
       const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
       if (!id || !courseData[id]) return;
       const c = courseData[id];
-      const show =
-        (activeStatusFilter === 'all' || row.dataset.status === activeStatusFilter) &&
+      const isInactiveRow = row.dataset.status === 'inactive';
+      const statusMatch = activeStatusFilter === 'all' ? !isInactiveRow :
+                          activeStatusFilter === 'inactive' ? isInactiveRow :
+                          row.dataset.status === activeStatusFilter;
+      const show = statusMatch &&
         (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
         (!fp || c.program === fp) &&
         (!fc || c.college === fc) &&
@@ -2054,6 +2646,7 @@
     const modCount = parseInt(document.getElementById('nc-modules').value) || 7;
     const credits = document.getElementById('nc-credits').value.trim() || '3';
     const drive = document.getElementById('nc-drive').value.trim();
+    const airtableUrl = document.getElementById('nc-airtable').value.trim();
 
     // Generate key
     const key = code.toLowerCase().replace(/\s+/g, '');
@@ -2132,6 +2725,9 @@
     saved[key]._worksheet = worksheetEntry;
     localStorage.setItem('user_courses', JSON.stringify(saved));
 
+    // Airtable URL lives in its own dashboard_state key
+    if (airtableUrl) setCourseAirtableUrl(key, airtableUrl);
+
     // Re-render
     renderSummary();
     renderTable();
@@ -2140,7 +2736,7 @@
     closeAddCourseModal();
 
     // Clear form
-    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
+    ['nc-code','nc-name','nc-instructor','nc-email','nc-drive','nc-airtable','nc-credits','nc-program'].forEach(id => document.getElementById(id).value = '');
     document.getElementById('nc-college').value = '';
     document.getElementById('nc-session').value = '';
     document.getElementById('nc-modules').value = '7';
@@ -2389,6 +2985,7 @@
     document.getElementById('edit-program').value = c.program || '';
     document.getElementById('edit-college').value = c.college || '';
     document.getElementById('edit-drive').value = c.driveFolder || '';
+    document.getElementById('edit-airtable').value = getCourseAirtableUrl(editCourseId);
     document.getElementById('edit-id').value = (c.id || '').replace(/&amp;/g, '&');
     document.getElementById('edit-status').value = c.status || 'Not Started';
     document.getElementById('edit-progress').value = c.progress || 0;
@@ -2414,6 +3011,7 @@
     var program = document.getElementById('edit-program').value.trim();
     var college = document.getElementById('edit-college').value.trim();
     var drive = document.getElementById('edit-drive').value.trim();
+    var airtableUrl = document.getElementById('edit-airtable').value.trim();
     var id = document.getElementById('edit-id').value.trim();
     var status = document.getElementById('edit-status').value;
     var progress = parseInt(document.getElementById('edit-progress').value) || 0;
@@ -2458,6 +3056,9 @@
     };
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
 
+    // Airtable URL lives in its own dashboard_state key
+    setCourseAirtableUrl(editCourseId, airtableUrl);
+
     renderTable();
     closeEditCourse();
 
@@ -2478,6 +3079,81 @@
 
   function getProfile() {
     try { return Object.assign({}, defaultProfile, JSON.parse(localStorage.getItem('id_profile') || '{}')); } catch(e) { return Object.assign({}, defaultProfile); }
+  }
+
+  function exportAllLocalData() {
+    var dump = {};
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      dump[k] = localStorage.getItem(k);
+    }
+    var payload = { exportedAt: new Date().toISOString(), version: 1, data: dump };
+    var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    var stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    a.href = url;
+    a.download = 'course-development-backup-' + stamp + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  async function syncPushToCloud() {
+    var status = document.getElementById('sync-status');
+    if (!window.SupabaseSync) { status.textContent = 'Supabase not loaded'; return; }
+    status.style.color = '#666'; status.textContent = 'Pushing to cloud…';
+    try {
+      var r = await window.SupabaseSync.pushAllToCloud();
+      if (r.errors.length) {
+        status.style.color = '#c62828';
+        status.textContent = 'Errors: ' + r.errors.join('; ');
+      } else {
+        status.style.color = '#2e7d32';
+        status.textContent = '✓ Pushed ' + r.pushed.worksheets + ' courses, ' + r.pushed.dashboardState + ' settings, ' + r.pushed.userCourses + ' user courses';
+      }
+    } catch (e) {
+      status.style.color = '#c62828';
+      status.textContent = 'Failed: ' + e.message;
+    }
+  }
+
+  async function syncPullFromCloud() {
+    var status = document.getElementById('sync-status');
+    if (!window.SupabaseSync) { status.textContent = 'Supabase not loaded'; return; }
+    if (!confirm('This will overwrite your current local data with the cloud copy. Continue?')) return;
+    status.style.color = '#666'; status.textContent = 'Pulling from cloud…';
+    try {
+      var r = await window.SupabaseSync.pullAllFromCloud();
+      if (r.errors.length) {
+        status.style.color = '#c62828';
+        status.textContent = 'Errors: ' + r.errors.join('; ');
+      } else {
+        status.style.color = '#2e7d32';
+        status.textContent = '✓ Pulled ' + r.pulled.worksheets + ' courses, ' + r.pulled.dashboardState + ' settings. Reloading…';
+        setTimeout(function() { location.reload(); }, 1000);
+      }
+    } catch (e) {
+      status.style.color = '#c62828';
+      status.textContent = 'Failed: ' + e.message;
+    }
+  }
+
+  function importAllLocalData(file) {
+    if (!file) return;
+    if (!confirm('This will overwrite existing localStorage data with the backup. Continue?')) return;
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var parsed = JSON.parse(e.target.result);
+        var data = parsed.data || parsed;
+        Object.keys(data).forEach(function(k) { localStorage.setItem(k, data[k]); });
+        alert('Restored ' + Object.keys(data).length + ' keys. Reloading page...');
+        location.reload();
+      } catch (err) {
+        alert('Failed to import: ' + err.message);
+      }
+    };
+    reader.readAsText(file);
   }
 
   function toggleAccountPopover(e) {
