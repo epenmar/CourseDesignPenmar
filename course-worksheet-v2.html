@@ -9728,6 +9728,10 @@ ${clone.innerHTML}
     titleEl.textContent = 'New Comment';
     panel.classList.add('open');
 
+    // Restore the reply input — it may have been hidden by openAllCommentsPanel.
+    const inputArea = document.getElementById('comment-input-area');
+    if (inputArea) inputArea.style.display = '';
+
     const msgContainer = document.getElementById('comment-messages');
     msgContainer.innerHTML = '<div class="comment-quote"><span class="quote-label">Selected text</span>"' + escapeHtml(text) + '"</div>' +
       '<div class="comment-empty">Write your comment about this selection below.</div>';
