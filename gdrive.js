@@ -76,7 +76,7 @@
       form.append('file', blob);
       return new Promise(function(resolve, reject) {
         var xhr = new XMLHttpRequest();
-        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,webViewLink,webContentLink');
+        xhr.open('POST', 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,parents,webViewLink,webContentLink,driveId');
         xhr.setRequestHeader('Authorization', 'Bearer ' + token);
         if (onProgress && xhr.upload) {
           xhr.upload.addEventListener('progress', function(e) {
