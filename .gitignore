@@ -1,0 +1,4 @@
+.DS_Store
+scripts/backups/
+sync-server.log
+*.log

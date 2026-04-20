@@ -206,8 +206,12 @@
   .meeting-decision { font-size: 12px; color: #444; padding: 3px 0; padding-left: 14px; position: relative; }
   .meeting-decision::before { content: "→"; position: absolute; left: 0; color: #8c1d40; }
   .meeting-action { font-size: 12px; color: #444; padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
-  .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; }
+  .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
+  .meeting-action .check:hover { border-color: #8c1d40; }
   .meeting-action .check.done { background: #e8f5e9; border-color: #4caf50; color: #2e7d32; }
+  .meeting-action .action-text.done { text-decoration: line-through; color: #999; }
+  .meeting-transcript-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 12px; padding: 4px 10px; background: #f5f5f0; border: 1px solid #e0ddd5; border-radius: 12px; font-size: 11px; color: #8c1d40; text-decoration: none; font-weight: 500; transition: background 0.12s, border-color 0.12s; }
+  .meeting-transcript-link:hover { background: #fdf2f4; border-color: #8c1d40; }
 
   /* ===== COLUMN FILTERS ===== */
   .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
@@ -1537,6 +1541,42 @@
   }
 
   // ===== RENDER DETAIL PANEL =====
+  // ===== MEETING ACTION-ITEM STATE =====
+  // Stable key per meeting: Granola UUID when available, else date|title.
+  function meetingKey(m) {
+    if (m && m.granola) {
+      const match = m.granola.match(/\/d\/([a-f0-9-]+)/i);
+      if (match) return 'g:' + match[1];
+    }
+    const safeTitle = String((m && m.title) || '').replace(/['"\\]/g, '');
+    return 'k:' + ((m && m.date) || '') + '|' + safeTitle;
+  }
+  function readActionState() {
+    try { return JSON.parse(localStorage.getItem('meeting_action_items_state') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function isActionChecked(courseId, mKey, idx, defaultDone) {
+    const state = readActionState();
+    const k = courseId + '::' + mKey;
+    if (state[k] && typeof state[k][idx] === 'boolean') return state[k][idx];
+    return !!defaultDone;
+  }
+  window.toggleActionItem = function(courseId, mKey, idx, el) {
+    const state = readActionState();
+    const k = courseId + '::' + mKey;
+    if (!state[k]) state[k] = {};
+    const next = !state[k][idx];
+    state[k][idx] = next;
+    localStorage.setItem('meeting_action_items_state', JSON.stringify(state));
+    const row = el.closest('.meeting-action');
+    if (row) {
+      el.classList.toggle('done', next);
+      el.textContent = next ? '✓' : '';
+      const txt = row.querySelector('.action-text');
+      if (txt) txt.classList.toggle('done', next);
+    }
+  };
+
   function renderDetail(id) {
     const c = courseData[id];
     if (!c) return;
@@ -1752,19 +1792,19 @@
       html += `</div>`;
     }
 
-    // Notes summary
-    if (c.notes) {
-      // Split notes text into bullet points by sentence-ish boundaries
-      const noteItems = c.notes.text.split(/(?:\.\s+|;\s+|(?<=\))\.?\s+)/).filter(s => s.trim());
-      const bulletsHtml = noteItems.map(item => {
-        let t = item.trim();
-        if (t && !t.endsWith('.') && !t.endsWith('!') && !t.endsWith('?')) t += '.';
-        return `<li style="margin-bottom:4px;">${t}</li>`;
-      }).join('');
+    // Current Status summary — prefer latest meeting summary, fall back to notes.text.
+    // Render as a short paragraph (first 2 sentences), not a bullet split.
+    const latestMeeting = (c.meetings && c.meetings.length) ? c.meetings[0] : null;
+    const summaryText = (latestMeeting && latestMeeting.summary) || (c.notes && c.notes.text) || '';
+    if (summaryText) {
+      const sents = summaryText.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+      const shortSummary = sents ? sents.slice(0, 2).join(' ').trim() : summaryText;
+      const authorLabel = (c.notes && c.notes.author) || (latestMeeting && latestMeeting.people ? latestMeeting.people.join(', ') : '');
+      const dateLabel = (latestMeeting && latestMeeting.date) || (c.notes && c.notes.date) || '';
       html += `<div class="detail-section"><h3>Current Status</h3>
-        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.5; color:#444;">
-          <strong style="color:#8c1d40;">${c.notes.author}</strong> <span style="color:#999; font-size:11px;">${c.notes.date}</span>
-          <ul style="margin:8px 0 0 0; padding-left:20px;">${bulletsHtml}</ul>
+        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.55; color:#444;">
+          ${authorLabel ? `<div style="margin-bottom:6px;"><strong style="color:#8c1d40;">${authorLabel}</strong>${dateLabel ? ` <span style="color:#999; font-size:11px;">${dateLabel}</span>` : ''}</div>` : ''}
+          <div>${shortSummary}</div>
         </div></div>`;
     }
 
@@ -1792,17 +1832,25 @@
           });
         }
 
-        // Action items
+        // Action items (interactive checkboxes, state persisted per meeting)
         if (m.actionItems && m.actionItems.length > 0) {
+          const mKey = meetingKey(m);
           html += `<div class="meeting-section-label">Action Items</div>`;
-          m.actionItems.forEach(a => {
-            html += `<div class="meeting-action"><span class="check${a.done ? ' done' : ''}">${a.done ? '✓' : ''}</span> <span${a.done ? ' style="text-decoration:line-through; color:#999;"' : ''}>${a.text}</span></div>`;
+          m.actionItems.forEach((a, aIdx) => {
+            const checked = isActionChecked(id, mKey, aIdx, a.done);
+            const safeText = (a.text || '').replace(/"/g, '&quot;');
+            html += `<div class="meeting-action">`
+              + `<span class="check${checked ? ' done' : ''}" onclick="toggleActionItem('${id}','${mKey}',${aIdx}, this)">${checked ? '✓' : ''}</span>`
+              + `<span class="action-text${checked ? ' done' : ''}">${safeText}</span>`
+              + `</div>`;
           });
         }
 
-        // Source link
-        if (m.granola) {
-          html += `<div style="margin-top:10px; font-size:11px;"><a href="${m.granola}" target="_blank" style="color:#8c1d40;">View full transcript in Granola →</a></div>`;
+        // Granola links: prefer the actual transcript URL; fall back to the doc URL
+        if (m.transcriptUrl || m.granola) {
+          const label = m.transcriptUrl ? 'View full transcript in Granola →' : 'Open in Granola →';
+          const href = m.transcriptUrl || m.granola;
+          html += `<a class="meeting-transcript-link" href="${href}" target="_blank">${label}</a>`;
         }
 
         html += `</div></div>`; // close body + card
