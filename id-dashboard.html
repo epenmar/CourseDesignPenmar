@@ -2814,21 +2814,60 @@
     var dropdownEl = document.getElementById('jira-transitions-' + courseId);
     if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Applying transition…'; }
     if (dropdownEl) dropdownEl.disabled = true;
+
+    // Resolve the target status name from the cached transition list so we can
+    // mirror the transition onto the Designing sub-task (whose transition IDs
+    // differ from the Epic's).
+    var cached = (window._jiraStatusCache && window._jiraStatusCache[courseId]) || null;
+    var cachedTransition = cached && cached.transitions && cached.transitions.find(function(t) { return String(t.id) === String(transitionId); });
+    var targetStatusName = cachedTransition ? cachedTransition.name : null;
+    var designKey = pickDesignTargetKey(courseId);
+
     try {
+      // 1) Transition the Epic
       var r = await fetch('http://127.0.0.1:3456/jira/transitions/' + epic, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transitionId: transitionId })
       });
       var data = await r.json();
-      if (r.ok && data.ok) {
-        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Status updated ✓'; }
-        // Re-load to show the new status + updated transitions list
-        setTimeout(function() { loadJiraStatus(courseId); }, 400);
-      } else {
+      if (!r.ok || !data.ok) {
         if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || data.errorMessages && data.errorMessages[0] || 'Unknown'); }
         if (dropdownEl) { dropdownEl.disabled = false; dropdownEl.value = ''; }
+        return;
       }
+
+      // 2) Mirror the transition onto the Designing sub-task, if present and the
+      //    target status exists on its workflow. Silent no-op if no match.
+      var designMsg = '';
+      if (designKey && targetStatusName) {
+        try {
+          var tRes = await fetch('http://127.0.0.1:3456/jira/transitions/' + designKey);
+          var tData = await tRes.json();
+          var designTransitions = (tData && tData.transitions) || [];
+          var matching = designTransitions.find(function(t) {
+            var toName = (t.to && t.to.name) || t.name;
+            return String(toName).toLowerCase() === String(targetStatusName).toLowerCase();
+          });
+          if (matching) {
+            var r2 = await fetch('http://127.0.0.1:3456/jira/transitions/' + designKey, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ transitionId: matching.id })
+            });
+            var r2Data = await r2.json();
+            designMsg = (r2.ok && r2Data.ok) ? ' · ' + designKey + ' (Designing) ✓' : ' · ' + designKey + ' failed';
+          } else {
+            designMsg = ' · ' + designKey + ' has no "' + targetStatusName + '" transition';
+          }
+        } catch (e) {
+          designMsg = ' · ' + designKey + ' sync failed';
+        }
+      }
+
+      if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Epic ✓' + designMsg; }
+      // Re-load to show the new status + updated transitions list
+      setTimeout(function() { loadJiraStatus(courseId); }, 400);
     } catch (e) {
       if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Request failed: ' + e.message; }
       if (dropdownEl) { dropdownEl.disabled = false; dropdownEl.value = ''; }
