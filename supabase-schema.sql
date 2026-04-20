@@ -47,6 +47,27 @@ create table if not exists user_courses (
   updated_at timestamptz not null default now()
 );
 
+-- Per-identity worksheet activity: tracks who opened which course, for how long, when last.
+-- One row per (course_id, identity_name, identity_role). Upserted every ~30s by the worksheet.
+create table if not exists worksheet_sessions (
+  course_id text not null,
+  identity_name text not null,
+  identity_role text not null,           -- 'id' | 'instructor' | 'reviewer'
+  total_ms bigint not null default 0,
+  session_count integer not null default 0,
+  last_visit timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  primary key (course_id, identity_name, identity_role)
+);
+create index if not exists idx_worksheet_sessions_course on worksheet_sessions(course_id);
+create index if not exists idx_worksheet_sessions_role on worksheet_sessions(identity_role);
+alter table worksheet_sessions enable row level security;
+drop policy if exists "open access" on worksheet_sessions;
+create policy "open access" on worksheet_sessions for all using (true) with check (true);
+drop trigger if exists worksheet_sessions_touch on worksheet_sessions;
+create trigger worksheet_sessions_touch before update on worksheet_sessions
+  for each row execute function touch_updated_at();
+
 -- Keep updated_at fresh automatically
 create or replace function touch_updated_at() returns trigger as $$
 begin new.updated_at = now(); return new; end;

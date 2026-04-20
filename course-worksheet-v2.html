@@ -8414,20 +8414,68 @@ ${clone.innerHTML}
   // ===== SESSION TIME TRACKING =====
   var _sessionStart = Date.now();
   var _sessionActive = true;
-  var _sessionAccumulated = 0; // ms accumulated while tab is visible
+  var _sessionAccumulated = 0;   // ms since the last flush
+  var _sessionCountedThisLoad = false; // ensure we only increment session_count once per page load
 
-  function _flushSessionTime() {
+  function _flushSessionTime(isUnload) {
     if (_sessionActive) {
       _sessionAccumulated += Date.now() - _sessionStart;
       _sessionStart = Date.now();
     }
-    // Read existing analytics
-    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + courseId) || '{}');
-    analytics.totalMs = (analytics.totalMs || 0) + _sessionAccumulated;
-    analytics.lastVisit = new Date().toISOString();
-    analytics.sessions = (analytics.sessions || 0);
-    localStorage.setItem('worksheet_analytics_' + courseId, JSON.stringify(analytics));
+    var deltaMs = _sessionAccumulated;
     _sessionAccumulated = 0;
+    if (deltaMs <= 0 && _sessionCountedThisLoad) return;
+
+    // Local per-course analytics (browser-wide, pre-existing)
+    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + courseId) || '{}');
+    analytics.totalMs = (analytics.totalMs || 0) + deltaMs;
+    analytics.lastVisit = new Date().toISOString();
+    if (!_sessionCountedThisLoad) analytics.sessions = (analytics.sessions || 0) + 1;
+    localStorage.setItem('worksheet_analytics_' + courseId, JSON.stringify(analytics));
+
+    // Cloud per-identity analytics (flows to dashboard Activity widget)
+    var shouldCount = !_sessionCountedThisLoad;
+    _sessionCountedThisLoad = true;
+    _pushSessionDeltaToCloud(deltaMs, shouldCount, isUnload);
+  }
+
+  function _pushSessionDeltaToCloud(deltaMs, incrementCount, isUnload) {
+    try {
+      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      if (!identity || !identity.name || !identity.role) return;
+      if (!window._sbClient || !courseId) return;
+
+      // beforeunload: use sendBeacon-style fire-and-forget — we can't await here.
+      // We fetch existing + upsert in one shot. Supabase JS uses fetch under the hood,
+      // which browsers will usually finish during unload if keepalive is set by Supabase.
+      var courseIdLocal = courseId;
+      var sb = window._sbClient;
+      sb.from('worksheet_sessions')
+        .select('total_ms, session_count')
+        .eq('course_id', courseIdLocal)
+        .eq('identity_name', identity.name)
+        .eq('identity_role', identity.role)
+        .maybeSingle()
+        .then(function(r) {
+          var existing = r && r.data;
+          var row = {
+            course_id: courseIdLocal,
+            identity_name: identity.name,
+            identity_role: identity.role,
+            total_ms: ((existing && existing.total_ms) || 0) + deltaMs,
+            session_count: ((existing && existing.session_count) || 0) + (incrementCount ? 1 : 0),
+            last_visit: new Date().toISOString()
+          };
+          return sb.from('worksheet_sessions').upsert(row, {
+            onConflict: 'course_id,identity_name,identity_role'
+          });
+        })
+        .then(function(r) {
+          if (r && r.error) console.warn('[sessions] upsert failed:', r.error.message);
+        });
+    } catch (e) {
+      console.warn('[sessions] push error', e);
+    }
   }
 
   // Pause tracking when tab is hidden, resume when visible
@@ -8444,19 +8492,16 @@ ${clone.innerHTML}
   // Flush every 30 seconds so data isn't lost on crash
   setInterval(_flushSessionTime, 30000);
 
-  // Clean up on page unload
+  // Flush shortly after load so the dashboard sees this visit within a few seconds
+  setTimeout(function() { _flushSessionTime(false); }, 3000);
+
+  // Clean up on page unload — best-effort final flush
   window.addEventListener('beforeunload', function() {
-    // Final flush and increment session count
     if (_sessionActive) {
       _sessionAccumulated += Date.now() - _sessionStart;
       _sessionActive = false;
     }
-    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + courseId) || '{}');
-    analytics.totalMs = (analytics.totalMs || 0) + _sessionAccumulated;
-    analytics.lastVisit = new Date().toISOString();
-    analytics.sessions = (analytics.sessions || 0) + 1;
-    localStorage.setItem('worksheet_analytics_' + courseId, JSON.stringify(analytics));
-    _sessionAccumulated = 0;
+    _flushSessionTime(true);
     if (presenceChannel) {
       presenceChannel.untrack();
     }
