@@ -2749,7 +2749,7 @@
       var transData = await transRes.json();
       var childData = await childRes.json();
 
-      var cacheEntry = { status: null, transitions: [], childrenHtml: '', error: null };
+      var cacheEntry = { status: null, transitions: [], children: [], childrenHtml: '', error: null };
       if (issue && issue.fields && issue.fields.status) {
         cacheEntry.status = issue.fields.status.name || '—';
       } else {
@@ -2760,6 +2760,13 @@
         return { id: t.id, name: (t.to && t.to.name) || t.name };
       });
       var children = (childData && childData.issues) || [];
+      cacheEntry.children = children.map(function(c) {
+        return {
+          key: c.key,
+          summary: (c.fields && c.fields.summary) || c.key,
+          statusName: (c.fields && c.fields.status && c.fields.status.name) || ''
+        };
+      });
       cacheEntry.childrenHtml = children.map(function(c) {
         var s = (c.fields && c.fields.status && c.fields.status.name) || '—';
         var sCat = (c.fields && c.fields.status && c.fields.status.statusCategory && c.fields.status.statusCategory.key) || '';
@@ -2828,9 +2835,32 @@
     }
   }
 
+  // Picks the Designing phase child issue under an Epic, if one exists.
+  // Falls back to null — callers then worklog the Epic itself.
+  function pickDesignTargetKey(courseId) {
+    var cached = (window._jiraStatusCache && window._jiraStatusCache[courseId]) || null;
+    var children = (cached && cached.children) || [];
+    var designing = children.find(function(c) {
+      return /\bdesigning\b/i.test(c.summary || '');
+    });
+    return designing ? designing.key : null;
+  }
+
   async function syncJiraWorklog(courseId, epic) {
     var msgEl = document.getElementById('jira-status-msg-' + courseId);
     var btnEl = document.getElementById('jira-worklog-btn-' + courseId);
+
+    // Prefer the Designing child task; fall back to the Epic only if the
+    // Jira cache hasn't loaded yet or there's no Designing child.
+    var targetKey = pickDesignTargetKey(courseId);
+    if (!targetKey) {
+      // Jira status may not have finished loading yet — give it a quick chance.
+      await loadJiraStatus(courseId);
+      targetKey = pickDesignTargetKey(courseId);
+    }
+    var usingFallback = !targetKey;
+    if (!targetKey) targetKey = epic;
+
     // Sum UN-SYNCED ms across all sessions for this course
     var sessions = (window._worksheetSessions && window._worksheetSessions[courseId]) || [];
     var unsyncedMs = sessions.reduce(function(sum, s) {
@@ -2844,11 +2874,14 @@
     }
     var seconds = Math.floor(unsyncedMs / 1000);
     var mins = Math.round(seconds / 60);
-    if (!confirm('Log ' + mins + ' minute' + (mins === 1 ? '' : 's') + ' as a worklog on ' + epic + '?')) return;
+    var confirmTarget = usingFallback
+      ? targetKey + ' (Epic — no Designing sub-task found)'
+      : targetKey + ' (Designing)';
+    if (!confirm('Log ' + mins + ' minute' + (mins === 1 ? '' : 's') + ' as a worklog on ' + confirmTarget + '?')) return;
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Syncing…'; }
-    if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Posting worklog to Jira…'; }
+    if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Posting worklog to ' + targetKey + '…'; }
     try {
-      var r = await fetch('http://127.0.0.1:3456/jira/worklog/' + epic, {
+      var r = await fetch('http://127.0.0.1:3456/jira/worklog/' + targetKey, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2868,7 +2901,7 @@
               .eq('identity_role', s.identity_role);
           }));
         }
-        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Logged ' + mins + 'm to ' + epic + ' ✓'; }
+        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Logged ' + mins + 'm to ' + targetKey + ' ✓'; }
         loadWorksheetSessions(); // refresh local cache
       } else {
         if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || 'Unknown'); }
