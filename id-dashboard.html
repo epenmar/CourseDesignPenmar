@@ -1873,6 +1873,7 @@
     html += `<div class="detail-header">
       <h2>${c.title}</h2>
       <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span></p>
+      ${c.id ? `<p style="font-size:12px; color:#888; margin-top:-6px;">ID: <span style="color:#8c1d40; font-weight:600;">${c.id}</span></p>` : ''}
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
     if (c.devLink) {
       html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Worksheet</a>`;
@@ -1937,44 +1938,46 @@
       <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
     </div>`;
 
-    // Instructor analytics
-    var analytics = JSON.parse(localStorage.getItem('worksheet_analytics_' + id) || '{}');
-    var totalMs = analytics.totalMs || 0;
-    var sessions = analytics.sessions || 0;
-    var lastVisit = analytics.lastVisit || '';
-    var timeStr = '—';
-    if (totalMs > 0) {
-      var totalMin = Math.round(totalMs / 60000);
-      if (totalMin < 60) timeStr = totalMin + ' min';
-      else { var h = Math.floor(totalMin / 60); var m = totalMin % 60; timeStr = h + 'h ' + (m > 0 ? m + 'm' : ''); }
+    // ===== Activity: who has opened the worksheet, how long, how recently =====
+    html += `<div class="detail-section" style="margin-top:16px; margin-bottom:0;"><h3>Activity</h3>`;
+    var sessions = (window._worksheetSessions && window._worksheetSessions[id]) || [];
+    if (!window._worksheetSessionsLoaded) {
+      html += `<div class="activity-empty">Loading activity…</div>`;
+    } else if (sessions.length === 0) {
+      html += `<div class="activity-empty">No one has opened the worksheet yet.</div>`;
+    } else {
+      var instructorRows = sessions.filter(function(s) { return s.identity_role === 'instructor'; });
+      var instructorLatest = instructorRows.reduce(function(acc, r) {
+        return (!acc || (r.last_visit || '') > (acc.last_visit || '')) ? r : acc;
+      }, null);
+      if (instructorLatest) {
+        var d = daysSince(instructorLatest.last_visit);
+        var cls = d == null ? 'none' : d >= 7 ? 'stale' : d >= 3 ? 'warn' : 'ok';
+        var label = d == null ? 'Instructor: never opened'
+                    : d === 0 ? 'Instructor: opened today'
+                    : d === 1 ? 'Instructor: 1 day silent'
+                    : 'Instructor: ' + d + ' days silent';
+        html += `<div class="activity-summary"><span class="activity-badge ${cls}"><span class="dot"></span>${label}</span></div>`;
+      } else {
+        html += `<div class="activity-summary"><span class="activity-badge none"><span class="dot"></span>Instructor: not yet opened</span></div>`;
+      }
+      var sorted = sessions.slice().sort(function(a, b) { return (b.last_visit || '').localeCompare(a.last_visit || ''); });
+      html += `<table class="activity-table"><thead><tr><th>Who</th><th>Role</th><th>Time</th><th>Sessions</th><th>Last visit</th></tr></thead><tbody>`;
+      sorted.forEach(function(s) {
+        var role = (s.identity_role || '').toLowerCase();
+        var dd = daysSince(s.last_visit);
+        var when = dd == null ? '—' : dd === 0 ? 'today' : dd === 1 ? '1d ago' : dd + 'd ago';
+        html += `<tr>
+          <td>${(s.identity_name || '').replace(/</g,'&lt;')}</td>
+          <td><span class="activity-role-chip ${role}">${role || '—'}</span></td>
+          <td>${fmtSessionDuration(s.total_ms)}</td>
+          <td>${s.session_count || 0}</td>
+          <td title="${s.last_visit || ''}">${when}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
     }
-    var lastStr = '—';
-    if (lastVisit) {
-      var d = new Date(lastVisit);
-      var now = new Date();
-      var diffDays = Math.floor((now - d) / 86400000);
-      if (diffDays === 0) lastStr = 'Today';
-      else if (diffDays === 1) lastStr = 'Yesterday';
-      else if (diffDays < 7) lastStr = diffDays + ' days ago';
-      else lastStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-    }
-    html += `<div class="detail-section" style="margin-top:16px; margin-bottom:0;">
-      <h3 style="margin-bottom:8px;">Instructor Activity</h3>
-      <div style="display:flex; gap:12px;">
-        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
-          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${timeStr}</div>
-          <div style="font-size:11px; color:#888; margin-top:2px;">Total Time</div>
-        </div>
-        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
-          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${sessions}</div>
-          <div style="font-size:11px; color:#888; margin-top:2px;">Sessions</div>
-        </div>
-        <div style="flex:1; background:#f5f5f0; border-radius:8px; padding:10px 12px; text-align:center;">
-          <div style="font-size:18px; font-weight:700; color:#8c1d40;">${lastStr}</div>
-          <div style="font-size:11px; color:#888; margin-top:2px;">Last Visit</div>
-        </div>
-      </div>
-    </div>`;
+    html += `</div>`;
 
     // Comment notification bar
     const cc = courseCommentCounts[id];
@@ -1986,12 +1989,6 @@
         <span class="notif-count">${cc.newCount > 0 ? cc.newCount : cc.total}</span>
       </div>`;
     }
-
-    // ID assigned
-    html += `<div class="detail-section" style="margin-bottom:16px;">
-      <div style="font-size:12px; color:#888;">Instructional Designer</div>
-      <div style="font-size:14px; font-weight:600; color:#8c1d40; margin-top:2px;">${c.id}</div>
-    </div>`;
 
     // Development status — mirrors milestone progression
     html += `<div class="detail-section"><h3>Development Status</h3>`;
@@ -2138,49 +2135,6 @@
       html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
     }
     html += `</div>`; // close Development Notes section
-
-    // ===== Activity: who has opened the worksheet, how long, how recently =====
-    html += `<div class="detail-section"><h3>Activity</h3>`;
-    var sessions = (window._worksheetSessions && window._worksheetSessions[id]) || [];
-    if (!window._worksheetSessionsLoaded) {
-      html += `<div class="activity-empty">Loading activity…</div>`;
-    } else if (sessions.length === 0) {
-      html += `<div class="activity-empty">No one has opened the worksheet yet.</div>`;
-    } else {
-      // Instructor-focused summary badge
-      var instructorRows = sessions.filter(function(s) { return s.identity_role === 'instructor'; });
-      var instructorLatest = instructorRows.reduce(function(acc, r) {
-        return (!acc || (r.last_visit || '') > (acc.last_visit || '')) ? r : acc;
-      }, null);
-      if (instructorLatest) {
-        var d = daysSince(instructorLatest.last_visit);
-        var cls = d == null ? 'none' : d >= 7 ? 'stale' : d >= 3 ? 'warn' : 'ok';
-        var label = d == null ? 'Instructor: never opened'
-                    : d === 0 ? 'Instructor: opened today'
-                    : d === 1 ? 'Instructor: 1 day silent'
-                    : 'Instructor: ' + d + ' days silent';
-        html += `<div class="activity-summary"><span class="activity-badge ${cls}"><span class="dot"></span>${label}</span></div>`;
-      } else {
-        html += `<div class="activity-summary"><span class="activity-badge none"><span class="dot"></span>Instructor: not yet opened</span></div>`;
-      }
-      // Per-identity table, sorted by most recent
-      var sorted = sessions.slice().sort(function(a, b) { return (b.last_visit || '').localeCompare(a.last_visit || ''); });
-      html += `<table class="activity-table"><thead><tr><th>Who</th><th>Role</th><th>Time</th><th>Sessions</th><th>Last visit</th></tr></thead><tbody>`;
-      sorted.forEach(function(s) {
-        var role = (s.identity_role || '').toLowerCase();
-        var dd = daysSince(s.last_visit);
-        var when = dd == null ? '—' : dd === 0 ? 'today' : dd === 1 ? '1d ago' : dd + 'd ago';
-        html += `<tr>
-          <td>${(s.identity_name || '').replace(/</g,'&lt;')}</td>
-          <td><span class="activity-role-chip ${role}">${role || '—'}</span></td>
-          <td>${fmtSessionDuration(s.total_ms)}</td>
-          <td>${s.session_count || 0}</td>
-          <td title="${s.last_visit || ''}">${when}</td>
-        </tr>`;
-      });
-      html += `</tbody></table>`;
-    }
-    html += `</div>`; // close Activity section
 
     // Meeting history — only renders when Granola meetings exist for this course.
     if (c.meetings && c.meetings.length > 0) {
