@@ -3,14 +3,16 @@
 // time to Jira as worklogs (default: Designing sub-task; fallback: Epic).
 //
 // What it does:
-//   1. Loads every row from worksheet_sessions in Supabase
-//   2. For each course_id, sums (total_ms - jira_synced_ms) across identities
-//   3. Looks up the course's Jira Epic in dashboard_state.course_jira_epics
+//   1. Loads unsynced rows from worksheet_session_events in Supabase
+//   2. For each course_id, subtracts overlap with calendar-meeting intervals
+//      so worksheet time that happened DURING a meeting isn't double-counted
+//   3. Adds past-calendar-meeting duration for meetings we haven't synced yet
+//   4. Looks up the course's Jira Epic in dashboard_state.course_jira_epics
 //      (user overrides) falling back to the built-in COURSE_JIRA_EPICS map
-//   4. Fetches the Epic's children, picks the one whose summary matches
+//   5. Fetches the Epic's children, picks the one whose summary matches
 //      /designing/i, else uses the Epic itself
-//   5. Posts a worklog to that target and updates jira_synced_ms = total_ms
-//      on every row it swept, so the next run only sees new time
+//   6. Posts a worklog, marks events as synced_to_jira=true, and records the
+//      meeting UIDs in dashboard_state.meeting_synced_uids
 //
 // Usage:
 //   node scripts/sync-jira-time.mjs             # post + mark synced
@@ -21,6 +23,11 @@
 // Logs to stdout; cron should redirect to ~/Library/Logs/sync-jira-time.log.
 
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DASHBOARD_DATA_FILE = path.join(__dirname, '..', 'dashboard-data.js');
 
 const ENV_FILE = '/Users/epenmar/conductor/.env';
 const SUPABASE_URL = 'https://oepkskqxyuzwaiglltly.supabase.co';
@@ -91,6 +98,99 @@ async function sbPatch(table, filterQuery, body) {
   if (!r.ok) throw new Error(`Supabase ${table} PATCH ${r.status}: ${await r.text()}`);
 }
 
+async function loadSyncedMeetingUids() {
+  try {
+    const rows = await sbSelect('dashboard_state', 'key=eq.meeting_synced_uids&select=data');
+    return (rows[0] && rows[0].data) || {};
+  } catch (e) {
+    console.warn('[sync-jira-time] Could not read meeting_synced_uids:', e.message);
+    return {};
+  }
+}
+
+async function saveSyncedMeetingUids(map) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_state`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ key: 'meeting_synced_uids', data: map })
+    });
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  } catch (e) {
+    console.warn('[sync-jira-time] Could not persist meeting_synced_uids:', e.message);
+  }
+}
+
+function loadCalendarMeetingsByCourse() {
+  // dashboard-data.js is `window.SYNCED_DATA = { ... };`
+  // Parse it by regex-stripping the wrapper and JSON.parsing the body.
+  try {
+    const raw = readFileSync(DASHBOARD_DATA_FILE, 'utf8');
+    const m = raw.match(/window\.SYNCED_DATA\s*=\s*(\{[\s\S]*\});?\s*$/);
+    if (!m) throw new Error('Could not locate SYNCED_DATA assignment');
+    const synced = JSON.parse(m[1]);
+    const out = {};
+    const courses = (synced && synced.courses) || {};
+    for (const [courseId, c] of Object.entries(courses)) {
+      const meetings = (c.calendarMeetings || []).filter(cm => cm.past === true && typeof cm.durationMinutes === 'number' && cm.durationMinutes > 0);
+      if (meetings.length) out[courseId] = meetings;
+    }
+    return out;
+  } catch (e) {
+    console.warn('[sync-jira-time] Could not load calendar meetings:', e.message);
+    return {};
+  }
+}
+
+// ---------- Interval overlap math ----------
+// Build a merged (sorted, non-overlapping) list of [startMs, endMs] for a
+// course's past meetings. Meetings missing dtStartIso fall back to
+// date+time parsing + durationMinutes.
+function buildMeetingIntervals(meetings) {
+  const raw = [];
+  for (const m of meetings) {
+    const durMs = Math.max(0, Number(m.durationMinutes || 0)) * 60000;
+    if (durMs <= 0) continue;
+    let start = null;
+    if (m.dtStartIso) {
+      const d = new Date(m.dtStartIso);
+      if (!isNaN(d.getTime())) start = d.getTime();
+    }
+    // Fallback: parse "YYYY-MM-DD" + "H:MM AM/PM" as local time.
+    if (start == null && m.date && m.time) {
+      const d = new Date(`${m.date} ${m.time}`);
+      if (!isNaN(d.getTime())) start = d.getTime();
+    }
+    if (start == null) continue;
+    const end = m.dtEndIso ? new Date(m.dtEndIso).getTime() : start + durMs;
+    if (isNaN(end) || end <= start) continue;
+    raw.push([start, end]);
+  }
+  raw.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const iv of raw) {
+    if (merged.length && iv[0] <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
+    } else {
+      merged.push([iv[0], iv[1]]);
+    }
+  }
+  return merged;
+}
+
+// Portion of [startMs, endMs] that does NOT fall inside any interval in `merged`.
+function nonOverlapMs(startMs, endMs, merged) {
+  if (endMs <= startMs) return 0;
+  if (!merged.length) return endMs - startMs;
+  let overlap = 0;
+  for (const [a, b] of merged) {
+    if (b <= startMs) continue;
+    if (a >= endMs) break;
+    overlap += Math.min(endMs, b) - Math.max(startMs, a);
+  }
+  return Math.max(0, (endMs - startMs) - overlap);
+}
+
 async function loadEpicOverrides() {
   try {
     const rows = await sbSelect('dashboard_state', 'key=eq.course_jira_epics&select=data');
@@ -152,41 +252,65 @@ async function main() {
   const started = new Date().toISOString();
   console.log(`[sync-jira-time] Starting run at ${started} (dry=${DRY}, minSeconds=${MIN_SECONDS})`);
 
-  let sessions;
+  // Load unsynced worksheet events.
+  let events = [];
   try {
-    sessions = await sbSelect('worksheet_sessions',
-      'select=course_id,identity_name,identity_role,total_ms,session_count,last_visit,jira_synced_ms');
+    events = await sbSelect('worksheet_session_events',
+      'select=id,course_id,identity_name,identity_role,started_at,ended_at&synced_to_jira=eq.false&order=started_at.asc');
   } catch (e) {
-    if (/jira_synced_ms/.test(e.message)) {
-      // Column hasn't been added yet — fall back so the cron still works.
-      console.warn('[sync-jira-time] jira_synced_ms column missing. Run the schema migration. Treating all time as unsynced for this run.');
-      sessions = await sbSelect('worksheet_sessions',
-        'select=course_id,identity_name,identity_role,total_ms,session_count,last_visit');
-      sessions.forEach(s => { s.jira_synced_ms = 0; });
-    } else if (/worksheet_sessions/.test(e.message) && /Could not find|does not exist|PGRST205/.test(e.message)) {
-      console.warn('[sync-jira-time] worksheet_sessions table not found. Run supabase-schema.sql first. Exiting cleanly.');
-      return;
+    if (/PGRST205|Could not find|does not exist/.test(e.message)) {
+      console.warn('[sync-jira-time] worksheet_session_events table not found — run the schema migration. Continuing with meeting time only.');
+      events = [];
     } else {
       throw e;
     }
   }
-  if (!sessions.length) { console.log('[sync-jira-time] No sessions in table.'); return; }
+  if (!events.length) console.log('[sync-jira-time] No unsynced worksheet events; processing calendar meetings only.');
 
-  // Bucket by course and sum unsynced ms
+  // Load calendar meetings and already-synced meeting UIDs.
+  const calendarByCourse = loadCalendarMeetingsByCourse();
+  const syncedUidMap = await loadSyncedMeetingUids();
+
+  // Build per-course buckets with overlap-corrected worksheet time + new meeting time.
   const buckets = {};
-  for (const s of sessions) {
-    const delta = Math.max(0, Number(s.total_ms || 0) - Number(s.jira_synced_ms || 0));
-    if (!buckets[s.course_id]) buckets[s.course_id] = { rows: [], unsyncedMs: 0 };
-    buckets[s.course_id].rows.push(s);
-    buckets[s.course_id].unsyncedMs += delta;
+  const courseIds = new Set([
+    ...Object.keys(calendarByCourse),
+    ...events.map(e => e.course_id)
+  ]);
+  for (const courseId of courseIds) {
+    const meetings = calendarByCourse[courseId] || [];
+    const intervals = buildMeetingIntervals(meetings);
+    const courseEvents = events.filter(e => e.course_id === courseId);
+    let worksheetMs = 0;
+    const eventIds = [];
+    for (const ev of courseEvents) {
+      const s = new Date(ev.started_at).getTime();
+      const e = new Date(ev.ended_at).getTime();
+      if (isNaN(s) || isNaN(e) || e <= s) continue;
+      worksheetMs += nonOverlapMs(s, e, intervals);
+      eventIds.push(ev.id);
+    }
+    const already = new Set(syncedUidMap[courseId] || []);
+    let meetingMs = 0;
+    const newMeetingUids = [];
+    for (const m of meetings) {
+      if (!m.uid || already.has(m.uid)) continue;
+      meetingMs += m.durationMinutes * 60000;
+      newMeetingUids.push(m.uid);
+    }
+    if (worksheetMs > 0 || meetingMs > 0 || eventIds.length) {
+      buckets[courseId] = { worksheetMs, meetingMs, eventIds, newMeetingUids };
+    }
   }
 
   const overrides = await loadEpicOverrides();
 
-  const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0 };
+  const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0, meetingMinutes: 0 };
+  let anyMeetingUidsNewlySynced = false;
   for (const courseId of Object.keys(buckets).sort()) {
     const bucket = buckets[courseId];
-    const seconds = Math.floor(bucket.unsyncedMs / 1000);
+    const totalMs = bucket.worksheetMs + bucket.meetingMs;
+    const seconds = Math.floor(totalMs / 1000);
     if (seconds < MIN_SECONDS) {
       summary.skippedBelowMin++;
       console.log(`  · ${courseId}: ${seconds}s unsynced — below threshold, skipping`);
@@ -204,31 +328,43 @@ async function main() {
     if (!target) target = epic;
 
     const mins = Math.round(seconds / 60);
-    console.log(`  · ${courseId}: ${mins}m → ${target} (${targetKind})`);
+    const worksheetMins = Math.round(bucket.worksheetMs / 60000);
+    const meetingMins = Math.round(bucket.meetingMs / 60000);
+    const meetingNote = meetingMins > 0 ? ` (worksheet ${worksheetMins}m + meetings ${meetingMins}m across ${bucket.newMeetingUids.length})` : '';
+    console.log(`  · ${courseId}: ${mins}m${meetingNote} → ${target} (${targetKind})`);
 
-    if (DRY) { summary.minutesLogged += mins; continue; }
+    if (DRY) {
+      summary.minutesLogged += mins;
+      summary.meetingMinutes += meetingMins;
+      continue;
+    }
 
     try {
-      await postWorklog(target, seconds, `Dashboard worksheet time (${courseId}) — nightly sync`);
-      // Mark every session row in this bucket as fully synced
-      for (const s of bucket.rows) {
-        const total = Number(s.total_ms || 0);
-        if (total <= Number(s.jira_synced_ms || 0)) continue;
-        const filter =
-          `course_id=eq.${encodeURIComponent(s.course_id)}` +
-          `&identity_name=eq.${encodeURIComponent(s.identity_name)}` +
-          `&identity_role=eq.${encodeURIComponent(s.identity_role)}`;
-        await sbPatch('worksheet_sessions', filter, { jira_synced_ms: total });
+      await postWorklog(target, seconds, `Dashboard time (${courseId}) — nightly sync${meetingNote}`);
+      // Mark every worksheet event in this bucket as synced
+      if (bucket.eventIds.length) {
+        const filter = 'id=in.(' + bucket.eventIds.join(',') + ')';
+        await sbPatch('worksheet_session_events', filter, { synced_to_jira: true });
+      }
+      if (bucket.newMeetingUids.length) {
+        const prev = syncedUidMap[courseId] || [];
+        syncedUidMap[courseId] = Array.from(new Set([...prev, ...bucket.newMeetingUids]));
+        anyMeetingUidsNewlySynced = true;
       }
       summary.posted++;
       summary.minutesLogged += mins;
+      summary.meetingMinutes += meetingMins;
     } catch (e) {
       summary.failed++;
       console.error(`    ! ${courseId} failed:`, e.message);
     }
   }
 
-  console.log(`[sync-jira-time] Done. posted=${summary.posted} failed=${summary.failed} skipped_no_epic=${summary.skippedNoEpic} skipped_below_min=${summary.skippedBelowMin} total_minutes=${summary.minutesLogged}`);
+  if (anyMeetingUidsNewlySynced) {
+    await saveSyncedMeetingUids(syncedUidMap);
+  }
+
+  console.log(`[sync-jira-time] Done. posted=${summary.posted} failed=${summary.failed} skipped_no_epic=${summary.skippedNoEpic} skipped_below_min=${summary.skippedBelowMin} total_minutes=${summary.minutesLogged} (meetings=${summary.meetingMinutes})`);
 }
 
 main().catch(e => {
