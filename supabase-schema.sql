@@ -56,9 +56,13 @@ create table if not exists worksheet_sessions (
   total_ms bigint not null default 0,
   session_count integer not null default 0,
   last_visit timestamptz not null default now(),
+  jira_synced_ms bigint not null default 0,  -- portion of total_ms already posted to Jira worklog
   updated_at timestamptz not null default now(),
   primary key (course_id, identity_name, identity_role)
 );
+-- Add the column in-place for anyone who already created the table before this update.
+alter table worksheet_sessions
+  add column if not exists jira_synced_ms bigint not null default 0;
 create index if not exists idx_worksheet_sessions_course on worksheet_sessions(course_id);
 create index if not exists idx_worksheet_sessions_role on worksheet_sessions(identity_role);
 alter table worksheet_sessions enable row level security;
