@@ -2647,13 +2647,13 @@
     html = '<table style="border-collapse:collapse; font-size:12px; width:100%;">';
     html += '<thead>';
     // Module group row
-    html += '<tr><th style="padding:4px 8px; border:1px solid #e0ddd5; background:#f5f5f0;"></th>';
+    html += '<tr><th style="padding:4px 8px; border:1px solid #e0ddd5; background:#f5f5f0; position:sticky; left:0; z-index:3;"></th>';
     modSpans.forEach(function(ms) {
       html += '<th colspan="' + ms.span + '" style="padding:4px 6px; border:1px solid #e0ddd5; background:#f0eee8; text-align:center; font-size:11px; font-weight:600; color:#8c1d40; border-left:2px solid #8c1d40;">M' + ms.mod + (ms.topic ? ': ' + escapeHtml(ms.topic.substring(0, 20)) + (ms.topic.length > 20 ? '…' : '') : '') + '</th>';
     });
     html += '</tr>';
     // MLO number row
-    html += '<tr><th style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; min-width:140px; font-size:11px; color:#888;">ELO ↓ &nbsp; MLO →</th>';
+    html += '<tr><th style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; min-width:140px; font-size:11px; color:#888; position:sticky; left:0; z-index:3; box-shadow:2px 0 3px -1px rgba(0,0,0,0.08);">ELO ↓ &nbsp; MLO →</th>';
     lastMod = 0;
     allMlos.forEach(function(mlo) {
       var modBorder = mlo.modNum !== lastMod ? ' border-left:2px solid #8c1d40;' : '';
@@ -2664,7 +2664,7 @@
 
     // One row per ELO
     elos.forEach(function(elo, i) {
-      html += '<tr><td style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:11px; white-space:nowrap;" title="' + escapeHtml(elo) + '">ELO ' + (i+1) + '</td>';
+      html += '<tr><td style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:11px; white-space:nowrap; position:sticky; left:0; z-index:2; box-shadow:2px 0 3px -1px rgba(0,0,0,0.08);" title="' + escapeHtml(elo) + '">ELO ' + (i+1) + '</td>';
       var eloMlos = alignment[i + ''] || [];
       lastMod = 0;
       allMlos.forEach(function(mlo) {
