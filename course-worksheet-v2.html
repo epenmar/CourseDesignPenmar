@@ -8359,7 +8359,18 @@ ${clone.innerHTML}
     if (btn) { btn.textContent = '⏳ Uploading to Drive…'; btn.disabled = true; }
     window.GDrive.uploadBlob(driveUrl, exp.filename, exp.blob, 'application/vnd.ms-word').then(function(res) {
       if (btn) { btn.textContent = '✓ Uploaded'; setTimeout(function() { btn.textContent = origText; btn.disabled = false; }, 3000); }
-      if (res.webViewLink) window.open(res.webViewLink, '_blank');
+      console.log('[Drive] uploaded', res);
+      var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
+      var actualParents = res.parents || [];
+      var inExpectedFolder = actualParents.indexOf(expectedFolderId) !== -1;
+      var locationNote = inExpectedFolder
+        ? 'File uploaded to the course Drive folder.'
+        : 'Warning: file did not land in the expected folder.\nExpected: ' + expectedFolderId + '\nActual parents: ' + actualParents.join(', ') + '\nSearch Drive for "' + res.name + '" to locate it.';
+      if (res.webViewLink) {
+        if (confirm(locationNote + '\n\nOpen in Google Drive?')) {
+          window.open(res.webViewLink, '_blank');
+        }
+      }
     }).catch(function(err) {
       if (btn) { btn.textContent = origText; btn.disabled = false; }
       // Fall back to local download so the user still has the file.
