@@ -16,7 +16,7 @@ const OBSIDIAN_MEETINGS = path.join(
 );
 const DATA_FILE = path.join(__dirname, 'dashboard-data.js');
 const LOOKAHEAD_DAYS = 30;
-const LOOKBACK_DAYS = 60; // how far back to scan Obsidian notes
+const LOOKBACK_DAYS = 60; // how far back to scan Obsidian notes + past calendar events
 
 // ===== COURSE KEYWORD MAP =====
 const COURSE_KEYWORDS = {
@@ -326,18 +326,27 @@ async function main() {
     const allEvents = parseIcal(icsText);
     console.log(`[sync] Parsed ${allEvents.length} calendar events`);
 
-    const upcoming = allEvents.filter(ev => ev.dtstart >= todayStart && ev.dtstart <= cutoff && ev.status !== 'CANCELLED');
-    console.log(`[sync] ${upcoming.length} upcoming in next ${LOOKAHEAD_DAYS} days`);
+    const windowed = allEvents.filter(ev => ev.dtstart >= lookbackDate && ev.dtstart <= cutoff && ev.status !== 'CANCELLED');
+    console.log(`[sync] ${windowed.length} events in window (past ${LOOKBACK_DAYS}d → next ${LOOKAHEAD_DAYS}d)`);
 
-    for (const ev of upcoming) {
+    for (const ev of windowed) {
       const courses = matchEventToCourses(ev);
       for (const courseId of courses) {
         if (!courseCalendar[courseId]) courseCalendar[courseId] = [];
+        let durationMinutes = null;
+        if (ev.dtend instanceof Date && ev.dtstart instanceof Date) {
+          const ms = ev.dtend.getTime() - ev.dtstart.getTime();
+          if (ms > 0 && ms < 24 * 3600 * 1000) durationMinutes = Math.round(ms / 60000);
+        }
         courseCalendar[courseId].push({
           date: formatDateStr(ev.dtstart),
           time: formatTime(ev.dtstart),
           label: ev.summary,
-          uid: ev.uid
+          uid: ev.uid,
+          durationMinutes: durationMinutes,
+          past: ev.dtstart < todayStart,
+          dtStartIso: ev.dtstart instanceof Date ? ev.dtstart.toISOString() : null,
+          dtEndIso: ev.dtend instanceof Date ? ev.dtend.toISOString() : null
         });
       }
     }

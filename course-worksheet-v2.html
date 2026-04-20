@@ -10,6 +10,9 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script src="gdrive-config.js"></script>
+<script src="gdrive.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -7370,18 +7373,31 @@
       });
     }
 
-    // Download as .txt file then open Drive folder
+    var filename = (title ? title.textContent.replace(/[^a-zA-Z0-9]/g, '_') : 'template') + '.txt';
     var blob = new Blob([content], { type: 'text/plain' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = (title ? title.textContent.replace(/[^a-zA-Z0-9]/g, '_') : 'template') + '.txt';
-    a.click();
-    URL.revokeObjectURL(a.href);
 
-    // Open Drive folder if configured
-    if (activeCourse.driveFolder) {
-      window.open(activeCourse.driveFolder, '_blank');
+    // Upload directly to the course's Drive folder if configured; otherwise fall back to local download.
+    if (!window.GDrive || !activeCourse || !activeCourse.driveFolder) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      alert('No Google Drive folder is configured for this course. Template downloaded locally instead.');
+      return;
     }
+    window.GDrive.uploadBlob(activeCourse.driveFolder, filename, blob, 'text/plain').then(function(res) {
+      if (res.webViewLink) window.open(res.webViewLink, '_blank');
+    }).catch(function(err) {
+      // Fall back to local download + open folder so the user isn't stranded
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      window.open(activeCourse.driveFolder, '_blank');
+      alert('Drive upload failed (' + (err.message || 'unknown') + '). File downloaded locally; drop it into the Drive folder manually.');
+    });
   }
 
   function handleFileAttach(input, prefix) {
@@ -7390,9 +7406,29 @@
     const container = document.getElementById(prefix + '-files');
     const el = document.createElement('div');
     el.className = 'attached-file';
-    el.innerHTML = `📎 ${file.name} <span style="color:#999; font-size:11px;">(${(file.size / 1024).toFixed(0)} KB)</span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>`;
+    el.innerHTML = `📎 ${file.name} <span style="color:#999; font-size:11px;">(${(file.size / 1024).toFixed(0)} KB)</span> <span class="upload-status" style="margin-left:6px; font-size:11px;"></span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>`;
     container.appendChild(el);
     input.value = ''; // reset so same file can be re-added
+
+    const status = el.querySelector('.upload-status');
+    if (!window.GDrive) {
+      status.textContent = '(Drive helper unavailable)';
+      status.style.color = '#999';
+      return;
+    }
+    if (!activeCourse || !activeCourse.driveFolder) {
+      status.textContent = '(no Drive folder set for this course)';
+      status.style.color = '#999';
+      return;
+    }
+    status.textContent = 'Uploading to Drive…';
+    status.style.color = '#1a73e8';
+    window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type).then(function(res) {
+      status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
+    }).catch(function(err) {
+      status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
+      status.style.color = '#c62828';
+    });
   }
 
   function autoExpand(el) {
@@ -8230,9 +8266,9 @@
   }
 
   // ===== DOCUMENT EXPORT =====
-  function downloadDocument() {
+  function _buildDocumentExport() {
     const preview = document.querySelector('.doc-preview');
-    if (!preview) return;
+    if (!preview) return null;
 
     // Clone preview and apply inline styles so Google Docs preserves formatting
     const clone = preview.cloneNode(true);
@@ -8276,10 +8312,17 @@ ${clone.innerHTML}
 </body></html>`;
 
     const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
+    const filename = (activeCourse.code || 'course').replace(/\s+/g, '_') + '_Development_Worksheet.doc';
+    return { blob: blob, filename: filename };
+  }
+
+  function downloadDocument() {
+    const exp = _buildDocumentExport();
+    if (!exp) return;
+    const url = URL.createObjectURL(exp.blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = (activeCourse.code || 'course').replace(/\s+/g, '_') + '_Development_Worksheet.doc';
+    a.download = exp.filename;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
@@ -8287,17 +8330,40 @@ ${clone.innerHTML}
   }
 
   function exportToGoogleDrive() {
+    const exp = _buildDocumentExport();
+    if (!exp) return;
     const driveUrl = activeCourse.driveFolder;
-    if (driveUrl) {
-      // Download the file first, then open the Drive folder
-      downloadDocument();
-      window.open(driveUrl, '_blank');
-    } else {
-      // No drive folder configured — just download
-      const msg = 'No Google Drive folder is configured for this course. The document has been downloaded to your computer instead. To enable direct Drive export, add a Google Drive folder URL in the course settings.';
-      downloadDocument();
-      setTimeout(() => alert(msg), 500);
+
+    // No folder configured — fall back to local download with a note.
+    if (!window.GDrive || !driveUrl) {
+      const url = URL.createObjectURL(exp.blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = exp.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setTimeout(function() {
+        alert('No Google Drive folder is configured for this course. Document downloaded locally. Add a Google Drive Folder URL in Course Info to enable direct Drive export.');
+      }, 300);
+      return;
     }
+
+    // Upload directly into the course's Drive folder.
+    const btn = document.querySelector('button[onclick="exportToGoogleDrive()"]');
+    const origText = btn ? btn.textContent : null;
+    if (btn) { btn.textContent = '⏳ Uploading to Drive…'; btn.disabled = true; }
+    window.GDrive.uploadBlob(driveUrl, exp.filename, exp.blob, 'application/vnd.ms-word').then(function(res) {
+      if (btn) { btn.textContent = '✓ Uploaded'; setTimeout(function() { btn.textContent = origText; btn.disabled = false; }, 3000); }
+      if (res.webViewLink) window.open(res.webViewLink, '_blank');
+    }).catch(function(err) {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+      // Fall back to local download so the user still has the file.
+      const url = URL.createObjectURL(exp.blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = exp.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      alert('Drive upload failed (' + (err.message || 'unknown') + '). Document downloaded locally instead.');
+    });
   }
 
   // ===== SUPABASE COMMENTS SYSTEM =====
@@ -8416,6 +8482,7 @@ ${clone.innerHTML}
   var _sessionActive = true;
   var _sessionAccumulated = 0;   // ms since the last flush
   var _sessionCountedThisLoad = false; // ensure we only increment session_count once per page load
+  var _lastFlushWallEnd = Date.now(); // wall-clock end of the most recent flushed block
 
   function _flushSessionTime(isUnload) {
     if (_sessionActive) {
@@ -8437,6 +8504,40 @@ ${clone.innerHTML}
     var shouldCount = !_sessionCountedThisLoad;
     _sessionCountedThisLoad = true;
     _pushSessionDeltaToCloud(deltaMs, shouldCount, isUnload);
+
+    // Per-visit event row — lets the nightly Jira cron subtract time that overlaps a meeting.
+    // started_at is the end of the previous flush window; ended_at is now.
+    if (deltaMs > 1000) {
+      var nowTs = Date.now();
+      var startedAt = new Date(nowTs - deltaMs).toISOString();
+      var endedAt = new Date(nowTs).toISOString();
+      _lastFlushWallEnd = nowTs;
+      _pushSessionEventToCloud(startedAt, endedAt);
+    }
+  }
+
+  function _pushSessionEventToCloud(startedAt, endedAt) {
+    try {
+      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      if (!identity || !identity.name || !identity.role) return;
+      if (!window._sbClient || !courseId) return;
+      window._sbClient.from('worksheet_session_events').insert({
+        course_id: courseId,
+        identity_name: identity.name,
+        identity_role: identity.role,
+        started_at: startedAt,
+        ended_at: endedAt
+      }).then(function(r) {
+        if (r && r.error) {
+          // Table may not exist yet — warn quietly, don't break the counter path.
+          if (!/PGRST205|does not exist|Could not find/i.test(r.error.message || '')) {
+            console.warn('[session-event] insert failed:', r.error.message);
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('[session-event] push error', e);
+    }
   }
 
   function _pushSessionDeltaToCloud(deltaMs, incrementCount, isUnload) {

@@ -72,6 +72,25 @@ drop trigger if exists worksheet_sessions_touch on worksheet_sessions;
 create trigger worksheet_sessions_touch before update on worksheet_sessions
   for each row execute function touch_updated_at();
 
+-- Per-visit worksheet session events: one row per flush window, with actual
+-- wall-clock start/end. Used by the nightly Jira cron to subtract worksheet
+-- time that overlaps a calendar meeting (prevents double-counting).
+create table if not exists worksheet_session_events (
+  id bigint generated always as identity primary key,
+  course_id text not null,
+  identity_name text not null,
+  identity_role text not null,
+  started_at timestamptz not null,
+  ended_at timestamptz not null,
+  synced_to_jira boolean not null default false,
+  created_at timestamptz not null default now()
+);
+create index if not exists idx_wse_course_ended on worksheet_session_events(course_id, ended_at);
+create index if not exists idx_wse_unsynced on worksheet_session_events(synced_to_jira, course_id) where synced_to_jira = false;
+alter table worksheet_session_events enable row level security;
+drop policy if exists "open access" on worksheet_session_events;
+create policy "open access" on worksheet_session_events for all using (true) with check (true);
+
 -- Keep updated_at fresh automatically
 create or replace function touch_updated_at() returns trigger as $$
 begin new.updated_at = now(); return new; end;

@@ -148,6 +148,39 @@
   .detail-section { margin-bottom: 28px; }
   .detail-section h3 { font-size: 17px; font-weight: 700; margin-bottom: 12px; color: #2a2a2a; letter-spacing: -0.01em; }
 
+  /* Collapsible section header (Jira Status, Development Notes) */
+  .ds-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ds-head h3 { margin: 0 !important; flex-shrink: 0; }
+  .ds-head .ds-head-inline { display: flex; align-items: center; gap: 10px; flex: 1; flex-wrap: wrap; }
+  .ds-head .ds-toggle { cursor: pointer; user-select: none; color: #888; font-size: 12px; padding: 2px 6px; background: none; border: none; transition: transform 0.15s; }
+  .ds-head .ds-toggle.collapsed { transform: rotate(-90deg); }
+  .ds-body.collapsed { display: none; }
+
+  /* Action Items section */
+  .action-items-list { margin: 0; padding: 0; list-style: none; }
+  .action-item-row { display: flex; align-items: flex-start; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f0f0f0; font-size: 13px; }
+  .action-item-row:last-child { border-bottom: none; }
+  .action-item-row .check { flex-shrink: 0; width: 18px; height: 18px; border: 1.5px solid #c8c5bb; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; color: #4caf50; background: #fff; margin-top: 1px; }
+  .action-item-row .check.done { background: #4caf50; color: #fff; border-color: #4caf50; }
+  .action-item-row .action-text { flex: 1; }
+  .action-item-row .action-text.done { text-decoration: line-through; color: #999; }
+  .action-item-row .action-src { font-size: 10px; color: #888; flex-shrink: 0; padding-left: 8px; }
+  .action-item-row .action-del { flex-shrink: 0; background: none; border: none; color: #c62828; cursor: pointer; font-size: 13px; padding: 0 4px; opacity: 0; transition: opacity 0.15s; }
+  .action-item-row:hover .action-del { opacity: 1; }
+  .action-item-add { display: flex; gap: 6px; margin-top: 8px; }
+  .action-item-add input { flex: 1; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: Inter, sans-serif; }
+  .action-item-add button { padding: 6px 14px; background: #8c1d40; color: #fff; border: none; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: Inter, sans-serif; }
+
+  /* Past meetings in Development Status column + under Jira children */
+  .dev-status-meetings { margin-top: 4px; font-size: 11px; color: #1565c0; display: flex; flex-direction: column; gap: 2px; }
+  .dev-status-meetings .past-mtg { color: #555; }
+  .jira-past-meetings { margin-top: 10px; padding-top: 10px; border-top: 1px dashed #e0ddd5; }
+  .jira-past-meetings-title { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 6px; }
+  .jira-past-mtg-row { display: flex; gap: 8px; font-size: 12px; padding: 3px 0; }
+  .jira-past-mtg-row .past-date { color: #888; min-width: 80px; }
+  .jira-past-mtg-row .past-label { flex: 1; color: #333; }
+  .jira-past-mtg-row .past-dur { color: #888; font-size: 11px; }
+
   .detail-stat-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
   .detail-stat { background: #f5f5f0; border-radius: 8px; padding: 14px; }
   .detail-stat .label { font-size: 11px; color: #888; margin-bottom: 4px; }
@@ -1650,6 +1683,67 @@
     if (state[k] && typeof state[k][idx] === 'boolean') return state[k][idx];
     return !!defaultDone;
   }
+
+  // ===== DETAIL-PANEL SECTION COLLAPSE STATE =====
+  function readCollapsedSections() {
+    try { return JSON.parse(localStorage.getItem('detail_collapsed_sections') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function isSectionCollapsed(key) { return !!readCollapsedSections()[key]; }
+  window.toggleDetailSection = function(key, evt) {
+    if (evt) evt.stopPropagation();
+    var state = readCollapsedSections();
+    state[key] = !state[key];
+    localStorage.setItem('detail_collapsed_sections', JSON.stringify(state));
+    var body = document.getElementById('ds-body-' + key);
+    var toggle = document.getElementById('ds-toggle-' + key);
+    if (body) body.classList.toggle('collapsed', state[key]);
+    if (toggle) toggle.classList.toggle('collapsed', state[key]);
+  };
+
+  // ===== MANUAL ACTION ITEMS (per-course, persisted to Supabase) =====
+  function readManualActionItems() {
+    try { return JSON.parse(localStorage.getItem('course_action_items') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveManualActionItemsMap(map) {
+    localStorage.setItem('course_action_items', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_action_items', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[actionItems] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getManualActionItems(courseId) { return readManualActionItems()[courseId] || []; }
+  window.addManualActionItem = function(courseId) {
+    var input = document.getElementById('ai-new-' + courseId);
+    if (!input) return;
+    var text = (input.value || '').trim();
+    if (!text) return;
+    var all = readManualActionItems();
+    if (!all[courseId]) all[courseId] = [];
+    all[courseId].push({ id: 'm' + Date.now() + Math.random().toString(36).slice(2, 6), text: text, done: false, createdAt: new Date().toISOString() });
+    saveManualActionItemsMap(all);
+    input.value = '';
+    renderDetail(courseId);
+  };
+  window.toggleManualActionItem = function(courseId, itemId) {
+    var all = readManualActionItems();
+    var list = all[courseId] || [];
+    var item = list.find(function(x) { return x.id === itemId; });
+    if (!item) return;
+    item.done = !item.done;
+    saveManualActionItemsMap(all);
+    renderDetail(courseId);
+  };
+  window.deleteManualActionItem = function(courseId, itemId) {
+    var all = readManualActionItems();
+    if (!all[courseId]) return;
+    all[courseId] = all[courseId].filter(function(x) { return x.id !== itemId; });
+    if (all[courseId].length === 0) delete all[courseId];
+    saveManualActionItemsMap(all);
+    renderDetail(courseId);
+  };
   // ===== AIRTABLE RECORD URLS (per course) =====
   // Kept as a separate dashboard_state key so edits don't collide with course_overrides.
   function readAirtableUrls() {
@@ -1948,16 +2042,9 @@
       html += buildEmailDropdown(id, c);
     }
     html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
-    html += `</div>`;
-    // Small utility row below buttons
-    html += `<div style="margin-top:6px; display:flex; align-items:center; gap:12px;">`;
     if (c.devLink) {
-      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
+      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:0; margin-left:4px; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; align-self:center;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
-    html += `<label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#999;">
-        <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:12px; height:12px;">
-        Mark as Inactive
-      </label>`;
     html += `</div>`;
 
     // Reviewer invite form (hidden by default)
@@ -1988,11 +2075,6 @@
       html += `</div>`;
     }
 
-    // Inactive note (shown when checkbox is checked)
-    html += `<div id="inactive-note-area" style="margin-top:${isInactive ? '6' : '0'}px; display:${isInactive ? 'block' : 'none'};">
-      <textarea id="inactive-note" placeholder="Reason..." oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
-    </div>`;
-
     html += `</div>`;
 
     // Stats
@@ -2000,6 +2082,48 @@
       <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
       <div class="detail-stat"><div class="label">QA Walkthrough</div><div class="value" style="font-size:18px; color:#666;">${c.qa}</div></div>
     </div>`;
+
+    // ===== Action Items: aggregate Granola action items + manually-added =====
+    html += `<div class="detail-section" style="margin-top:16px;"><h3>Action Items</h3>`;
+    var actionItemsHtml = '';
+    var anyOpenItem = false;
+    (c.meetings || []).forEach(function(m) {
+      var mKey = meetingKey(m);
+      (m.actionItems || []).forEach(function(a, aIdx) {
+        var checked = isActionChecked(id, mKey, aIdx, a.done);
+        if (checked) return; // hide completed items
+        anyOpenItem = true;
+        var safeText = (a.text || '').replace(/</g, '&lt;');
+        var mDate = m.date ? new Date(m.date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
+        actionItemsHtml += '<li class="action-item-row">'
+          + '<span class="check" onclick="toggleActionItem(\'' + id + '\',\'' + mKey + '\',' + aIdx + ', this); renderDetail(\'' + id + '\');"></span>'
+          + '<span class="action-text">' + safeText + '</span>'
+          + (mDate ? '<span class="action-src" title="' + (m.title || '').replace(/"/g,'&quot;') + '">Granola · ' + mDate + '</span>' : '')
+          + '</li>';
+      });
+    });
+    var manualItems = getManualActionItems(id);
+    manualItems.forEach(function(mi) {
+      if (mi.done) return;
+      anyOpenItem = true;
+      var safeText = String(mi.text || '').replace(/</g, '&lt;');
+      actionItemsHtml += '<li class="action-item-row">'
+        + '<span class="check" onclick="toggleManualActionItem(\'' + id + '\',\'' + mi.id + '\')"></span>'
+        + '<span class="action-text">' + safeText + '</span>'
+        + '<span class="action-src">Manual</span>'
+        + '<button class="action-del" onclick="deleteManualActionItem(\'' + id + '\',\'' + mi.id + '\')" title="Delete">×</button>'
+        + '</li>';
+    });
+    if (actionItemsHtml) {
+      html += '<ul class="action-items-list">' + actionItemsHtml + '</ul>';
+    } else {
+      html += '<div style="font-size:12px; color:#999; font-style:italic;">No open action items.</div>';
+    }
+    html += `<div class="action-item-add">
+      <input type="text" id="ai-new-${id}" placeholder="Add an action item…" onkeydown="if(event.key==='Enter'){addManualActionItem('${id}');}" />
+      <button onclick="addManualActionItem('${id}')">+ Add</button>
+    </div>`;
+    html += `</div>`;
 
     // ===== Activity: who has opened the worksheet, how long, how recently =====
     html += `<div class="detail-section" style="margin-top:16px;"><h3>Activity</h3>`;
@@ -2042,9 +2166,33 @@
     }
     html += `</div>`;
 
+    // Compute past calendar meetings (used by both Jira Status and Development Status)
+    var syncedCourseEarly = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
+    var pastMeetings = [];
+    if (syncedCourseEarly && syncedCourseEarly.calendarMeetings) {
+      pastMeetings = syncedCourseEarly.calendarMeetings.filter(function(cm) { return cm.past === true; });
+      pastMeetings.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
+    }
+
     // ===== Jira Status: change the Epic's status + children from the side panel =====
     var jiraEpic = getCourseJiraEpic(id);
-    html += `<div class="detail-section" style="margin-top:16px;"><h3>Jira Status</h3>`;
+    var jsCollapsed = isSectionCollapsed('jira-status');
+    html += `<div class="detail-section" style="margin-top:16px;">
+      <div class="ds-head">
+        <h3>Jira Status</h3>
+        <div class="ds-head-inline">
+          <label style="display:inline-flex; align-items:center; gap:4px; cursor:pointer; font-size:11px; color:#999;">
+            <input type="checkbox" id="inactive-toggle" ${isInactive ? 'checked' : ''} onchange="toggleCourseInactive('${id}', this.checked)" style="cursor:pointer; width:12px; height:12px;">
+            Mark as Inactive
+          </label>
+        </div>
+        <button class="ds-toggle ${jsCollapsed ? 'collapsed' : ''}" id="ds-toggle-jira-status" onclick="toggleDetailSection('jira-status', event)">▾</button>
+      </div>
+      <div class="ds-body ${jsCollapsed ? 'collapsed' : ''}" id="ds-body-jira-status">`;
+    // Inactive note (shown only when checkbox is checked) — lives inside the Jira Status section
+    html += `<div id="inactive-note-area" style="margin-bottom:${isInactive ? '10' : '0'}px; display:${isInactive ? 'block' : 'none'};">
+      <textarea id="inactive-note" placeholder="Reason this course is inactive…" oninput="saveCourseInactiveNote('${id}', this.value)" style="width:100%; min-height:40px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:11px; font-family:Inter,sans-serif; resize:vertical; background:#fafafa;">${isInactive ? inactiveNote.replace(/</g,'&lt;') : ''}</textarea>
+    </div>`;
     if (!jiraEpic) {
       html += `<div style="font-size:12px; color:#888;">No Jira Epic mapped yet. Edit Course Info to add an Epic key (e.g. EDL-XXXX).</div>`;
     } else {
@@ -2070,119 +2218,39 @@
       </div>
       <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
       <div class="jira-children" id="jira-children-${id}">${(cached && cached.childrenHtml) || ''}</div>`;
-    }
-    html += `</div>`;
-
-    // Comment notification bar
-    const cc = courseCommentCounts[id];
-    if (cc && cc.total > 0) {
-      const worksheetCommentsUrl = c.devLink + '&openComments=1';
-      html += `<div class="comment-notif-bar" onclick="markCommentsSeenForCourse('${id}'); window.open('${worksheetCommentsUrl}', '_blank');">
-        <span class="notif-icon">💬</span>
-        <span class="notif-text">${cc.newCount > 0 ? cc.newCount + ' new' : cc.total} instructor comment${(cc.newCount > 0 ? cc.newCount : cc.total) !== 1 ? 's' : ''}</span>
-        <span class="notif-count">${cc.newCount > 0 ? cc.newCount : cc.total}</span>
-      </div>`;
-    }
-
-    // Development status — mirrors milestone progression
-    html += `<div class="detail-section"><h3>Development Status</h3>`;
-    const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[id] : null;
-    const msStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
-    const manualComplete = c.milestoneManualComplete || {};
-    const devMilestones = [
-      'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
-    ];
-    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
-    function stemWord(w) { return w.replace(/s$/, ''); }
-    function fuzzyWordMatch(word, text) {
-      var s = stemWord(word);
-      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
-    }
-    if (msStatus && syncedCourse.calendarMeetings) {
-      const calMtgs = syncedCourse.calendarMeetings;
-      const allLabels = devMilestones.slice();
-      const modCount2 = c.modules.length || 7;
-      for (let mi = 1; mi <= modCount2; mi++) allLabels.push('Module ' + mi);
-      allLabels.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
-      const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
-      calMtgs.forEach(cm => {
-        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
-        for (let k = 0; k < keywords.length; k++) {
-          if (keywords[k].length === 0) continue;
-          const matched = keywords[k].every(w => fuzzyWordMatch(w, cmLower));
-          if (matched && (!msStatus[k] || msStatus[k].status === 'pending')) {
-            const d = new Date(cm.date + 'T00:00:00');
-            const mo = d.toLocaleDateString('en-US', {month:'short'});
-            const day = d.getDate();
-            msStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
-            break;
-          }
-        }
-      });
-    }
-    const modCount = c.modules.length || 7;
-    for (let i = 1; i <= modCount; i++) devMilestones.push('Module ' + i);
-    devMilestones.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
-
-    html += `<ul class="module-checklist">`;
-    devMilestones.forEach((label, i) => {
-      let state, statusLabel, statusColor;
-      const isManualDone = manualComplete[i] === true;
-      const ms = msStatus && msStatus[i];
-      if (isManualDone || (ms && ms.status === 'done')) {
-        state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
-      } else if (ms && ms.status === 'meeting') {
-        state = 'partial'; statusLabel = '📅 ' + (ms.meetingLabel || 'Meeting'); statusColor = '#1565c0';
-      } else {
-        // Fall back to milestones completed count from worksheet config
-        const completed = (syncedCourse && msStatus) ? msStatus.filter(s => s && s.status === 'done').length : 0;
-        if (i < completed) {
-          state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
-        } else if (i === completed) {
-          state = 'partial'; statusLabel = 'In progress'; statusColor = '#e65100';
-        } else {
-          state = 'empty'; statusLabel = '—'; statusColor = '#999';
-        }
+      // Past meetings nested under the Jira Status tasks
+      if (pastMeetings.length > 0) {
+        html += `<div class="jira-past-meetings">
+          <div class="jira-past-meetings-title">Past Meetings (${pastMeetings.length})</div>`;
+        pastMeetings.slice(0, 10).forEach(function(pm) {
+          var dateDisp = new Date(pm.date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
+          var durTxt = pm.durationMinutes ? ' · ' + pm.durationMinutes + 'm' : '';
+          var safeLabel = String(pm.label || '').replace(/</g, '&lt;');
+          html += `<div class="jira-past-mtg-row">
+            <span class="past-date">${dateDisp}</span>
+            <span class="past-label">${safeLabel}</span>
+            <span class="past-dur">${durTxt}</span>
+          </div>`;
+        });
+        html += `</div>`;
       }
-      const si = stateIcons[state];
-      html += `<li><span class="mc-icon ${si.cls}">${si.icon}</span> <strong>${label}</strong> <span style="margin-left:auto; font-size:11px; color:${statusColor};">${statusLabel}</span></li>`;
-    });
-    html += `</ul></div>`;
-
-    // Milestones
-    if (c.milestones.length > 0) {
-      html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
-      c.milestones.forEach(m => {
-        const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
-        const labelStyle = m.bold ? 'font-weight:600;' : '';
-        const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
-        html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
-      });
-      html += `</div>`;
     }
+    html += `</div></div>`; // close ds-body, detail-section
 
-    // Current Status summary — prefer latest meeting summary, fall back to notes.text.
-    // Render as a short paragraph (first 2 sentences), not a bullet split.
-    const latestMeeting = (c.meetings && c.meetings.length) ? c.meetings[0] : null;
-    const summaryText = (latestMeeting && latestMeeting.summary) || (c.notes && c.notes.text) || '';
-    if (summaryText) {
-      const sents = summaryText.match(/[^.!?]+[.!?]+(?:\s|$)/g);
-      const shortSummary = sents ? sents.slice(0, 2).join(' ').trim() : summaryText;
-      const authorLabel = (c.notes && c.notes.author) || (latestMeeting && latestMeeting.people ? latestMeeting.people.join(', ') : '');
-      const dateLabel = (latestMeeting && latestMeeting.date) || (c.notes && c.notes.date) || '';
-      html += `<div class="detail-section"><h3>Current Status</h3>
-        <div style="background:#fef9f0; border:1px solid #ffc627; border-radius:8px; padding:12px 16px; font-size:13px; line-height:1.55; color:#444;">
-          ${authorLabel ? `<div style="margin-bottom:6px;"><strong style="color:#8c1d40;">${authorLabel}</strong>${dateLabel ? ` <span style="color:#999; font-size:11px;">${dateLabel}</span>` : ''}</div>` : ''}
-          <div>${shortSummary}</div>
-        </div></div>`;
-    }
-
-    // Development Notes (multi-target: Self / Jira / Airtable). Its own section,
-    // always rendered so the "+ Add Note" button is reachable on every course.
+    // ===== Development Notes (moved here from below, now an accordion) =====
+    var dnCollapsed = isSectionCollapsed('dev-notes');
     var privateNotes = getCoursePrivateNotes(id);
-    html += `<div class="detail-section"><h3>Development Notes</h3>`;
+    html += `<div class="detail-section">
+      <div class="ds-head">
+        <h3>Development Notes</h3>
+        <div class="ds-head-inline">
+          <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
+        </div>
+        <button class="ds-toggle ${dnCollapsed ? 'collapsed' : ''}" id="ds-toggle-dev-notes" onclick="toggleDetailSection('dev-notes', event)">▾</button>
+      </div>
+      <div class="ds-body ${dnCollapsed ? 'collapsed' : ''}" id="ds-body-dev-notes">`;
     html += `<div class="pn-toolbar">
-      <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
+      <div></div>
       <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
     </div>`;
     var jiraLabel = jiraEpic
@@ -2227,7 +2295,121 @@
     if (privateNotes.length === 0) {
       html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
     }
-    html += `</div>`; // close Development Notes section
+    html += `</div></div>`; // close ds-body, detail-section
+
+    // Comment notification bar
+    const cc = courseCommentCounts[id];
+    if (cc && cc.total > 0) {
+      const worksheetCommentsUrl = c.devLink + '&openComments=1';
+      html += `<div class="comment-notif-bar" onclick="markCommentsSeenForCourse('${id}'); window.open('${worksheetCommentsUrl}', '_blank');">
+        <span class="notif-icon">💬</span>
+        <span class="notif-text">${cc.newCount > 0 ? cc.newCount + ' new' : cc.total} instructor comment${(cc.newCount > 0 ? cc.newCount : cc.total) !== 1 ? 's' : ''}</span>
+        <span class="notif-count">${cc.newCount > 0 ? cc.newCount : cc.total}</span>
+      </div>`;
+    }
+
+    // Development status — mirrors milestone progression (completed items auto-hide)
+    html += `<div class="detail-section"><h3>Development Status</h3>`;
+    const syncedCourse = syncedCourseEarly;
+    const msStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
+    const manualComplete = c.milestoneManualComplete || {};
+    const devMilestones = [
+      'ELOs & CLOs Review', 'Module MLOs & Topics', 'Assignments Review', 'Materials Review'
+    ];
+    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
+    function stemWord(w) { return w.replace(/s$/, ''); }
+    function fuzzyWordMatch(word, text) {
+      var s = stemWord(word);
+      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
+    }
+    // Build keyword table once; use for both upcoming (msStatus) + past meeting attach.
+    const modCount2 = c.modules.length || 7;
+    const allLabels = devMilestones.slice();
+    for (let mi = 1; mi <= modCount2; mi++) allLabels.push('Module ' + mi);
+    allLabels.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
+    const keywords = allLabels.map(l => l.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(w => w.length > 2));
+    // For each milestone index, collect matched past meetings.
+    const pastByIdx = {};
+    if (syncedCourse && syncedCourse.calendarMeetings) {
+      const calMtgs = syncedCourse.calendarMeetings;
+      calMtgs.forEach(cm => {
+        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
+        for (let k = 0; k < keywords.length; k++) {
+          if (keywords[k].length === 0) continue;
+          const matched = keywords[k].every(w => fuzzyWordMatch(w, cmLower));
+          if (!matched) continue;
+          if (cm.past) {
+            if (!pastByIdx[k]) pastByIdx[k] = [];
+            pastByIdx[k].push(cm);
+          } else if (msStatus && (!msStatus[k] || msStatus[k].status === 'pending')) {
+            const d = new Date(cm.date + 'T00:00:00');
+            const mo = d.toLocaleDateString('en-US', {month:'short'});
+            const day = d.getDate();
+            msStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
+          }
+          break;
+        }
+      });
+    }
+    const modCount = c.modules.length || 7;
+    for (let i = 1; i <= modCount; i++) devMilestones.push('Module ' + i);
+    devMilestones.push('Course Shell Draft', 'Course Lectures', 'Course Shell / QA');
+
+    const completedCount = (syncedCourse && msStatus) ? msStatus.filter(s => s && s.status === 'done').length : 0;
+    let anyVisibleRow = false;
+    html += `<ul class="module-checklist">`;
+    devMilestones.forEach((label, i) => {
+      let state, statusLabel, statusColor;
+      const isManualDone = manualComplete[i] === true;
+      const ms = msStatus && msStatus[i];
+      if (isManualDone || (ms && ms.status === 'done')) {
+        state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
+      } else if (ms && ms.status === 'meeting') {
+        state = 'partial'; statusLabel = '📅 ' + (ms.meetingLabel || 'Meeting'); statusColor = '#1565c0';
+      } else {
+        if (i < completedCount) {
+          state = 'done'; statusLabel = 'Complete'; statusColor = '#4caf50';
+        } else if (i === completedCount) {
+          state = 'partial'; statusLabel = 'In progress'; statusColor = '#e65100';
+        } else {
+          state = 'empty'; statusLabel = '—'; statusColor = '#999';
+        }
+      }
+      // Auto-hide completed items so the list shrinks as work progresses
+      if (state === 'done') return;
+      anyVisibleRow = true;
+      const si = stateIcons[state];
+      // Build status column: primary label + past meetings below (column B)
+      let statusColHtml = `<span style="font-size:11px; color:${statusColor};">${statusLabel}</span>`;
+      const pastHere = pastByIdx[i] || [];
+      if (pastHere.length > 0) {
+        const lines = pastHere.slice(0, 3).map(pm => {
+          const d = new Date(pm.date + 'T00:00:00');
+          const mo = d.toLocaleDateString('en-US', {month:'short'});
+          const day = d.getDate();
+          const dur = pm.durationMinutes ? ' · ' + pm.durationMinutes + 'm' : '';
+          return `<span class="past-mtg" title="${String(pm.label || '').replace(/"/g,'&quot;')}">📅 ${mo} ${day}${dur}</span>`;
+        }).join('');
+        statusColHtml += `<div class="dev-status-meetings">${lines}</div>`;
+      }
+      html += `<li><span class="mc-icon ${si.cls}">${si.icon}</span> <strong>${label}</strong> <span style="margin-left:auto; text-align:right;">${statusColHtml}</span></li>`;
+    });
+    if (!anyVisibleRow) {
+      html += `<li style="justify-content:center; color:#4caf50; font-style:italic;">All milestones complete 🎉</li>`;
+    }
+    html += `</ul></div>`;
+
+    // Milestones
+    if (c.milestones.length > 0) {
+      html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
+      c.milestones.forEach(m => {
+        const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
+        const labelStyle = m.bold ? 'font-weight:600;' : '';
+        const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
+        html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
+      });
+      html += `</div>`;
+    }
 
     // Meeting history — only renders when Granola meetings exist for this course.
     if (c.meetings && c.meetings.length > 0) {
