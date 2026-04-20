@@ -2737,6 +2737,7 @@
 
     var issues = [];
     var stats = { elosCovered: 0, mlosLinked: 0, mlosAssessed: 0, untaggedActivities: 0, totalActivities: 0 };
+    var assessedMloIds = {};
 
     // Build MLO → activities map
     var mloActivityMap = {};
@@ -2782,10 +2783,11 @@
         if (activities.length === 0) {
           issues.push({ severity: 'major', type: 'Phantom MLO', message: 'MLO ' + mloId + ' has no activity addressing it', detail: mloText });
         } else {
-          stats.mlosAssessed++;
+          assessedMloIds[mloId] = true;
         }
       });
     });
+    stats.mlosAssessed = Object.keys(assessedMloIds).length;
 
     // Check for orphan MLOs (MLOs not linked to any ELO)
     var linkedMloIds = {};
@@ -2839,7 +2841,11 @@
     html += '<div style="font-size:11px; color:#888;">ELOs Covered</div></div>';
     html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
     html += '<div style="font-size:20px; font-weight:600; color:#333;">' + stats.mlosLinked + '/' + allMlos.length + '</div>';
-    html += '<div style="font-size:11px; color:#888;">MLOs Linked</div></div>';
+    html += '<div style="font-size:11px; color:#888;">MLOs Linked to ELOs</div></div>';
+    var assessedColor = stats.mlosAssessed < allMlos.length ? '#c4841d' : '#333';
+    html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
+    html += '<div style="font-size:20px; font-weight:600; color:' + assessedColor + ';">' + stats.mlosAssessed + '/' + allMlos.length + '</div>';
+    html += '<div style="font-size:11px; color:#888;">MLOs with Activity</div></div>';
     html += '<div style="flex:1; min-width:100px; padding:12px 16px; background:#f5f5f0; border-radius:8px; text-align:center;">';
     html += '<div style="font-size:20px; font-weight:600; color:#333;">' + (stats.totalActivities - stats.untaggedActivities) + '/' + stats.totalActivities + '</div>';
     html += '<div style="font-size:11px; color:#888;">Activities Tagged</div></div>';
