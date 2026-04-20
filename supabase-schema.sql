@@ -16,13 +16,11 @@ create table if not exists dashboard_state (
   updated_at timestamptz not null default now()
 );
 
--- Drop the earlier (wrong) comments table if it was created with placeholder columns.
--- Safe to run — we haven't written any comments to it yet.
-drop table if exists comments cascade;
-
 -- Comments posted on any field or section of a course worksheet.
 -- Column names must match what the existing comments code uses.
-create table comments (
+-- IMPORTANT: never add `drop table` above this — re-running this file must be idempotent
+-- and must never destroy existing comment data.
+create table if not exists comments (
   id uuid primary key default gen_random_uuid(),
   course_id text not null,
   section_id text,
