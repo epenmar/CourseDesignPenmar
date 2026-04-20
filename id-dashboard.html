@@ -245,6 +245,28 @@
   .pn-target-chip.jira { background: #e8f0fe; color: #1565c0; border-color: #bbd4f7; }
   .pn-target-chip.airtable { background: #fff3e0; color: #e65100; border-color: #ffd8a8; }
 
+  /* ===== ACTIVITY WIDGET ===== */
+  .activity-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .activity-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  .activity-badge .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .activity-badge.ok     { background: #e8f5e9; color: #2e7d32; }
+  .activity-badge.ok     .dot { background: #2e7d32; }
+  .activity-badge.warn   { background: #fff3e0; color: #e65100; }
+  .activity-badge.warn   .dot { background: #e65100; }
+  .activity-badge.stale  { background: #ffebee; color: #c62828; }
+  .activity-badge.stale  .dot { background: #c62828; }
+  .activity-badge.none   { background: #f5f3ee; color: #888; }
+  .activity-badge.none   .dot { background: #bbb; }
+  .activity-table { width: 100%; font-size: 12px; border-collapse: collapse; }
+  .activity-table th { text-align: left; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; padding: 4px 6px; border-bottom: 1px solid #ebe8e0; }
+  .activity-table td { padding: 6px 6px; border-bottom: 1px solid #f5f3ee; color: #333; }
+  .activity-table tr:last-child td { border-bottom: none; }
+  .activity-role-chip { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; }
+  .activity-role-chip.instructor { background: #fff4e6; color: #b86e00; }
+  .activity-role-chip.id         { background: #fde8ee; color: #8c1d40; }
+  .activity-role-chip.reviewer   { background: #e8f0fe; color: #1565c0; }
+  .activity-empty { font-size: 12px; color: #999; font-style: italic; }
+
   /* ===== COLUMN FILTERS ===== */
   .col-filter-row { display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; align-items: center; }
   .col-filter-row label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
@@ -1494,6 +1516,9 @@
     renderSummary();
     renderUpcoming();
     renderTable();
+    // Fire-and-forget: load activity data and re-render detail if open
+    loadWorksheetSessions();
+    setInterval(loadWorksheetSessions, 120000); // refresh every 2 min
   })();
 
   // ===== LIVE SYNC =====
@@ -1618,6 +1643,56 @@
     var trimmed = (url || '').trim();
     if (trimmed) map[courseId] = trimmed; else delete map[courseId];
     saveAirtableUrlsMap(map);
+  }
+
+  // ===== WORKSHEET ACTIVITY (per-identity time tracking) =====
+  // Cached Supabase view of the worksheet_sessions table, bucketed by course_id.
+  // Populated on dashboard init + polled every 2 min + refreshed when a detail opens.
+  window._worksheetSessions = window._worksheetSessions || {};
+  window._worksheetSessionsLoaded = false;
+  async function loadWorksheetSessions() {
+    if (!window._sbClient) return;
+    try {
+      var r = await window._sbClient
+        .from('worksheet_sessions')
+        .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit');
+      if (r.error) { console.warn('[sessions] load failed:', r.error.message); return; }
+      var bucket = {};
+      (r.data || []).forEach(function(row) {
+        if (!bucket[row.course_id]) bucket[row.course_id] = [];
+        bucket[row.course_id].push(row);
+      });
+      window._worksheetSessions = bucket;
+      window._worksheetSessionsLoaded = true;
+      // If the detail panel is currently open, re-render so the widget fills in
+      var overlay = document.getElementById('detail-overlay');
+      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+        renderDetail(overlay._currentId);
+      }
+    } catch (e) {
+      console.warn('[sessions] load error:', e && e.message || e);
+    }
+  }
+  function fmtSessionDuration(ms) {
+    if (!ms || ms < 0) return '0m';
+    var min = Math.round(ms / 60000);
+    if (min < 1) return '<1m';
+    if (min < 60) return min + 'm';
+    var h = Math.floor(min / 60);
+    var m = min % 60;
+    return m === 0 ? h + 'h' : h + 'h ' + m + 'm';
+  }
+  function daysSince(iso) {
+    if (!iso) return null;
+    var d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return Math.floor((Date.now() - d.getTime()) / 86400000);
+  }
+  function silenceColor(days) {
+    if (days == null) return '#999';
+    if (days >= 7) return '#c62828';
+    if (days >= 3) return '#ef6c00';
+    return '#2e7d32';
   }
 
   // ===== JIRA EPIC MAP (courseId → parent Epic key) =====
@@ -2063,6 +2138,49 @@
       html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
     }
     html += `</div>`; // close Development Notes section
+
+    // ===== Activity: who has opened the worksheet, how long, how recently =====
+    html += `<div class="detail-section"><h3>Activity</h3>`;
+    var sessions = (window._worksheetSessions && window._worksheetSessions[id]) || [];
+    if (!window._worksheetSessionsLoaded) {
+      html += `<div class="activity-empty">Loading activity…</div>`;
+    } else if (sessions.length === 0) {
+      html += `<div class="activity-empty">No one has opened the worksheet yet.</div>`;
+    } else {
+      // Instructor-focused summary badge
+      var instructorRows = sessions.filter(function(s) { return s.identity_role === 'instructor'; });
+      var instructorLatest = instructorRows.reduce(function(acc, r) {
+        return (!acc || (r.last_visit || '') > (acc.last_visit || '')) ? r : acc;
+      }, null);
+      if (instructorLatest) {
+        var d = daysSince(instructorLatest.last_visit);
+        var cls = d == null ? 'none' : d >= 7 ? 'stale' : d >= 3 ? 'warn' : 'ok';
+        var label = d == null ? 'Instructor: never opened'
+                    : d === 0 ? 'Instructor: opened today'
+                    : d === 1 ? 'Instructor: 1 day silent'
+                    : 'Instructor: ' + d + ' days silent';
+        html += `<div class="activity-summary"><span class="activity-badge ${cls}"><span class="dot"></span>${label}</span></div>`;
+      } else {
+        html += `<div class="activity-summary"><span class="activity-badge none"><span class="dot"></span>Instructor: not yet opened</span></div>`;
+      }
+      // Per-identity table, sorted by most recent
+      var sorted = sessions.slice().sort(function(a, b) { return (b.last_visit || '').localeCompare(a.last_visit || ''); });
+      html += `<table class="activity-table"><thead><tr><th>Who</th><th>Role</th><th>Time</th><th>Sessions</th><th>Last visit</th></tr></thead><tbody>`;
+      sorted.forEach(function(s) {
+        var role = (s.identity_role || '').toLowerCase();
+        var dd = daysSince(s.last_visit);
+        var when = dd == null ? '—' : dd === 0 ? 'today' : dd === 1 ? '1d ago' : dd + 'd ago';
+        html += `<tr>
+          <td>${(s.identity_name || '').replace(/</g,'&lt;')}</td>
+          <td><span class="activity-role-chip ${role}">${role || '—'}</span></td>
+          <td>${fmtSessionDuration(s.total_ms)}</td>
+          <td>${s.session_count || 0}</td>
+          <td title="${s.last_visit || ''}">${when}</td>
+        </tr>`;
+      });
+      html += `</tbody></table>`;
+    }
+    html += `</div>`; // close Activity section
 
     // Meeting history — only renders when Granola meetings exist for this course.
     if (c.meetings && c.meetings.length > 0) {
@@ -2551,6 +2669,8 @@
     overlay.classList.add('open');
     overlay._currentId = courseId;
     document.getElementById('detail-panel').scrollTop = 0;
+    // Opportunistic refresh — picks up visits made since the last poll
+    loadWorksheetSessions();
   }
 
   function closeDetail() {
