@@ -13,6 +13,12 @@
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="gdrive-config.js"></script>
 <script src="gdrive.js"></script>
+<!-- Rich text editor: Quill + KaTeX (for math/formula support) -->
+<link href="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.snow.css" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
+<script src="rich-editor.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -377,6 +383,16 @@
   .template-type-btn { padding: 5px 12px; border: 1px solid #e0ddd5; border-radius: 20px; font-size: 11px; font-weight: 500; cursor: pointer; background: #fff; color: #666; transition: all 0.15s; font-family: 'Inter', sans-serif; }
   .template-type-btn:hover { border-color: #8c1d40; color: #8c1d40; }
   .template-type-btn.active { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+
+  /* ===== RICH TEXT EDITOR (Quill) ===== */
+  .rich-editor { background: #fff; border-radius: 6px; font-family: 'Inter', sans-serif; }
+  .rich-editor .ql-toolbar.ql-snow { border: 1px solid #e0ddd5; border-top-left-radius: 6px; border-top-right-radius: 6px; background: #f8f7f2; padding: 4px 6px; }
+  .rich-editor .ql-container.ql-snow { border: 1px solid #e0ddd5; border-top: none; border-bottom-left-radius: 6px; border-bottom-right-radius: 6px; font-family: 'Inter', sans-serif; font-size: 13px; }
+  .rich-editor .ql-editor { min-height: 60px; padding: 10px 12px; line-height: 1.5; }
+  .rich-editor .ql-editor.ql-blank::before { color: #aaa; font-style: normal; }
+  .rich-editor .ql-snow .ql-picker, .rich-editor .ql-snow button { color: #444; }
+  .rich-editor .re-symbol-dropdown { height: 26px; padding: 2px 4px; margin-left: 4px; border: 1px solid #d8d5cc; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .rich-editor .re-symbol-dropdown:focus { outline: none; border-color: #8c1d40; }
 
   /* ===== QUIZ BUILDER ===== */
   .quiz-builder { padding: 0; }
@@ -1897,6 +1913,15 @@
     return act.templateData[tplType][sectionLabel] || '';
   }
 
+  // Called from rich-editor.js — persists rich text into courseMaterials
+  function saveMaterialField(matId, modNum, field, html) {
+    if (!courseMaterials[modNum]) return;
+    var mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
+    if (!mat) return;
+    mat[field] = html;
+    saveActivityData();
+  }
+
   function buildTplTextarea(actId, tplType, sectionLabel, placeholder, extraStyle) {
     var val = '';
     // Look up value from data model
@@ -1910,10 +1935,16 @@
       }
       if (val) break;
     }
-    return '<textarea data-managed="true" placeholder="' + placeholder + '"' +
-      ' oninput="saveTemplateField(\'' + actId + '\',\'' + tplType + '\',\'' + sectionLabel.replace(/'/g, "\\'") + '\',this.value); autoGrowTextarea(this)"' +
-      (extraStyle ? ' style="' + extraStyle + '"' : '') +
-      '>' + escapeHtml(val) + '</textarea>';
+    // Rich editor container (initialized by rich-editor.js)
+    var minH = (extraStyle && /min-height/.test(extraStyle)) ? extraStyle : 'min-height:80px;';
+    return '<div class="rich-editor" data-managed="true"' +
+      ' data-editor-type="template"' +
+      ' data-act-id="' + escapeHtml(actId) + '"' +
+      ' data-tpl-type="' + escapeHtml(tplType) + '"' +
+      ' data-section="' + escapeHtml(sectionLabel) + '"' +
+      ' data-placeholder="' + escapeHtml(placeholder) + '"' +
+      ' data-initial="' + escapeHtml(val) + '"' +
+      ' style="' + minH + '"></div>';
   }
 
   // ===== ACTIVITY BLOCK HTML GENERATOR =====
@@ -2047,7 +2078,7 @@
           '<div class="link-input-row"><input type="text" class="activity-input" data-managed="true" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-template">' +
-          '<textarea class="field-input" data-managed="true" data-field="richText" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." style="min-height:120px; font-size:13px;">' + escapeHtml(mat.richText || '') + '</textarea>' +
+          '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + id + '" data-module-num="' + moduleNum + '" data-field="richText" data-placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div>' +
         '</div>' +
       '</div>' +
       '</div>' +
@@ -5431,6 +5462,8 @@
     container.querySelectorAll('[id$="-quiz-builder"]').forEach(function(el) {
       if (!el.hasChildNodes()) initQuizBuilder(el);
     });
+
+    if (window.RichEditor) window.RichEditor.initAll(container);
   }
 
   function renderModuleMaterials(num) {
@@ -5452,6 +5485,8 @@
 
     // Auto-resize textareas within rendered materials
     container.querySelectorAll('textarea').forEach(function(ta) { autoResize(ta); });
+
+    if (window.RichEditor) window.RichEditor.initAll(container);
   }
 
   // ===== SYNC ACTIVITY/MATERIAL FROM DOM =====
@@ -5909,6 +5944,11 @@
       thtml += '</table>';
       tableContainer.innerHTML = thtml;
     }
+
+    if (window.RichEditor) {
+      if (cardsContainer) window.RichEditor.initAll(cardsContainer);
+      if (tableContainer) window.RichEditor.initAll(tableContainer);
+    }
   }
 
   function renderMaterialsOverview(openModules) {
@@ -6000,7 +6040,7 @@
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
           html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
-          html += '<textarea class="field-input" data-managed="true" data-field="richText" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Enter or paste content here..." style="min-height:120px; font-size:13px;">' + escapeHtml(mat.richText || '') + '</textarea></div>';
+          html += '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-field="richText" data-placeholder="Enter or paste content here..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div></div>';
           html += '</div></div></div>';
         }
       }
@@ -6033,6 +6073,11 @@
       }
       thtml += '</table>';
       tableContainer.innerHTML = thtml;
+    }
+
+    if (window.RichEditor) {
+      if (cardsContainer) window.RichEditor.initAll(cardsContainer);
+      if (tableContainer) window.RichEditor.initAll(tableContainer);
     }
   }
 
@@ -7369,10 +7414,19 @@
 
     template.querySelectorAll('.template-section').forEach(function(section) {
       var label = section.querySelector('.template-section-label');
+      var richEl = section.querySelector('.rich-editor');
       var textarea = section.querySelector('textarea');
       var input = section.querySelector('input');
       if (label) content += label.textContent.toUpperCase() + '\n';
-      if (textarea && textarea.value.trim()) content += textarea.value.trim() + '\n';
+      if (richEl && richEl._quill) {
+        var txt = richEl._quill.getText().trim();
+        if (txt) content += txt + '\n';
+      } else if (richEl && window.RichEditor) {
+        var txt2 = window.RichEditor.htmlToPlainText(richEl.getAttribute('data-initial') || '').trim();
+        if (txt2) content += txt2 + '\n';
+      } else if (textarea && textarea.value.trim()) {
+        content += textarea.value.trim() + '\n';
+      }
       if (input && input.value.trim()) content += input.value.trim() + '\n';
       content += '\n';
     });

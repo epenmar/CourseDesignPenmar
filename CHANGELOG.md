@@ -5,6 +5,17 @@ Format follows [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.5.0] — 2026-04-21
+
+### Rich Text Editor with Math Notation
+- **Quill editor** — all activity template sections and material text-entry areas now use a rich editor (font styles/sizes, colors, bold/italic/underline/strike, ordered/bullet lists, indent, sub/superscript, link, clean)
+- **Math formula** — KaTeX-backed formula button (LaTeX input)
+- **Scientific symbols dropdown** — ±, ×, ÷, ≠, ≤, ≥, ≈, ∑, ∏, √, ∫, ∂, Δ, ∞, and more
+- **Greek letters dropdown** — full lowercase (α–ω) and uppercase (Γ–Ω)
+- Content persisted as HTML via existing save paths; Drive `.txt` export pulls plain text
+
+---
+
 ## [1.3.0] — 2026-04-02
 
 ### UX Refinements & CLO-to-ELO Split
