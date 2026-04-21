@@ -84,11 +84,11 @@
   .course-table-wrap { border: 1px solid #e8e5dd; border-radius: 8px; overflow: auto; max-height: calc(15 * 49px + 40px); background: #fff; }
   .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
   .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; z-index: 2; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
-  .table-tabs { display: flex; gap: 22px; align-items: center; }
-  .table-tab { padding: 2px 0 6px; font-size: 15px; font-weight: 500; color: #888; background: transparent; border: none; border-bottom: 3px solid transparent; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; }
-  .table-tab:hover { color: #8c1d40; }
-  .table-tab.active { color: #1a1a1a; font-weight: 700; border-bottom-color: #8c1d40; }
-  .table-tab .tab-count { font-size: 12px; color: #aaa; margin-left: 4px; font-weight: 500; }
+  .table-tabs { display: flex; gap: 3px; align-items: flex-end; margin-bottom: -1px; }
+  .table-tab { padding: 9px 18px; font-size: 14px; font-weight: 500; color: #666; background: #f0ede5; border: 1px solid #d6d3ca; border-bottom: 1px solid #e0ddd5; border-top-left-radius: 8px; border-top-right-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; position: relative; }
+  .table-tab:hover { background: #e8e5dd; color: #8c1d40; }
+  .table-tab.active { background: #fff; color: #1a1a1a; font-weight: 700; border-color: #d6d3ca; border-bottom-color: #fff; z-index: 2; }
+  .table-tab .tab-count { font-size: 12px; color: #999; margin-left: 5px; font-weight: 500; }
   .table-tab.active .tab-count { color: #8c1d40; font-weight: 600; }
   .table-empty { padding: 48px 24px; text-align: center; color: #888; font-size: 13px; background: #fafaf7; border-radius: 8px; border: 1px solid #e8e5dd; }
   .table-empty strong { display: block; color: #555; font-size: 14px; margin-bottom: 6px; }
@@ -215,8 +215,9 @@
   .dash-section { background: #fff; border: 1px solid #e0ddd5; border-radius: 10px; padding: 16px 20px; margin-bottom: 16px; }
   .dash-section.upcoming { border-left: 4px solid #8c1d40; }
   .dash-section.courses { border-left: 4px solid #ffc627; overflow-x: auto; }
-  .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+  .section-header { display: flex; align-items: flex-end; justify-content: space-between; margin-bottom: 16px; border-bottom: 1px solid #e0ddd5; padding-bottom: 0; }
   .section-header h2 { font-size: 15px; font-weight: 700; color: #1a1a1a; }
+  .dash-section.upcoming .section-header { border-bottom: none; padding-bottom: 0; margin-bottom: 10px; align-items: center; }
 
   /* ===== UPCOMING ===== */
   .upcoming-list { display: flex; gap: 8px; flex-wrap: wrap; }
