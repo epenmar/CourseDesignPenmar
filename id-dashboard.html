@@ -347,13 +347,12 @@
   .resource-body.open { max-height: 400px; }
   .rc-add-btn { font-size: 10px; color: #999; background: none; border: 1px dashed #ccc; border-radius: 3px; padding: 1px 6px; cursor: pointer; font-family: 'Inter', sans-serif; margin-top: 2px; }
   .rc-add-btn:hover { border-color: #8c1d40; color: #8c1d40; }
-  .rc-link-wrap { display: inline-flex; align-items: center; gap: 1px; position: relative; }
-  .rc-link-wrap .rc-link-actions { display: none; }
-  .rc-link-wrap:hover .rc-link-actions { display: inline-flex; gap: 0; }
-  .rc-link-actions button { background: none; border: none; font-size: 9px; cursor: pointer; padding: 0 2px; opacity: 0.5; }
-  .rc-link-actions button:hover { opacity: 1; }
-  .rc-link-actions .rc-edit-btn { color: #1565c0; }
-  .rc-link-actions .rc-del-btn { color: #c62828; }
+  .rc-link-wrap { display: inline-flex; align-items: center; }
+  .rc-context-menu { position: fixed; background: #fff; border: 1px solid #e0ddd5; border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); padding: 4px 0; min-width: 110px; z-index: 10000; font-family: 'Inter', sans-serif; }
+  .rc-context-menu button { display: block; width: 100%; padding: 6px 12px; background: none; border: none; text-align: left; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; color: #333; }
+  .rc-context-menu button:hover { background: #f5f3ee; }
+  .rc-context-menu button.rc-cm-edit { color: #1565c0; }
+  .rc-context-menu button.rc-cm-del  { color: #c62828; }
   .rc-add-form { display: flex; gap: 4px; align-items: center; margin-top: 4px; flex-wrap: wrap; }
   .rc-add-form input { font-size: 10px; padding: 3px 6px; border: 1px solid #e0ddd5; border-radius: 4px; font-family: 'Inter', sans-serif; width: 80px; min-width: 0; flex: 1; }
   .rc-add-form input:focus { outline: none; border-color: #8c1d40; }
@@ -1132,8 +1131,8 @@
       return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
-          <div class="upcoming-title">${d.title}</div>
-          <div class="upcoming-course">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
+          <div class="upcoming-title">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
+          <div class="upcoming-course">${d.title}</div>
           ${meetingTag}
         </div>
       </div>`;
@@ -1322,6 +1321,35 @@
       event.target.textContent = '✓';
       setTimeout(function() { event.target.textContent = '📋'; }, 1500);
     });
+  }
+
+  function copyDetectedReviewerLink(courseId, slug) {
+    var c = courseData[courseId];
+    if (!c || !c.devLink) return;
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var url = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer';
+    navigator.clipboard.writeText(url).then(function() {
+      var btn = event && event.target;
+      if (btn) { var orig = btn.textContent; btn.textContent = '✓'; setTimeout(function() { btn.textContent = orig; }, 1500); }
+    });
+  }
+
+  function promoteDetectedReviewer(courseId, name, slug) {
+    var email = prompt('Enter email for ' + name + ' to save as an invited reviewer:');
+    if (!email) return;
+    email = email.trim();
+    if (!email) return;
+    var reviewers = getReviewers(courseId);
+    if (reviewers.some(function(r) { return r.slug === slug; })) { renderDetail(courseId); return; }
+    reviewers.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
+    saveReviewers(courseId, reviewers);
+    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    if (userCourses[courseId] && userCourses[courseId]._worksheet) {
+      if (!userCourses[courseId]._worksheet.users) userCourses[courseId]._worksheet.users = {};
+      userCourses[courseId]._worksheet.users[slug] = { name: name, role: 'reviewer' };
+      localStorage.setItem('user_courses', JSON.stringify(userCourses));
+    }
+    renderDetail(courseId);
   }
 
   function copyInstructorLink(courseId) {
@@ -2058,19 +2086,40 @@
       </div>
     </div>`;
 
-    // Existing reviewers list
+    // Existing reviewers list — merge explicit invitations with session-detected reviewers
     var reviewers = getReviewers(id);
-    if (reviewers.length > 0) {
+    var detectedSessions = (window._worksheetSessions && window._worksheetSessions[id]) || [];
+    var knownSlugs = {};
+    reviewers.forEach(function(r) { if (r.slug) knownSlugs[r.slug] = true; });
+    var detectedReviewers = [];
+    var seenDetected = {};
+    detectedSessions.forEach(function(s) {
+      if ((s.identity_role || '').toLowerCase() !== 'reviewer') return;
+      var nm = (s.identity_name || '').trim();
+      if (!nm) return;
+      var slug = nm.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+      if (!slug || knownSlugs[slug] || seenDetected[slug]) return;
+      seenDetected[slug] = true;
+      detectedReviewers.push({ name: nm, slug: slug });
+    });
+    if (reviewers.length > 0 || detectedReviewers.length > 0) {
       html += `<div style="margin-top:10px;">
         <div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">Reviewers</div>`;
-      var rBaseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
       reviewers.forEach(function(r, ri) {
-        var rUrl = rBaseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
         html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
           <span style="flex:1; font-weight:500;">${r.name}</span>
           <span style="color:#888; font-size:11px;">${r.email}</span>
           <button onclick="copyReviewerLink('${id}', ${ri})" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
           <button onclick="removeReviewer('${id}', ${ri})" title="Remove reviewer" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
+        </div>`;
+      });
+      detectedReviewers.forEach(function(r) {
+        var safeName = r.name.replace(/'/g, "\\'");
+        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+          <span style="flex:1; font-weight:500;">${r.name.replace(/</g,'&lt;')}</span>
+          <span style="color:#888; font-size:11px; font-style:italic;" title="Detected from worksheet activity">auto-detected</span>
+          <button onclick="copyDetectedReviewerLink('${id}', '${r.slug}')" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
+          <button onclick="promoteDetectedReviewer('${id}', '${safeName}', '${r.slug}')" title="Add email / save as invited reviewer" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">➕</button>
         </div>`;
       });
       html += `</div>`;
@@ -3358,13 +3407,44 @@
     const links = stored[cardId] || [];
     container.innerHTML = links.map((lnk, idx) =>
       `<span class="rc-link-wrap">` +
-        `<a class="rc-link" href="${lnk.url}" target="_blank">${lnk.label}</a>` +
-        `<span class="rc-link-actions">` +
-          `<button class="rc-edit-btn" onclick="editResourceLink('${cardId}',${idx})" title="Edit">✎</button>` +
-          `<button class="rc-del-btn" onclick="deleteResourceLink('${cardId}',${idx})" title="Delete">✕</button>` +
-        `</span>` +
+        `<a class="rc-link" href="${lnk.url}" target="_blank" oncontextmenu="showResourceContextMenu(event,'${cardId}',${idx}); return false;" title="Right-click to edit or delete">${lnk.label}</a>` +
       `</span>`
     ).join('');
+  }
+
+  function showResourceContextMenu(e, cardId, idx) {
+    e.preventDefault();
+    closeResourceContextMenu();
+    const menu = document.createElement('div');
+    menu.id = 'rc-context-menu';
+    menu.className = 'rc-context-menu';
+    menu.innerHTML =
+      `<button class="rc-cm-edit" onclick="editResourceLink('${cardId}',${idx}); closeResourceContextMenu();">✎ Edit</button>` +
+      `<button class="rc-cm-del"  onclick="deleteResourceLink('${cardId}',${idx}); closeResourceContextMenu();">✕ Delete</button>`;
+    // Position at click, clamp to viewport
+    const vw = window.innerWidth, vh = window.innerHeight;
+    menu.style.visibility = 'hidden';
+    menu.style.left = '0'; menu.style.top = '0';
+    document.body.appendChild(menu);
+    const mw = menu.offsetWidth, mh = menu.offsetHeight;
+    menu.style.left = Math.min(e.clientX, vw - mw - 4) + 'px';
+    menu.style.top  = Math.min(e.clientY, vh - mh - 4) + 'px';
+    menu.style.visibility = 'visible';
+    setTimeout(() => {
+      document.addEventListener('click', closeResourceContextMenu, { once: true });
+      document.addEventListener('contextmenu', closeResourceContextMenu, { once: true });
+      document.addEventListener('keydown', rcEscListener);
+    }, 0);
+  }
+
+  function rcEscListener(e) {
+    if (e.key === 'Escape') { closeResourceContextMenu(); }
+  }
+
+  function closeResourceContextMenu() {
+    const existing = document.getElementById('rc-context-menu');
+    if (existing) existing.remove();
+    document.removeEventListener('keydown', rcEscListener);
   }
 
   function showAddLinkForm(cardId) {
