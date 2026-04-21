@@ -91,6 +91,24 @@
   .card-toggle { font-size: 18px; color: #999; transition: transform 0.2s; }
   .card-toggle.open { transform: rotate(180deg); }
   .card-body { margin-top: 10px; }
+
+  /* ===== Course Parser ===== */
+  .cp-split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
+  @media (max-width: 1000px) { .cp-split { grid-template-columns: 1fr; } }
+  .cp-pane { display: flex; flex-direction: column; min-height: 500px; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; background: #fff; }
+  .cp-pane-label { display: flex; align-items: center; padding: 8px 12px; background: #f5f3ee; border-bottom: 1px solid #e0ddd5; font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  .cp-original-content, .cp-proposed-content { flex: 1; padding: 14px 16px; overflow-y: auto; max-height: 70vh; font-size: 13px; line-height: 1.5; color: #333; font-family: 'Inter', sans-serif; }
+  .cp-original-content { background: #fafaf8; white-space: pre-wrap; }
+  .cp-proposed-content { background: #fff; outline: none; }
+  .cp-proposed-content:focus { background: #fffdf5; }
+  .cp-proposed-content h1, .cp-proposed-content h2, .cp-proposed-content h3 { color: #8c1d40; margin: 14px 0 6px 0; }
+  .cp-proposed-content h2 { font-size: 16px; }
+  .cp-proposed-content h3 { font-size: 14px; }
+  .cp-proposed-content table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }
+  .cp-proposed-content th, .cp-proposed-content td { border: 1px solid #e0ddd5; padding: 6px 8px; text-align: left; vertical-align: top; }
+  .cp-proposed-content th { background: #f5f3ee; font-weight: 600; }
+  .cp-proposed-content ul, .cp-proposed-content ol { padding-left: 20px; margin: 6px 0; }
+  #cp-parse-btn:disabled { opacity: 0.6; cursor: wait; }
   .card-body.collapsed { display: none; }
 
   /* ===== FORM ===== */
@@ -535,6 +553,9 @@
       <div class="nav-item active" onclick="showView('dashboard')">
         <span class="icon">📊</span> Dashboard &amp; Timeline
       </div>
+      <div class="nav-item" onclick="showView('course-parser')">
+        <span class="icon">🪄</span> Course Parser
+      </div>
       <div class="nav-item" onclick="showView('course-info')">
         <span class="icon">📋</span> Course Info
         <span class="badge badge-empty" id="sidebar-info-badge">—</span>
@@ -716,6 +737,59 @@
 
         <div class="callout callout-info" style="margin-top:20px;">
           <strong>💡 The timeline above follows backward design principles.</strong> Your work will be auto-saved, and you can jump to any section using either the sidebar or the milestone links above.
+        </div>
+      </div>
+
+      <!-- ===== COURSE PARSER (15-week → 7-module) ===== -->
+      <div id="view-course-parser" style="display:none;">
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Parser</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:20px;">Paste a 15-week syllabus or existing course plan and Claude will propose a 7-module structure (6 modules × 2 weeks + 1 module × 3 weeks). Review and edit the proposal side-by-side, then download as a document to share with reviewers.</p>
+
+        <!-- Step 1: Input -->
+        <div class="card" id="cp-input-card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <h2>1. Source Content</h2>
+            <span class="collapse-icon">▼</span>
+          </div>
+          <div class="card-body">
+            <p style="font-size:12px; color:#666; margin:0 0 8px 0;">Paste the instructor's syllabus, course outline, or existing course plan. Include week-by-week topics, learning objectives, and any assignments if available.</p>
+            <textarea id="cp-input" rows="12" style="width:100%; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Paste 15-week course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
+            <div style="display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+              <label style="font-size:12px; color:#666;">Target modules:
+                <input type="number" id="cp-target-modules" value="7" min="3" max="15" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
+              </label>
+              <label style="font-size:12px; color:#666;">Source weeks:
+                <input type="number" id="cp-source-weeks" value="15" min="1" max="30" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
+              </label>
+              <button id="cp-parse-btn" onclick="runCourseParserAI()" style="background:#8c1d40; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">🪄 Parse with AI</button>
+              <span id="cp-parse-status" style="font-size:12px; color:#888;"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Step 2: Side-by-side review -->
+        <div class="card" id="cp-review-card" style="display:none;">
+          <div class="card-header">
+            <h2>2. Review & Refine</h2>
+            <div style="display:flex; gap:8px; margin-left:auto;">
+              <button onclick="runCourseParserAI()" title="Re-run AI with current input" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">⟳ Re-run</button>
+              <button onclick="downloadCourseParserDoc()" style="background:#8c1d40; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">💾 Download .doc</button>
+              <button onclick="clearCourseParser()" title="Clear all and start over" style="background:#fff; color:#c62828; border:1px solid #c62828; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✕ Clear</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <p style="font-size:12px; color:#666; margin:0 0 12px 0;">Original source on the left (read-only), AI proposal on the right (click to edit). Your edits save automatically.</p>
+            <div class="cp-split">
+              <div class="cp-pane">
+                <div class="cp-pane-label">Original — <span id="cp-orig-weeks">15</span>-week source</div>
+                <div id="cp-original" class="cp-original-content"></div>
+              </div>
+              <div class="cp-pane">
+                <div class="cp-pane-label">Proposed — <span id="cp-prop-modules">7</span>-module structure <span id="cp-save-indicator" style="margin-left:auto; color:#2e7d32; font-size:11px; display:none;">✓ saved</span></div>
+                <div id="cp-proposed" class="cp-proposed-content" contenteditable="true" spellcheck="true"></div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -5238,7 +5312,7 @@
   setTimeout(() => renderPageNav('dashboard'), 0);
 
   // ===== VIEW SWITCHING =====
-  const views = ['dashboard','syllabus-checklist','module','module-overview','assignments-overview','materials-overview','course-mapping','course-info','objectives','additional','materials','preview'];
+  const views = ['dashboard','course-parser','syllabus-checklist','module','module-overview','assignments-overview','materials-overview','course-mapping','course-info','objectives','additional','materials','preview'];
   let currentViewId = 'dashboard';
 
   function getCurrentSection() {
@@ -5284,13 +5358,13 @@
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     // Highlight the active nav item in the sidebar
-    var navViewMap = { 'dashboard':'dashboard', 'course-info':'course-info', 'materials':'materials', 'additional':'additional', 'syllabus-checklist':'syllabus-checklist', 'objectives':'objectives', 'module-overview':'module-overview', 'assignments-overview':'assignments-overview', 'materials-overview':'materials-overview', 'course-mapping':'course-mapping', 'preview':'preview' };
+    var navViewMap = { 'dashboard':'dashboard', 'course-parser':'course-parser', 'course-info':'course-info', 'materials':'materials', 'additional':'additional', 'syllabus-checklist':'syllabus-checklist', 'objectives':'objectives', 'module-overview':'module-overview', 'assignments-overview':'assignments-overview', 'materials-overview':'materials-overview', 'course-mapping':'course-mapping', 'preview':'preview' };
     var navTarget = navViewMap[viewId];
     if (navTarget) {
       var navEl = document.querySelector('.nav-item[onclick*="showView(\'' + navTarget + '\')"]');
       if (navEl) navEl.classList.add('active');
     }
-    const names = {'dashboard':'Getting Started / Dashboard','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','course-parser':'Getting Started / Course Parser','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -5310,6 +5384,7 @@
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
     if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
+    if (viewId === 'course-parser') { renderCourseParser(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
     // Re-apply comment highlights for the newly visible view
@@ -8438,6 +8513,177 @@ ${clone.innerHTML}
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // ===== COURSE PARSER (15-week → N-module AI proposal) =====
+  function cpStorageKey() {
+    return 'course_parser_' + (activeCourse && activeCourse.id ? activeCourse.id : 'default');
+  }
+
+  function loadCourseParserState() {
+    try { return JSON.parse(localStorage.getItem(cpStorageKey()) || '{}'); } catch (e) { return {}; }
+  }
+
+  function saveCourseParserState(patch) {
+    var existing = loadCourseParserState();
+    var merged = Object.assign({}, existing, patch, { updatedAt: new Date().toISOString() });
+    localStorage.setItem(cpStorageKey(), JSON.stringify(merged));
+    var ind = document.getElementById('cp-save-indicator');
+    if (ind) {
+      ind.style.display = 'inline';
+      clearTimeout(saveCourseParserState._t);
+      saveCourseParserState._t = setTimeout(function() { ind.style.display = 'none'; }, 1500);
+    }
+  }
+
+  function renderCourseParser() {
+    var state = loadCourseParserState();
+    var input = document.getElementById('cp-input');
+    var origPane = document.getElementById('cp-original');
+    var propPane = document.getElementById('cp-proposed');
+    var reviewCard = document.getElementById('cp-review-card');
+    var targetModules = document.getElementById('cp-target-modules');
+    var sourceWeeks = document.getElementById('cp-source-weeks');
+    if (input && state.rawInput != null) input.value = state.rawInput;
+    if (targetModules && state.targetModules) targetModules.value = state.targetModules;
+    if (sourceWeeks && state.sourceWeeks) sourceWeeks.value = state.sourceWeeks;
+    if (state.proposalHtml) {
+      if (reviewCard) reviewCard.style.display = '';
+      if (origPane) origPane.textContent = state.rawInput || '';
+      if (propPane) propPane.innerHTML = state.proposalHtml;
+      var propModLabel = document.getElementById('cp-prop-modules');
+      var origWeekLabel = document.getElementById('cp-orig-weeks');
+      if (propModLabel && state.targetModules) propModLabel.textContent = state.targetModules;
+      if (origWeekLabel && state.sourceWeeks) origWeekLabel.textContent = state.sourceWeeks;
+    }
+    // Wire input autosave + editable-pane autosave once per render
+    if (input && !input._cpBound) {
+      input._cpBound = true;
+      input.addEventListener('input', function() {
+        clearTimeout(input._cpTimer);
+        input._cpTimer = setTimeout(function() { saveCourseParserState({ rawInput: input.value }); }, 400);
+      });
+    }
+    if (propPane && !propPane._cpBound) {
+      propPane._cpBound = true;
+      propPane.addEventListener('input', function() {
+        clearTimeout(propPane._cpTimer);
+        propPane._cpTimer = setTimeout(function() { saveCourseParserState({ proposalHtml: propPane.innerHTML }); }, 400);
+      });
+    }
+    [targetModules, sourceWeeks].forEach(function(el) {
+      if (!el || el._cpBound) return;
+      el._cpBound = true;
+      el.addEventListener('change', function() {
+        saveCourseParserState({
+          targetModules: parseInt(targetModules.value, 10) || 7,
+          sourceWeeks: parseInt(sourceWeeks.value, 10) || 15
+        });
+      });
+    });
+  }
+
+  async function runCourseParserAI() {
+    var input = document.getElementById('cp-input');
+    var btn = document.getElementById('cp-parse-btn');
+    var status = document.getElementById('cp-parse-status');
+    var raw = (input && input.value || '').trim();
+    if (!raw) { if (status) status.textContent = 'Paste source content first.'; return; }
+    var targetModules = parseInt((document.getElementById('cp-target-modules') || {}).value, 10) || 7;
+    var sourceWeeks = parseInt((document.getElementById('cp-source-weeks') || {}).value, 10) || 15;
+
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Parsing…'; }
+    if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules…'; status.style.color = '#888'; }
+
+    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>. Do NOT include <html>, <body>, <style>, or markdown fences.';
+
+    var weeksPerModule = Math.floor(sourceWeeks / targetModules);
+    var extraWeeks = sourceWeeks - (targetModules * weeksPerModule);
+    var cadenceHint = weeksPerModule >= 1
+      ? (targetModules - extraWeeks) + ' modules of ' + weeksPerModule + ' week(s) + ' + extraWeeks + ' module(s) of ' + (weeksPerModule + 1) + ' week(s)'
+      : 'distribute weeks across ' + targetModules + ' modules';
+
+    var userQuery =
+      'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
+      'Return exactly these sections as HTML:\n' +
+      '1. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module.\n' +
+      '2. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers.\n' +
+      '3. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '=== SOURCE ===\n' + raw;
+
+    try {
+      var result = await callCreateAI(userQuery, systemPrompt, 4096);
+      var html = (result || '').trim();
+      html = html.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
+      saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
+      var reviewCard = document.getElementById('cp-review-card');
+      if (reviewCard) reviewCard.style.display = '';
+      document.getElementById('cp-original').textContent = raw;
+      document.getElementById('cp-proposed').innerHTML = html;
+      var propModLabel = document.getElementById('cp-prop-modules');
+      var origWeekLabel = document.getElementById('cp-orig-weeks');
+      if (propModLabel) propModLabel.textContent = targetModules;
+      if (origWeekLabel) origWeekLabel.textContent = sourceWeeks;
+      if (status) { status.textContent = '✓ Done — review and edit the right pane.'; status.style.color = '#2e7d32'; }
+      setTimeout(function() { if (reviewCard) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
+    } catch (e) {
+      if (status) { status.textContent = 'AI error: ' + (e && e.message || e); status.style.color = '#c62828'; }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🪄 Parse with AI'; }
+    }
+  }
+
+  function clearCourseParser() {
+    if (!confirm('Clear input and AI proposal for this course?')) return;
+    localStorage.removeItem(cpStorageKey());
+    ['cp-input'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
+    var propPane = document.getElementById('cp-proposed'); if (propPane) propPane.innerHTML = '';
+    var origPane = document.getElementById('cp-original'); if (origPane) origPane.textContent = '';
+    var reviewCard = document.getElementById('cp-review-card'); if (reviewCard) reviewCard.style.display = 'none';
+    var status = document.getElementById('cp-parse-status'); if (status) status.textContent = '';
+  }
+
+  function downloadCourseParserDoc() {
+    var state = loadCourseParserState();
+    var proposedEl = document.getElementById('cp-proposed');
+    var proposalHtml = proposedEl ? proposedEl.innerHTML : (state.proposalHtml || '');
+    if (!proposalHtml.trim()) { alert('Nothing to download yet — parse a course first.'); return; }
+    var rawInput = (state.rawInput || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
+    var courseCode = (activeCourse && activeCourse.code || 'course').trim();
+    var courseTitle = (activeCourse && activeCourse.fullTitle || courseCode);
+    var targetModules = state.targetModules || 7;
+    var sourceWeeks = state.sourceWeeks || 15;
+
+    var styleSheet = [
+      'body { font-family: Calibri, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #333; line-height: 1.5; }',
+      'h1 { color: #8c1d40; font-size: 24px; margin: 0 0 8px 0; }',
+      'h2 { color: #8c1d40; font-size: 18px; margin: 24px 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid #ffc627; }',
+      'h3 { font-size: 15px; margin: 18px 0 6px 0; }',
+      '.subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }',
+      '.source-block { background: #fafaf8; border: 1px solid #e0ddd5; border-radius: 6px; padding: 12px 16px; font-size: 12px; white-space: pre-wrap; color: #555; margin: 10px 0 20px 0; }',
+      'table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }',
+      'th, td { border: 1px solid #cccccc; padding: 8px 10px; text-align: left; vertical-align: top; }',
+      'th { background: #f5f5f0; font-weight: 600; }',
+      'ul, ol { padding-left: 22px; }',
+      'li { margin-bottom: 4px; }'
+    ].join('\n');
+
+    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + courseCode +
+      ' — ' + sourceWeeks + '-Week to ' + targetModules + '-Module Proposal</title><style>' + styleSheet + '</style></head><body>' +
+      '<h1>' + courseTitle + '</h1>' +
+      '<div class="subtitle">' + sourceWeeks + '-Week Source → ' + targetModules + '-Module Proposal · Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '</div>' +
+      '<h2>Original Source (' + sourceWeeks + '-Week)</h2>' +
+      '<div class="source-block">' + rawInput + '</div>' +
+      proposalHtml +
+      '</body></html>';
+
+    var blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+    var filename = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
   }
 
