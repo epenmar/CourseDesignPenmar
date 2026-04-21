@@ -133,6 +133,21 @@
   .cp-source-indicator .cp-source-clear { margin-left: auto; background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 4px; }
   .cp-or-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
   .cp-or-divider::before, .cp-or-divider::after { content: ''; flex: 1; height: 1px; background: #e8e5dd; }
+  .cp-folder-panel { border: 1px solid #e0ddd5; border-radius: 8px; background: #fff; margin-bottom: 10px; overflow: hidden; }
+  .cp-folder-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f5f3ee; border-bottom: 1px solid #e0ddd5; font-size: 12px; font-weight: 600; color: #555; }
+  .cp-folder-actions { display: flex; gap: 6px; align-items: center; }
+  .cp-folder-link-btn { background: none; border: none; color: #8c1d40; font-size: 11px; cursor: pointer; padding: 2px 4px; font-family: 'Inter', sans-serif; font-weight: 500; }
+  .cp-folder-link-btn:hover { text-decoration: underline; }
+  .cp-folder-close { background: none; border: none; font-size: 14px; color: #888; cursor: pointer; padding: 0 4px; }
+  .cp-folder-close:hover { color: #c62828; }
+  .cp-folder-list { max-height: 260px; overflow-y: auto; padding: 4px 0; }
+  .cp-folder-list:empty::before { content: 'No supported files found in this folder.'; display: block; padding: 14px; color: #999; font-size: 12px; text-align: center; }
+  .cp-folder-file { display: flex; align-items: center; gap: 10px; padding: 6px 12px; font-size: 12px; color: #333; cursor: pointer; }
+  .cp-folder-file:hover { background: #fafaf8; }
+  .cp-folder-file input[type="checkbox"] { margin: 0; cursor: pointer; }
+  .cp-folder-file .cp-file-type { font-size: 10px; color: #8c1d40; font-weight: 600; text-transform: uppercase; background: #f5f3ee; padding: 2px 6px; border-radius: 3px; flex-shrink: 0; }
+  .cp-folder-file .cp-file-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cp-folder-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; background: #fafaf8; border-top: 1px solid #e0ddd5; }
   .card-body.collapsed { display: none; }
 
   /* ===== FORM ===== */
@@ -785,6 +800,25 @@
             <div class="cp-gdoc-row">
               <input type="url" id="cp-gdoc-url" placeholder="…or paste a Google Doc link (https://docs.google.com/document/d/…)" />
               <button type="button" id="cp-gdoc-btn" class="cp-gdoc-btn" onclick="cpFetchGoogleDoc()">Load from Google Doc</button>
+            </div>
+            <div class="cp-gdoc-row">
+              <input type="url" id="cp-folder-url" placeholder="…or paste a Drive folder link (leave blank to use the course folder)" />
+              <button type="button" id="cp-folder-btn" class="cp-gdoc-btn" onclick="cpBrowseFolder()">Browse folder</button>
+            </div>
+            <div id="cp-folder-panel" class="cp-folder-panel" style="display:none;">
+              <div class="cp-folder-header">
+                <span id="cp-folder-title">Files in folder</span>
+                <div class="cp-folder-actions">
+                  <button type="button" class="cp-folder-link-btn" onclick="cpToggleAllFolderFiles(true)">Select all</button>
+                  <button type="button" class="cp-folder-link-btn" onclick="cpToggleAllFolderFiles(false)">Clear</button>
+                  <button type="button" class="cp-folder-close" onclick="cpCloseFolderPanel()" title="Close">✕</button>
+                </div>
+              </div>
+              <div id="cp-folder-list" class="cp-folder-list"></div>
+              <div class="cp-folder-footer">
+                <span id="cp-folder-status" style="font-size:11px; color:#888;"></span>
+                <button type="button" id="cp-folder-import-btn" class="cp-gdoc-btn" style="background:#8c1d40; color:#fff; border-color:#8c1d40;" onclick="cpImportFolderSelection()">Import selected</button>
+              </div>
             </div>
             <div id="cp-source-indicator" class="cp-source-indicator">
               <span id="cp-source-label"></span>
@@ -8621,6 +8655,13 @@ ${clone.innerHTML}
       });
     });
     cpSetupDropZone();
+    var folderInput = document.getElementById('cp-folder-url');
+    if (folderInput) {
+      var hasCourseFolder = !!(window.activeCourse && activeCourse.driveFolder);
+      folderInput.placeholder = hasCourseFolder
+        ? '…or paste a Drive folder link (leave blank to browse the course folder)'
+        : '…or paste a Drive folder link';
+    }
   }
 
   function cpSetupDropZone() {
@@ -8776,6 +8817,155 @@ ${clone.innerHTML}
     if (input) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
+  var CP_FOLDER_MIMES = {
+    'application/vnd.google-apps.document': 'DOC',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'DOCX',
+    'application/pdf': 'PDF',
+    'text/plain': 'TXT'
+  };
+
+  async function cpBrowseFolder() {
+    var urlInput = document.getElementById('cp-folder-url');
+    var btn = document.getElementById('cp-folder-btn');
+    var panel = document.getElementById('cp-folder-panel');
+    var list = document.getElementById('cp-folder-list');
+    var title = document.getElementById('cp-folder-title');
+    var status = document.getElementById('cp-folder-status');
+    var pastedUrl = (urlInput && urlInput.value || '').trim();
+    var folderUrl = pastedUrl || (window.activeCourse && activeCourse.driveFolder) || '';
+    if (!folderUrl) { cpSetError('No folder URL — paste one or set the course Drive folder in Course Info.'); return; }
+    if (!window.GDrive) { cpSetError('Google Drive integration not loaded.'); return; }
+    var folderId = window.GDrive.folderIdFromUrl(folderUrl);
+    if (!folderId) { cpSetError('Not a valid Drive folder URL.'); return; }
+
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+    cpSetSourceLoading('Listing folder contents…');
+    try {
+      var token = await window.GDrive.getAccessToken();
+      var folderMeta = {};
+      try {
+        var metaResp = await fetch('https://www.googleapis.com/drive/v3/files/' + folderId + '?fields=name&supportsAllDrives=true', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (metaResp.ok) folderMeta = await metaResp.json();
+      } catch (e) {}
+      var query = "'" + folderId + "' in parents and trashed=false";
+      var listResp = await fetch('https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(query) + '&fields=files(id,name,mimeType)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true&orderBy=name', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!listResp.ok) {
+        var detail = await listResp.text();
+        try { var j = JSON.parse(detail); if (j && j.error && j.error.message) detail = j.error.message; } catch (e) {}
+        throw new Error('Drive list ' + listResp.status + ': ' + detail);
+      }
+      var data = await listResp.json();
+      var files = (data.files || []).filter(function(f) { return CP_FOLDER_MIMES[f.mimeType]; });
+      if (title) title.textContent = 'Files in "' + (folderMeta.name || 'folder') + '"';
+      cpRenderFolderList(files);
+      if (panel) panel.style.display = '';
+      if (status) status.textContent = files.length + ' supported file(s) — pick any to import';
+      var srcInd = document.getElementById('cp-source-indicator');
+      if (srcInd) { srcInd.classList.remove('visible'); srcInd.classList.remove('error'); }
+    } catch (e) {
+      cpSetError('Could not list folder: ' + (e && e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Browse folder'; }
+    }
+  }
+
+  function cpRenderFolderList(files) {
+    var list = document.getElementById('cp-folder-list');
+    if (!list) return;
+    list.innerHTML = '';
+    files.forEach(function(f) {
+      var row = document.createElement('label');
+      row.className = 'cp-folder-file';
+      var label = CP_FOLDER_MIMES[f.mimeType] || 'FILE';
+      row.innerHTML = '<input type="checkbox" data-file-id="' + f.id + '" data-mime="' + f.mimeType + '" data-name="' + (f.name || '').replace(/"/g, '&quot;') + '" />' +
+        '<span class="cp-file-type">' + label + '</span>' +
+        '<span class="cp-file-name" title="' + (f.name || '').replace(/"/g, '&quot;') + '">' + (f.name || 'Untitled') + '</span>';
+      list.appendChild(row);
+    });
+  }
+
+  function cpToggleAllFolderFiles(checked) {
+    var list = document.getElementById('cp-folder-list');
+    if (!list) return;
+    list.querySelectorAll('input[type="checkbox"]').forEach(function(cb) { cb.checked = !!checked; });
+  }
+
+  function cpCloseFolderPanel() {
+    var panel = document.getElementById('cp-folder-panel');
+    if (panel) panel.style.display = 'none';
+  }
+
+  async function cpImportFolderSelection() {
+    var list = document.getElementById('cp-folder-list');
+    var btn = document.getElementById('cp-folder-import-btn');
+    var status = document.getElementById('cp-folder-status');
+    if (!list) return;
+    var picked = Array.from(list.querySelectorAll('input[type="checkbox"]:checked')).map(function(cb) {
+      return { id: cb.dataset.fileId, mime: cb.dataset.mime, name: cb.dataset.name };
+    });
+    if (!picked.length) { if (status) status.textContent = 'Pick at least one file.'; return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Importing…'; }
+    var token;
+    try { token = await window.GDrive.getAccessToken(); }
+    catch (e) { cpSetError('Drive auth failed: ' + (e && e.message || e)); if (btn) { btn.disabled = false; btn.textContent = 'Import selected'; } return; }
+
+    var collected = [];
+    var errors = [];
+    for (var i = 0; i < picked.length; i++) {
+      var f = picked[i];
+      if (status) status.textContent = 'Reading ' + (i + 1) + '/' + picked.length + ': ' + f.name;
+      try {
+        var text = await cpFetchDriveFileText(f.id, f.mime, token);
+        var clean = (text || '').trim();
+        if (clean) collected.push('=== ' + f.name + ' ===\n\n' + clean);
+      } catch (e) {
+        errors.push(f.name + ': ' + (e && e.message || e));
+      }
+    }
+    if (btn) { btn.disabled = false; btn.textContent = 'Import selected'; }
+    if (!collected.length) {
+      cpSetError('No text extracted. ' + (errors.length ? errors[0] : ''));
+      if (status) status.textContent = '';
+      return;
+    }
+    var combined = collected.join('\n\n');
+    var summary = picked.length === 1 ? picked[0].name : picked.length + ' files';
+    cpSetSourceText(combined, summary);
+    if (status) status.textContent = errors.length ? ('Imported ' + collected.length + ', ' + errors.length + ' failed') : 'Imported ' + collected.length + ' file(s)';
+    cpCloseFolderPanel();
+  }
+
+  async function cpFetchDriveFileText(fileId, mime, token) {
+    if (mime === 'application/vnd.google-apps.document') {
+      var resp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/export?mimeType=text/plain&supportsAllDrives=true', { headers: { 'Authorization': 'Bearer ' + token } });
+      if (!resp.ok) throw new Error('export ' + resp.status);
+      return await resp.text();
+    }
+    var mediaResp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media&supportsAllDrives=true', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!mediaResp.ok) throw new Error('download ' + mediaResp.status);
+    if (mime === 'text/plain') return await mediaResp.text();
+    var buf = await mediaResp.arrayBuffer();
+    if (mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      if (!window.mammoth) throw new Error('DOCX parser not loaded');
+      var res = await window.mammoth.extractRawText({ arrayBuffer: buf });
+      return res && res.value || '';
+    }
+    if (mime === 'application/pdf') {
+      if (!window.pdfjsLib) throw new Error('PDF parser not loaded');
+      var pdf = await window.pdfjsLib.getDocument({ data: buf }).promise;
+      var pages = [];
+      for (var n = 1; n <= pdf.numPages; n++) {
+        var page = await pdf.getPage(n);
+        var tc = await page.getTextContent();
+        pages.push(tc.items.map(function(it) { return it.str; }).join(' '));
+      }
+      return pages.join('\n\n');
+    }
+    throw new Error('Unsupported mime: ' + mime);
+  }
+
   async function runCourseParserAI() {
     var input = document.getElementById('cp-input');
     var btn = document.getElementById('cp-parse-btn');
@@ -8836,6 +9026,8 @@ ${clone.innerHTML}
     var status = document.getElementById('cp-parse-status'); if (status) status.textContent = '';
     var srcInd = document.getElementById('cp-source-indicator'); if (srcInd) { srcInd.classList.remove('visible'); srcInd.classList.remove('error'); }
     var gdocInput = document.getElementById('cp-gdoc-url'); if (gdocInput) gdocInput.value = '';
+    var folderInput = document.getElementById('cp-folder-url'); if (folderInput) folderInput.value = '';
+    cpCloseFolderPanel();
   }
 
   function downloadCourseParserDoc() {
