@@ -81,8 +81,15 @@
   .filter-search:focus { outline: none; border-color: #8c1d40; }
 
   /* ===== COURSE TABLE ===== */
-  .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; border: 1px solid #e8e5dd; border-radius: 8px; overflow: hidden; }
-  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
+  .course-table-wrap { border: 1px solid #e8e5dd; border-radius: 8px; overflow: auto; max-height: calc(15 * 49px + 40px); }
+  .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
+  .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; z-index: 2; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
+  .table-tabs { display: flex; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid #e0ddd5; }
+  .table-tab { padding: 8px 16px; font-size: 13px; font-weight: 500; color: #666; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: 'Inter', sans-serif; margin-bottom: -1px; transition: all 0.15s; }
+  .table-tab:hover { color: #8c1d40; }
+  .table-tab.active { color: #8c1d40; border-bottom-color: #8c1d40; font-weight: 600; }
+  .table-tab .tab-count { font-size: 11px; color: #999; margin-left: 4px; font-weight: 400; }
+  .table-tab.active .tab-count { color: #8c1d40; }
   .course-table thead th:hover { color: #8c1d40; }
   .course-table thead th .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.4; }
   .course-table thead th.sorted .sort-arrow { opacity: 1; color: #8c1d40; }
@@ -414,7 +421,7 @@
 <div class="topnav">
   <div class="topnav-left">
     <div class="topnav-logo">ASU <em>online</em></div>
-    <div class="topnav-title">Course Development Dashboard</div>
+    <div class="topnav-title">Course Dashboard</div>
   </div>
   <div class="topnav-right">
     <span class="topnav-badge" id="attention-badge">2 need attention</span>
@@ -579,26 +586,34 @@
       <!-- rendered dynamically -->
     </div>
 
-    <table class="course-table">
-      <thead>
-        <tr>
-          <th style="width:30px; padding:0;"></th>
-          <th data-sort="code" onclick="sortTable('code', this)">Course <span class="sort-arrow">▲</span></th>
-          <th data-sort="instructor" onclick="sortTable('instructor', this)">Instructor <span class="sort-arrow">▲</span></th>
-          <th data-sort="program" onclick="sortTable('program', this)">Program <span class="sort-arrow">▲</span></th>
-          <th data-sort="college" onclick="sortTable('college', this)">College <span class="sort-arrow">▲</span></th>
-          <th data-sort="session" onclick="sortTable('session', this)">Session <span class="sort-arrow">▲</span></th>
-          <th data-sort="progress" onclick="sortTable('progress', this)">Progress <span class="sort-arrow">▲</span></th>
-          <th data-sort="phase" onclick="sortTable('phase', this)">Phase <span class="sort-arrow">▲</span></th>
-          <th data-sort="status" onclick="sortTable('status', this)">Status <span class="sort-arrow">▲</span></th>
-          <th data-sort="qa" onclick="sortTable('qa', this)">QA Date <span class="sort-arrow">▲</span></th>
-          <th data-sort="lastActive" onclick="sortTable('lastActive', this)">Last Active <span class="sort-arrow">▲</span></th>
-        </tr>
-      </thead>
-      <tbody id="course-table-body">
-        <!-- Rendered by JS -->
-      </tbody>
-    </table>
+    <div class="table-tabs" id="table-tabs">
+      <button class="table-tab active" data-tab="all" onclick="switchTableTab('all')">All Courses <span class="tab-count" id="tab-count-all"></span></button>
+      <button class="table-tab" data-tab="developments" onclick="switchTableTab('developments')">Developments <span class="tab-count" id="tab-count-developments"></span></button>
+      <button class="table-tab" data-tab="ongoing" onclick="switchTableTab('ongoing')">On-going <span class="tab-count" id="tab-count-ongoing"></span></button>
+    </div>
+
+    <div class="course-table-wrap">
+      <table class="course-table">
+        <thead>
+          <tr>
+            <th style="width:30px; padding:0;"></th>
+            <th data-sort="code" onclick="sortTable('code', this)">Course <span class="sort-arrow">▲</span></th>
+            <th data-sort="instructor" onclick="sortTable('instructor', this)">Instructor <span class="sort-arrow">▲</span></th>
+            <th data-sort="program" onclick="sortTable('program', this)">Program <span class="sort-arrow">▲</span></th>
+            <th data-sort="college" onclick="sortTable('college', this)">College <span class="sort-arrow">▲</span></th>
+            <th data-sort="session" onclick="sortTable('session', this)">Session <span class="sort-arrow">▲</span></th>
+            <th data-sort="progress" onclick="sortTable('progress', this)">Progress <span class="sort-arrow">▲</span></th>
+            <th data-sort="phase" onclick="sortTable('phase', this)">Phase <span class="sort-arrow">▲</span></th>
+            <th data-sort="status" onclick="sortTable('status', this)">Status <span class="sort-arrow">▲</span></th>
+            <th data-sort="qa" onclick="sortTable('qa', this)">QA Date <span class="sort-arrow">▲</span></th>
+            <th data-sort="lastActive" onclick="sortTable('lastActive', this)">Last Active <span class="sort-arrow">▲</span></th>
+          </tr>
+        </thead>
+        <tbody id="course-table-body">
+          <!-- Rendered by JS -->
+        </tbody>
+      </table>
+    </div>
   </div>
 </div>
 
@@ -3212,8 +3227,46 @@
     applyAllFilters();
   }
 
+  let activeTableTab = localStorage.getItem('dashboard_table_tab') || 'all';
+
+  function tabMatches(tab, c, isInactiveRow) {
+    if (tab === 'all') return !isInactiveRow;
+    if (tab === 'developments') return !isInactiveRow && c.status !== 'Complete';
+    if (tab === 'ongoing') return !isInactiveRow && c.status === 'Complete';
+    return true;
+  }
+
+  function switchTableTab(tab) {
+    activeTableTab = tab;
+    localStorage.setItem('dashboard_table_tab', tab);
+    document.querySelectorAll('.table-tab').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    applyAllFilters();
+  }
+
+  function updateTabCounts() {
+    var inactiveMap = getInactiveCourses();
+    var all = 0, dev = 0, ong = 0;
+    Object.keys(courseData).forEach(id => {
+      var c = courseData[id];
+      var isInactive = !!inactiveMap[id];
+      if (tabMatches('all', c, isInactive)) all++;
+      if (tabMatches('developments', c, isInactive)) dev++;
+      if (tabMatches('ongoing', c, isInactive)) ong++;
+    });
+    var el;
+    if (el = document.getElementById('tab-count-all')) el.textContent = '(' + all + ')';
+    if (el = document.getElementById('tab-count-developments')) el.textContent = '(' + dev + ')';
+    if (el = document.getElementById('tab-count-ongoing')) el.textContent = '(' + ong + ')';
+  }
+
   renderFilters();
   renderColumnFilters();
+  document.querySelectorAll('.table-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.tab === activeTableTab);
+  });
+  updateTabCounts();
 
   function applyAllFilters() {
     const searchEl = document.querySelector('.filter-search');
@@ -3231,7 +3284,8 @@
       const statusMatch = activeStatusFilter === 'all' ? !isInactiveRow :
                           activeStatusFilter === 'inactive' ? isInactiveRow :
                           row.dataset.status === activeStatusFilter;
-      const show = statusMatch &&
+      const tabMatch = tabMatches(activeTableTab, c, isInactiveRow);
+      const show = tabMatch && statusMatch &&
         (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
         (!fp || c.program === fp) &&
         (!fc || c.college === fc) &&
@@ -3239,6 +3293,7 @@
         (!fst || c.status === fst);
       row.style.display = show ? '' : 'none';
     });
+    updateTabCounts();
   }
 
   function applyColumnFilters() { applyAllFilters(); }
