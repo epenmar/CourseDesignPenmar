@@ -133,6 +133,15 @@
   .cp-source-indicator .cp-source-clear { margin-left: auto; background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 4px; }
   .cp-or-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
   .cp-or-divider::before, .cp-or-divider::after { content: ''; flex: 1; height: 1px; background: #e8e5dd; }
+  .cp-primary-block { border: 2px solid #8c1d40; background: linear-gradient(135deg, #fff8f5 0%, #fff 100%); border-radius: 10px; padding: 18px 20px; margin-bottom: 14px; box-shadow: 0 2px 6px rgba(140,29,64,0.06); }
+  .cp-primary-title { font-size: 15px; font-weight: 700; color: #8c1d40; margin-bottom: 4px; }
+  .cp-primary-desc { font-size: 12px; color: #555; margin-bottom: 12px; line-height: 1.45; }
+  .cp-primary-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .cp-primary-row input[type="url"] { flex: 1; min-width: 220px; padding: 9px 12px; font-size: 13px; border: 1px solid #d6d3ca; border-radius: 6px; background: #fff; font-family: 'Inter', sans-serif; }
+  .cp-primary-row input[type="url"]:focus { outline: none; border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.1); }
+  .cp-primary-btn { background: #8c1d40; color: #fff; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-size: 13px; font-weight: 600; font-family: 'Inter', sans-serif; transition: background 0.15s; }
+  .cp-primary-btn:hover:not(:disabled) { background: #a02349; }
+  .cp-primary-btn:disabled { opacity: 0.6; cursor: wait; }
   .cp-folder-panel { border: 1px solid #e0ddd5; border-radius: 8px; background: #fff; margin-bottom: 10px; overflow: hidden; }
   .cp-folder-header { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: #f5f3ee; border-bottom: 1px solid #e0ddd5; font-size: 12px; font-weight: 600; color: #555; }
   .cp-folder-actions { display: flex; gap: 6px; align-items: center; }
@@ -791,19 +800,14 @@
             <span class="collapse-icon">▼</span>
           </div>
           <div class="card-body">
-            <p style="font-size:12px; color:#666; margin:0 0 8px 0;">Drop in a syllabus/outline (.docx, .pdf, .txt), paste a Google Doc link, or paste the content directly below. Include week-by-week topics, learning objectives, and assignments if available.</p>
-            <div id="cp-drop-zone" class="cp-drop-zone">
-              <div><strong>Drop a file here</strong> or click to browse</div>
-              <span class="cp-drop-hint">Supports .docx, .pdf, .txt — up to 10 MB</span>
-              <input type="file" id="cp-file-input" accept=".docx,.pdf,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain" style="display:none;" />
-            </div>
-            <div class="cp-gdoc-row">
-              <input type="url" id="cp-gdoc-url" placeholder="…or paste a Google Doc link (https://docs.google.com/document/d/…)" />
-              <button type="button" id="cp-gdoc-btn" class="cp-gdoc-btn" onclick="cpFetchGoogleDoc()">Load from Google Doc</button>
-            </div>
-            <div class="cp-gdoc-row">
-              <input type="url" id="cp-folder-url" placeholder="…or paste a Drive folder link (leave blank to use the course folder)" />
-              <button type="button" id="cp-folder-btn" class="cp-gdoc-btn" onclick="cpBrowseFolder()">Browse folder</button>
+            <p style="font-size:12px; color:#666; margin:0 0 8px 0;">Pull content straight from the course's shared Google Drive folder, or import a single file / paste content directly below.</p>
+            <div class="cp-primary-block">
+              <div class="cp-primary-title">📁 Browse shared Google Drive folder</div>
+              <div class="cp-primary-desc">List the course's Drive folder and pick which files to pull into the source — supports Google Docs, DOCX, PDF, and TXT.</div>
+              <div class="cp-primary-row">
+                <input type="url" id="cp-folder-url" placeholder="Leave blank to use the course folder, or paste a different Drive folder link" />
+                <button type="button" id="cp-folder-btn" class="cp-primary-btn" onclick="cpBrowseFolder()">Browse folder</button>
+              </div>
             </div>
             <div id="cp-folder-panel" class="cp-folder-panel" style="display:none;">
               <div class="cp-folder-header">
@@ -823,6 +827,16 @@
             <div id="cp-source-indicator" class="cp-source-indicator">
               <span id="cp-source-label"></span>
               <button type="button" class="cp-source-clear" onclick="cpClearSource()" title="Clear imported source">✕</button>
+            </div>
+            <div class="cp-or-divider">or import a single source</div>
+            <div id="cp-drop-zone" class="cp-drop-zone">
+              <div><strong>Drop a file here</strong> or click to browse</div>
+              <span class="cp-drop-hint">Supports .docx, .pdf, .txt — up to 10 MB</span>
+              <input type="file" id="cp-file-input" accept=".docx,.pdf,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain" style="display:none;" />
+            </div>
+            <div class="cp-gdoc-row">
+              <input type="url" id="cp-gdoc-url" placeholder="…or paste a single Google Doc link (https://docs.google.com/document/d/…)" />
+              <button type="button" id="cp-gdoc-btn" class="cp-gdoc-btn" onclick="cpFetchGoogleDoc()">Load from Google Doc</button>
             </div>
             <div class="cp-or-divider">or paste directly</div>
             <textarea id="cp-input" rows="10" style="width:100%; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Paste course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
