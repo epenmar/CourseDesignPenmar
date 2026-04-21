@@ -81,15 +81,18 @@
   .filter-search:focus { outline: none; border-color: #8c1d40; }
 
   /* ===== COURSE TABLE ===== */
-  .course-table-wrap { border: 1px solid #e8e5dd; border-radius: 8px; overflow: auto; max-height: calc(15 * 49px + 40px); }
+  .course-table-wrap { border: 1px solid #e8e5dd; border-radius: 0 8px 8px 8px; overflow: auto; max-height: calc(15 * 49px + 40px); background: #fff; }
   .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
   .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; z-index: 2; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
-  .table-tabs { display: flex; gap: 2px; margin: 0 0 12px; border-bottom: 1px solid #e0ddd5; }
-  .table-tab { padding: 8px 16px; font-size: 13px; font-weight: 500; color: #666; background: transparent; border: none; border-bottom: 2px solid transparent; cursor: pointer; font-family: 'Inter', sans-serif; margin-bottom: -1px; transition: all 0.15s; }
-  .table-tab:hover { color: #8c1d40; }
-  .table-tab.active { color: #8c1d40; border-bottom-color: #8c1d40; font-weight: 600; }
-  .table-tab .tab-count { font-size: 11px; color: #999; margin-left: 4px; font-weight: 400; }
+  .table-tabs { display: flex; gap: 4px; margin: 0 0 -1px; align-items: flex-end; }
+  .table-tab { padding: 10px 22px; font-size: 14px; font-weight: 500; color: #666; background: #f5f3ee; border: 1px solid #e0ddd5; border-bottom: none; border-top-left-radius: 10px; border-top-right-radius: 10px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; position: relative; }
+  .table-tab:hover { color: #8c1d40; background: #faf8f3; }
+  .table-tab.active { color: #8c1d40; background: #fff; border-color: #e8e5dd; font-weight: 600; z-index: 2; }
+  .table-tab.active::after { content: ''; position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #fff; }
+  .table-tab .tab-count { font-size: 12px; color: #999; margin-left: 6px; font-weight: 400; }
   .table-tab.active .tab-count { color: #8c1d40; }
+  .table-empty { padding: 48px 24px; text-align: center; color: #888; font-size: 13px; background: #fafaf7; border-radius: 0 0 8px 8px; border: 1px solid #e8e5dd; border-top: none; }
+  .table-empty strong { display: block; color: #555; font-size: 14px; margin-bottom: 6px; }
   .course-table thead th:hover { color: #8c1d40; }
   .course-table thead th .sort-arrow { font-size: 10px; margin-left: 4px; opacity: 0.4; }
   .course-table thead th.sorted .sort-arrow { opacity: 1; color: #8c1d40; }
@@ -592,7 +595,12 @@
       <button class="table-tab" data-tab="ongoing" onclick="switchTableTab('ongoing')">On-going <span class="tab-count" id="tab-count-ongoing"></span></button>
     </div>
 
-    <div class="course-table-wrap">
+    <div class="table-empty" id="table-empty" style="display:none;">
+      <strong>No on-going courses yet</strong>
+      On-going courses will connect out to CanvasCurate for maintenance after development is complete.
+    </div>
+
+    <div class="course-table-wrap" id="course-table-wrap">
       <table class="course-table">
         <thead>
           <tr>
@@ -3214,11 +3222,6 @@
       }
     });
     document.getElementById('filters-row').innerHTML =
-      `<button class="filter-btn active" onclick="filterCourses('all', this)">Active (${counts.active})</button>` +
-      `<button class="filter-btn" onclick="filterCourses('on-track', this)">On Track (${counts['on-track']})</button>` +
-      `<button class="filter-btn" onclick="filterCourses('at-risk', this)">At Risk (${counts['at-risk']})</button>` +
-      `<button class="filter-btn" onclick="filterCourses('not-started', this)">Not Started (${counts['not-started']})</button>` +
-      (counts['inactive'] > 0 ? `<button class="filter-btn" onclick="filterCourses('inactive', this)" style="font-style:italic;">Inactive (${counts['inactive']})</button>` : '') +
       `<div style="flex:1;"></div>` +
       `<input type="text" class="filter-search" placeholder="Search courses or instructors..." oninput="searchCourses(this.value)" />`;
   }
@@ -3276,6 +3279,7 @@
     const fs = document.getElementById('filter-session')?.value || '';
     const fst = document.getElementById('filter-status')?.value || '';
 
+    var visibleCount = 0;
     document.querySelectorAll('.course-table tbody tr').forEach(row => {
       const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
       if (!id || !courseData[id]) return;
@@ -3292,8 +3296,20 @@
         (!fs || c.session === fs) &&
         (!fst || c.status === fst);
       row.style.display = show ? '' : 'none';
+      if (show) visibleCount++;
     });
     updateTabCounts();
+    var wrap = document.getElementById('course-table-wrap');
+    var empty = document.getElementById('table-empty');
+    if (wrap && empty) {
+      if (visibleCount === 0 && activeTableTab === 'ongoing') {
+        wrap.style.display = 'none';
+        empty.style.display = 'block';
+      } else {
+        wrap.style.display = '';
+        empty.style.display = 'none';
+      }
+    }
   }
 
   function applyColumnFilters() { applyAllFilters(); }
