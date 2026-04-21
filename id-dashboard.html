@@ -419,7 +419,7 @@
   </div>
   <div class="topnav-right">
     <span class="topnav-badge" id="attention-badge">2 need attention</span>
-    <button class="sync-btn" id="sync-btn" onclick="triggerSync()" title="Sync calendar & notes"><span class="sync-icon">↻</span> Sync</button>
+    <button class="sync-btn" id="sync-btn" onclick="triggerSync(true)" title="Sync calendar & notes (force refresh)"><span class="sync-icon">↻</span> Sync</button>
     <div class="topnav-account" onclick="toggleAccountPopover(event)">
       <div class="account-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></div>
     <div class="account-popover" id="account-popover" onclick="event.stopPropagation()">
