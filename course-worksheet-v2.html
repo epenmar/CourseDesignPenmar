@@ -19,6 +19,13 @@
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script src="rich-editor.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>
+  if (window.pdfjsLib) {
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
+  }
+</script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -109,6 +116,23 @@
   .cp-proposed-content th { background: #f5f3ee; font-weight: 600; }
   .cp-proposed-content ul, .cp-proposed-content ol { padding-left: 20px; margin: 6px 0; }
   #cp-parse-btn:disabled { opacity: 0.6; cursor: wait; }
+  .cp-drop-zone { border: 2px dashed #c9c5b8; border-radius: 8px; padding: 22px 16px; text-align: center; background: #fafaf8; color: #666; font-size: 13px; cursor: pointer; transition: all 0.15s; margin-bottom: 10px; }
+  .cp-drop-zone:hover { border-color: #8c1d40; background: #fff8f5; color: #8c1d40; }
+  .cp-drop-zone.dragging { border-color: #8c1d40; background: #fff1ed; color: #8c1d40; transform: scale(1.01); }
+  .cp-drop-zone strong { color: #8c1d40; font-weight: 600; }
+  .cp-drop-zone .cp-drop-hint { font-size: 11px; color: #999; margin-top: 6px; display: block; }
+  .cp-gdoc-row { display: flex; gap: 8px; align-items: center; margin-bottom: 10px; flex-wrap: wrap; }
+  .cp-gdoc-row input[type="url"] { flex: 1; min-width: 200px; padding: 7px 10px; font-size: 13px; border: 1px solid #e0ddd5; border-radius: 6px; font-family: 'Inter', sans-serif; }
+  .cp-gdoc-row input[type="url"]:focus { outline: none; border-color: #8c1d40; }
+  .cp-gdoc-btn { background: #fff; color: #8c1d40; border: 1px solid #8c1d40; padding: 7px 14px; border-radius: 6px; cursor: pointer; font-size: 12px; font-weight: 500; font-family: 'Inter', sans-serif; }
+  .cp-gdoc-btn:hover:not(:disabled) { background: #8c1d40; color: #fff; }
+  .cp-gdoc-btn:disabled { opacity: 0.6; cursor: wait; }
+  .cp-source-indicator { display: none; align-items: center; gap: 8px; padding: 8px 12px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; color: #2e7d32; font-size: 12px; margin-bottom: 10px; }
+  .cp-source-indicator.visible { display: flex; }
+  .cp-source-indicator.error { background: #fde8e8; border-color: #f5a5a5; color: #c62828; }
+  .cp-source-indicator .cp-source-clear { margin-left: auto; background: none; border: none; color: inherit; cursor: pointer; font-size: 14px; padding: 0 4px; }
+  .cp-or-divider { display: flex; align-items: center; gap: 10px; margin: 6px 0; color: #aaa; font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+  .cp-or-divider::before, .cp-or-divider::after { content: ''; flex: 1; height: 1px; background: #e8e5dd; }
   .card-body.collapsed { display: none; }
 
   /* ===== FORM ===== */
@@ -752,8 +776,22 @@
             <span class="collapse-icon">▼</span>
           </div>
           <div class="card-body">
-            <p style="font-size:12px; color:#666; margin:0 0 8px 0;">Paste the instructor's syllabus, course outline, or existing course plan. Include week-by-week topics, learning objectives, and any assignments if available.</p>
-            <textarea id="cp-input" rows="12" style="width:100%; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Paste 15-week course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
+            <p style="font-size:12px; color:#666; margin:0 0 8px 0;">Drop in a syllabus/outline (.docx, .pdf, .txt), paste a Google Doc link, or paste the content directly below. Include week-by-week topics, learning objectives, and assignments if available.</p>
+            <div id="cp-drop-zone" class="cp-drop-zone">
+              <div><strong>Drop a file here</strong> or click to browse</div>
+              <span class="cp-drop-hint">Supports .docx, .pdf, .txt — up to 10 MB</span>
+              <input type="file" id="cp-file-input" accept=".docx,.pdf,.txt,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/pdf,text/plain" style="display:none;" />
+            </div>
+            <div class="cp-gdoc-row">
+              <input type="url" id="cp-gdoc-url" placeholder="…or paste a Google Doc link (https://docs.google.com/document/d/…)" />
+              <button type="button" id="cp-gdoc-btn" class="cp-gdoc-btn" onclick="cpFetchGoogleDoc()">Load from Google Doc</button>
+            </div>
+            <div id="cp-source-indicator" class="cp-source-indicator">
+              <span id="cp-source-label"></span>
+              <button type="button" class="cp-source-clear" onclick="cpClearSource()" title="Clear imported source">✕</button>
+            </div>
+            <div class="cp-or-divider">or paste directly</div>
+            <textarea id="cp-input" rows="10" style="width:100%; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Paste course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
             <div style="display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;">
               <label style="font-size:12px; color:#666;">Target modules:
                 <input type="number" id="cp-target-modules" value="7" min="3" max="15" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
@@ -8582,6 +8620,160 @@ ${clone.innerHTML}
         });
       });
     });
+    cpSetupDropZone();
+  }
+
+  function cpSetupDropZone() {
+    var zone = document.getElementById('cp-drop-zone');
+    var fileInput = document.getElementById('cp-file-input');
+    if (!zone || !fileInput || zone._cpBound) return;
+    zone._cpBound = true;
+
+    zone.addEventListener('click', function() { fileInput.click(); });
+    fileInput.addEventListener('change', function(e) {
+      var f = e.target.files && e.target.files[0];
+      if (f) cpHandleFile(f);
+      fileInput.value = '';
+    });
+    ['dragenter', 'dragover'].forEach(function(ev) {
+      zone.addEventListener(ev, function(e) {
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.add('dragging');
+      });
+    });
+    ['dragleave', 'drop'].forEach(function(ev) {
+      zone.addEventListener(ev, function(e) {
+        e.preventDefault(); e.stopPropagation();
+        zone.classList.remove('dragging');
+      });
+    });
+    zone.addEventListener('drop', function(e) {
+      var dt = e.dataTransfer;
+      var f = dt && dt.files && dt.files[0];
+      if (f) cpHandleFile(f);
+    });
+  }
+
+  function cpHandleFile(file) {
+    var MAX = 10 * 1024 * 1024;
+    if (file.size > MAX) { cpSetError('File too large (' + Math.round(file.size/1048576) + ' MB). Max 10 MB.'); return; }
+    var name = file.name || 'file';
+    var lower = name.toLowerCase();
+    cpSetSourceLoading('Reading ' + name + '…');
+    var parser;
+    if (lower.endsWith('.docx')) parser = cpParseDocx;
+    else if (lower.endsWith('.pdf')) parser = cpParsePdf;
+    else if (lower.endsWith('.txt')) parser = cpParseTxt;
+    else { cpSetError('Unsupported file type — use .docx, .pdf, or .txt.'); return; }
+
+    parser(file).then(function(text) {
+      var clean = (text || '').trim();
+      if (!clean) { cpSetError('No text found in ' + name + '.'); return; }
+      cpSetSourceText(clean, name);
+    }).catch(function(err) {
+      cpSetError('Could not read ' + name + ': ' + (err && err.message || err));
+    });
+  }
+
+  function cpParseDocx(file) {
+    if (!window.mammoth) return Promise.reject(new Error('DOCX parser not loaded'));
+    return file.arrayBuffer().then(function(buf) {
+      return window.mammoth.extractRawText({ arrayBuffer: buf });
+    }).then(function(res) { return res && res.value || ''; });
+  }
+
+  function cpParsePdf(file) {
+    if (!window.pdfjsLib) return Promise.reject(new Error('PDF parser not loaded'));
+    return file.arrayBuffer().then(function(buf) {
+      return window.pdfjsLib.getDocument({ data: buf }).promise;
+    }).then(function(pdf) {
+      var pages = [];
+      for (var i = 1; i <= pdf.numPages; i++) pages.push(i);
+      return Promise.all(pages.map(function(n) {
+        return pdf.getPage(n).then(function(page) {
+          return page.getTextContent().then(function(tc) {
+            return tc.items.map(function(it) { return it.str; }).join(' ');
+          });
+        });
+      })).then(function(chunks) { return chunks.join('\n\n'); });
+    });
+  }
+
+  function cpParseTxt(file) {
+    return new Promise(function(resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function() { resolve(reader.result || ''); };
+      reader.onerror = function() { reject(new Error('FileReader failed')); };
+      reader.readAsText(file);
+    });
+  }
+
+  function cpGoogleDocIdFromUrl(url) {
+    if (!url) return null;
+    var m = String(url).match(/\/document\/d\/([a-zA-Z0-9_-]+)/);
+    return m ? m[1] : null;
+  }
+
+  async function cpFetchGoogleDoc() {
+    var urlInput = document.getElementById('cp-gdoc-url');
+    var btn = document.getElementById('cp-gdoc-btn');
+    var url = (urlInput && urlInput.value || '').trim();
+    var fileId = cpGoogleDocIdFromUrl(url);
+    if (!fileId) { cpSetError('Not a valid Google Doc URL. Expected …/document/d/<id>/…'); return; }
+    if (!window.GDrive) { cpSetError('Google Drive integration not loaded.'); return; }
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+    cpSetSourceLoading('Loading Google Doc…');
+    try {
+      var token = await window.GDrive.getAccessToken();
+      var resp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=name&supportsAllDrives=true', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      var docName = 'Google Doc';
+      if (resp.ok) { try { var meta = await resp.json(); if (meta && meta.name) docName = meta.name; } catch (e) {} }
+      var exportResp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/export?mimeType=text/plain&supportsAllDrives=true', {
+        headers: { 'Authorization': 'Bearer ' + token }
+      });
+      if (!exportResp.ok) {
+        var detail = await exportResp.text();
+        try { var j = JSON.parse(detail); if (j && j.error && j.error.message) detail = j.error.message; } catch (e) {}
+        throw new Error('Drive export ' + exportResp.status + ': ' + detail);
+      }
+      var text = (await exportResp.text()).trim();
+      if (!text) { cpSetError('Google Doc is empty.'); return; }
+      cpSetSourceText(text, docName);
+      if (urlInput) urlInput.value = '';
+    } catch (e) {
+      cpSetError('Could not load Google Doc: ' + (e && e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'Load from Google Doc'; }
+    }
+  }
+
+  function cpSetSourceText(text, sourceName) {
+    var input = document.getElementById('cp-input');
+    if (!input) return;
+    input.value = text;
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+    cpShowSourceIndicator('✓ Loaded ' + (sourceName || 'source') + ' (' + text.length.toLocaleString() + ' chars)', false);
+  }
+
+  function cpSetSourceLoading(msg) { cpShowSourceIndicator(msg, false); }
+  function cpSetError(msg) { cpShowSourceIndicator('⚠ ' + msg, true); }
+
+  function cpShowSourceIndicator(msg, isError) {
+    var el = document.getElementById('cp-source-indicator');
+    var label = document.getElementById('cp-source-label');
+    if (!el || !label) return;
+    label.textContent = msg;
+    el.classList.toggle('error', !!isError);
+    el.classList.add('visible');
+  }
+
+  function cpClearSource() {
+    var el = document.getElementById('cp-source-indicator');
+    if (el) { el.classList.remove('visible'); el.classList.remove('error'); }
+    var input = document.getElementById('cp-input');
+    if (input) { input.value = ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
   }
 
   async function runCourseParserAI() {
@@ -8642,6 +8834,8 @@ ${clone.innerHTML}
     var origPane = document.getElementById('cp-original'); if (origPane) origPane.textContent = '';
     var reviewCard = document.getElementById('cp-review-card'); if (reviewCard) reviewCard.style.display = 'none';
     var status = document.getElementById('cp-parse-status'); if (status) status.textContent = '';
+    var srcInd = document.getElementById('cp-source-indicator'); if (srcInd) { srcInd.classList.remove('visible'); srcInd.classList.remove('error'); }
+    var gdocInput = document.getElementById('cp-gdoc-url'); if (gdocInput) gdocInput.value = '';
   }
 
   function downloadCourseParserDoc() {
