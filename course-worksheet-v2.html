@@ -5039,6 +5039,15 @@
         max_tokens: maxTokens
       }
     };
+    var body = JSON.stringify(payload);
+    console.log('[callCreateAI] request:', {
+      url: CREATE_AI_CONFIG.url,
+      model: CREATE_AI_CONFIG.model,
+      maxTokens: maxTokens,
+      queryBytes: (query || '').length,
+      systemPromptBytes: (systemPrompt || '').length,
+      totalBodyBytes: body.length
+    });
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
     try {
@@ -5048,17 +5057,22 @@
           'Authorization': 'Bearer ' + CREATE_AI_CONFIG.key,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(payload),
+        body: body,
         signal: controller ? controller.signal : undefined
       });
       if (!response.ok) {
         var errBody = await response.text().catch(function() { return 'API error'; });
+        console.error('[callCreateAI] HTTP error', response.status, errBody);
         throw new Error('CreateAI error (' + response.status + '): ' + errBody);
       }
       var data = await response.json();
       return data.response;
     } catch (err) {
-      if (err && err.name === 'AbortError') throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the ASU AI endpoint did not respond.');
+      if (err && err.name === 'AbortError') {
+        console.error('[callCreateAI] timed out after', timeoutMs, 'ms');
+        throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the ASU AI endpoint did not respond.');
+      }
+      console.error('[callCreateAI] fetch threw:', err && err.name, err && err.message, err);
       throw err;
     } finally {
       if (timer) clearTimeout(timer);
@@ -9018,8 +9032,15 @@ ${clone.innerHTML}
     var targetModules = parseInt((document.getElementById('cp-target-modules') || {}).value, 10) || 7;
     var sourceWeeks = parseInt((document.getElementById('cp-source-weeks') || {}).value, 10) || 15;
 
+    console.log('[runCourseParserAI] source size:', raw.length, 'chars (' + Math.round(raw.length / 1024) + ' KB)');
+    if (raw.length > 400000) {
+      if (status) { status.textContent = 'Source is ' + Math.round(raw.length / 1024) + ' KB — too large for the ASU AI endpoint. Trim the input (remove some imported files) and try again.'; status.style.color = '#c62828'; }
+      if (btn) { btn.disabled = false; btn.textContent = '🪄 Parse with AI'; }
+      return;
+    }
+
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Parsing…'; }
-    if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules…'; status.style.color = '#888'; }
+    if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules… (source: ' + Math.round(raw.length / 1024) + ' KB)'; status.style.color = '#888'; }
 
     var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>. Do NOT include <html>, <body>, <style>, or markdown fences.';
 
