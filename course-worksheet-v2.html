@@ -9217,10 +9217,13 @@ ${clone.innerHTML}
 
   function cpCellToList(cell) {
     if (!cell) return [];
+    // Strip AI's numeric prefix ("1.1 ", "2.3 ", "1.1.2 ") so the UI's auto-generated
+    // module.index numbering doesn't duplicate it in the rendered list.
+    var stripPrefix = function(s) { return (s || '').replace(/^\s*\d+(?:\.\d+)+\s+/, '').trim(); };
     var out = [];
     var lis = cell.querySelectorAll('li');
     if (lis.length) {
-      lis.forEach(function(li) { var s = li.textContent.trim(); if (s) out.push(s); });
+      lis.forEach(function(li) { var s = stripPrefix(li.textContent); if (s) out.push(s); });
       return out;
     }
     // Normalize <br> and block-level breaks to newlines before reading text.
@@ -9235,7 +9238,7 @@ ${clone.innerHTML}
       var multi = (text.match(/\b\d+\.\d+\s/g) || []).length;
       if (multi > 1) parts = text.split(/(?=\b\d+\.\d+\s)/);
     }
-    parts.forEach(function(s) { s = s.trim(); if (s) out.push(s); });
+    parts.forEach(function(s) { s = stripPrefix(s); if (s) out.push(s); });
     return out;
   }
 
