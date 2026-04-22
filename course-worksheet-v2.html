@@ -6706,61 +6706,74 @@
   }
 
   function toggleObj(pickerId, objId) {
-    const dd = document.getElementById('obj-dropdown-' + pickerId);
-    if (!dd) return;
-    const options = dd.querySelectorAll('.obj-option');
-    let selected = [];
+    const picker = document.querySelector('.obj-picker[data-picker="' + pickerId + '"]');
+    if (!picker) return;
+    const dd = picker.querySelector('.obj-dropdown');
+    const wasOpen = dd && dd.classList.contains('show');
 
-    // Toggle the clicked option
+    // Compute next selection by toggling objId against options' current selected classes
+    const options = dd ? dd.querySelectorAll('.obj-option') : [];
+    let known = [];
     options.forEach(opt => {
       const id = opt.querySelector('strong').textContent;
-      if (id === objId) opt.classList.toggle('selected');
-      const check = opt.querySelector('.obj-check');
-      if (opt.classList.contains('selected')) {
-        check.textContent = '✓';
-        selected.push(id);
-      } else {
-        check.textContent = '';
-      }
+      const isSelected = opt.classList.contains('selected');
+      const shouldSelect = (id === objId) ? !isSelected : isSelected;
+      if (shouldSelect) known.push(id);
     });
 
-    // Update the display chips
-    const display = dd.previousElementSibling;
-    if (selected.length === 0) {
-      display.innerHTML = '<span class="obj-picker-placeholder">Select objectives...</span>';
-    } else {
-      display.innerHTML = selected.map(function(id) {
-        var fullText = getMloText(id);
-        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
-        return '<span class="obj-chip"' + tooltipAttr + '>' + id + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + pickerId + '\',\'' + id + '\')">×</span></span>';
-      }).join('');
-    }
-
-    // Update data model if this is an activity picker
-    const block = dd.closest('.activity-block');
+    // Resolve owner (activity or material) and figure out modNum
+    let owner = null; // { type, modNum, item }
+    const block = picker.closest('.activity-block');
     if (block) {
-      var rawActId = block.getAttribute('data-activity-id');
+      const rawActId = block.getAttribute('data-activity-id');
       const modNum = parseInt(block.getAttribute('data-module-num'));
       if (rawActId && modNum && courseActivities[modNum]) {
-        const act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
-        if (act) {
-          act.objectives = selected;
-          saveActivityData();
+        const act = courseActivities[modNum].find(a => a.id === rawActId);
+        if (act) owner = { type: 'activity', modNum, item: act };
+      }
+    }
+    if (!owner) {
+      const matRow = picker.closest('[data-material-id]');
+      if (matRow) {
+        const rawMatId = matRow.getAttribute('data-material-id');
+        const modNum = parseInt(matRow.getAttribute('data-module-num'));
+        if (rawMatId && modNum && courseMaterials[modNum]) {
+          const mat = courseMaterials[modNum].find(m => m.id === rawMatId);
+          if (mat) owner = { type: 'material', modNum, item: mat };
         }
       }
     }
 
-    // Update data model if this is a material picker
-    const matRow = dd.closest('[data-material-id]');
-    if (matRow) {
-      var rawMatId = matRow.getAttribute('data-material-id');
-      const modNum = parseInt(matRow.getAttribute('data-module-num'));
-      if (rawMatId && modNum && courseMaterials[modNum]) {
-        const mat = courseMaterials[modNum].find(function(m) { return m.id === rawMatId; });
-        if (mat) {
-          mat.objectives = selected;
-          saveActivityData();
-        }
+    // Merge known (from dropdown options) with any chip objectives the dropdown didn't have as options
+    // (e.g. stale references to MLOs outside this module's list). The clicked objId is always removed/added
+    // based on current state; other prior selections stay unless they match a deselected option.
+    let selected = known.slice();
+    if (owner && Array.isArray(owner.item.objectives)) {
+      const optionIds = Array.from(options).map(o => o.querySelector('strong').textContent);
+      const optionSet = new Set(optionIds);
+      owner.item.objectives.forEach(id => {
+        if (id === objId) return; // handled by toggle logic
+        if (!optionSet.has(id) && selected.indexOf(id) === -1) selected.push(id);
+      });
+    }
+
+    // Persist first so buildObjPickerHtml reads the fresh state
+    if (owner) {
+      owner.item.objectives = selected;
+      saveActivityData();
+    }
+
+    // Regenerate the full picker HTML to guarantee clean DOM structure
+    const modForRender = owner ? owner.modNum : parseInt(picker.closest('[data-module-num]')?.getAttribute('data-module-num') || '0');
+    picker.outerHTML = buildObjPickerHtml(pickerId, selected, modForRender);
+
+    // Re-open dropdown if it was open before
+    if (wasOpen) {
+      const newDd = document.getElementById('obj-dropdown-' + pickerId);
+      if (newDd) {
+        newDd.classList.add('show');
+        const newDisplay = newDd.previousElementSibling;
+        if (newDisplay) newDisplay.classList.add('open');
       }
     }
   }
