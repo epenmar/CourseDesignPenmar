@@ -1816,6 +1816,42 @@
     saveAirtableUrlsMap(map);
   }
 
+  // ===== AIRTABLE PERSONAL ACCESS TOKEN (global, client-only) =====
+  // PAT is user-scoped — stored in localStorage on this browser only, never sent
+  // to Supabase or any other server. Used to post comments to the ASU Online base
+  // via airtable.com API. Requires base owner to have added Elisa as a comment-or-
+  // higher collaborator (tenant PAT block is per-base, not tenant-wide — verified
+  // 2026-04-22).
+  function getAirtablePat() {
+    try { return localStorage.getItem('airtable_pat') || ''; } catch(e) { return ''; }
+  }
+  function setAirtablePat(tok) {
+    var trimmed = (tok || '').trim();
+    if (trimmed) localStorage.setItem('airtable_pat', trimmed);
+    else localStorage.removeItem('airtable_pat');
+  }
+  // Parse baseId / tableId / recordId from any airtable.com URL.
+  // Accepts the common formats: `/app.../tbl.../viw.../rec...`, `?recordId=rec...`,
+  // and any URL that contains `app...`, `tbl...`, `rec...` prefixed ID triples.
+  function parseAirtableUrl(url) {
+    if (!url || typeof url !== 'string') return null;
+    var baseId   = (url.match(/\bapp[A-Za-z0-9]{14,}\b/) || [])[0] || '';
+    var tableId  = (url.match(/\btbl[A-Za-z0-9]{14,}\b/) || [])[0] || '';
+    var recordId = (url.match(/\brec[A-Za-z0-9]{14,}\b/) || [])[0] || '';
+    if (!baseId || !tableId || !recordId) return null;
+    return { baseId: baseId, tableId: tableId, recordId: recordId };
+  }
+  window.setAirtablePatPrompt = function(courseId) {
+    var current = getAirtablePat();
+    var msg = current
+      ? 'Update Airtable Personal Access Token (leave blank to clear).\n\nYour PAT stays in this browser only.'
+      : 'Paste your Airtable Personal Access Token (starts with "pat...").\n\nYour PAT stays in this browser only. Create one at airtable.com/create/tokens with scopes data.records:read, data.records:write, and access to base appRrjeSGPrfXPSuu.';
+    var entered = window.prompt(msg, current);
+    if (entered === null) return;
+    setAirtablePat(entered);
+    if (courseId) renderDetail(courseId);
+  };
+
   // ===== WORKSHEET ACTIVITY (per-identity time tracking) =====
   // Cached Supabase view of the worksheet_sessions table, bucketed by course_id.
   // Populated on dashboard init + polled every 2 min + refreshed when a detail opens.
@@ -1980,6 +2016,45 @@
     }
     all[courseId] = list;
     savePrivateNotesMap(all);
+
+    // Fire-and-forget: if Airtable target is selected, post as a comment on the record via the API.
+    if (note && targets.indexOf('airtable') !== -1) {
+      var atParsed = parseAirtableUrl(getCourseAirtableUrl(courseId));
+      var atPat = getAirtablePat();
+      if (!atParsed) {
+        note.airtable = { status: 'error', error: 'No Airtable record URL for ' + courseId };
+        savePrivateNotesMap(all);
+      } else if (!atPat) {
+        note.airtable = { status: 'error', error: 'No Airtable Personal Access Token set' };
+        savePrivateNotesMap(all);
+      } else if (!note.airtable || note.airtable.status !== 'posted') {
+        note.airtable = { status: 'pending', recordId: atParsed.recordId };
+        savePrivateNotesMap(all);
+        var atUrl = 'https://api.airtable.com/v0/' + atParsed.baseId + '/' + atParsed.tableId + '/' + atParsed.recordId + '/comments';
+        fetch(atUrl, {
+          method: 'POST',
+          headers: { 'Authorization': 'Bearer ' + atPat, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text: text })
+        }).then(function(r) {
+          return r.json().then(function(j) { return { ok: r.ok, body: j }; });
+        }).then(function(res) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          if (res.ok) n.airtable = { status: 'posted', recordId: atParsed.recordId, commentId: res.body.id, postedAt: new Date().toISOString() };
+          else n.airtable = { status: 'error', recordId: atParsed.recordId, error: (res.body && res.body.error && (res.body.error.message || res.body.error.type || res.body.error)) || 'unknown' };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        }).catch(function(err) {
+          var fresh = readPrivateNotes();
+          var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
+          if (!n) return;
+          n.airtable = { status: 'error', recordId: atParsed.recordId, error: String(err && err.message || err) };
+          savePrivateNotesMap(fresh);
+          renderDetail(courseId);
+        });
+      }
+    }
 
     // Fire-and-forget: if Jira target is selected, post to the course's Epic via the local proxy.
     if (note && targets.indexOf('jira') !== -1) {
@@ -2327,12 +2402,22 @@
     var jiraLabel = jiraEpic
       ? `<label title="Posts as a comment on ${jiraEpic}"><input type="checkbox" id="pn-t-jira-${id}"> Jira (${jiraEpic})</label>`
       : `<label title="No Epic mapped for ${id} yet" style="opacity:0.55;"><input type="checkbox" id="pn-t-jira-${id}" disabled> Jira (Epic comment)</label>`;
+    var airtableParsed = parseAirtableUrl(getCourseAirtableUrl(id));
+    var airtablePat = getAirtablePat();
+    var airtableLabel;
+    if (!airtableParsed) {
+      airtableLabel = `<label title="Add an Airtable Record URL for this course (edit course → Airtable Record URL) to enable" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (no record URL)</label>`;
+    } else if (!airtablePat) {
+      airtableLabel = `<label title="Click 'Set token' to add your Airtable Personal Access Token" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (comment)</label> <a href="#" onclick="event.preventDefault(); setAirtablePatPrompt('${id}')" style="font-size:11px; color:#1a73e8; text-decoration:underline;">Set token</a>`;
+    } else {
+      airtableLabel = `<label title="Posts as a comment on the Airtable record (${airtableParsed.recordId})"><input type="checkbox" id="pn-t-airtable-${id}"> Airtable (comment)</label> <a href="#" onclick="event.preventDefault(); setAirtablePatPrompt('${id}')" style="font-size:11px; color:#999; text-decoration:underline;" title="Update or clear the stored token">⚙</a>`;
+    }
     html += `<div id="pn-composer-${id}" class="pn-composer" style="display:none;">
       <textarea id="pn-text-${id}" placeholder="Type a note for this course…"></textarea>
       <div class="pn-targets">
         <label><input type="checkbox" id="pn-t-self-${id}" checked> Self (dashboard)</label>
         ${jiraLabel}
-        <label title="Available after Airtable deep-link ships" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (open record)</label>
+        ${airtableLabel}
       </div>
       <div class="pn-composer-actions">
         <button class="pn-btn pn-cancel" onclick="cancelPrivateNote('${id}')">Cancel</button>
@@ -2343,12 +2428,19 @@
       var targetsHtml = (n.targets || []).map(function(t) {
         var label = t === 'self' ? '📝 Self' : t === 'jira' ? '🔗 Jira' : '📋 Airtable';
         var suffix = '';
+        var tipText = '';
         if (t === 'jira' && n.jira) {
           if (n.jira.status === 'pending') suffix = ' · posting…';
           else if (n.jira.status === 'posted') suffix = ' · ' + (n.jira.epicKey || 'posted') + ' ✓';
           else if (n.jira.status === 'error') suffix = ' · failed';
+          if (n.jira.error) tipText = String(n.jira.error);
+        } else if (t === 'airtable' && n.airtable) {
+          if (n.airtable.status === 'pending') suffix = ' · posting…';
+          else if (n.airtable.status === 'posted') suffix = ' · ✓';
+          else if (n.airtable.status === 'error') suffix = ' · failed';
+          if (n.airtable.error) tipText = String(n.airtable.error);
         }
-        return '<span class="pn-target-chip ' + t + '" title="' + (t === 'jira' && n.jira && n.jira.error ? String(n.jira.error).replace(/"/g, '&quot;') : '') + '">' + label + suffix + '</span>';
+        return '<span class="pn-target-chip ' + t + '" title="' + tipText.replace(/"/g, '&quot;') + '">' + label + suffix + '</span>';
       }).join('');
       var safeText = String(n.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
       html += `<div class="pn-note-card">
