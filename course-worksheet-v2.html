@@ -264,6 +264,13 @@
   .act-tool-btn { width: 28px; height: 28px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; color: #888; transition: all 0.15s; }
   .act-tool-btn:hover { background: #f5f5f0; color: #444; }
   .act-tool-btn.btn-delete:hover { background: #fde8e8; color: #c62828; border-color: #c62828; }
+  .overview-bulk-toolbar { display: none; align-items: center; gap: 12px; margin-bottom: 8px; padding: 8px 12px; background: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; }
+  .overview-bulk-toolbar.visible { display: flex; }
+  .overview-bulk-toolbar .bulk-btn { width: auto; height: auto; min-width: 0; white-space: nowrap; padding: 6px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
+  .overview-bulk-toolbar .bulk-btn-delete { border: 1px solid #c62828; background: #fff; color: #c62828; font-weight: 600; }
+  .overview-bulk-toolbar .bulk-btn-delete:hover { background: #fde8e8; }
+  .overview-bulk-toolbar .bulk-btn-plain { border: 1px solid #bbb; background: #fff; color: #555; }
+  .overview-bulk-toolbar .bulk-btn-plain:hover { background: #f5f5f5; }
   .act-drag-handle { cursor: grab; font-size: 14px; color: #ccc; margin-right: 4px; }
   .act-drag-handle:active { cursor: grabbing; }
   .move-menu { display: none; position: absolute; top: 100%; right: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); padding: 4px 0; z-index: 10; min-width: 180px; }
@@ -2232,7 +2239,7 @@
   // ===== MATERIAL BLOCK HTML GENERATOR =====
   function buildMaterialBlockHtml(mat, moduleNum) {
     const id = mat.id;
-    const types = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
+    const types = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
     let typeOptions = '';
     for (let i = 0; i < types.length; i++) {
       typeOptions += '<option' + (mat.type === types[i] ? ' selected' : '') + '>' + types[i] + '</option>';
@@ -6132,10 +6139,10 @@
     // Table view — fully editable with objective picker, add, delete, multi-select
     if (tableContainer) {
       var thtml = '';
-      thtml += '<div class="overview-bulk-toolbar" id="assignments-bulk-toolbar" style="display:none; margin-bottom:8px; padding:8px 12px; background:#fff3e0; border:1px solid #ffcc80; border-radius:6px; align-items:center; gap:12px;">';
+      thtml += '<div class="overview-bulk-toolbar" id="assignments-bulk-toolbar">';
       thtml += '<span id="assignments-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
-      thtml += '<button onclick="deleteSelectedOverviewActivities()" style="width:auto; height:auto; white-space:nowrap; padding:6px 14px; font-size:13px; border:1px solid #c62828; background:#fff; color:#c62828; border-radius:6px; cursor:pointer; font-weight:600;">🗑 Delete selected</button>';
-      thtml += '<button onclick="clearOverviewSelection(\'assignments\')" style="width:auto; height:auto; white-space:nowrap; padding:6px 14px; font-size:13px; border:1px solid #bbb; background:#fff; color:#555; border-radius:6px; cursor:pointer;">Clear</button>';
+      thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewActivities()">🗑 Delete selected</button>';
+      thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'assignments\')">Clear</button>';
       thtml += '</div>';
       thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
       for (var m = _asn; m < modCount + _asn; m++) {
@@ -6178,7 +6185,7 @@
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
     var matSavedMods = loadField('moduleOverviewData') || {};
-    var matTypes = ['Reading', 'Video', 'Audio', 'PDF', 'Lecture Slides', 'Website', 'Other'];
+    var matTypes = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
 
     function buildTypeOptions(selected) {
       return matTypes.map(function(t) { return '<option' + (t === selected ? ' selected' : '') + '>' + t + '</option>'; }).join('');
@@ -6271,10 +6278,10 @@
     // Table view — fully editable with multi-select
     if (tableContainer) {
       var thtml = '';
-      thtml += '<div class="overview-bulk-toolbar" id="materials-bulk-toolbar" style="display:none; margin-bottom:8px; padding:8px 12px; background:#fff3e0; border:1px solid #ffcc80; border-radius:6px; align-items:center; gap:12px;">';
+      thtml += '<div class="overview-bulk-toolbar" id="materials-bulk-toolbar">';
       thtml += '<span id="materials-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
-      thtml += '<button onclick="deleteSelectedOverviewMaterials()" style="width:auto; height:auto; white-space:nowrap; padding:6px 14px; font-size:13px; border:1px solid #c62828; background:#fff; color:#c62828; border-radius:6px; cursor:pointer; font-weight:600;">🗑 Delete selected</button>';
-      thtml += '<button onclick="clearOverviewSelection(\'materials\')" style="width:auto; height:auto; white-space:nowrap; padding:6px 14px; font-size:13px; border:1px solid #bbb; background:#fff; color:#555; border-radius:6px; cursor:pointer;">Clear</button>';
+      thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewMaterials()">🗑 Delete selected</button>';
+      thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'materials\')">Clear</button>';
       thtml += '</div>';
       thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="materials-select-all" onchange="toggleSelectAllOverview(\'materials\', this.checked)" title="Select all" /></th><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
@@ -7003,7 +7010,7 @@
     var toolbar = document.getElementById(type + '-bulk-toolbar');
     var count = document.getElementById(type + '-bulk-count');
     var master = document.getElementById(type + '-select-all');
-    if (toolbar) toolbar.style.display = checked.length ? 'flex' : 'none';
+    if (toolbar) toolbar.classList.toggle('visible', checked.length > 0);
     if (count) count.textContent = checked.length + ' selected';
     if (master) {
       master.checked = total.length > 0 && checked.length === total.length;
