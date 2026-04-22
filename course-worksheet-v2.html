@@ -9428,9 +9428,16 @@ ${clone.innerHTML}
           if (!activityName) continue;
           var dueRaw = cellText(c, assignIdx.due);
           if (/^tbd$/i.test(dueRaw)) dueRaw = '';
+          // Pull every "N.N" MLO reference out of the objectives cell — handles
+          // "1.2, 1.4", "1.2 and 1.4", "1.2; 1.4", or a single <li> containing multiple.
+          var objText = (assignIdx.objectives !== -1 && c[assignIdx.objectives]) ? (c[assignIdx.objectives].textContent || '') : '';
+          var objMatches = objText.match(/\d+\.\d+/g) || [];
+          var seenObj = {};
+          var objList = [];
+          objMatches.forEach(function(o) { if (!seenObj[o]) { seenObj[o] = 1; objList.push(o); } });
           assignRows.push({
             modNum: parseInt(mm[0], 10),
-            objectives: cellList(c, assignIdx.objectives).map(function(s) { return s.replace(/[^0-9.]/g, ''); }).filter(Boolean),
+            objectives: objList,
             name: activityName,
             points: cellText(c, assignIdx.points),
             due: dueRaw,
