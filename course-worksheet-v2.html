@@ -9180,19 +9180,30 @@ ${clone.innerHTML}
     });
     if (structIdx.module === -1 || structIdx.topic === -1) { showErrorBanner('Table is missing a Module or Topic column.'); return; }
 
+    var cellText = function(cells, idx) {
+      if (idx === -1 || !cells || !cells[idx]) return '';
+      return (cells[idx].textContent || '').trim();
+    };
+    var cellList = function(cells, idx) {
+      if (idx === -1 || !cells || !cells[idx]) return [];
+      return cpCellToList(cells[idx]);
+    };
+
     var bodyRows = structTable.tBodies.length ? structTable.tBodies[0].rows : Array.prototype.slice.call(structTable.rows, 1);
     var parsed = [];
     for (var r = 0; r < bodyRows.length; r++) {
       var cells = bodyRows[r].cells;
-      if (!cells || cells.length <= Math.max(structIdx.module, structIdx.topic)) continue;
-      var modText = cells[structIdx.module].textContent.trim();
+      if (!cells || !cells.length) continue;
+      var modText = cellText(cells, structIdx.module);
+      var topicText = cellText(cells, structIdx.topic);
+      if (!modText && !topicText) continue;
       var modMatch = modText.match(/\d+/);
       var modNum = modMatch ? parseInt(modMatch[0], 10) : (parsed.length + 1);
       parsed.push({
         num: modNum,
-        topic: cells[structIdx.topic].textContent.trim(),
-        mlos: structIdx.mlos !== -1 ? cpCellToList(cells[structIdx.mlos]) : [],
-        materials: structIdx.materials !== -1 ? cpCellToList(cells[structIdx.materials]) : []
+        topic: topicText,
+        mlos: cellList(cells, structIdx.mlos),
+        materials: cellList(cells, structIdx.materials)
       });
     }
     if (!parsed.length) { showErrorBanner('No module rows found in the table.'); return; }
@@ -9211,15 +9222,17 @@ ${clone.innerHTML}
         var aRows = assignTable.tBodies.length ? assignTable.tBodies[0].rows : Array.prototype.slice.call(assignTable.rows, 1);
         for (var i = 0; i < aRows.length; i++) {
           var c = aRows[i].cells;
-          if (!c || c.length <= assignIdx.activity) continue;
-          var mm = c[assignIdx.module].textContent.trim().match(/\d+/);
+          if (!c || !c.length) continue;
+          var mm = cellText(c, assignIdx.module).match(/\d+/);
           if (!mm) continue;
+          var activityName = cellText(c, assignIdx.activity);
+          if (!activityName) continue;
           assignRows.push({
             modNum: parseInt(mm[0], 10),
-            objectives: assignIdx.objectives !== -1 ? cpCellToList(c[assignIdx.objectives]).map(function(s) { return s.replace(/[^0-9.]/g, ''); }).filter(Boolean) : [],
-            name: c[assignIdx.activity].textContent.trim(),
-            points: assignIdx.points !== -1 ? c[assignIdx.points].textContent.trim() : '',
-            notes: assignIdx.notes !== -1 ? c[assignIdx.notes].textContent.trim() : ''
+            objectives: cellList(c, assignIdx.objectives).map(function(s) { return s.replace(/[^0-9.]/g, ''); }).filter(Boolean),
+            name: activityName,
+            points: cellText(c, assignIdx.points),
+            notes: cellText(c, assignIdx.notes)
           });
         }
       }
