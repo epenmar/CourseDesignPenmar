@@ -680,7 +680,14 @@
 <div id="add-course-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:300; align-items:center; justify-content:center;">
   <div style="background:#fff; border-radius:12px; padding:32px; max-width:520px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.15); max-height:90vh; overflow-y:auto;">
     <h3 style="margin:0 0 4px; font-size:18px; color:#8c1d40;">Add New Course Development</h3>
-    <p style="color:#666; font-size:13px; margin-bottom:20px;">Enter the course details to begin a new development.</p>
+    <p style="color:#666; font-size:13px; margin-bottom:12px;">Pick from Airtable to auto-fill, or enter details manually below.</p>
+    <div id="nc-airtable-picker" style="margin-bottom:16px; border:1px solid #e0ddd5; border-radius:10px; padding:10px 12px; background:#fafaf7;">
+      <div style="display:flex; gap:8px; align-items:center;">
+        <button type="button" onclick="openAddCourseAirtablePicker()" style="padding:6px 12px; background:#fff; color:#e65100; border:1.5px solid #e65100; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">🔄 Pick from Airtable</button>
+        <span style="font-size:12px; color:#666;">Shows Course Developments linked to your Stakeholder record that aren't on the dashboard yet.</span>
+      </div>
+      <div id="nc-airtable-list" style="display:none; margin-top:10px; max-height:220px; overflow-y:auto; border-top:1px solid #eee; padding-top:10px;"></div>
+    </div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
       <div>
         <label style="font-size:12px; font-weight:600; color:#666; display:block; margin-bottom:4px;">Course Code *</label>
@@ -2314,6 +2321,60 @@
     if (added) alert(added + ' course' + (added === 1 ? '' : 's') + ' added to your dashboard.' + (skipped ? ' ' + skipped + ' already existed (linked to Airtable for comments).' : ''));
   };
 
+  // ===== ADD-COURSE MODAL: AIRTABLE PICKER =====
+  // Fetches not-yet-imported Course Developments and lists them inside the Add
+  // Course modal. Clicking a row auto-fills the form fields so the user doesn't
+  // have to paste the Airtable record URL manually.
+  window.openAddCourseAirtablePicker = async function() {
+    var list = document.getElementById('nc-airtable-list');
+    if (!list) return;
+    var pat = getAirtablePat();
+    if (!pat) {
+      if (window.setAirtablePatPrompt) window.setAirtablePatPrompt();
+      return;
+    }
+    list.style.display = 'block';
+    list.innerHTML = '<div style="padding:12px; color:#888; font-size:12px;">⏳ Loading Course Developments…</div>';
+    try {
+      var candidates = await fetchAirtableCourseCandidates();
+      var imported = getImportedAirtableRecordIds();
+      var fresh = candidates.filter(function(c) { return !imported[c.recordId]; });
+      if (fresh.length === 0) {
+        list.innerHTML = '<div style="padding:12px; color:#666; font-size:12px;">All your Airtable Course Developments are already on the dashboard.</div>';
+        return;
+      }
+      // Cache for click handler lookup
+      window._ncAirtableCandidates = {};
+      fresh.forEach(function(c) { window._ncAirtableCandidates[c.recordId] = c; });
+      var esc = function(s) { return String(s || '').replace(/[&<>"']/g, function(m) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]; }); };
+      list.innerHTML = fresh.map(function(c) {
+        var pct = Math.round((c.completion || 0) * 100);
+        return '<div class="nc-at-row" onclick="fillAddCourseFromAirtable(\'' + c.recordId + '\')" style="padding:8px 10px; border-bottom:1px solid #f0ece2; cursor:pointer; font-size:12px; display:flex; gap:10px; align-items:center;" onmouseover="this.style.background=\'#f7f3e8\'" onmouseout="this.style.background=\'\'">' +
+          '<div style="flex:1;"><strong>' + esc(c.code || '(no code)') + '</strong> · ' + esc(c.title || '') +
+          '<div style="font-size:11px; color:#888; margin-top:2px;">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · ' + esc(c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div></div>' +
+          '<span style="color:#e65100; font-size:11px; font-weight:600;">Use →</span>' +
+        '</div>';
+      }).join('');
+    } catch (e) {
+      list.innerHTML = '<div style="padding:12px; color:#c62828; font-size:12px;">Failed to load: ' + (e && e.message || e) + '</div>';
+    }
+  };
+
+  window.fillAddCourseFromAirtable = function(recordId) {
+    var c = (window._ncAirtableCandidates || {})[recordId];
+    if (!c) return;
+    var setVal = function(id, v) { var el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+    setVal('nc-code', c.code || '');
+    setVal('nc-name', c.title || '');
+    setVal('nc-instructor', c.instructor || '');
+    setVal('nc-email', c.email || '');
+    setVal('nc-program', (c.code || '').split(/\s/)[0] || '');
+    setVal('nc-session', c.sessionStart || '');
+    setVal('nc-airtable', 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + c.recordId);
+    var list = document.getElementById('nc-airtable-list');
+    if (list) list.innerHTML = '<div style="padding:8px; color:#2e7d32; font-size:12px;">✓ Filled from Airtable: <strong>' + (c.code || '') + '</strong> — review the fields below and click Create Course.</div>';
+  };
+
   // ===== WORKSHEET ACTIVITY (per-identity time tracking) =====
   // Cached Supabase view of the worksheet_sessions table, bucketed by course_id.
   // Populated on dashboard init + polled every 2 min + refreshed when a detail opens.
@@ -3871,6 +3932,9 @@
     const overlay = document.getElementById('add-course-overlay');
     overlay.style.display = 'flex';
     overlay.onclick = function(e) { if (e.target === overlay) closeAddCourseModal(); };
+    // Reset the Airtable picker list so it re-fetches next time.
+    var list = document.getElementById('nc-airtable-list');
+    if (list) { list.style.display = 'none'; list.innerHTML = ''; }
   }
 
   function closeAddCourseModal() {

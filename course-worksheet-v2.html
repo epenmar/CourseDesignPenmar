@@ -2195,6 +2195,7 @@
             '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
               '<h4>Discussion Template</h4>' +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— What this specific discussion targets</span> <button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'discussion\')">✨ Generate with AI</button></div>' + buildTplTextarea(id, 'discussion', 'Activity Objective', 'By the end of this discussion, students will be able to...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
@@ -2208,6 +2209,7 @@
               '<h4>Assignment Template</h4>' +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div>' + buildTplTextarea(id, 'assignment', 'MLOs', 'List the MLOs this assignment addresses...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— What this specific assignment targets</span> <button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button></div>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
@@ -2251,6 +2253,14 @@
         '<textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Material title..." style="flex:1; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;">' + escapeHtml(mat.title) + '</textarea>' +
         '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'mat-attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
         '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteMaterial(this)" style="flex-shrink:0;">✕</button>' +
+      '</div>' +
+      '<div style="margin-top:8px; padding:6px 8px; background:#fafaf7; border:1px solid #ebe8e0; border-radius:6px;">' +
+        '<div style="display:flex; align-items:center; gap:6px; margin-bottom:4px;">' +
+          '<label style="font-size:11px; font-weight:600; color:#666; text-transform:uppercase; letter-spacing:0.3px;">Material Learning Objective</label>' +
+          '<span style="font-size:10px; color:#999;">— What this material helps students do</span>' +
+          '<button class="btn-add-row" style="margin-left:auto; padding:2px 8px; font-size:10px;" onclick="generateMaterialObjectiveAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate with AI</button>' +
+        '</div>' +
+        '<textarea class="activity-input" data-managed="true" data-field="specificObjective" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="saveMaterialObjective(this); autoGrowTextarea(this)" placeholder="By engaging with this material, students will be able to..." style="width:100%; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;">' + escapeHtml(mat.specificObjective || '') + '</textarea>' +
       '</div>' +
       '<div class="content-attach overview-content-body" id="mat-attach-' + id + '" style="margin-top:4px;">' +
       '<div class="content-attach-inner open" style="display:block;">' +
@@ -7612,6 +7622,126 @@
   }
 
   // ===== AI RUBRIC GENERATION =====
+  // Persist the textarea-based "Material Learning Objective" field. Separate
+  // from the rich-text content editor, so we mutate courseMaterials directly.
+  function saveMaterialObjective(el) {
+    var modNum = parseInt(el.getAttribute('data-module-num'), 10);
+    var matId = el.getAttribute('data-material-id');
+    if (!courseMaterials[modNum]) return;
+    var mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
+    if (!mat) return;
+    mat.specificObjective = el.value;
+    saveActivityData();
+  }
+
+  // ===== AI GENERATE: ACTIVITY-SPECIFIC LEARNING OBJECTIVE =====
+  // Called from the "Activity Learning Objective" section inside the assignment
+  // and discussion templates. Uses the other template sections + linked MLO
+  // text to propose a single, specific, verb-led objective for this activity.
+  async function generateObjectiveAI(btn, actId, moduleNum, tplType) {
+    var actName = '';
+    var actObjectives = [];
+    var acts = courseActivities[moduleNum] || [];
+    for (var i = 0; i < acts.length; i++) {
+      if (acts[i].id === actId) {
+        actName = acts[i].name;
+        actObjectives = acts[i].objectives || [];
+        break;
+      }
+    }
+    var mloTexts = actObjectives.map(function(id) { return id + ': ' + getMloText(id); }).filter(function(t) { return t.length > 3; });
+
+    // Locate this template's sections + the Activity Objective rich editor to
+    // write into when the AI call returns.
+    var templatePreview = btn.closest('.template-preview');
+    var objectiveEditor = null;
+    var templateContext = '';
+    if (templatePreview) {
+      templatePreview.querySelectorAll('.template-section').forEach(function(s) {
+        var label = s.querySelector('.template-section-label');
+        if (!label) return;
+        var labelText = label.textContent.toLowerCase();
+        var editorEl = s.querySelector('.rich-editor');
+        if (labelText.indexOf('activity learning objective') !== -1 || labelText.indexOf('activity objective') !== -1) {
+          objectiveEditor = editorEl;
+        } else if (editorEl && editorEl._quill) {
+          var plain = (window.RichEditor && window.RichEditor.htmlToPlainText) ? window.RichEditor.htmlToPlainText(editorEl._quill.root.innerHTML) : editorEl._quill.getText().trim();
+          if (plain) templateContext += label.textContent.trim() + ': ' + plain + '\n';
+        }
+      });
+    }
+
+    var courseName = activeCourse.code + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modTopic = (savedMods[moduleNum] && savedMods[moduleNum].topic) || '';
+
+    var prompt = 'Write ONE specific, measurable learning objective for a single ' + tplType + ' in an online course.\n';
+    prompt += 'Course: ' + courseName + '\n';
+    if (modTopic) prompt += 'Module Topic: ' + modTopic + '\n';
+    prompt += tplType.charAt(0).toUpperCase() + tplType.slice(1) + ' Name: "' + actName + '"\n';
+    if (mloTexts.length > 0) prompt += 'This ' + tplType + ' supports these Module Learning Objectives:\n' + mloTexts.join('\n') + '\n';
+    if (templateContext) prompt += '\nActivity Details:\n' + templateContext + '\n';
+    prompt += '\nReturn ONE sentence beginning with "By the end of this ' + tplType + ', students will be able to" followed by a strong Bloom\'s-taxonomy verb. Make it narrower and more concrete than the MLOs — it should describe what THIS specific ' + tplType + ' produces, not the whole module. No bullet points, no extra text.';
+
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = '⏳ Generating...';
+    try {
+      var result = (await callCreateAI(prompt, 'You are an instructional designer writing measurable learning objectives.', 256)).trim();
+      // Strip surrounding quotes if model returns them
+      result = result.replace(/^["'`]+|["'`]+$/g, '');
+      if (objectiveEditor && objectiveEditor._quill) {
+        objectiveEditor._quill.setText('');
+        objectiveEditor._quill.clipboard.dangerouslyPasteHTML(0, '<p>' + escapeHtml(result) + '</p>', 'user');
+      } else {
+        alert('Objective suggestion:\n\n' + result);
+      }
+    } catch (err) {
+      alert('AI objective generation failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
+
+  async function generateMaterialObjectiveAI(btn, matId, moduleNum) {
+    var mat = (courseMaterials[moduleNum] || []).find(function(m) { return m.id === matId; });
+    if (!mat) return;
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modEntry = savedMods[moduleNum] || {};
+    var modTopic = modEntry.topic || '';
+    var modMlos = modEntry.mlos || [];
+
+    var courseName = activeCourse.code + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var prompt = 'Write ONE specific learning objective describing what students gain from a single course material.\n';
+    prompt += 'Course: ' + courseName + '\n';
+    if (modTopic) prompt += 'Module Topic: ' + modTopic + '\n';
+    prompt += 'Material Type: ' + (mat.type || 'Reading') + '\n';
+    prompt += 'Material Title: "' + (mat.title || '') + '"\n';
+    if (modMlos.length) prompt += 'Module Learning Objectives (for context):\n' + modMlos.map(function(m) { return '- ' + m; }).join('\n') + '\n';
+    var richPlain = (mat.richText && window.RichEditor && window.RichEditor.htmlToPlainText) ? window.RichEditor.htmlToPlainText(mat.richText) : '';
+    if (richPlain) prompt += '\nMaterial Content Snippet:\n' + richPlain.slice(0, 800) + '\n';
+    prompt += '\nReturn ONE sentence starting with "By engaging with this material, students will be able to" followed by a Bloom\'s-taxonomy verb. Keep it tight — one line. No bullet points, no extra text.';
+
+    btn.disabled = true;
+    var origText = btn.textContent;
+    btn.textContent = '⏳…';
+    try {
+      var result = (await callCreateAI(prompt, 'You are an instructional designer writing measurable learning objectives.', 256)).trim();
+      result = result.replace(/^["'`]+|["'`]+$/g, '');
+      mat.specificObjective = result;
+      saveActivityData();
+      // Update the textarea in-place
+      var ta = document.querySelector('textarea[data-field="specificObjective"][data-material-id="' + matId + '"]');
+      if (ta) { ta.value = result; if (typeof autoGrowTextarea === 'function') autoGrowTextarea(ta); }
+    } catch (err) {
+      alert('AI objective generation failed: ' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
+
   async function generateRubricAI(btn, actId, moduleNum) {
 
     // Gather activity context
