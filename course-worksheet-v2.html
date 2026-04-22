@@ -9162,7 +9162,8 @@ ${clone.innerHTML}
       '4. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
       '5. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
       '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
-      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '7. <h2>Grading Policy</h2> followed by: (a) a <p> describing any grade rounding policy mentioned in the source (or <p><em>Not specified in the source.</em></p> if none); (b) a <table> with columns "Letter Grade", "Min %", "Max %", one <tr> per letter grade defined in the source. Include every non-standard code mentioned — in particular ASU codes like EN (failing, never participated) and EU (failing, did not complete) — and in their Min/Max cells put a dash or explanation (e.g. "—" / "Never participated"). If the source does not define a grade scale, output a single <tr><td colspan="3"><em>Not specified in the source.</em></td></tr>.\n' +
+      '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
     var structureQuery =
@@ -9416,6 +9417,35 @@ ${clone.innerHTML}
     });
     var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
 
+    // Grading Policy: grade rounding paragraph + <table> of letter-grade rows.
+    var gradingNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('grading policy') !== -1 || (t.indexOf('grad') !== -1 && t.indexOf('scale') !== -1); });
+    var gradeRounding = '';
+    var gradeRows = [];
+    gradingNodes.forEach(function(n) {
+      if (n.tagName === 'P' && !gradeRounding) {
+        var t = (n.textContent || '').trim();
+        if (t && !/^not specified/i.test(t)) gradeRounding = t;
+      }
+      if (n.tagName === 'TABLE') {
+        var rows = Array.prototype.slice.call(n.rows);
+        // Skip a header row if present (detected by <th> cells or "letter"/"min"/"max" text).
+        var headerDetected = rows.length && (rows[0].querySelector('th') || /letter|min|max/i.test(rows[0].textContent || ''));
+        var bodyRows = headerDetected ? rows.slice(1) : rows;
+        bodyRows.forEach(function(r) {
+          var cells = Array.prototype.slice.call(r.cells).map(function(c) { return (c.textContent || '').trim(); });
+          if (cells.length === 1 && /not specified/i.test(cells[0])) return;
+          if (!cells.length) return;
+          var letter = cells[0] || '';
+          var min = cells[1] || '';
+          var max = cells[2] || '';
+          if (!letter) return;
+          // Guard against the "Not specified" colspan placeholder being pulled in as a letter.
+          if (/not specified/i.test(letter)) return;
+          gradeRows.push({ letter: letter, min: min, max: max });
+        });
+      }
+    });
+
     // Course & Instructor Info: <dl> with <dt>Label</dt><dd>Value</dd> pairs. Skip "Not specified..." placeholders.
     var infoLabelToField = {
       'course code': 'ci-course-code',
@@ -9554,6 +9584,7 @@ ${clone.innerHTML}
       (textbookItems.length ? '• ' + textbookItems.length + ' textbook/material entry(ies)\n' : '') +
       (cloItems.length ? '• ' + cloItems.length + ' Course Learning Outcome(s)\n' : '') +
       (eloItems.length ? '• ' + eloItems.length + ' Enduring Learning Outcome(s)\n' : '') +
+      (gradeRows.length || gradeRounding ? '• Grading policy (' + gradeRows.length + ' grade row(s)' + (gradeRounding ? ' + rounding policy' : '') + ')\n' : '') +
       '• ' + moduleCount + ' module(s) with topics + objectives\n' +
       '• ' + parsed.reduce(function(a, p) { return a + p.materials.length; }, 0) + ' module-level material(s)\n' +
       '• ' + assignRows.length + ' assignment(s)\n\n' +
@@ -9576,6 +9607,11 @@ ${clone.innerHTML}
         return { id: 'mat-' + materialCount, type: 'Reading', title: title, links: [], richText: '' };
       });
     });
+    // Replace (don't append) activities per module so re-running Parse doesn't pile duplicates
+    // on top of previously-pushed rows. Only clear modules that the current parse touches.
+    var touchedModules = {};
+    assignRows.forEach(function(a) { touchedModules[a.modNum] = true; });
+    Object.keys(touchedModules).forEach(function(mk) { courseActivities[mk] = []; });
     assignRows.forEach(function(a) {
       if (!courseActivities[a.modNum]) courseActivities[a.modNum] = [];
       activityCounter++;
@@ -9592,6 +9628,9 @@ ${clone.innerHTML}
     });
     saveField('courseActivities', courseActivities);
     saveField('courseMaterials', courseMaterials);
+
+    if (gradeRows.length) saveField('gradingPolicy', gradeRows);
+    if (gradeRounding) cpSetFormField('syl-grade-rounding', gradeRounding);
 
     if (overviewText) cpSetFormField('course-overview', overviewText);
     if (textbookItems.length) {
@@ -9628,7 +9667,8 @@ ${clone.innerHTML}
       activities: 0,
       materials: 0,
       context: 0,
-      info: 0
+      info: 0,
+      grading: (loadField('gradingPolicy') || []).length
     };
     var vFormData = loadField('formData') || {};
     for (var tk in vFormData) { if (tk.indexOf('mat-textbook-') === 0 && vFormData[tk]) verify.textbooks++; }
@@ -9651,7 +9691,7 @@ ${clone.innerHTML}
         var color = ok ? '#2e7d32' : '#999';
         return '<div style="display:flex; justify-content:space-between; padding:3px 0; color:' + color + ';"><span>' + label + '</span><span style="font-weight:600;">' + val + '</span></div>';
       };
-      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context || !verify.info;
+      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context || !verify.info || !verify.grading;
       var allFailed = !verify.modules;
       var lines = [
         '<strong style="color:' + (allFailed ? '#c62828' : '#2e7d32') + '; font-size:14px;">' + (allFailed ? '⚠ Nothing pushed' : '✓ Pushed to worksheet') + '</strong>',
@@ -9665,6 +9705,7 @@ ${clone.innerHTML}
         row('Module-level materials', verify.materials),
         row('Assignments', verify.activities),
         row('Course Context Q&A answers', verify.context),
+        row('Grade scale rows', verify.grading),
         '</div>',
         (missingAny ? '<div style="margin-top:10px; padding:8px 10px; background:#fff8e1; border-left:3px solid #ffb300; font-size:12px; color:#795548;">Missing sections? Re-run <strong>🪄 Parse with AI</strong> — the prompt was recently updated to also generate Course Overview, Textbooks, CLOs, and ELOs. Older proposals only contained modules + assignments.</div>' : ''),
         '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">',
