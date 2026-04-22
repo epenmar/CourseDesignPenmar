@@ -9007,7 +9007,7 @@ ${clone.innerHTML}
       '2. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
       '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
       '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
-      '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. MLOs should each begin with the module number, e.g. "1.1 Analyze X".\n' +
+      '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
       '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3".\n' +
       '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
@@ -9140,11 +9140,21 @@ ${clone.innerHTML}
     var lis = cell.querySelectorAll('li');
     if (lis.length) {
       lis.forEach(function(li) { var s = li.textContent.trim(); if (s) out.push(s); });
-    } else {
-      cell.textContent.split(/\n|•|·|—|\u2022|;|,/).forEach(function(s) {
-        s = s.trim(); if (s) out.push(s);
-      });
+      return out;
     }
+    // Normalize <br> and block-level breaks to newlines before reading text.
+    var html = cell.innerHTML || '';
+    html = html.replace(/<br\s*\/?>/gi, '\n').replace(/<\/(p|div|h[1-6])>/gi, '\n');
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var text = tmp.textContent || '';
+    var parts = text.split(/\n|•|·|—|\u2022|;/);
+    // If that didn't split and the text contains multiple "N.N " MLO markers, split before each one.
+    if (parts.length === 1 && /\b\d+\.\d+\s/.test(text)) {
+      var multi = (text.match(/\b\d+\.\d+\s/g) || []).length;
+      if (multi > 1) parts = text.split(/(?=\b\d+\.\d+\s)/);
+    }
+    parts.forEach(function(s) { s = s.trim(); if (s) out.push(s); });
     return out;
   }
 
