@@ -9029,7 +9029,9 @@ ${clone.innerHTML}
       ? (targetModules - extraWeeks) + ' modules of ' + weeksPerModule + ' week(s) + ' + extraWeeks + ' module(s) of ' + (weeksPerModule + 1) + ' week(s)'
       : 'distribute weeks across ' + targetModules + ' modules';
 
-    var userQuery =
+    // Main call handles everything EXCEPT assignment mapping — keeping it out frees up
+    // the token budget so a large source with many assignments doesn't truncate the table.
+    var mainQuery =
       'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
       'Return exactly these sections in order as HTML:\n' +
       '1. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
@@ -9037,33 +9039,54 @@ ${clone.innerHTML}
       '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
       '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
       '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
-      '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Due, Notes. Output EVERY assignment from EVERY module in the source (do not stop after the first few modules — all ' + targetModules + ' modules must be represented if they contain assignments). One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3". The Due cell should capture any due date, week, or deadline mentioned in the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"); if no due date is mentioned, output "TBD".\n' +
-      '7. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
-      '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
+      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
-    // Retry helper: network hiccups and oversized payloads both surface as "Failed to fetch".
-    var tryCall = async function(maxTokens, attempt) {
+    var assignmentsQuery =
+      'For this ' + sourceWeeks + '-week course being restructured into ' + targetModules + ' modules, extract EVERY assignment/activity from the source and map each to the new module numbers.\n\n' +
+      'Return ONLY a single section as HTML:\n' +
+      '<h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Due, Notes.\n\n' +
+      'Requirements:\n' +
+      '- Output one row per assignment. All ' + targetModules + ' modules must appear if they contain assignments — do NOT stop after the first few modules.\n' +
+      '- Module cell: numeric new module (e.g. "3").\n' +
+      '- Objective(s) cell: comma-separated MLO numbers like "1.1, 1.3".\n' +
+      '- Due cell: capture the due date/week/deadline from the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"). If not specified, output "TBD".\n' +
+      '- Notes cell: concise — 1 short line max.\n' +
+      'Do NOT include <html>, <body>, <style>, markdown fences, or any other sections.\n\n' +
+      '=== SOURCE ===\n' + raw;
+
+    var tryCall = async function(query, maxTokens, attempt) {
       try {
-        return await callCreateAI(userQuery, systemPrompt, maxTokens);
+        return await callCreateAI(query, systemPrompt, maxTokens);
       } catch (err) {
         var isNetwork = err && (err.message === 'Failed to fetch' || /NetworkError|TypeError/.test(String(err)));
         if (isNetwork && attempt === 0) {
-          if (status) { status.textContent = 'Network error — retrying with a smaller response window…'; status.style.color = '#888'; }
+          if (status) { status.textContent = 'Network hiccup — retrying…'; status.style.color = '#888'; }
           await new Promise(function(res) { setTimeout(res, 1500); });
-          return await callCreateAI(userQuery, systemPrompt, 6000);
+          return await callCreateAI(query, systemPrompt, maxTokens);
         }
         throw err;
       }
+    };
+
+    var stripFences = function(s) {
+      return (s || '').trim().replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
     };
 
     try {
       if (raw.length > 150000 && status) {
         status.textContent = 'Large input (' + Math.round(raw.length / 1000) + 'KB) — this may take a while or hit size limits…';
       }
-      var result = await tryCall(8192, 0);
-      var html = (result || '').trim();
-      html = html.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
+      if (status) { status.textContent = 'Step 1/2 — Claude is proposing the module structure…'; status.style.color = '#888'; }
+      var mainResult = await tryCall(mainQuery, 6000, 0);
+      var mainHtml = stripFences(mainResult);
+
+      if (status) { status.textContent = 'Step 2/2 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
+      var assignResult = await tryCall(assignmentsQuery, 4096, 0);
+      var assignHtml = stripFences(assignResult);
+
+      var html = mainHtml + '\n' + assignHtml;
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
       var reviewCard = document.getElementById('cp-review-card');
       if (reviewCard) reviewCard.style.display = '';
