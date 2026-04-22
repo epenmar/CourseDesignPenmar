@@ -4995,8 +4995,9 @@
     provider: 'aws'
   };
 
-  async function callCreateAI(query, systemPrompt, maxTokens) {
+  async function callCreateAI(query, systemPrompt, maxTokens, timeoutMs) {
     maxTokens = maxTokens || 1024;
+    timeoutMs = timeoutMs || 90000;
     var payload = {
       action: 'query',
       request_source: 'override_params',
@@ -5009,20 +5010,30 @@
         max_tokens: maxTokens
       }
     };
-    var response = await fetch(CREATE_AI_CONFIG.url, {
-      method: 'POST',
-      headers: {
-        'Authorization': 'Bearer ' + CREATE_AI_CONFIG.key,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    });
-    if (!response.ok) {
-      var errBody = await response.text().catch(function() { return 'API error'; });
-      throw new Error('CreateAI error (' + response.status + '): ' + errBody);
+    var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
+    try {
+      var response = await fetch(CREATE_AI_CONFIG.url, {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + CREATE_AI_CONFIG.key,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload),
+        signal: controller ? controller.signal : undefined
+      });
+      if (!response.ok) {
+        var errBody = await response.text().catch(function() { return 'API error'; });
+        throw new Error('CreateAI error (' + response.status + '): ' + errBody);
+      }
+      var data = await response.json();
+      return data.response;
+    } catch (err) {
+      if (err && err.name === 'AbortError') throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the ASU AI endpoint did not respond.');
+      throw err;
+    } finally {
+      if (timer) clearTimeout(timer);
     }
-    var data = await response.json();
-    return data.response;
   }
 
   function sendQuickAction(text) {
