@@ -6706,61 +6706,74 @@
   }
 
   function toggleObj(pickerId, objId) {
-    const dd = document.getElementById('obj-dropdown-' + pickerId);
-    if (!dd) return;
-    const options = dd.querySelectorAll('.obj-option');
-    let selected = [];
+    const picker = document.querySelector('.obj-picker[data-picker="' + pickerId + '"]');
+    if (!picker) return;
+    const dd = picker.querySelector('.obj-dropdown');
+    const wasOpen = dd && dd.classList.contains('show');
 
-    // Toggle the clicked option
+    // Compute next selection by toggling objId against options' current selected classes
+    const options = dd ? dd.querySelectorAll('.obj-option') : [];
+    let known = [];
     options.forEach(opt => {
       const id = opt.querySelector('strong').textContent;
-      if (id === objId) opt.classList.toggle('selected');
-      const check = opt.querySelector('.obj-check');
-      if (opt.classList.contains('selected')) {
-        check.textContent = '✓';
-        selected.push(id);
-      } else {
-        check.textContent = '';
-      }
+      const isSelected = opt.classList.contains('selected');
+      const shouldSelect = (id === objId) ? !isSelected : isSelected;
+      if (shouldSelect) known.push(id);
     });
 
-    // Update the display chips
-    const display = dd.previousElementSibling;
-    if (selected.length === 0) {
-      display.innerHTML = '<span class="obj-picker-placeholder">Select objectives...</span>';
-    } else {
-      display.innerHTML = selected.map(function(id) {
-        var fullText = getMloText(id);
-        var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
-        return '<span class="obj-chip"' + tooltipAttr + '>' + id + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + pickerId + '\',\'' + id + '\')">×</span></span>';
-      }).join('');
-    }
-
-    // Update data model if this is an activity picker
-    const block = dd.closest('.activity-block');
+    // Resolve owner (activity or material) and figure out modNum
+    let owner = null; // { type, modNum, item }
+    const block = picker.closest('.activity-block');
     if (block) {
-      var rawActId = block.getAttribute('data-activity-id');
+      const rawActId = block.getAttribute('data-activity-id');
       const modNum = parseInt(block.getAttribute('data-module-num'));
       if (rawActId && modNum && courseActivities[modNum]) {
-        const act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
-        if (act) {
-          act.objectives = selected;
-          saveActivityData();
+        const act = courseActivities[modNum].find(a => a.id === rawActId);
+        if (act) owner = { type: 'activity', modNum, item: act };
+      }
+    }
+    if (!owner) {
+      const matRow = picker.closest('[data-material-id]');
+      if (matRow) {
+        const rawMatId = matRow.getAttribute('data-material-id');
+        const modNum = parseInt(matRow.getAttribute('data-module-num'));
+        if (rawMatId && modNum && courseMaterials[modNum]) {
+          const mat = courseMaterials[modNum].find(m => m.id === rawMatId);
+          if (mat) owner = { type: 'material', modNum, item: mat };
         }
       }
     }
 
-    // Update data model if this is a material picker
-    const matRow = dd.closest('[data-material-id]');
-    if (matRow) {
-      var rawMatId = matRow.getAttribute('data-material-id');
-      const modNum = parseInt(matRow.getAttribute('data-module-num'));
-      if (rawMatId && modNum && courseMaterials[modNum]) {
-        const mat = courseMaterials[modNum].find(function(m) { return m.id === rawMatId; });
-        if (mat) {
-          mat.objectives = selected;
-          saveActivityData();
-        }
+    // Merge known (from dropdown options) with any chip objectives the dropdown didn't have as options
+    // (e.g. stale references to MLOs outside this module's list). The clicked objId is always removed/added
+    // based on current state; other prior selections stay unless they match a deselected option.
+    let selected = known.slice();
+    if (owner && Array.isArray(owner.item.objectives)) {
+      const optionIds = Array.from(options).map(o => o.querySelector('strong').textContent);
+      const optionSet = new Set(optionIds);
+      owner.item.objectives.forEach(id => {
+        if (id === objId) return; // handled by toggle logic
+        if (!optionSet.has(id) && selected.indexOf(id) === -1) selected.push(id);
+      });
+    }
+
+    // Persist first so buildObjPickerHtml reads the fresh state
+    if (owner) {
+      owner.item.objectives = selected;
+      saveActivityData();
+    }
+
+    // Regenerate the full picker HTML to guarantee clean DOM structure
+    const modForRender = owner ? owner.modNum : parseInt(picker.closest('[data-module-num]')?.getAttribute('data-module-num') || '0');
+    picker.outerHTML = buildObjPickerHtml(pickerId, selected, modForRender);
+
+    // Re-open dropdown if it was open before
+    if (wasOpen) {
+      const newDd = document.getElementById('obj-dropdown-' + pickerId);
+      if (newDd) {
+        newDd.classList.add('show');
+        const newDisplay = newDd.previousElementSibling;
+        if (newDisplay) newDisplay.classList.add('open');
       }
     }
   }
@@ -9128,7 +9141,7 @@ ${clone.innerHTML}
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Parsing…'; }
     if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules… (source: ' + Math.round(raw.length / 1024) + ' KB)'; status.style.color = '#888'; }
 
-    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>. Do NOT include <html>, <body>, <style>, or markdown fences.';
+    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>, <dl>, <dt>, <dd>. You MUST output every section listed in the instructions, in order, even if the source does not mention the relevant information — emit the heading and then placeholder values rather than skipping the section. Do NOT include <html>, <body>, <style>, or markdown fences.';
 
     var weeksPerModule = Math.floor(sourceWeeks / targetModules);
     var extraWeeks = sourceWeeks - (targetModules * weeksPerModule);
@@ -9141,13 +9154,14 @@ ${clone.innerHTML}
     var mainQuery =
       'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
       'Return exactly these sections in order as HTML:\n' +
-      '1. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
-      '2. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
-      '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
-      '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
-      '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
-      '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
-      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '1. <h2>Course &amp; Instructor Info</h2> followed by a <dl> with one <dt>Label</dt><dd>Value</dd> pair for each of these twelve fields (in this exact order, using the <dt> text verbatim): Course Code, Course Name, Credits, Prerequisites, Session, Instructor Name, Instructor Email, Instructor Phone, Office / Room, Zoom Link, Office Hours, Course Description. Pull values directly from the source — do not invent. For any field not mentioned in the source, output <dd><em>Not specified in the source.</em></dd>. Course Description should be the official catalog description if present (1-3 sentences), distinct from the Course Overview below.\n' +
+      '2. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
+      '3. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
+      '4. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
+      '5. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
+      '6. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
+      '7. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
+      '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
     var assignmentsQuery =
@@ -9374,6 +9388,56 @@ ${clone.innerHTML}
     });
     var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
 
+    // Course & Instructor Info: <dl> with <dt>Label</dt><dd>Value</dd> pairs. Skip "Not specified..." placeholders.
+    var infoLabelToField = {
+      'course code': 'ci-course-code',
+      'course name': 'ci-course-name',
+      'credits': 'ci-credits',
+      'prerequisites': 'ci-prerequisites',
+      'session': 'ci-session',
+      'instructor name': 'ci-instructor',
+      'instructor email': 'ci-email',
+      'instructor phone': 'ci-phone',
+      'office / room': 'ci-office',
+      'office/room': 'ci-office',
+      'office': 'ci-office',
+      'zoom link': 'ci-zoom',
+      'zoom': 'ci-zoom',
+      'office hours': 'ci-office-hours',
+      'course description': 'course-description'
+    };
+    var infoNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('instructor info') !== -1 || t.indexOf('course & instructor') !== -1 || t.indexOf('course and instructor') !== -1 || t.indexOf('course info') !== -1; });
+    var infoFields = {};
+    var recordInfoField = function(rawLabel, rawValue) {
+      var label = (rawLabel || '').trim().toLowerCase().replace(/[:\u00a0]+$/, '').trim();
+      var val = (rawValue || '').trim().replace(/^[:\s]+/, '');
+      if (!val || /^not specified/i.test(val)) return;
+      var fieldId = infoLabelToField[label];
+      if (fieldId && !infoFields[fieldId]) infoFields[fieldId] = val;
+    };
+    infoNodes.forEach(function(n) {
+      // Primary format: <dl><dt>Label</dt><dd>Value</dd></dl>
+      n.querySelectorAll('dt').forEach(function(dt) {
+        var dd = dt.nextElementSibling;
+        while (dd && dd.tagName !== 'DD') dd = dd.nextElementSibling;
+        if (dd) recordInfoField(dt.textContent, dd.textContent);
+      });
+      // Fallback: <p><strong>Label:</strong> Value</p> or <li><strong>Label:</strong> Value</li>
+      n.querySelectorAll('p, li').forEach(function(el) {
+        var strong = el.querySelector('strong, b');
+        if (!strong) return;
+        var label = strong.textContent || '';
+        var full = el.textContent || '';
+        var val = full.slice(label.length);
+        recordInfoField(label, val);
+      });
+      // Fallback: <h3>Label</h3><p>Value</p> pairs
+      n.querySelectorAll('h3, h4').forEach(function(h) {
+        var next = h.nextElementSibling;
+        if (next && /^(P|DIV|SPAN)$/i.test(next.tagName)) recordInfoField(h.textContent, next.textContent);
+      });
+    });
+
     var structTable = cpFindTable(propEl, ['module']);
     if (!structTable) { showErrorBanner('Could not find the Proposed Module Structure table in the AI output.'); return; }
 
@@ -9455,7 +9519,9 @@ ${clone.innerHTML}
     }
 
     var moduleCount = parsed.length;
+    var infoFieldCount = Object.keys(infoFields).length;
     var msg = 'Push to worksheet?\n\n' +
+      (infoFieldCount ? '• ' + infoFieldCount + ' course & instructor field(s)\n' : '') +
       (overviewText ? '• Course overview paragraph\n' : '') +
       (textbookItems.length ? '• ' + textbookItems.length + ' textbook/material entry(ies)\n' : '') +
       (cloItems.length ? '• ' + cloItems.length + ' Course Learning Outcome(s)\n' : '') +
@@ -9503,6 +9569,9 @@ ${clone.innerHTML}
     if (textbookItems.length) {
       textbookItems.forEach(function(t, i) { cpSetFormField('mat-textbook-' + (i + 1), t); });
     }
+    Object.keys(infoFields).forEach(function(fieldId) {
+      cpSetFormField(fieldId, infoFields[fieldId]);
+    });
     contextAnswers.forEach(function(ans, i) {
       if (ans && contextFieldIds[i]) cpSetFormField(contextFieldIds[i], ans);
     });
@@ -9530,11 +9599,14 @@ ${clone.innerHTML}
       elos: (loadField('flatElos') || []).length,
       activities: 0,
       materials: 0,
-      context: 0
+      context: 0,
+      info: 0
     };
     var vFormData = loadField('formData') || {};
     for (var tk in vFormData) { if (tk.indexOf('mat-textbook-') === 0 && vFormData[tk]) verify.textbooks++; }
     contextFieldIds.forEach(function(id) { if (vFormData[id]) verify.context++; });
+    var infoFieldIds = ['ci-course-code', 'ci-course-name', 'ci-credits', 'ci-prerequisites', 'ci-session', 'ci-instructor', 'ci-email', 'ci-phone', 'ci-office', 'ci-zoom', 'ci-office-hours', 'course-description'];
+    infoFieldIds.forEach(function(id) { if (vFormData[id]) verify.info++; });
     var vActs = loadField('courseActivities') || {};
     for (var ak in vActs) verify.activities += (vActs[ak] || []).length;
     var vMats = loadField('courseMaterials') || {};
@@ -9551,12 +9623,13 @@ ${clone.innerHTML}
         var color = ok ? '#2e7d32' : '#999';
         return '<div style="display:flex; justify-content:space-between; padding:3px 0; color:' + color + ';"><span>' + label + '</span><span style="font-weight:600;">' + val + '</span></div>';
       };
-      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context;
+      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context || !verify.info;
       var allFailed = !verify.modules;
       var lines = [
         '<strong style="color:' + (allFailed ? '#c62828' : '#2e7d32') + '; font-size:14px;">' + (allFailed ? '⚠ Nothing pushed' : '✓ Pushed to worksheet') + '</strong>',
         '<div style="margin-top:8px; font-size:12px;">',
         row('Modules (topics + objectives)', verify.modules),
+        row('Course & instructor info fields', verify.info),
         row('Course overview paragraph', verify.overview, true),
         row('Textbook entries', verify.textbooks),
         row('Course Learning Outcomes', verify.clos),
