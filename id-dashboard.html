@@ -290,7 +290,12 @@
 
   /* ===== AIRTABLE SYNC BANNER + MODAL ===== */
   #airtable-sync-banner { display: none; margin: 0 0 14px 0; }
+  #airtable-auto-banner { display: none; margin: 0 0 14px 0; }
   .airtable-banner-inner { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff8e1; border: 1px solid #ffd54f; border-radius: 10px; font-size: 13px; }
+  .airtable-banner-inner.auto { background: #f3e8fd; border-color: #ce93f8; color: #4a148c; }
+  .airtable-banner-inner.auto .airtable-banner-text { color: #4a148c; }
+  .airtable-banner-inner.auto .airtable-banner-btn.primary { background: #7b1fa2; border-color: #7b1fa2; }
+  .airtable-banner-inner.auto .airtable-banner-btn.primary:hover { background: #4a148c; }
   .airtable-banner-icon { font-size: 16px; }
   .airtable-banner-text { flex: 1; color: #5d4037; }
   .airtable-banner-btn { padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #d7ccc8; background: #fff; color: #5d4037; cursor: pointer; font-family: 'Inter', sans-serif; }
@@ -599,6 +604,8 @@
 
   <!-- AIRTABLE SYNC BANNER (shown when new records detected) -->
   <div id="airtable-sync-banner"></div>
+  <!-- AIRTABLE AUTO-IMPORT BANNER (nightly cron added new courses overnight) -->
+  <div id="airtable-auto-banner"></div>
 
   <!-- COURSE TABLE -->
   <div class="dash-section courses">
@@ -1669,9 +1676,17 @@
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
     }
+    // After cloud pull, merge any nightly-cron auto-imports into courseData
+    // before first render so new courses appear immediately.
+    try {
+      if (typeof applyAirtableAutoImports === 'function') applyAirtableAutoImports();
+    } catch(e) { console.warn('[airtable auto] apply failed:', e && e.message); }
     renderSummary();
     renderUpcoming();
     renderTable();
+    try {
+      if (typeof renderAirtableAutoBanner === 'function') renderAirtableAutoBanner();
+    } catch(e) { console.warn('[airtable auto] banner render failed:', e && e.message); }
     // Fire-and-forget: load activity data and re-render detail if open
     loadWorksheetSessions();
     setInterval(loadWorksheetSessions, 120000); // refresh every 2 min
@@ -2063,6 +2078,111 @@
     });
     saveAirtableSyncState(state);
     renderAirtableSyncBanner();
+  };
+
+  // ===== AIRTABLE AUTO-IMPORT BANNER (nightly cron) =====
+  // The sync-airtable-courses.mjs cron writes new Course Developments to
+  // Supabase key `airtable_auto_imports` with { seen:false, addedToDashboard:false }.
+  // On dashboard load, SupabaseSync.pullAllFromCloud() mirrors that into
+  // localStorage. We then: (1) import any not-yet-added entries into courseData
+  // + user_courses (2) show a purple banner listing unseen entries (3) wire a
+  // "Got it" button that flips seen→true in Supabase.
+  function readAirtableAutoImports() {
+    try { return JSON.parse(localStorage.getItem('airtable_auto_imports') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveAirtableAutoImportsMap(map) {
+    localStorage.setItem('airtable_auto_imports', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'airtable_auto_imports', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[airtable auto] cloud sync failed:', r.error.message); });
+    }
+  }
+
+  // Adds any entries the cron queued to courseData + user_courses (once), then
+  // re-renders. Idempotent: each record flips addedToDashboard=true after first
+  // import so the user doesn't see duplicates.
+  function applyAirtableAutoImports() {
+    var map = readAirtableAutoImports();
+    var rids = Object.keys(map);
+    if (rids.length === 0) return 0;
+    var imported = getImportedAirtableRecordIds();
+    var added = 0;
+    var changed = false;
+    rids.forEach(function(rid) {
+      var info = map[rid];
+      if (!info) return;
+      if (info.addedToDashboard) return;
+      if (imported[rid]) {
+        // Already on dashboard (e.g., user imported manually) — just flip flag.
+        info.addedToDashboard = true;
+        changed = true;
+        return;
+      }
+      var cand = {
+        recordId: info.recordId || rid,
+        code: info.code || '',
+        title: info.title || '',
+        instructor: info.instructor || '',
+        email: info.email || '',
+        completion: (info.pct || 0) / 100,
+        sessionStart: info.session || '',
+        createdAirtable: (info.importedAt || '').slice(0,10)
+      };
+      try {
+        var res = importAirtableCourseRecord(cand);
+        if (res && res.ok) {
+          info.addedToDashboard = true;
+          changed = true;
+          if (!res.existed) added++;
+        }
+      } catch(e) {
+        console.warn('[airtable auto] import failed for', rid, e && e.message);
+      }
+    });
+    if (changed) saveAirtableAutoImportsMap(map);
+    return added;
+  }
+
+  function getUnseenAutoImports() {
+    var map = readAirtableAutoImports();
+    var out = [];
+    Object.keys(map).forEach(function(rid) {
+      var info = map[rid];
+      if (info && info.seen === false) out.push(info);
+    });
+    return out;
+  }
+
+  function renderAirtableAutoBanner() {
+    var el = document.getElementById('airtable-auto-banner');
+    if (!el) return;
+    var unseen = getUnseenAutoImports();
+    if (unseen.length === 0) { el.style.display = 'none'; return; }
+    var codes = unseen.map(function(i) { return i.code || '(no code)'; }).join(', ');
+    var noun = unseen.length === 1 ? 'course' : 'courses';
+    var esc = function(s) { return String(s).replace(/[&<>"']/g, function(m) { return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[m]; }); };
+    el.innerHTML =
+      '<div class="airtable-banner-inner auto">' +
+        '<span class="airtable-banner-icon">🆕</span>' +
+        '<span class="airtable-banner-text"><strong>' + unseen.length + ' new ' + noun + ' auto-added from Airtable:</strong> ' + esc(codes) + '</span>' +
+        '<button class="airtable-banner-btn primary" onclick="acknowledgeAirtableAutoImports()">Got it</button>' +
+      '</div>';
+    el.style.display = 'block';
+  }
+
+  window.acknowledgeAirtableAutoImports = function() {
+    var map = readAirtableAutoImports();
+    var changed = false;
+    Object.keys(map).forEach(function(rid) {
+      if (map[rid] && map[rid].seen === false) {
+        map[rid].seen = true;
+        changed = true;
+      }
+    });
+    if (changed) saveAirtableAutoImportsMap(map);
+    renderAirtableAutoBanner();
   };
 
   // Airtable → dashboard course mapping. Mirrors the shape built in submitNewCourse().
