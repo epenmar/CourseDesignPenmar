@@ -5461,7 +5461,7 @@
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
-    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); }
+    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); }
     if (viewId === 'course-parser') { renderCourseParser(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
@@ -8990,14 +8990,18 @@ ${clone.innerHTML}
 
     var userQuery =
       'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
-      'Return exactly these sections as HTML:\n' +
-      '1. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module.\n' +
-      '2. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers.\n' +
-      '3. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      'Return exactly these sections in order as HTML:\n' +
+      '1. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
+      '2. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
+      '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
+      '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
+      '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. MLOs should each begin with the module number, e.g. "1.1 Analyze X".\n' +
+      '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3".\n' +
+      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
     try {
-      var result = await callCreateAI(userQuery, systemPrompt, 4096);
+      var result = await callCreateAI(userQuery, systemPrompt, 6000);
       var html = (result || '').trim();
       html = html.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
@@ -9028,58 +9032,162 @@ ${clone.innerHTML}
     cpCloseFolderPanel();
   }
 
+  function cpSectionAfter(propEl, headingMatcher) {
+    var hs = propEl.querySelectorAll('h1, h2, h3');
+    for (var i = 0; i < hs.length; i++) {
+      if (headingMatcher(hs[i].textContent.trim().toLowerCase())) {
+        var out = [];
+        var sib = hs[i].nextElementSibling;
+        while (sib && !/^H[1-3]$/i.test(sib.tagName)) { out.push(sib); sib = sib.nextElementSibling; }
+        return out;
+      }
+    }
+    return [];
+  }
+
+  function cpSectionItems(propEl, headingMatcher) {
+    var nodes = cpSectionAfter(propEl, headingMatcher);
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].tagName === 'UL' || nodes[i].tagName === 'OL') {
+        var lis = nodes[i].querySelectorAll('li');
+        return Array.from(lis).map(function(li) { return li.textContent.trim(); }).filter(Boolean);
+      }
+    }
+    return [];
+  }
+
+  function cpSectionParagraph(propEl, headingMatcher) {
+    var nodes = cpSectionAfter(propEl, headingMatcher);
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].tagName === 'P') return nodes[i].textContent.trim();
+    }
+    return nodes.map(function(n) { return n.textContent.trim(); }).filter(Boolean).join(' ');
+  }
+
+  function cpSetFormField(id, value) {
+    var el = document.getElementById(id);
+    if (el) { el.value = value; if (typeof autoGrowTextarea === 'function') autoGrowTextarea(el); }
+    try {
+      var formData = loadField('formData') || {};
+      formData[id] = value;
+      saveField('formData', formData);
+    } catch (e) {}
+  }
+
+  function cpFindTable(propEl, mustHave) {
+    var tables = propEl.querySelectorAll('table');
+    for (var t = 0; t < tables.length; t++) {
+      var headerText = (tables[t].tHead ? tables[t].tHead.textContent : (tables[t].rows[0] ? tables[t].rows[0].textContent : '')).toLowerCase();
+      var ok = true;
+      for (var i = 0; i < mustHave.length; i++) { if (headerText.indexOf(mustHave[i]) === -1) { ok = false; break; } }
+      if (ok) return tables[t];
+    }
+    return null;
+  }
+
+  function cpHeaderIndex(table, matchers) {
+    var cells = (table.tHead ? table.tHead.rows[0] : table.rows[0]).cells;
+    var result = {};
+    Object.keys(matchers).forEach(function(k) { result[k] = -1; });
+    for (var h = 0; h < cells.length; h++) {
+      var txt = cells[h].textContent.trim().toLowerCase();
+      Object.keys(matchers).forEach(function(k) {
+        if (result[k] !== -1) return;
+        if (matchers[k](txt)) result[k] = h;
+      });
+    }
+    return result;
+  }
+
+  function cpCellToList(cell) {
+    if (!cell) return [];
+    var out = [];
+    var lis = cell.querySelectorAll('li');
+    if (lis.length) {
+      lis.forEach(function(li) { var s = li.textContent.trim(); if (s) out.push(s); });
+    } else {
+      cell.textContent.split(/\n|•|·|—|\u2022|;|,/).forEach(function(s) {
+        s = s.trim(); if (s) out.push(s);
+      });
+    }
+    return out;
+  }
+
   function pushCourseParserToWorksheet() {
     var propEl = document.getElementById('cp-proposed');
     if (!propEl) return;
-    var tables = propEl.querySelectorAll('table');
-    var structTable = null;
-    for (var t = 0; t < tables.length; t++) {
-      var headerText = (tables[t].tHead ? tables[t].tHead.textContent : (tables[t].rows[0] ? tables[t].rows[0].textContent : '')).toLowerCase();
-      if (headerText.indexOf('module') !== -1 && (headerText.indexOf('topic') !== -1 || headerText.indexOf('weeks') !== -1)) {
-        structTable = tables[t];
-        break;
-      }
-    }
+
+    var overviewText = cpSectionParagraph(propEl, function(t) { return t.indexOf('course overview') !== -1 || (t.indexOf('overview') !== -1 && t.indexOf('module') === -1 && t.indexOf('structure') === -1); });
+    var textbookItems = cpSectionItems(propEl, function(t) { return t.indexOf('textbook') !== -1 || (t.indexOf('materials') !== -1 && t.indexOf('learning') === -1); });
+    var cloItems = cpSectionItems(propEl, function(t) { return t.indexOf('course learning') !== -1 || (/\bclo/.test(t)); });
+    var eloItems = cpSectionItems(propEl, function(t) { return t.indexOf('enduring') !== -1 || (/\belo/.test(t)); });
+
+    var structTable = cpFindTable(propEl, ['module']);
     if (!structTable) { alert('Could not find the Proposed Module Structure table in the AI output.'); return; }
 
-    var headerCells = (structTable.tHead ? structTable.tHead.rows[0] : structTable.rows[0]).cells;
-    var colIdx = { module: -1, topic: -1, mlos: -1 };
-    for (var h = 0; h < headerCells.length; h++) {
-      var txt = headerCells[h].textContent.trim().toLowerCase();
-      if (colIdx.module === -1 && /module\b/.test(txt) && txt.indexOf('objective') === -1) colIdx.module = h;
-      else if (colIdx.topic === -1 && txt.indexOf('topic') !== -1) colIdx.topic = h;
-      else if (colIdx.mlos === -1 && (txt.indexOf('objective') !== -1 || txt.indexOf('mlo') !== -1)) colIdx.mlos = h;
-    }
-    if (colIdx.module === -1 || colIdx.topic === -1) { alert('Table is missing a Module or Topic column.'); return; }
+    var structIdx = cpHeaderIndex(structTable, {
+      module: function(t) { return /module\b/.test(t) && t.indexOf('objective') === -1 && t.indexOf('activity') === -1; },
+      topic: function(t) { return t.indexOf('topic') !== -1; },
+      mlos: function(t) { return t.indexOf('objective') !== -1 || t.indexOf('mlo') !== -1; },
+      materials: function(t) { return t.indexOf('material') !== -1 || t.indexOf('reading') !== -1 || t.indexOf('resource') !== -1; }
+    });
+    if (structIdx.module === -1 || structIdx.topic === -1) { alert('Table is missing a Module or Topic column.'); return; }
 
     var bodyRows = structTable.tBodies.length ? structTable.tBodies[0].rows : Array.prototype.slice.call(structTable.rows, 1);
     var parsed = [];
     for (var r = 0; r < bodyRows.length; r++) {
       var cells = bodyRows[r].cells;
-      if (!cells || cells.length <= Math.max(colIdx.module, colIdx.topic)) continue;
-      var modText = cells[colIdx.module].textContent.trim();
+      if (!cells || cells.length <= Math.max(structIdx.module, structIdx.topic)) continue;
+      var modText = cells[structIdx.module].textContent.trim();
       var modMatch = modText.match(/\d+/);
       var modNum = modMatch ? parseInt(modMatch[0], 10) : (parsed.length + 1);
-      var topic = cells[colIdx.topic].textContent.trim();
-      var mlos = [];
-      if (colIdx.mlos !== -1 && cells[colIdx.mlos]) {
-        var lis = cells[colIdx.mlos].querySelectorAll('li');
-        if (lis.length) {
-          lis.forEach(function(li) { var s = li.textContent.trim(); if (s) mlos.push(s); });
-        } else {
-          cells[colIdx.mlos].textContent.split(/\n|•|·|—|\u2022/).forEach(function(s) {
-            s = s.trim(); if (s) mlos.push(s);
+      parsed.push({
+        num: modNum,
+        topic: cells[structIdx.topic].textContent.trim(),
+        mlos: structIdx.mlos !== -1 ? cpCellToList(cells[structIdx.mlos]) : [],
+        materials: structIdx.materials !== -1 ? cpCellToList(cells[structIdx.materials]) : []
+      });
+    }
+    if (!parsed.length) { alert('No module rows found in the table.'); return; }
+
+    var assignTable = cpFindTable(propEl, ['activity']);
+    var assignRows = [];
+    if (assignTable) {
+      var assignIdx = cpHeaderIndex(assignTable, {
+        module: function(t) { return /module\b/.test(t); },
+        objectives: function(t) { return t.indexOf('objective') !== -1; },
+        activity: function(t) { return t.indexOf('activity') !== -1 || t.indexOf('assignment') !== -1; },
+        points: function(t) { return t.indexOf('point') !== -1; },
+        notes: function(t) { return t.indexOf('note') !== -1 || t.indexOf('detail') !== -1; }
+      });
+      if (assignIdx.module !== -1 && assignIdx.activity !== -1) {
+        var aRows = assignTable.tBodies.length ? assignTable.tBodies[0].rows : Array.prototype.slice.call(assignTable.rows, 1);
+        for (var i = 0; i < aRows.length; i++) {
+          var c = aRows[i].cells;
+          if (!c || c.length <= assignIdx.activity) continue;
+          var mm = c[assignIdx.module].textContent.trim().match(/\d+/);
+          if (!mm) continue;
+          assignRows.push({
+            modNum: parseInt(mm[0], 10),
+            objectives: assignIdx.objectives !== -1 ? cpCellToList(c[assignIdx.objectives]).map(function(s) { return s.replace(/[^0-9.]/g, ''); }).filter(Boolean) : [],
+            name: c[assignIdx.activity].textContent.trim(),
+            points: assignIdx.points !== -1 ? c[assignIdx.points].textContent.trim() : '',
+            notes: assignIdx.notes !== -1 ? c[assignIdx.notes].textContent.trim() : ''
           });
         }
       }
-      parsed.push({ num: modNum, topic: topic, mlos: mlos });
     }
 
-    if (!parsed.length) { alert('No module rows found in the table.'); return; }
     var moduleCount = parsed.length;
-    var msg = 'Push ' + moduleCount + ' module(s) into the Module Overview?\n\n' +
-      'This will overwrite existing topics and objectives in modules ' +
-      parsed.map(function(p) { return p.num; }).join(', ') + '.';
+    var msg = 'Push to worksheet?\n\n' +
+      (overviewText ? '• Course overview paragraph\n' : '') +
+      (textbookItems.length ? '• ' + textbookItems.length + ' textbook/material entry(ies)\n' : '') +
+      (cloItems.length ? '• ' + cloItems.length + ' Course Learning Outcome(s)\n' : '') +
+      (eloItems.length ? '• ' + eloItems.length + ' Enduring Learning Outcome(s)\n' : '') +
+      '• ' + moduleCount + ' module(s) with topics + objectives\n' +
+      '• ' + parsed.reduce(function(a, p) { return a + p.materials.length; }, 0) + ' module-level material(s)\n' +
+      '• ' + assignRows.length + ' assignment(s)\n\n' +
+      'This will overwrite existing content in these areas.';
     if (!confirm(msg)) return;
 
     var savedMods = loadField('moduleOverviewData') || {};
@@ -9091,8 +9199,51 @@ ${clone.innerHTML}
     saveField('moduleCount', moduleCount);
     if (typeof activeCourse !== 'undefined' && activeCourse) activeCourse.moduleCount = moduleCount;
 
+    parsed.forEach(function(p) {
+      if (!p.materials.length) return;
+      courseMaterials[p.num] = p.materials.map(function(title, idx) {
+        materialCount++;
+        return { id: 'mat-' + materialCount, type: 'Reading', title: title, links: [], richText: '' };
+      });
+    });
+    assignRows.forEach(function(a) {
+      if (!courseActivities[a.modNum]) courseActivities[a.modNum] = [];
+      activityCounter++;
+      courseActivities[a.modNum].push({
+        id: 'act-' + activityCounter,
+        objectives: a.objectives,
+        name: a.name,
+        points: a.points,
+        due: '',
+        contentType: 'assignment',
+        links: [],
+        richText: a.notes ? '<p>' + escapeHtml(a.notes) + '</p>' : ''
+      });
+    });
+    saveField('courseActivities', courseActivities);
+    saveField('courseMaterials', courseMaterials);
+
+    if (overviewText) cpSetFormField('course-overview', overviewText);
+    if (textbookItems.length) {
+      textbookItems.forEach(function(t, i) { cpSetFormField('mat-textbook-' + (i + 1), t); });
+    }
+    if (cloItems.length || eloItems.length) {
+      if (typeof activeCourse !== 'undefined' && activeCourse) {
+        if (cloItems.length) activeCourse.clos = cloItems.slice();
+        if (eloItems.length) activeCourse.flatElos = eloItems.slice();
+        var clos = activeCourse.clos || [];
+        var flats = activeCourse.flatElos || [];
+        activeCourse.cloEloAlignment = clos.map(function() { return flats.map(function() { return false; }); });
+        saveField('clos', activeCourse.clos);
+        saveField('flatElos', activeCourse.flatElos);
+        saveField('cloEloAlignment', activeCourse.cloEloAlignment);
+      }
+    }
+
+    if (typeof renderAllViews === 'function') renderAllViews();
+
     var status = document.getElementById('cp-parse-status');
-    if (status) { status.textContent = '✓ Pushed ' + moduleCount + ' module(s) to the worksheet.'; status.style.color = '#2e7d32'; }
+    if (status) { status.textContent = '✓ Pushed ' + moduleCount + ' module(s), ' + assignRows.length + ' assignment(s) to the worksheet.'; status.style.color = '#2e7d32'; }
 
     if (confirm('Done. Open the Module Overview now to review?')) {
       if (typeof showView === 'function') showView('module-overview');
