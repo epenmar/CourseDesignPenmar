@@ -9154,13 +9154,14 @@ ${clone.innerHTML}
     var mainQuery =
       'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
       'Return exactly these sections in order as HTML:\n' +
-      '1. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
-      '2. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
-      '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
-      '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
-      '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
-      '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
-      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '1. <h2>Course &amp; Instructor Info</h2> followed by a <dl> with one <dt>Label</dt><dd>Value</dd> pair for each of these twelve fields (in this exact order, using the <dt> text verbatim): Course Code, Course Name, Credits, Prerequisites, Session, Instructor Name, Instructor Email, Instructor Phone, Office / Room, Zoom Link, Office Hours, Course Description. Pull values directly from the source — do not invent. For any field not mentioned in the source, output <dd><em>Not specified in the source.</em></dd>. Course Description should be the official catalog description if present (1-3 sentences), distinct from the Course Overview below.\n' +
+      '2. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
+      '3. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
+      '4. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
+      '5. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
+      '6. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
+      '7. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
+      '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
     var assignmentsQuery =
@@ -9387,6 +9388,40 @@ ${clone.innerHTML}
     });
     var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
 
+    // Course & Instructor Info: <dl> with <dt>Label</dt><dd>Value</dd> pairs. Skip "Not specified..." placeholders.
+    var infoLabelToField = {
+      'course code': 'ci-course-code',
+      'course name': 'ci-course-name',
+      'credits': 'ci-credits',
+      'prerequisites': 'ci-prerequisites',
+      'session': 'ci-session',
+      'instructor name': 'ci-instructor',
+      'instructor email': 'ci-email',
+      'instructor phone': 'ci-phone',
+      'office / room': 'ci-office',
+      'office/room': 'ci-office',
+      'office': 'ci-office',
+      'zoom link': 'ci-zoom',
+      'zoom': 'ci-zoom',
+      'office hours': 'ci-office-hours',
+      'course description': 'course-description'
+    };
+    var infoNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('instructor info') !== -1 || t.indexOf('course & instructor') !== -1 || t.indexOf('course and instructor') !== -1 || t.indexOf('course info') !== -1; });
+    var infoFields = {};
+    infoNodes.forEach(function(n) {
+      var dts = n.querySelectorAll('dt');
+      dts.forEach(function(dt) {
+        var label = (dt.textContent || '').trim().toLowerCase().replace(/[:\u00a0]+$/, '').trim();
+        var dd = dt.nextElementSibling;
+        while (dd && dd.tagName !== 'DD') dd = dd.nextElementSibling;
+        if (!dd) return;
+        var val = (dd.textContent || '').trim();
+        if (!val || /^not specified/i.test(val)) return;
+        var fieldId = infoLabelToField[label];
+        if (fieldId) infoFields[fieldId] = val;
+      });
+    });
+
     var structTable = cpFindTable(propEl, ['module']);
     if (!structTable) { showErrorBanner('Could not find the Proposed Module Structure table in the AI output.'); return; }
 
@@ -9468,7 +9503,9 @@ ${clone.innerHTML}
     }
 
     var moduleCount = parsed.length;
+    var infoFieldCount = Object.keys(infoFields).length;
     var msg = 'Push to worksheet?\n\n' +
+      (infoFieldCount ? '• ' + infoFieldCount + ' course & instructor field(s)\n' : '') +
       (overviewText ? '• Course overview paragraph\n' : '') +
       (textbookItems.length ? '• ' + textbookItems.length + ' textbook/material entry(ies)\n' : '') +
       (cloItems.length ? '• ' + cloItems.length + ' Course Learning Outcome(s)\n' : '') +
@@ -9516,6 +9553,9 @@ ${clone.innerHTML}
     if (textbookItems.length) {
       textbookItems.forEach(function(t, i) { cpSetFormField('mat-textbook-' + (i + 1), t); });
     }
+    Object.keys(infoFields).forEach(function(fieldId) {
+      cpSetFormField(fieldId, infoFields[fieldId]);
+    });
     contextAnswers.forEach(function(ans, i) {
       if (ans && contextFieldIds[i]) cpSetFormField(contextFieldIds[i], ans);
     });
@@ -9543,11 +9583,14 @@ ${clone.innerHTML}
       elos: (loadField('flatElos') || []).length,
       activities: 0,
       materials: 0,
-      context: 0
+      context: 0,
+      info: 0
     };
     var vFormData = loadField('formData') || {};
     for (var tk in vFormData) { if (tk.indexOf('mat-textbook-') === 0 && vFormData[tk]) verify.textbooks++; }
     contextFieldIds.forEach(function(id) { if (vFormData[id]) verify.context++; });
+    var infoFieldIds = ['ci-course-code', 'ci-course-name', 'ci-credits', 'ci-prerequisites', 'ci-session', 'ci-instructor', 'ci-email', 'ci-phone', 'ci-office', 'ci-zoom', 'ci-office-hours', 'course-description'];
+    infoFieldIds.forEach(function(id) { if (vFormData[id]) verify.info++; });
     var vActs = loadField('courseActivities') || {};
     for (var ak in vActs) verify.activities += (vActs[ak] || []).length;
     var vMats = loadField('courseMaterials') || {};
@@ -9564,12 +9607,13 @@ ${clone.innerHTML}
         var color = ok ? '#2e7d32' : '#999';
         return '<div style="display:flex; justify-content:space-between; padding:3px 0; color:' + color + ';"><span>' + label + '</span><span style="font-weight:600;">' + val + '</span></div>';
       };
-      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context;
+      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context || !verify.info;
       var allFailed = !verify.modules;
       var lines = [
         '<strong style="color:' + (allFailed ? '#c62828' : '#2e7d32') + '; font-size:14px;">' + (allFailed ? '⚠ Nothing pushed' : '✓ Pushed to worksheet') + '</strong>',
         '<div style="margin-top:8px; font-size:12px;">',
         row('Modules (topics + objectives)', verify.modules),
+        row('Course & instructor info fields', verify.info),
         row('Course overview paragraph', verify.overview, true),
         row('Textbook entries', verify.textbooks),
         row('Course Learning Outcomes', verify.clos),
