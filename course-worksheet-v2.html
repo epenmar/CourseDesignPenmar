@@ -9149,8 +9149,20 @@ ${clone.innerHTML}
   }
 
   function pushCourseParserToWorksheet() {
+    console.log('[CourseParser] pushCourseParserToWorksheet called');
+    var banner = document.getElementById('cp-push-result');
+    var showErrorBanner = function(msg) {
+      if (!banner) { alert(msg); return; }
+      banner.innerHTML = '<strong style="color:#c62828; font-size:14px;">⚠ ' + msg + '</strong>';
+      banner.style.background = '#ffebee';
+      banner.style.border = '1px solid #ef9a9a';
+      banner.style.display = 'block';
+      banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    try {
     var propEl = document.getElementById('cp-proposed');
-    if (!propEl) return;
+    if (!propEl) { showErrorBanner('Review pane not found — try re-running Parse.'); return; }
+    if (!propEl.innerHTML.trim()) { showErrorBanner('The proposal pane is empty. Re-run 🪄 Parse with AI first.'); return; }
 
     var overviewText = cpSectionParagraph(propEl, function(t) { return t.indexOf('course overview') !== -1 || (t.indexOf('overview') !== -1 && t.indexOf('module') === -1 && t.indexOf('structure') === -1); });
     var textbookItems = cpSectionItems(propEl, function(t) { return t.indexOf('textbook') !== -1 || (t.indexOf('materials') !== -1 && t.indexOf('learning') === -1); });
@@ -9158,7 +9170,7 @@ ${clone.innerHTML}
     var eloItems = cpSectionItems(propEl, function(t) { return t.indexOf('enduring') !== -1 || (/\belo/.test(t)); });
 
     var structTable = cpFindTable(propEl, ['module']);
-    if (!structTable) { alert('Could not find the Proposed Module Structure table in the AI output.'); return; }
+    if (!structTable) { showErrorBanner('Could not find the Proposed Module Structure table in the AI output.'); return; }
 
     var structIdx = cpHeaderIndex(structTable, {
       module: function(t) { return /module\b/.test(t) && t.indexOf('objective') === -1 && t.indexOf('activity') === -1; },
@@ -9166,7 +9178,7 @@ ${clone.innerHTML}
       mlos: function(t) { return t.indexOf('objective') !== -1 || t.indexOf('mlo') !== -1; },
       materials: function(t) { return t.indexOf('material') !== -1 || t.indexOf('reading') !== -1 || t.indexOf('resource') !== -1; }
     });
-    if (structIdx.module === -1 || structIdx.topic === -1) { alert('Table is missing a Module or Topic column.'); return; }
+    if (structIdx.module === -1 || structIdx.topic === -1) { showErrorBanner('Table is missing a Module or Topic column.'); return; }
 
     var bodyRows = structTable.tBodies.length ? structTable.tBodies[0].rows : Array.prototype.slice.call(structTable.rows, 1);
     var parsed = [];
@@ -9183,7 +9195,7 @@ ${clone.innerHTML}
         materials: structIdx.materials !== -1 ? cpCellToList(cells[structIdx.materials]) : []
       });
     }
-    if (!parsed.length) { alert('No module rows found in the table.'); return; }
+    if (!parsed.length) { showErrorBanner('No module rows found in the table.'); return; }
 
     var assignTable = cpFindTable(propEl, ['activity']);
     var assignRows = [];
@@ -9331,6 +9343,10 @@ ${clone.innerHTML}
       banner.style.border = '1px solid ' + (allFailed ? '#ef9a9a' : (missingAny ? '#ffe082' : '#a5d6a7'));
       banner.style.display = 'block';
       banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    } catch (err) {
+      console.error('[CourseParser] push failed:', err);
+      showErrorBanner('Push failed: ' + (err && err.message || err) + ' — see browser console for details.');
     }
   }
 
