@@ -9141,7 +9141,7 @@ ${clone.innerHTML}
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Parsing…'; }
     if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules… (source: ' + Math.round(raw.length / 1024) + ' KB)'; status.style.color = '#888'; }
 
-    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>. Do NOT include <html>, <body>, <style>, or markdown fences.';
+    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>, <dl>, <dt>, <dd>. You MUST output every section listed in the instructions, in order, even if the source does not mention the relevant information — emit the heading and then placeholder values rather than skipping the section. Do NOT include <html>, <body>, <style>, or markdown fences.';
 
     var weeksPerModule = Math.floor(sourceWeeks / targetModules);
     var extraWeeks = sourceWeeks - (targetModules * weeksPerModule);
@@ -9408,17 +9408,33 @@ ${clone.innerHTML}
     };
     var infoNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('instructor info') !== -1 || t.indexOf('course & instructor') !== -1 || t.indexOf('course and instructor') !== -1 || t.indexOf('course info') !== -1; });
     var infoFields = {};
+    var recordInfoField = function(rawLabel, rawValue) {
+      var label = (rawLabel || '').trim().toLowerCase().replace(/[:\u00a0]+$/, '').trim();
+      var val = (rawValue || '').trim().replace(/^[:\s]+/, '');
+      if (!val || /^not specified/i.test(val)) return;
+      var fieldId = infoLabelToField[label];
+      if (fieldId && !infoFields[fieldId]) infoFields[fieldId] = val;
+    };
     infoNodes.forEach(function(n) {
-      var dts = n.querySelectorAll('dt');
-      dts.forEach(function(dt) {
-        var label = (dt.textContent || '').trim().toLowerCase().replace(/[:\u00a0]+$/, '').trim();
+      // Primary format: <dl><dt>Label</dt><dd>Value</dd></dl>
+      n.querySelectorAll('dt').forEach(function(dt) {
         var dd = dt.nextElementSibling;
         while (dd && dd.tagName !== 'DD') dd = dd.nextElementSibling;
-        if (!dd) return;
-        var val = (dd.textContent || '').trim();
-        if (!val || /^not specified/i.test(val)) return;
-        var fieldId = infoLabelToField[label];
-        if (fieldId) infoFields[fieldId] = val;
+        if (dd) recordInfoField(dt.textContent, dd.textContent);
+      });
+      // Fallback: <p><strong>Label:</strong> Value</p> or <li><strong>Label:</strong> Value</li>
+      n.querySelectorAll('p, li').forEach(function(el) {
+        var strong = el.querySelector('strong, b');
+        if (!strong) return;
+        var label = strong.textContent || '';
+        var full = el.textContent || '';
+        var val = full.slice(label.length);
+        recordInfoField(label, val);
+      });
+      // Fallback: <h3>Label</h3><p>Value</p> pairs
+      n.querySelectorAll('h3, h4').forEach(function(h) {
+        var next = h.nextElementSibling;
+        if (next && /^(P|DIV|SPAN)$/i.test(next.tagName)) recordInfoField(h.textContent, next.textContent);
       });
     });
 
