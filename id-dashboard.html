@@ -288,6 +288,28 @@
   .pn-target-chip.jira { background: #e8f0fe; color: #1565c0; border-color: #bbd4f7; }
   .pn-target-chip.airtable { background: #fff3e0; color: #e65100; border-color: #ffd8a8; }
 
+  /* ===== AIRTABLE SYNC BANNER + MODAL ===== */
+  #airtable-sync-banner { display: none; margin: 0 0 14px 0; }
+  .airtable-banner-inner { display: flex; align-items: center; gap: 12px; padding: 10px 14px; background: #fff8e1; border: 1px solid #ffd54f; border-radius: 10px; font-size: 13px; }
+  .airtable-banner-icon { font-size: 16px; }
+  .airtable-banner-text { flex: 1; color: #5d4037; }
+  .airtable-banner-btn { padding: 5px 12px; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #d7ccc8; background: #fff; color: #5d4037; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .airtable-banner-btn:hover { background: #efebe9; }
+  .airtable-banner-btn.primary { background: #e65100; color: #fff; border-color: #e65100; }
+  .airtable-banner-btn.primary:hover { background: #bf360c; }
+  #airtable-sync-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.45); z-index: 1000; align-items: center; justify-content: center; }
+  .airtable-sync-card { background: #fff; border-radius: 12px; width: 90%; max-width: 640px; max-height: 80vh; display: flex; flex-direction: column; font-family: 'Inter', sans-serif; }
+  .airtable-sync-header { padding: 16px 20px; border-bottom: 1px solid #ebe8e0; display: flex; align-items: center; justify-content: space-between; }
+  .airtable-sync-header h3 { margin: 0; font-size: 16px; }
+  .airtable-sync-body { padding: 12px 20px; overflow-y: auto; flex: 1; }
+  .airtable-sync-footer { padding: 12px 20px; border-top: 1px solid #ebe8e0; display: flex; justify-content: flex-end; gap: 8px; }
+  .airtable-sync-row { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid #f5f3ee; cursor: pointer; }
+  .airtable-sync-row:last-child { border-bottom: none; }
+  .airtable-sync-info { flex: 1; }
+  .airtable-sync-title { font-size: 13px; color: #333; }
+  .airtable-sync-meta { font-size: 11px; color: #888; margin-top: 2px; }
+  .airtable-sync-cb { margin-top: 3px; }
+
   /* ===== ACTIVITY WIDGET ===== */
   .activity-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
   .activity-badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; }
@@ -575,6 +597,9 @@
     <div class="upcoming-list" id="upcoming-list"></div>
   </div>
 
+  <!-- AIRTABLE SYNC BANNER (shown when new records detected) -->
+  <div id="airtable-sync-banner"></div>
+
   <!-- COURSE TABLE -->
   <div class="dash-section courses">
     <div class="section-header">
@@ -583,7 +608,10 @@
         <button class="table-tab" data-tab="developments" onclick="switchTableTab('developments')">Developments <span class="tab-count" id="tab-count-developments"></span></button>
         <button class="table-tab" data-tab="ongoing" onclick="switchTableTab('ongoing')">On-going <span class="tab-count" id="tab-count-ongoing"></span></button>
       </div>
-      <button onclick="openAddCourseModal()" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">+ Add Course</button>
+      <div style="display:flex; gap:8px;">
+        <button id="airtable-sync-btn" onclick="syncAirtableCourses({toastOnEmpty:true})" style="padding:6px 14px; background:#fff; color:#e65100; border:1.5px solid #e65100; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;" title="Pull your Course Developments from Airtable">🔄 Sync Airtable</button>
+        <button onclick="openAddCourseModal()" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">+ Add Course</button>
+      </div>
     </div>
 
     <div class="filters" id="filters-row">
@@ -619,6 +647,24 @@
           <!-- Rendered by JS -->
         </tbody>
       </table>
+    </div>
+  </div>
+</div>
+
+<!-- ===== AIRTABLE SYNC MODAL ===== -->
+<div id="airtable-sync-modal">
+  <div class="airtable-sync-card">
+    <div class="airtable-sync-header">
+      <h3>New Courses from Airtable</h3>
+      <button onclick="closeAirtableSyncModal()" style="background:none; border:none; font-size:20px; cursor:pointer; color:#888;">&times;</button>
+    </div>
+    <div class="airtable-sync-body">
+      <div style="font-size:12px; color:#666; margin-bottom:10px;">Uncheck any you don't want to import. Existing courses linked by the same Airtable record ID will be skipped.</div>
+      <div id="airtable-sync-list"></div>
+    </div>
+    <div class="airtable-sync-footer">
+      <button class="airtable-banner-btn" onclick="dismissAllAirtableCandidates(); closeAirtableSyncModal();">Dismiss All</button>
+      <button class="airtable-banner-btn primary" onclick="importSelectedAirtableCourses()">Add Selected</button>
     </div>
   </div>
 </div>
@@ -1850,6 +1896,302 @@
     if (entered === null) return;
     setAirtablePat(entered);
     if (courseId) renderDetail(courseId);
+    // Re-render the sync banner in case PAT presence flipped
+    if (typeof renderAirtableSyncBanner === 'function') renderAirtableSyncBanner();
+  };
+
+  // ===== AIRTABLE COURSE SYNC =====
+  // Pulls Course Developments linked to Elisa's Stakeholder record and offers to
+  // import any that aren't already on the dashboard. Banner appears on the
+  // dashboard when new-to-us records are detected.
+  var AIRTABLE_BASE_ID = 'appRrjeSGPrfXPSuu';
+  var AIRTABLE_STAKEHOLDERS_TABLE = 'tblrrgIPU8UsVGcUg';
+  var AIRTABLE_DEVELOPMENTS_TABLE = 'tblhu9fDKBqoG9HQ3';
+  var AIRTABLE_MY_STAKEHOLDER_ID = 'recq21R3WHqhbqHAt'; // Elisa Penmar
+
+  function getAirtableSyncState() {
+    try {
+      var raw = localStorage.getItem('airtable_sync_state');
+      if (!raw) return { lastSyncAt: null, knownRecordIds: [], dismissedRecordIds: [], candidates: [] };
+      var s = JSON.parse(raw);
+      s.knownRecordIds = s.knownRecordIds || [];
+      s.dismissedRecordIds = s.dismissedRecordIds || [];
+      s.candidates = s.candidates || [];
+      return s;
+    } catch(e) { return { lastSyncAt: null, knownRecordIds: [], dismissedRecordIds: [], candidates: [] }; }
+  }
+  function saveAirtableSyncState(s) {
+    localStorage.setItem('airtable_sync_state', JSON.stringify(s));
+  }
+
+  // Scan dashboard courses to find Airtable record IDs already imported.
+  // Looks at both the in-memory flag AND the per-course Airtable URL so seeded
+  // courses without user_courses entries are still recognized after reload.
+  function getImportedAirtableRecordIds() {
+    var ids = {};
+    var urlMap = readAirtableUrls();
+    Object.keys(courseData).forEach(function(k) {
+      var rid = courseData[k] && courseData[k].airtableRecordId;
+      if (!rid && urlMap[k]) {
+        var parsed = parseAirtableUrl(urlMap[k]);
+        if (parsed) rid = parsed.recordId;
+      }
+      if (rid) ids[rid] = k;
+    });
+    return ids;
+  }
+
+  // Fetch all Course Development records linked to Elisa's stakeholder.
+  // Returns an array of lean record objects for the UI.
+  async function fetchAirtableCourseCandidates() {
+    var pat = getAirtablePat();
+    if (!pat) throw new Error('No Airtable PAT set');
+    // Step 1: read stakeholder record to get linked Course Developments
+    var shUrl = 'https://api.airtable.com/v0/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_STAKEHOLDERS_TABLE + '/' + AIRTABLE_MY_STAKEHOLDER_ID;
+    var shRes = await fetch(shUrl, { headers: { 'Authorization': 'Bearer ' + pat } });
+    if (!shRes.ok) {
+      var errJson = await shRes.json().catch(function(){ return {}; });
+      throw new Error((errJson.error && (errJson.error.message || errJson.error.type)) || ('Stakeholder fetch failed: HTTP ' + shRes.status));
+    }
+    var sh = await shRes.json();
+    var devIds = (sh.fields && sh.fields['Course Developments 2']) || [];
+    if (devIds.length === 0) return [];
+    // Step 2: fetch the course development records, chunked by 25 (URL-length safe)
+    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created'];
+    var fieldQs = fields.map(function(f) { return 'fields%5B%5D=' + encodeURIComponent(f); }).join('&');
+    var all = [];
+    for (var i = 0; i < devIds.length; i += 25) {
+      var chunk = devIds.slice(i, i + 25);
+      var formula = 'OR(' + chunk.map(function(rid) { return 'RECORD_ID()%3D%22' + rid + '%22'; }).join('%2C') + ')';
+      var cdUrl = 'https://api.airtable.com/v0/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + '&' + fieldQs;
+      var cdRes = await fetch(cdUrl, { headers: { 'Authorization': 'Bearer ' + pat } });
+      if (!cdRes.ok) {
+        var errJson2 = await cdRes.json().catch(function(){ return {}; });
+        throw new Error((errJson2.error && (errJson2.error.message || errJson2.error.type)) || ('Course fetch failed: HTTP ' + cdRes.status));
+      }
+      var cdBody = await cdRes.json();
+      (cdBody.records || []).forEach(function(r) { all.push(r); });
+    }
+    return all.map(function(r) {
+      var f = r.fields || {};
+      var sessionArr = f['Session Launch (Start Date)'] || [];
+      return {
+        recordId: r.id,
+        code: f['Course'] || '',
+        title: f['Course Title'] || '',
+        instructor: f['Faculty Developer Name'] || '',
+        email: f['Faculty Developer Email'] || '',
+        completion: f['Course Completion Percentage'] || 0,
+        sessionStart: sessionArr[0] || '',
+        createdAirtable: f['Created'] || r.createdTime.slice(0,10)
+      };
+    });
+  }
+
+  // Public: run a full sync. Updates state, refreshes the banner, optionally opens modal.
+  window.syncAirtableCourses = async function(opts) {
+    opts = opts || {};
+    var pat = getAirtablePat();
+    if (!pat) {
+      window.setAirtablePatPrompt();
+      return;
+    }
+    var btn = document.getElementById('airtable-sync-btn');
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
+    try {
+      var candidates = await fetchAirtableCourseCandidates();
+      // Auto-link: if a candidate's course code already exists on the dashboard,
+      // silently stamp the Airtable record ID on it instead of surfacing as "new".
+      var autoLinked = 0;
+      candidates.forEach(function(c) {
+        var codeKey = (c.code || '').toLowerCase().replace(/\s+/g, '');
+        if (codeKey && courseData[codeKey] && !courseData[codeKey].airtableRecordId) {
+          importAirtableCourseRecord(c); // existed=true branch runs, stamps ID + URL
+          autoLinked++;
+        }
+      });
+      var imported = getImportedAirtableRecordIds();
+      var state = getAirtableSyncState();
+      // A candidate is "new" if it's not imported AND not previously dismissed
+      var newOnes = candidates.filter(function(c) { return !imported[c.recordId] && state.dismissedRecordIds.indexOf(c.recordId) === -1; });
+      state.candidates = candidates;
+      state.lastSyncAt = new Date().toISOString();
+      state.knownRecordIds = candidates.map(function(c) { return c.recordId; });
+      saveAirtableSyncState(state);
+      renderAirtableSyncBanner();
+      if (autoLinked > 0) { renderTable(); }
+      if (opts.openIfNew && newOnes.length > 0) openAirtableSyncModal();
+      if (opts.toastOnEmpty && newOnes.length === 0) alert('All set — no new Airtable courses to import.' + (autoLinked > 0 ? ' (Linked ' + autoLinked + ' existing course' + (autoLinked === 1 ? '' : 's') + ' to Airtable.)' : ''));
+    } catch (e) {
+      alert('Airtable sync failed: ' + (e && e.message || e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = '🔄 Sync Airtable'; }
+    }
+  };
+
+  function getAirtableNewCandidates() {
+    var state = getAirtableSyncState();
+    var imported = getImportedAirtableRecordIds();
+    return (state.candidates || []).filter(function(c) {
+      return !imported[c.recordId] && state.dismissedRecordIds.indexOf(c.recordId) === -1;
+    });
+  }
+
+  function renderAirtableSyncBanner() {
+    var el = document.getElementById('airtable-sync-banner');
+    if (!el) return;
+    var newOnes = getAirtableNewCandidates();
+    if (newOnes.length === 0) { el.style.display = 'none'; return; }
+    var noun = newOnes.length === 1 ? 'course' : 'courses';
+    el.innerHTML =
+      '<div class="airtable-banner-inner">' +
+        '<span class="airtable-banner-icon">🔔</span>' +
+        '<span class="airtable-banner-text"><strong>' + newOnes.length + ' new ' + noun + '</strong> from Airtable ready to add to your dashboard.</span>' +
+        '<button class="airtable-banner-btn primary" onclick="openAirtableSyncModal()">Review</button>' +
+        '<button class="airtable-banner-btn" onclick="dismissAllAirtableCandidates()">Dismiss</button>' +
+      '</div>';
+    el.style.display = 'block';
+  }
+
+  window.dismissAllAirtableCandidates = function() {
+    var state = getAirtableSyncState();
+    var imported = getImportedAirtableRecordIds();
+    (state.candidates || []).forEach(function(c) {
+      if (!imported[c.recordId] && state.dismissedRecordIds.indexOf(c.recordId) === -1) {
+        state.dismissedRecordIds.push(c.recordId);
+      }
+    });
+    saveAirtableSyncState(state);
+    renderAirtableSyncBanner();
+  };
+
+  // Airtable → dashboard course mapping. Mirrors the shape built in submitNewCourse().
+  function importAirtableCourseRecord(cand) {
+    var code = cand.code || '';
+    var name = cand.title || code;
+    var key = code.toLowerCase().replace(/\s+/g, '');
+    if (!code || !key) return { ok: false, error: 'Record has no Course code' };
+    if (courseData[key]) {
+      // Already exists by code — just stamp the record ID for future matching
+      var saved0 = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      if (saved0[key]) {
+        saved0[key].airtableRecordId = cand.recordId;
+        localStorage.setItem('user_courses', JSON.stringify(saved0));
+      }
+      courseData[key].airtableRecordId = cand.recordId;
+      setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
+      return { ok: true, key: key, existed: true };
+    }
+    var instructor = cand.instructor || 'TBD';
+    var parts = instructor.split(/\s+/);
+    var initials = parts.length >= 2 ? (parts[0][0] + parts[parts.length-1][0]).toUpperCase() : instructor.substring(0,2).toUpperCase();
+    var colorIdx = Object.keys(courseData).length % avatarColors.length;
+    var modCount = 7;
+    var modules = [];
+    for (var i = 1; i <= modCount; i++) modules.push({ name: 'Module ' + i, desc: 'TBD', state: 'empty', label: 'Not started' });
+    var pct = Math.round((cand.completion || 0) * 100);
+    var sessionShort = cand.sessionStart || '—';
+    var entry = {
+      title: code + ' — ' + name,
+      subtitle: instructor + ' \u2022 ' + (sessionShort !== '—' ? ('Launches ' + sessionShort) : 'Session TBD'),
+      code: code, courseName: name,
+      program: code.split(/\s/)[0], college: '',
+      instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
+      session: sessionShort, phase: pct >= 100 ? 'Complete' : (pct > 0 ? 'In Progress' : 'Not Started'),
+      progressLabel: pct + '% — ' + (pct >= 100 ? 'Complete' : pct > 0 ? 'In progress' : 'Not started'),
+      fillClass: pct >= 75 ? 'fill-green' : pct >= 40 ? 'fill-yellow' : 'fill-red',
+      lastActive: 'No activity', lastActiveStale: true,
+      status: pct >= 100 ? 'Complete' : pct > 0 ? 'In Progress' : 'Not Started',
+      statusClass: pct >= 100 ? 'status-complete' : pct > 0 ? 'status-in-progress' : 'status-not-started',
+      progress: pct, progressColor: '#999',
+      qa: '—', qaShort: '—',
+      devLink: 'course-worksheet-v2.html?course=' + key,
+      instructorSlug: instructor.split(/\s+/).pop().toLowerCase(),
+      driveFolder: '',
+      email: cand.email || '', emailName: code,
+      id: 'Elisa Penmar',
+      modules: modules,
+      milestones: [],
+      notes: null,
+      airtableRecordId: cand.recordId,
+      _userCreated: true,
+      _importedFrom: 'airtable',
+      _importedAt: new Date().toISOString()
+    };
+    var worksheetEntry = {
+      code: code, name: name,
+      fullTitle: code + ' — ' + name,
+      instructor: instructor, email: cand.email || '', office: '',
+      session: sessionShort, sessionShort: sessionShort,
+      credits: '3', prerequisites: '', sectionLines: '', enrollmentCap: '',
+      id: 'Elisa Penmar', textbook: '', driveFolder: '',
+      sessionValue: null, moduleCount: modCount, milestonesCompleted: 0, qaDate: null,
+      clos: [], elos: [],
+      modules: Array.from({length: modCount}, function(_, i) { return { title: 'Module ' + (i+1), num: i+1, mlos: [] }; }),
+      users: (function() {
+        var u = {};
+        var instructorSlug = instructor.split(/\s+/).pop().toLowerCase();
+        u[instructorSlug] = { name: instructor, role: 'instructor' };
+        u['penmar'] = { name: 'Elisa Penmar', role: 'id' };
+        return u;
+      })()
+    };
+    courseData[key] = entry;
+    var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    saved[key] = entry;
+    saved[key]._worksheet = worksheetEntry;
+    localStorage.setItem('user_courses', JSON.stringify(saved));
+    // Seed Airtable URL so the comment integration works immediately.
+    setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
+    return { ok: true, key: key, existed: false };
+  }
+
+  window.openAirtableSyncModal = function() {
+    var modal = document.getElementById('airtable-sync-modal');
+    if (!modal) return;
+    var list = document.getElementById('airtable-sync-list');
+    var newOnes = getAirtableNewCandidates();
+    if (newOnes.length === 0) {
+      list.innerHTML = '<div style="padding:24px; text-align:center; color:#999; font-size:13px;">No new courses found. Click sync again to refresh.</div>';
+    } else {
+      list.innerHTML = newOnes.map(function(c, i) {
+        var esc = function(s) { return String(s || '').replace(/[&<>"']/g, function(m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
+        var pct = Math.round((c.completion || 0) * 100);
+        return '<label class="airtable-sync-row"><input type="checkbox" class="airtable-sync-cb" data-rid="' + c.recordId + '" checked>' +
+          '<div class="airtable-sync-info">' +
+            '<div class="airtable-sync-title"><strong>' + esc(c.code) + '</strong> · ' + esc(c.title) + '</div>' +
+            '<div class="airtable-sync-meta">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · Launch ' + esc(c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div>' +
+          '</div>' +
+        '</label>';
+      }).join('');
+    }
+    modal.style.display = 'flex';
+    modal.onclick = function(e) { if (e.target === modal) closeAirtableSyncModal(); };
+  };
+  window.closeAirtableSyncModal = function() {
+    var modal = document.getElementById('airtable-sync-modal');
+    if (modal) modal.style.display = 'none';
+  };
+  window.importSelectedAirtableCourses = function() {
+    var cbs = document.querySelectorAll('#airtable-sync-list .airtable-sync-cb:checked');
+    var state = getAirtableSyncState();
+    var candMap = {};
+    (state.candidates || []).forEach(function(c) { candMap[c.recordId] = c; });
+    var added = 0, skipped = 0;
+    cbs.forEach(function(cb) {
+      var rid = cb.getAttribute('data-rid');
+      var c = candMap[rid];
+      if (!c) return;
+      var res = importAirtableCourseRecord(c);
+      if (res.ok && !res.existed) added++; else if (res.ok && res.existed) skipped++;
+    });
+    closeAirtableSyncModal();
+    renderSummary();
+    renderTable();
+    renderFilters();
+    renderColumnFilters();
+    renderAirtableSyncBanner();
+    if (added) alert(added + ' course' + (added === 1 ? '' : 's') + ' added to your dashboard.' + (skipped ? ' ' + skipped + ' already existed (linked to Airtable for comments).' : ''));
   };
 
   // ===== WORKSHEET ACTIVITY (per-identity time tracking) =====
@@ -4082,6 +4424,14 @@
     } catch(e) {}
   })();
   renderTable();
+
+  // Airtable sync: render banner from cached state, then kick off a background refresh if PAT is set.
+  try { renderAirtableSyncBanner(); } catch(e) { console.warn('[airtable] banner render failed:', e); }
+  if (getAirtablePat()) {
+    setTimeout(function() {
+      syncAirtableCourses({}).catch(function(err) { console.warn('[airtable] background sync failed:', err && err.message || err); });
+    }, 1500);
+  }
 </script>
 
 </body>
