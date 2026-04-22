@@ -578,12 +578,14 @@
           <h2>COURSE DEVELOPMENT</h2>
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
-        <div style="display:flex; gap:2px; align-items:center;">
-          <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
+        <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
+          <div style="display:flex; gap:2px; align-items:center;">
+            <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
+            <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
+              💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
+            </button>
+          </div>
           <button class="comment-btn" title="Find &amp; Replace (Ctrl+Shift+F)" onclick="openFindReplace()">🔍</button>
-          <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
-            💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
-          </button>
         </div>
       </div>
       <div id="cloud-sync-indicator" style="font-size:10px; color:#2e7d32; margin-top:4px; min-height:12px;"></div>
@@ -9035,7 +9037,7 @@ ${clone.innerHTML}
       '3. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
       '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
       '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
-      '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3".\n' +
+      '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Due, Notes. Output EVERY assignment from EVERY module in the source (do not stop after the first few modules — all ' + targetModules + ' modules must be represented if they contain assignments). One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3". The Due cell should capture any due date, week, or deadline mentioned in the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"); if no due date is mentioned, output "TBD".\n' +
       '7. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
       '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
@@ -9049,7 +9051,7 @@ ${clone.innerHTML}
         if (isNetwork && attempt === 0) {
           if (status) { status.textContent = 'Network error — retrying with a smaller response window…'; status.style.color = '#888'; }
           await new Promise(function(res) { setTimeout(res, 1500); });
-          return await callCreateAI(userQuery, systemPrompt, 4096);
+          return await callCreateAI(userQuery, systemPrompt, 6000);
         }
         throw err;
       }
@@ -9059,7 +9061,7 @@ ${clone.innerHTML}
       if (raw.length > 150000 && status) {
         status.textContent = 'Large input (' + Math.round(raw.length / 1000) + 'KB) — this may take a while or hit size limits…';
       }
-      var result = await tryCall(6000, 0);
+      var result = await tryCall(8192, 0);
       var html = (result || '').trim();
       html = html.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
@@ -9266,6 +9268,7 @@ ${clone.innerHTML}
         objectives: function(t) { return t.indexOf('objective') !== -1; },
         activity: function(t) { return t.indexOf('activity') !== -1 || t.indexOf('assignment') !== -1; },
         points: function(t) { return t.indexOf('point') !== -1; },
+        due: function(t) { return t.indexOf('due') !== -1 || t.indexOf('deadline') !== -1 || t.indexOf('week') !== -1; },
         notes: function(t) { return t.indexOf('note') !== -1 || t.indexOf('detail') !== -1; }
       });
       if (assignIdx.module !== -1 && assignIdx.activity !== -1) {
@@ -9277,11 +9280,14 @@ ${clone.innerHTML}
           if (!mm) continue;
           var activityName = cellText(c, assignIdx.activity);
           if (!activityName) continue;
+          var dueRaw = cellText(c, assignIdx.due);
+          if (/^tbd$/i.test(dueRaw)) dueRaw = '';
           assignRows.push({
             modNum: parseInt(mm[0], 10),
             objectives: cellList(c, assignIdx.objectives).map(function(s) { return s.replace(/[^0-9.]/g, ''); }).filter(Boolean),
             name: activityName,
             points: cellText(c, assignIdx.points),
+            due: dueRaw,
             notes: cellText(c, assignIdx.notes)
           });
         }
@@ -9324,7 +9330,7 @@ ${clone.innerHTML}
         objectives: a.objectives,
         name: a.name,
         points: a.points,
-        due: '',
+        due: a.due || '',
         contentType: 'assignment',
         links: [],
         richText: a.notes ? '<p>' + escapeHtml(a.notes) + '</p>' : ''
