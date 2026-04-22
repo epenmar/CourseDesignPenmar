@@ -9009,7 +9009,8 @@ ${clone.innerHTML}
       '4. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
       '5. <h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials. One row per proposed module. The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X"). The Learning Materials cell should also be a <ul><li>...</li></ul> with one item per material.\n' +
       '6. <h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Notes. One row per assignment, mapped to the new module numbers. Objective(s) cells should list MLO numbers like "1.1, 1.3".\n' +
-      '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
+      '7. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
+      '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
     // Retry helper: network hiccups and oversized payloads both surface as "Failed to fetch".
@@ -9179,6 +9180,18 @@ ${clone.innerHTML}
     var cloItems = cpSectionItems(propEl, function(t) { return t.indexOf('course learning') !== -1 || (/\bclo/.test(t)); });
     var eloItems = cpSectionItems(propEl, function(t) { return t.indexOf('enduring') !== -1 || (/\belo/.test(t)); });
 
+    // Course Context Q&A: 8 <dd> answers in order (ignore placeholder "Not specified...").
+    var contextNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('course context') !== -1 || (t.indexOf('context') !== -1 && t.indexOf('question') !== -1); });
+    var contextAnswers = [];
+    contextNodes.forEach(function(n) {
+      n.querySelectorAll('dd').forEach(function(dd) {
+        var txt = (dd.textContent || '').trim();
+        if (/^not specified/i.test(txt)) txt = '';
+        contextAnswers.push(txt);
+      });
+    });
+    var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
+
     var structTable = cpFindTable(propEl, ['module']);
     if (!structTable) { showErrorBanner('Could not find the Proposed Module Structure table in the AI output.'); return; }
 
@@ -9297,6 +9310,9 @@ ${clone.innerHTML}
     if (textbookItems.length) {
       textbookItems.forEach(function(t, i) { cpSetFormField('mat-textbook-' + (i + 1), t); });
     }
+    contextAnswers.forEach(function(ans, i) {
+      if (ans && contextFieldIds[i]) cpSetFormField(contextFieldIds[i], ans);
+    });
     if (cloItems.length || eloItems.length) {
       if (typeof activeCourse !== 'undefined' && activeCourse) {
         if (cloItems.length) activeCourse.clos = cloItems.slice();
@@ -9320,10 +9336,12 @@ ${clone.innerHTML}
       clos: (loadField('clos') || []).length,
       elos: (loadField('flatElos') || []).length,
       activities: 0,
-      materials: 0
+      materials: 0,
+      context: 0
     };
     var vFormData = loadField('formData') || {};
     for (var tk in vFormData) { if (tk.indexOf('mat-textbook-') === 0 && vFormData[tk]) verify.textbooks++; }
+    contextFieldIds.forEach(function(id) { if (vFormData[id]) verify.context++; });
     var vActs = loadField('courseActivities') || {};
     for (var ak in vActs) verify.activities += (vActs[ak] || []).length;
     var vMats = loadField('courseMaterials') || {};
@@ -9340,7 +9358,7 @@ ${clone.innerHTML}
         var color = ok ? '#2e7d32' : '#999';
         return '<div style="display:flex; justify-content:space-between; padding:3px 0; color:' + color + ';"><span>' + label + '</span><span style="font-weight:600;">' + val + '</span></div>';
       };
-      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials;
+      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials || !verify.context;
       var allFailed = !verify.modules;
       var lines = [
         '<strong style="color:' + (allFailed ? '#c62828' : '#2e7d32') + '; font-size:14px;">' + (allFailed ? '⚠ Nothing pushed' : '✓ Pushed to worksheet') + '</strong>',
@@ -9352,6 +9370,7 @@ ${clone.innerHTML}
         row('Enduring Learning Outcomes', verify.elos),
         row('Module-level materials', verify.materials),
         row('Assignments', verify.activities),
+        row('Course Context Q&A answers', verify.context),
         '</div>',
         (missingAny ? '<div style="margin-top:10px; padding:8px 10px; background:#fff8e1; border-left:3px solid #ffb300; font-size:12px; color:#795548;">Missing sections? Re-run <strong>🪄 Parse with AI</strong> — the prompt was recently updated to also generate Course Overview, Textbooks, CLOs, and ELOs. Older proposals only contained modules + assignments.</div>' : ''),
         '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">',
