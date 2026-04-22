@@ -100,13 +100,9 @@
   .card-body { margin-top: 10px; }
 
   /* ===== Course Parser ===== */
-  .cp-split { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: stretch; }
-  @media (max-width: 1000px) { .cp-split { grid-template-columns: 1fr; } }
   .cp-pane { display: flex; flex-direction: column; min-height: 500px; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; background: #fff; }
   .cp-pane-label { display: flex; align-items: center; padding: 8px 12px; background: #f5f3ee; border-bottom: 1px solid #e0ddd5; font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
-  .cp-original-content, .cp-proposed-content { flex: 1; padding: 14px 16px; overflow-y: auto; max-height: 70vh; font-size: 13px; line-height: 1.5; color: #333; font-family: 'Inter', sans-serif; }
-  .cp-original-content { background: #fafaf8; white-space: pre-wrap; }
-  .cp-proposed-content { background: #fff; outline: none; }
+  .cp-proposed-content { flex: 1; padding: 14px 16px; overflow-y: auto; max-height: 70vh; font-size: 13px; line-height: 1.5; color: #333; font-family: 'Inter', sans-serif; background: #fff; outline: none; }
   .cp-proposed-content:focus { background: #fffdf5; }
   .cp-proposed-content h1, .cp-proposed-content h2, .cp-proposed-content h3 { color: #8c1d40; margin: 14px 0 6px 0; }
   .cp-proposed-content h2 { font-size: 16px; }
@@ -839,7 +835,7 @@
               <button type="button" id="cp-gdoc-btn" class="cp-gdoc-btn" onclick="cpFetchGoogleDoc()">Load from Google Doc</button>
             </div>
             <div class="cp-or-divider">or paste directly</div>
-            <textarea id="cp-input" rows="10" style="width:100%; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Paste course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
+            <textarea id="cp-input" rows="8" data-no-autogrow="1" style="width:100%; max-height:260px; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical; overflow-y:auto;" placeholder="Paste course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
             <div style="display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;">
               <label style="font-size:12px; color:#666;">Target modules:
                 <input type="number" id="cp-target-modules" value="7" min="3" max="15" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
@@ -859,21 +855,16 @@
             <h2>2. Review & Refine</h2>
             <div style="display:flex; gap:8px; margin-left:auto;">
               <button onclick="runCourseParserAI()" title="Re-run AI with current input" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">⟳ Re-run</button>
+              <button onclick="pushCourseParserToWorksheet()" title="Apply this structure to the Module Overview" style="background:#2e7d32; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">↪ Push to worksheet</button>
               <button onclick="downloadCourseParserDoc()" style="background:#8c1d40; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">💾 Download .doc</button>
               <button onclick="clearCourseParser()" title="Clear all and start over" style="background:#fff; color:#c62828; border:1px solid #c62828; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✕ Clear</button>
             </div>
           </div>
           <div class="card-body">
-            <p style="font-size:12px; color:#666; margin:0 0 12px 0;">Original source on the left (read-only), AI proposal on the right (click to edit). Your edits save automatically.</p>
-            <div class="cp-split">
-              <div class="cp-pane">
-                <div class="cp-pane-label">Original — <span id="cp-orig-weeks">15</span>-week source</div>
-                <div id="cp-original" class="cp-original-content"></div>
-              </div>
-              <div class="cp-pane">
-                <div class="cp-pane-label">Proposed — <span id="cp-prop-modules">7</span>-module structure <span id="cp-save-indicator" style="margin-left:auto; color:#2e7d32; font-size:11px; display:none;">✓ saved</span></div>
-                <div id="cp-proposed" class="cp-proposed-content" contenteditable="true" spellcheck="true"></div>
-              </div>
+            <p style="font-size:12px; color:#666; margin:0 0 12px 0;">Click any section to edit. Each module's row shows the original weeks it was built from, so you can review the mapping inline. Your edits save automatically.</p>
+            <div class="cp-pane">
+              <div class="cp-pane-label">Proposed — <span id="cp-prop-modules">7</span>-module structure <span id="cp-save-indicator" style="margin-left:auto; color:#2e7d32; font-size:11px; display:none;">✓ saved</span></div>
+              <div id="cp-proposed" class="cp-proposed-content" contenteditable="true" spellcheck="true"></div>
             </div>
           </div>
         </div>
@@ -3372,6 +3363,7 @@
   }
 
   function autoGrowTextarea(ta) {
+    if (!ta || ta.dataset.noAutogrow) return;
     ta.style.height = '0';
     ta.style.height = ta.scrollHeight + 'px';
   }
@@ -8626,7 +8618,6 @@ ${clone.innerHTML}
   function renderCourseParser() {
     var state = loadCourseParserState();
     var input = document.getElementById('cp-input');
-    var origPane = document.getElementById('cp-original');
     var propPane = document.getElementById('cp-proposed');
     var reviewCard = document.getElementById('cp-review-card');
     var targetModules = document.getElementById('cp-target-modules');
@@ -8636,12 +8627,9 @@ ${clone.innerHTML}
     if (sourceWeeks && state.sourceWeeks) sourceWeeks.value = state.sourceWeeks;
     if (state.proposalHtml) {
       if (reviewCard) reviewCard.style.display = '';
-      if (origPane) origPane.textContent = state.rawInput || '';
       if (propPane) propPane.innerHTML = state.proposalHtml;
       var propModLabel = document.getElementById('cp-prop-modules');
-      var origWeekLabel = document.getElementById('cp-orig-weeks');
       if (propModLabel && state.targetModules) propModLabel.textContent = state.targetModules;
-      if (origWeekLabel && state.sourceWeeks) origWeekLabel.textContent = state.sourceWeeks;
     }
     // Wire input autosave + editable-pane autosave once per render
     if (input && !input._cpBound) {
@@ -9015,12 +9003,9 @@ ${clone.innerHTML}
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
       var reviewCard = document.getElementById('cp-review-card');
       if (reviewCard) reviewCard.style.display = '';
-      document.getElementById('cp-original').textContent = raw;
       document.getElementById('cp-proposed').innerHTML = html;
       var propModLabel = document.getElementById('cp-prop-modules');
-      var origWeekLabel = document.getElementById('cp-orig-weeks');
       if (propModLabel) propModLabel.textContent = targetModules;
-      if (origWeekLabel) origWeekLabel.textContent = sourceWeeks;
       if (status) { status.textContent = '✓ Done — review and edit the right pane.'; status.style.color = '#2e7d32'; }
       setTimeout(function() { if (reviewCard) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
     } catch (e) {
@@ -9035,13 +9020,84 @@ ${clone.innerHTML}
     localStorage.removeItem(cpStorageKey());
     ['cp-input'].forEach(function(id) { var el = document.getElementById(id); if (el) el.value = ''; });
     var propPane = document.getElementById('cp-proposed'); if (propPane) propPane.innerHTML = '';
-    var origPane = document.getElementById('cp-original'); if (origPane) origPane.textContent = '';
     var reviewCard = document.getElementById('cp-review-card'); if (reviewCard) reviewCard.style.display = 'none';
     var status = document.getElementById('cp-parse-status'); if (status) status.textContent = '';
     var srcInd = document.getElementById('cp-source-indicator'); if (srcInd) { srcInd.classList.remove('visible'); srcInd.classList.remove('error'); }
     var gdocInput = document.getElementById('cp-gdoc-url'); if (gdocInput) gdocInput.value = '';
     var folderInput = document.getElementById('cp-folder-url'); if (folderInput) folderInput.value = '';
     cpCloseFolderPanel();
+  }
+
+  function pushCourseParserToWorksheet() {
+    var propEl = document.getElementById('cp-proposed');
+    if (!propEl) return;
+    var tables = propEl.querySelectorAll('table');
+    var structTable = null;
+    for (var t = 0; t < tables.length; t++) {
+      var headerText = (tables[t].tHead ? tables[t].tHead.textContent : (tables[t].rows[0] ? tables[t].rows[0].textContent : '')).toLowerCase();
+      if (headerText.indexOf('module') !== -1 && (headerText.indexOf('topic') !== -1 || headerText.indexOf('weeks') !== -1)) {
+        structTable = tables[t];
+        break;
+      }
+    }
+    if (!structTable) { alert('Could not find the Proposed Module Structure table in the AI output.'); return; }
+
+    var headerCells = (structTable.tHead ? structTable.tHead.rows[0] : structTable.rows[0]).cells;
+    var colIdx = { module: -1, topic: -1, mlos: -1 };
+    for (var h = 0; h < headerCells.length; h++) {
+      var txt = headerCells[h].textContent.trim().toLowerCase();
+      if (colIdx.module === -1 && /module\b/.test(txt) && txt.indexOf('objective') === -1) colIdx.module = h;
+      else if (colIdx.topic === -1 && txt.indexOf('topic') !== -1) colIdx.topic = h;
+      else if (colIdx.mlos === -1 && (txt.indexOf('objective') !== -1 || txt.indexOf('mlo') !== -1)) colIdx.mlos = h;
+    }
+    if (colIdx.module === -1 || colIdx.topic === -1) { alert('Table is missing a Module or Topic column.'); return; }
+
+    var bodyRows = structTable.tBodies.length ? structTable.tBodies[0].rows : Array.prototype.slice.call(structTable.rows, 1);
+    var parsed = [];
+    for (var r = 0; r < bodyRows.length; r++) {
+      var cells = bodyRows[r].cells;
+      if (!cells || cells.length <= Math.max(colIdx.module, colIdx.topic)) continue;
+      var modText = cells[colIdx.module].textContent.trim();
+      var modMatch = modText.match(/\d+/);
+      var modNum = modMatch ? parseInt(modMatch[0], 10) : (parsed.length + 1);
+      var topic = cells[colIdx.topic].textContent.trim();
+      var mlos = [];
+      if (colIdx.mlos !== -1 && cells[colIdx.mlos]) {
+        var lis = cells[colIdx.mlos].querySelectorAll('li');
+        if (lis.length) {
+          lis.forEach(function(li) { var s = li.textContent.trim(); if (s) mlos.push(s); });
+        } else {
+          cells[colIdx.mlos].textContent.split(/\n|•|·|—|\u2022/).forEach(function(s) {
+            s = s.trim(); if (s) mlos.push(s);
+          });
+        }
+      }
+      parsed.push({ num: modNum, topic: topic, mlos: mlos });
+    }
+
+    if (!parsed.length) { alert('No module rows found in the table.'); return; }
+    var moduleCount = parsed.length;
+    var msg = 'Push ' + moduleCount + ' module(s) into the Module Overview?\n\n' +
+      'This will overwrite existing topics and objectives in modules ' +
+      parsed.map(function(p) { return p.num; }).join(', ') + '.';
+    if (!confirm(msg)) return;
+
+    var savedMods = loadField('moduleOverviewData') || {};
+    parsed.forEach(function(p) {
+      var existing = savedMods[p.num] || {};
+      savedMods[p.num] = Object.assign({}, existing, { topic: p.topic, mlos: p.mlos });
+    });
+    saveField('moduleOverviewData', savedMods);
+    saveField('moduleCount', moduleCount);
+    if (typeof activeCourse !== 'undefined' && activeCourse) activeCourse.moduleCount = moduleCount;
+
+    var status = document.getElementById('cp-parse-status');
+    if (status) { status.textContent = '✓ Pushed ' + moduleCount + ' module(s) to the worksheet.'; status.style.color = '#2e7d32'; }
+
+    if (confirm('Done. Open the Module Overview now to review?')) {
+      if (typeof showView === 'function') showView('module-overview');
+      else window.location.hash = '#module-overview';
+    }
   }
 
   function downloadCourseParserDoc() {
