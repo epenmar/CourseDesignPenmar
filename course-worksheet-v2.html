@@ -9299,10 +9299,26 @@ ${clone.innerHTML}
     // Strip AI's numeric prefix ("1.1 ", "2.3 ", "1.1.2 ") so the UI's auto-generated
     // module.index numbering doesn't duplicate it in the rendered list.
     var stripPrefix = function(s) { return (s || '').replace(/^\s*\d+(?:\.\d+)+\s+/, '').trim(); };
+    // Split a text blob on MLO markers ("1.1 ", "2.3 ", …) if multiple are present.
+    var splitOnMarkers = function(text) {
+      var matches = (text.match(/\b\d+\.\d+\s/g) || []);
+      if (matches.length > 1) return text.split(/(?=\b\d+\.\d+\s)/);
+      return [text];
+    };
     var out = [];
+    var pushAll = function(parts) {
+      parts.forEach(function(s) { s = stripPrefix(s); if (s) out.push(s); });
+    };
+
     var lis = cell.querySelectorAll('li');
     if (lis.length) {
-      lis.forEach(function(li) { var s = stripPrefix(li.textContent); if (s) out.push(s); });
+      lis.forEach(function(li) {
+        var txt = (li.textContent || '').trim();
+        if (!txt) return;
+        // Even inside a <li>, if the AI crammed multiple "N.N …" items into one,
+        // split them so each MLO becomes its own entry.
+        pushAll(splitOnMarkers(txt));
+      });
       return out;
     }
     // Normalize <br> and block-level breaks to newlines before reading text.
@@ -9313,11 +9329,8 @@ ${clone.innerHTML}
     var text = tmp.textContent || '';
     var parts = text.split(/\n|•|·|—|\u2022|;/);
     // If that didn't split and the text contains multiple "N.N " MLO markers, split before each one.
-    if (parts.length === 1 && /\b\d+\.\d+\s/.test(text)) {
-      var multi = (text.match(/\b\d+\.\d+\s/g) || []).length;
-      if (multi > 1) parts = text.split(/(?=\b\d+\.\d+\s)/);
-    }
-    parts.forEach(function(s) { s = stripPrefix(s); if (s) out.push(s); });
+    if (parts.length === 1) parts = splitOnMarkers(text);
+    pushAll(parts);
     return out;
   }
 
