@@ -9001,8 +9001,26 @@ ${clone.innerHTML}
       '7. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
+    // Retry helper: network hiccups and oversized payloads both surface as "Failed to fetch".
+    var tryCall = async function(maxTokens, attempt) {
+      try {
+        return await callCreateAI(userQuery, systemPrompt, maxTokens);
+      } catch (err) {
+        var isNetwork = err && (err.message === 'Failed to fetch' || /NetworkError|TypeError/.test(String(err)));
+        if (isNetwork && attempt === 0) {
+          if (status) { status.textContent = 'Network error — retrying with a smaller response window…'; status.style.color = '#888'; }
+          await new Promise(function(res) { setTimeout(res, 1500); });
+          return await callCreateAI(userQuery, systemPrompt, 4096);
+        }
+        throw err;
+      }
+    };
+
     try {
-      var result = await callCreateAI(userQuery, systemPrompt, 6000);
+      if (raw.length > 150000 && status) {
+        status.textContent = 'Large input (' + Math.round(raw.length / 1000) + 'KB) — this may take a while or hit size limits…';
+      }
+      var result = await tryCall(6000, 0);
       var html = (result || '').trim();
       html = html.replace(/^```(?:html)?\s*/i, '').replace(/\s*```\s*$/, '');
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
@@ -9014,7 +9032,12 @@ ${clone.innerHTML}
       if (status) { status.textContent = '✓ Done — review and edit the right pane.'; status.style.color = '#2e7d32'; }
       setTimeout(function() { if (reviewCard) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
     } catch (e) {
-      if (status) { status.textContent = 'AI error: ' + (e && e.message || e); status.style.color = '#c62828'; }
+      var msg = e && e.message || String(e);
+      var hint = '';
+      if (msg === 'Failed to fetch' || /NetworkError|TypeError/.test(msg)) {
+        hint = ' — check your internet/VPN; the ASU AI endpoint may be unreachable. If the imported source is very large (>150KB), try pulling fewer files.';
+      }
+      if (status) { status.textContent = 'AI error: ' + msg + hint; status.style.color = '#c62828'; }
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '🪄 Parse with AI'; }
     }
