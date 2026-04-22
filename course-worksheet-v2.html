@@ -8671,7 +8671,7 @@ ${clone.innerHTML}
     cpSetupDropZone();
     var folderInput = document.getElementById('cp-folder-url');
     if (folderInput) {
-      var hasCourseFolder = !!(window.activeCourse && activeCourse.driveFolder);
+      var hasCourseFolder = !!(typeof activeCourse !== 'undefined' && activeCourse && activeCourse.driveFolder);
       folderInput.placeholder = hasCourseFolder
         ? '…or paste a Drive folder link (leave blank to browse the course folder)'
         : '…or paste a Drive folder link';
@@ -8846,7 +8846,7 @@ ${clone.innerHTML}
     var title = document.getElementById('cp-folder-title');
     var status = document.getElementById('cp-folder-status');
     var pastedUrl = (urlInput && urlInput.value || '').trim();
-    var folderUrl = pastedUrl || (window.activeCourse && activeCourse.driveFolder) || '';
+    var folderUrl = pastedUrl || (typeof activeCourse !== 'undefined' && activeCourse && activeCourse.driveFolder) || '';
     if (!folderUrl) { cpSetError('No folder URL — paste one or set the course Drive folder in Course Info.'); return; }
     if (!window.GDrive) { cpSetError('Google Drive integration not loaded.'); return; }
     var folderId = window.GDrive.folderIdFromUrl(folderUrl);
