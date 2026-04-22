@@ -9265,17 +9265,26 @@ ${clone.innerHTML}
 
     var banner = document.getElementById('cp-push-result');
     if (banner) {
+      var row = function(label, count, isBool) {
+        var ok = isBool ? count : count > 0;
+        var val = isBool ? (count ? '✓' : '—') : count;
+        var color = ok ? '#2e7d32' : '#999';
+        return '<div style="display:flex; justify-content:space-between; padding:3px 0; color:' + color + ';"><span>' + label + '</span><span style="font-weight:600;">' + val + '</span></div>';
+      };
+      var missingAny = !verify.overview || !verify.textbooks || !verify.clos || !verify.elos || !verify.materials;
+      var allFailed = !verify.modules;
       var lines = [
-        '<strong style="color:#2e7d32; font-size:14px;">✓ Pushed to worksheet</strong>',
-        '<div style="margin-top:6px; color:#333;">',
-        '• ' + verify.modules + ' module(s) saved' + (verify.modules ? '' : ' <span style="color:#c62828;">(nothing saved — check the table format)</span>'),
-        (verify.overview ? '<br>• Course overview paragraph' : ''),
-        (verify.textbooks ? '<br>• ' + verify.textbooks + ' textbook entry(ies)' : ''),
-        (verify.clos ? '<br>• ' + verify.clos + ' CLO(s)' : ''),
-        (verify.elos ? '<br>• ' + verify.elos + ' ELO(s)' : ''),
-        (verify.materials ? '<br>• ' + verify.materials + ' module-level material(s)' : ''),
-        (verify.activities ? '<br>• ' + verify.activities + ' assignment(s)' : ''),
+        '<strong style="color:' + (allFailed ? '#c62828' : '#2e7d32') + '; font-size:14px;">' + (allFailed ? '⚠ Nothing pushed' : '✓ Pushed to worksheet') + '</strong>',
+        '<div style="margin-top:8px; font-size:12px;">',
+        row('Modules (topics + objectives)', verify.modules),
+        row('Course overview paragraph', verify.overview, true),
+        row('Textbook entries', verify.textbooks),
+        row('Course Learning Outcomes', verify.clos),
+        row('Enduring Learning Outcomes', verify.elos),
+        row('Module-level materials', verify.materials),
+        row('Assignments', verify.activities),
         '</div>',
+        (missingAny ? '<div style="margin-top:10px; padding:8px 10px; background:#fff8e1; border-left:3px solid #ffb300; font-size:12px; color:#795548;">Missing sections? Re-run <strong>🪄 Parse with AI</strong> — the prompt was recently updated to also generate Course Overview, Textbooks, CLOs, and ELOs. Older proposals only contained modules + assignments.</div>' : ''),
         '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">',
         '<button onclick="showView(\'module-overview\')" style="background:#8c1d40; color:#fff; border:none; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Go to Module Overview →</button>',
         '<button onclick="showView(\'assignments-overview\')" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Assignments Overview</button>',
@@ -9284,8 +9293,8 @@ ${clone.innerHTML}
         '</div>'
       ].join('');
       banner.innerHTML = lines;
-      banner.style.background = verify.modules ? '#e8f5e9' : '#fff3e0';
-      banner.style.border = '1px solid ' + (verify.modules ? '#a5d6a7' : '#ffcc80');
+      banner.style.background = allFailed ? '#ffebee' : (missingAny ? '#fff8e1' : '#e8f5e9');
+      banner.style.border = '1px solid ' + (allFailed ? '#ef9a9a' : (missingAny ? '#ffe082' : '#a5d6a7'));
       banner.style.display = 'block';
       banner.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
