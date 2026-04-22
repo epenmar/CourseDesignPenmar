@@ -580,6 +580,7 @@
         </div>
         <div style="display:flex; gap:2px; align-items:center;">
           <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
+          <button class="comment-btn" title="Find &amp; Replace (Ctrl+Shift+F)" onclick="openFindReplace()">🔍</button>
           <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
             💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
           </button>
@@ -1489,6 +1490,32 @@
         <option value="reviewer">Reviewer</option>
       </select>
       <button onclick="saveCommentIdentity()">Save & Continue</button>
+    </div>
+  </div>
+</div>
+
+<div id="find-replace-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:250; align-items:flex-start; justify-content:center; padding-top:80px;" onclick="if(event.target===this) closeFindReplace();">
+  <div style="background:#fff; border-radius:12px; padding:20px 24px; max-width:480px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+      <h3 style="margin:0; font-size:15px; color:#8c1d40;">🔍 Find &amp; Replace</h3>
+      <button onclick="closeFindReplace()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <label style="font-size:11px; color:#666; font-weight:600; display:block;">Find
+        <input type="text" id="fr-find" style="display:block; width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; margin-top:3px;" oninput="updateFindReplaceCount()" onkeydown="if(event.key==='Enter'&&event.shiftKey===false&&(event.metaKey||event.ctrlKey)) performReplaceAll()">
+      </label>
+      <label style="font-size:11px; color:#666; font-weight:600; display:block;">Replace with
+        <input type="text" id="fr-replace" style="display:block; width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; margin-top:3px;">
+      </label>
+      <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#555; cursor:pointer;">
+        <input type="checkbox" id="fr-case" onchange="updateFindReplaceCount()"> Match case
+      </label>
+      <div id="fr-status" style="font-size:12px; color:#666; min-height:18px;"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
+        <button onclick="closeFindReplace()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
+        <button onclick="performReplaceAll()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Replace All</button>
+      </div>
+      <div style="font-size:10px; color:#999; border-top:1px solid #f0ede5; padding-top:8px; margin-top:4px;">Searches form fields, module topics &amp; objectives, CLOs/ELOs, assignments, materials, and rich-text content. Replacements cannot be undone — consider downloading the worksheet first.</div>
     </div>
   </div>
 </div>
@@ -11215,7 +11242,261 @@ ${clone.innerHTML}
         setTimeout(function() { openCommentPanel(getCurrentSection()); }, 300);
       }
     }, 500);
+
+    // Keyboard shortcut: Ctrl+Shift+F / Cmd+Shift+F opens Find & Replace
+    document.addEventListener('keydown', function(e) {
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        e.preventDefault();
+        openFindReplace();
+      } else if (e.key === 'Escape') {
+        var m = document.getElementById('find-replace-modal');
+        if (m && m.style.display === 'flex') closeFindReplace();
+      }
+    });
   });
+
+  // ===== FIND & REPLACE =====
+  function openFindReplace() {
+    var m = document.getElementById('find-replace-modal');
+    if (!m) return;
+    m.style.display = 'flex';
+    var findInput = document.getElementById('fr-find');
+    if (findInput) { findInput.focus(); findInput.select(); }
+    updateFindReplaceCount();
+  }
+  function closeFindReplace() {
+    var m = document.getElementById('find-replace-modal');
+    if (m) m.style.display = 'none';
+  }
+
+  // Flush any pending debounced saves so localStorage reflects current UI state.
+  function frFlushPendingSaves() {
+    if (typeof saveTimer !== 'undefined') clearTimeout(saveTimer);
+    if (typeof modOverviewSaveTimer !== 'undefined') clearTimeout(modOverviewSaveTimer);
+    if (typeof saveModuleOverviewSync === 'function') saveModuleOverviewSync();
+    if (typeof _doSaveAllFields === 'function') _doSaveAllFields();
+  }
+
+  // Build targets to search/replace. Each target has: read() → text, write(text), label.
+  function frBuildTargets() {
+    var targets = [];
+    var formData = loadField('formData') || {};
+    Object.keys(formData).forEach(function(id) {
+      if (typeof formData[id] !== 'string') return;
+      targets.push({
+        kind: 'form',
+        label: 'Field: ' + id,
+        read: function() { return formData[id] || ''; },
+        write: function(t) { formData[id] = t; }
+      });
+    });
+    // moduleOverviewData topic + mlos
+    var mods = loadField('moduleOverviewData') || {};
+    Object.keys(mods).forEach(function(k) {
+      var m = mods[k] || {};
+      if (typeof m.topic === 'string') {
+        targets.push({ kind: 'mod', label: 'Module ' + k + ' topic', read: function() { return m.topic || ''; }, write: function(t) { m.topic = t; } });
+      }
+      if (Array.isArray(m.mlos)) {
+        m.mlos.forEach(function(_, idx) {
+          targets.push({
+            kind: 'mlo',
+            label: 'Module ' + k + ' MLO ' + (idx + 1),
+            read: function() { return m.mlos[idx] || ''; },
+            write: function(t) { m.mlos[idx] = t; }
+          });
+        });
+      }
+    });
+    // CLOs / ELOs (from course bucket)
+    var clos = loadField('clos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.clos : null) || [];
+    clos.forEach(function(_, idx) {
+      targets.push({ kind: 'clo', label: 'CLO ' + (idx + 1), read: function() { return clos[idx] || ''; }, write: function(t) { clos[idx] = t; } });
+    });
+    var elos = loadField('flatElos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.flatElos : null) || [];
+    elos.forEach(function(_, idx) {
+      targets.push({ kind: 'elo', label: 'ELO ' + (idx + 1), read: function() { return elos[idx] || ''; }, write: function(t) { elos[idx] = t; } });
+    });
+    // courseActivities
+    var acts = loadField('courseActivities') || {};
+    Object.keys(acts).forEach(function(k) {
+      (acts[k] || []).forEach(function(a, idx) {
+        ['name', 'points', 'due', 'contentType', 'notes'].forEach(function(field) {
+          if (typeof a[field] === 'string' && a[field].length) {
+            targets.push({
+              kind: 'act-' + field,
+              label: 'Module ' + k + ' activity ' + (idx + 1) + ' ' + field,
+              read: function() { return a[field] || ''; },
+              write: function(t) { a[field] = t; }
+            });
+          }
+        });
+        if (typeof a.richText === 'string' && a.richText.length) {
+          targets.push({
+            kind: 'act-rich',
+            label: 'Module ' + k + ' activity ' + (idx + 1) + ' rich text',
+            read: function() { return a.richText || ''; },
+            write: function(t) { a.richText = t; },
+            rich: true
+          });
+        }
+      });
+    });
+    // courseMaterials
+    var mats = loadField('courseMaterials') || {};
+    Object.keys(mats).forEach(function(k) {
+      (mats[k] || []).forEach(function(mat, idx) {
+        ['title', 'type'].forEach(function(field) {
+          if (typeof mat[field] === 'string' && mat[field].length) {
+            targets.push({
+              kind: 'mat-' + field,
+              label: 'Module ' + k + ' material ' + (idx + 1) + ' ' + field,
+              read: function() { return mat[field] || ''; },
+              write: function(t) { mat[field] = t; }
+            });
+          }
+        });
+        if (typeof mat.richText === 'string' && mat.richText.length) {
+          targets.push({
+            kind: 'mat-rich',
+            label: 'Module ' + k + ' material ' + (idx + 1) + ' rich text',
+            read: function() { return mat.richText || ''; },
+            write: function(t) { mat.richText = t; },
+            rich: true
+          });
+        }
+      });
+    });
+    return {
+      targets: targets,
+      commit: function() {
+        saveField('formData', formData);
+        saveField('moduleOverviewData', mods);
+        saveField('clos', clos);
+        saveField('flatElos', elos);
+        if (typeof activeCourse !== 'undefined' && activeCourse) {
+          activeCourse.clos = clos;
+          activeCourse.flatElos = elos;
+        }
+        saveField('courseActivities', acts);
+        saveField('courseMaterials', mats);
+        // In-memory mirrors used by render functions.
+        if (typeof courseActivities !== 'undefined') {
+          Object.keys(acts).forEach(function(k) { courseActivities[k] = acts[k]; });
+        }
+        if (typeof courseMaterials !== 'undefined') {
+          Object.keys(mats).forEach(function(k) { courseMaterials[k] = mats[k]; });
+        }
+      }
+    };
+  }
+
+  function frEscapeRegex(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+
+  function frCountInText(text, find, caseSensitive) {
+    if (!text || !find) return 0;
+    var re = new RegExp(frEscapeRegex(find), caseSensitive ? 'g' : 'gi');
+    var m = text.match(re);
+    return m ? m.length : 0;
+  }
+  function frReplaceInText(text, find, replace, caseSensitive) {
+    if (!text || !find) return text;
+    var re = new RegExp(frEscapeRegex(find), caseSensitive ? 'g' : 'gi');
+    return text.replace(re, replace);
+  }
+  // Walk text nodes in parsed HTML, replace inside text content only, return new HTML.
+  function frReplaceInRichText(html, find, replace, caseSensitive, counter) {
+    if (!html || !find) return html;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var re = new RegExp(frEscapeRegex(find), caseSensitive ? 'g' : 'gi');
+    var walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT, null);
+    var nodes = [];
+    while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function(n) {
+      var orig = n.nodeValue || '';
+      var next = orig.replace(re, function(match) { counter.count++; return replace; });
+      if (next !== orig) n.nodeValue = next;
+    });
+    return tmp.innerHTML;
+  }
+  function frCountInRichText(html, find, caseSensitive) {
+    if (!html || !find) return 0;
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html;
+    var re = new RegExp(frEscapeRegex(find), caseSensitive ? 'g' : 'gi');
+    var walker = document.createTreeWalker(tmp, NodeFilter.SHOW_TEXT, null);
+    var total = 0;
+    while (walker.nextNode()) {
+      var m = (walker.currentNode.nodeValue || '').match(re);
+      if (m) total += m.length;
+    }
+    return total;
+  }
+
+  function updateFindReplaceCount() {
+    var findInput = document.getElementById('fr-find');
+    var caseInput = document.getElementById('fr-case');
+    var status = document.getElementById('fr-status');
+    if (!findInput || !status) return;
+    var q = findInput.value;
+    if (!q) { status.textContent = ''; return; }
+    frFlushPendingSaves();
+    var caseSensitive = !!(caseInput && caseInput.checked);
+    var bundle = frBuildTargets();
+    var total = 0, locations = 0;
+    bundle.targets.forEach(function(t) {
+      var text = t.read();
+      var n = t.rich ? frCountInRichText(text, q, caseSensitive) : frCountInText(text, q, caseSensitive);
+      if (n > 0) { total += n; locations += 1; }
+    });
+    status.textContent = total === 0 ? 'No matches.' : total + ' match' + (total === 1 ? '' : 'es') + ' across ' + locations + ' location' + (locations === 1 ? '' : 's') + '.';
+    status.style.color = total === 0 ? '#999' : '#2e7d32';
+  }
+
+  function performReplaceAll() {
+    var findInput = document.getElementById('fr-find');
+    var replaceInput = document.getElementById('fr-replace');
+    var caseInput = document.getElementById('fr-case');
+    var status = document.getElementById('fr-status');
+    if (!findInput || !replaceInput) return;
+    var q = findInput.value;
+    var r = replaceInput.value;
+    if (!q) { if (status) { status.textContent = 'Enter text to find first.'; status.style.color = '#c62828'; } return; }
+    frFlushPendingSaves();
+    var caseSensitive = !!(caseInput && caseInput.checked);
+    var bundle = frBuildTargets();
+    var preview = 0;
+    bundle.targets.forEach(function(t) {
+      var text = t.read();
+      preview += t.rich ? frCountInRichText(text, q, caseSensitive) : frCountInText(text, q, caseSensitive);
+    });
+    if (preview === 0) { if (status) { status.textContent = 'No matches to replace.'; status.style.color = '#999'; } return; }
+    if (!confirm('Replace ' + preview + ' occurrence' + (preview === 1 ? '' : 's') + ' of "' + q + '" with "' + r + '" across the worksheet? This cannot be undone.')) return;
+
+    var replaced = 0;
+    var counter = { count: 0 };
+    bundle.targets.forEach(function(t) {
+      var orig = t.read();
+      if (t.rich) {
+        var before = counter.count;
+        var next = frReplaceInRichText(orig, q, r, caseSensitive, counter);
+        if (next !== orig) t.write(next);
+        replaced += counter.count - before;
+      } else {
+        var nextPlain = frReplaceInText(orig, q, r, caseSensitive);
+        if (nextPlain !== orig) {
+          var count = frCountInText(orig, q, caseSensitive);
+          replaced += count;
+          t.write(nextPlain);
+        }
+      }
+    });
+    bundle.commit();
+    if (typeof renderAllViews === 'function') renderAllViews();
+    if (typeof restoreAllFields === 'function') restoreAllFields();
+    if (status) { status.textContent = '✓ Replaced ' + replaced + ' occurrence' + (replaced === 1 ? '' : 's') + '.'; status.style.color = '#2e7d32'; }
+  }
 </script>
 
 </body>
