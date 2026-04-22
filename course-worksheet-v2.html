@@ -9077,18 +9077,25 @@ ${clone.innerHTML}
       'Do NOT include <html>, <body>, <style>, markdown fences, or any other sections.\n\n' +
       '=== SOURCE ===\n' + raw;
 
-    var tryCall = async function(query, maxTokens, attempt) {
-      try {
-        return await callCreateAI(query, systemPrompt, maxTokens);
-      } catch (err) {
-        var isNetwork = err && (err.message === 'Failed to fetch' || /NetworkError|TypeError/.test(String(err)));
-        if (isNetwork && attempt === 0) {
-          if (status) { status.textContent = 'Network hiccup — retrying…'; status.style.color = '#888'; }
-          await new Promise(function(res) { setTimeout(res, 1500); });
-          return await callCreateAI(query, systemPrompt, maxTokens);
+    // ASU gateway returns HTTP 500 (surfaced to the browser as "Failed to fetch" due to missing
+    // CORS headers on error responses) when max_tokens is set too high. Working values in the
+    // rest of this app top out at 2048. On failure, step down the output budget and retry.
+    var tryCall = async function(query, maxTokens) {
+      var attempts = [maxTokens, 2048, 1024];
+      var lastErr = null;
+      for (var i = 0; i < attempts.length; i++) {
+        try {
+          return await callCreateAI(query, systemPrompt, attempts[i]);
+        } catch (err) {
+          lastErr = err;
+          console.warn('[runCourseParserAI] attempt', i + 1, 'failed at max_tokens=' + attempts[i], err && err.message);
+          if (i < attempts.length - 1) {
+            if (status) { status.textContent = 'Server rejected the request — retrying with a smaller output window (' + attempts[i + 1] + ' tokens)…'; status.style.color = '#888'; }
+            await new Promise(function(res) { setTimeout(res, 1200); });
+          }
         }
-        throw err;
       }
+      throw lastErr;
     };
 
     var stripFences = function(s) {
@@ -9100,11 +9107,11 @@ ${clone.innerHTML}
         status.textContent = 'Large input (' + Math.round(raw.length / 1000) + 'KB) — this may take a while or hit size limits…';
       }
       if (status) { status.textContent = 'Step 1/2 — Claude is proposing the module structure…'; status.style.color = '#888'; }
-      var mainResult = await tryCall(mainQuery, 6000, 0);
+      var mainResult = await tryCall(mainQuery, 4096);
       var mainHtml = stripFences(mainResult);
 
       if (status) { status.textContent = 'Step 2/2 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
-      var assignResult = await tryCall(assignmentsQuery, 4096, 0);
+      var assignResult = await tryCall(assignmentsQuery, 3000);
       var assignHtml = stripFences(assignResult);
 
       var html = mainHtml + '\n' + assignHtml;
