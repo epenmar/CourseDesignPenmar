@@ -10,6 +10,13 @@
 //
 //   window.RichEditor.initAll(optionalRoot) — instantiate any uninitialized editors.
 //
+// SHARED-TOOLBAR MODE:
+//   When an editor is inside a `.template-preview` container, all editors in that
+//   container share a single toolbar rendered at the top (sticky). The per-editor
+//   toolbars are still created by Quill (so hover tooltips/icons are owned by
+//   Quill) but hidden via CSS, and shared toolbar clicks dispatch to the
+//   currently-focused editor via `quill.format()`.
+//
 // The editor persists via existing save paths:
 //   - template  → saveTemplateField(actId, tplType, section, html)
 //   - material  → mutates courseMaterials[modNum][*].<field> and calls saveActivityData()
@@ -47,7 +54,7 @@
     if (window.KaTeX) window.katex = window.KaTeX;
   }
 
-  function buildSymbolDropdown(quill, label, items) {
+  function buildSymbolDropdown(getQuill, label, items) {
     var sel = document.createElement('select');
     sel.className = 're-symbol-dropdown';
     sel.title = label;
@@ -59,6 +66,8 @@
     sel.addEventListener('change', function() {
       var v = sel.value;
       if (!v) return;
+      var quill = (typeof getQuill === 'function') ? getQuill() : getQuill;
+      if (!quill) { sel.value = ''; return; }
       var range = quill.getSelection(true);
       if (!range) { quill.focus(); range = quill.getSelection(true); }
       quill.insertText(range.index, v, 'user');
@@ -87,11 +96,8 @@
     }
   }
 
-  function initOne(el) {
-    if (el.dataset.reInitialized === '1') return;
-    el.dataset.reInitialized = '1';
-
-    var toolbarOptions = [
+  function defaultToolbarOptions() {
+    return [
       [{ 'header': [1, 2, 3, false] }],
       [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
       ['bold', 'italic', 'underline', 'strike'],
@@ -101,29 +107,21 @@
       [{ 'script': 'sub' }, { 'script': 'super' }],
       ['link', 'formula', 'clean']
     ];
+  }
 
+  // Create a Quill instance on `el` with the standard toolbar + persistence.
+  // Returns the Quill instance.
+  function createQuill(el) {
     var quill = new Quill(el, {
       theme: 'snow',
       placeholder: el.dataset.placeholder || '',
-      modules: { toolbar: toolbarOptions }
+      modules: { toolbar: defaultToolbarOptions() }
     });
-
-    // Load initial content (HTML) if present.
     var initial = el.getAttribute('data-initial') || '';
     if (initial) {
       try { quill.clipboard.dangerouslyPasteHTML(0, initial, 'silent'); }
       catch (e) { quill.root.innerHTML = initial; }
     }
-
-    // Add custom symbol dropdowns at the end of the toolbar.
-    var toolbar = quill.getModule('toolbar').container;
-    var sciGroup = document.createElement('span');
-    sciGroup.className = 'ql-formats';
-    sciGroup.appendChild(buildSymbolDropdown(quill, 'Sci', SCIENTIFIC));
-    sciGroup.appendChild(buildSymbolDropdown(quill, 'Greek', GREEK));
-    toolbar.appendChild(sciGroup);
-
-    // Debounced persist on text-change.
     var saveTimer = null;
     quill.on('text-change', function(delta, oldDelta, source) {
       if (source !== 'user') return;
@@ -135,15 +133,232 @@
         else if (type === 'material') persistMaterialChange(el, html);
       }, 250);
     });
-
-    // Store the Quill instance so callers can read plain text later (e.g. Drive export).
     el._quill = quill;
+    return quill;
+  }
+
+  function initOne(el) {
+    if (el.dataset.reInitialized === '1') return;
+    el.dataset.reInitialized = '1';
+
+    var quill = createQuill(el);
+
+    // Add custom symbol dropdowns at the end of the per-editor toolbar.
+    var toolbar = quill.getModule('toolbar').container;
+    var sciGroup = document.createElement('span');
+    sciGroup.className = 'ql-formats';
+    sciGroup.appendChild(buildSymbolDropdown(quill, 'Sci', SCIENTIFIC));
+    sciGroup.appendChild(buildSymbolDropdown(quill, 'Greek', GREEK));
+    toolbar.appendChild(sciGroup);
+  }
+
+  // ===== SHARED-TOOLBAR MODE =====
+  // Build one toolbar at the top of a .template-preview and wire it to format
+  // whichever editor in the preview currently has focus (or the last-focused).
+
+  function initSharedForPreview(previewEl) {
+    if (previewEl.dataset.reSharedInit === '1') return;
+    var editors = Array.prototype.slice.call(previewEl.querySelectorAll('.rich-editor'));
+    if (editors.length === 0) return;
+    previewEl.dataset.reSharedInit = '1';
+    previewEl.classList.add('has-shared-toolbar');
+
+    var quills = [];
+    var activeQuill = null;
+
+    editors.forEach(function(el) {
+      if (el.dataset.reInitialized === '1') return;
+      el.dataset.reInitialized = '1';
+      var q = createQuill(el);
+      // Hide the per-editor toolbar's ql-formats (it still exists so Quill can
+      // render formula/link tooltips, just not visible).
+      q.on('selection-change', function(range) {
+        if (range) { activeQuill = q; refreshState(); }
+      });
+      q.root.addEventListener('focus', function() { activeQuill = q; refreshState(); });
+      quills.push(q);
+    });
+    if (quills.length) activeQuill = quills[0];
+
+    // Build shared toolbar
+    var icons = (window.Quill && window.Quill.import) ? window.Quill.import('ui/icons') : {};
+    var toolbar = document.createElement('div');
+    toolbar.className = 're-shared-toolbar';
+
+    function getQuill() { return activeQuill; }
+
+    function addGroup() {
+      var g = document.createElement('span');
+      g.className = 'ql-formats';
+      toolbar.appendChild(g);
+      return g;
+    }
+
+    function mkBtn(fmt, value, iconHtml, title) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ql-' + fmt + (value ? ' ql-' + fmt + '-' + String(value).replace(/[^a-z0-9]/gi, '') : '');
+      b.setAttribute('data-fmt', fmt);
+      if (value != null) b.setAttribute('data-val', String(value));
+      if (title) b.title = title;
+      b.innerHTML = iconHtml || '';
+      b.addEventListener('mousedown', function(e) { e.preventDefault(); }); // keep focus
+      b.addEventListener('click', function() { dispatchFormat(fmt, value, b); });
+      return b;
+    }
+
+    function mkSelect(fmt, options, placeholder) {
+      var s = document.createElement('select');
+      s.className = 're-symbol-dropdown';
+      s.setAttribute('data-fmt', fmt);
+      if (placeholder) {
+        var o = document.createElement('option');
+        o.value = '';
+        o.textContent = placeholder;
+        s.appendChild(o);
+      }
+      options.forEach(function(opt) {
+        var o = document.createElement('option');
+        o.value = opt.value == null ? '' : String(opt.value);
+        o.textContent = opt.label;
+        s.appendChild(o);
+      });
+      s.addEventListener('change', function() {
+        var v = s.value;
+        dispatchFormat(fmt, v === '' ? false : v, s);
+        // Put caret back into the editor so user can keep typing.
+        if (activeQuill) activeQuill.focus();
+      });
+      return s;
+    }
+
+    function dispatchFormat(fmt, value, ctrl) {
+      var quill = getQuill();
+      if (!quill) return;
+      var range = quill.getSelection(true);
+      if (!range) { quill.focus(); range = quill.getSelection(true); if (!range) return; }
+      if (fmt === 'clean') {
+        quill.removeFormat(range.index, range.length);
+        return;
+      }
+      if (fmt === 'link') {
+        var existing = (quill.getFormat(range) || {}).link || '';
+        var url = prompt('Enter URL:', existing || 'https://');
+        if (url === null) return;
+        if (url === '') quill.format('link', false);
+        else quill.format('link', url);
+        return;
+      }
+      if (fmt === 'formula') {
+        var f = prompt('Enter LaTeX formula (e.g. e^{i\\pi}+1=0):');
+        if (!f) return;
+        quill.insertEmbed(range.index, 'formula', f, 'user');
+        quill.setSelection(range.index + 1, 0, 'user');
+        return;
+      }
+      if (fmt === 'indent') {
+        quill.format('indent', value, 'user');
+        return;
+      }
+      var cur = quill.getFormat(range);
+      if (value === undefined || value === null) {
+        // Toggle boolean format
+        quill.format(fmt, !cur[fmt], 'user');
+      } else if (value === false) {
+        quill.format(fmt, false, 'user');
+      } else {
+        // If pressing a valued button that is already active, unset it.
+        var same = cur[fmt] !== undefined && String(cur[fmt]) === String(value);
+        quill.format(fmt, same && ctrl && ctrl.tagName === 'BUTTON' ? false : value, 'user');
+      }
+      refreshState();
+    }
+
+    function refreshState() {
+      if (!activeQuill) return;
+      var range = activeQuill.getSelection();
+      var fmt = range ? activeQuill.getFormat(range) : activeQuill.getFormat();
+      toolbar.querySelectorAll('button[data-fmt]').forEach(function(b) {
+        var f = b.getAttribute('data-fmt');
+        var v = b.getAttribute('data-val');
+        var active;
+        if (f === 'clean' || f === 'link' || f === 'formula' || f === 'indent') active = false;
+        else if (v == null) active = !!fmt[f];
+        else active = fmt[f] !== undefined && String(fmt[f]) === v;
+        b.classList.toggle('active', active);
+      });
+      toolbar.querySelectorAll('select[data-fmt]').forEach(function(s) {
+        var f = s.getAttribute('data-fmt');
+        var val = fmt[f];
+        if (val == null) val = '';
+        // Don't override Sci/Greek insert-selects
+        if (!s.classList.contains('re-insert-symbol')) s.value = String(val);
+      });
+    }
+
+    // Build toolbar groups
+    var g1 = addGroup();
+    var headerSel = mkSelect('header', [
+      { value: '1', label: 'H1' }, { value: '2', label: 'H2' }, { value: '3', label: 'H3' }
+    ], 'Normal');
+    g1.appendChild(headerSel);
+
+    var g2 = addGroup();
+    g2.appendChild(mkBtn('bold', null, icons.bold || '<b>B</b>', 'Bold (Ctrl+B)'));
+    g2.appendChild(mkBtn('italic', null, icons.italic || '<i>I</i>', 'Italic (Ctrl+I)'));
+    g2.appendChild(mkBtn('underline', null, icons.underline || '<u>U</u>', 'Underline (Ctrl+U)'));
+    g2.appendChild(mkBtn('strike', null, icons.strike || 'S', 'Strikethrough'));
+
+    var g3 = addGroup();
+    g3.appendChild(mkBtn('list', 'ordered', (icons.list && icons.list.ordered) || '1.', 'Ordered list'));
+    g3.appendChild(mkBtn('list', 'bullet',  (icons.list && icons.list.bullet)  || '•',  'Bullet list'));
+    g3.appendChild(mkBtn('indent', '-1', (icons.indent && icons.indent['-1']) || '←', 'Outdent'));
+    g3.appendChild(mkBtn('indent', '+1', (icons.indent && icons.indent['+1']) || '→', 'Indent'));
+
+    var g4 = addGroup();
+    g4.appendChild(mkBtn('script', 'sub',   (icons.script && icons.script.sub)   || 'X₂', 'Subscript'));
+    g4.appendChild(mkBtn('script', 'super', (icons.script && icons.script.super) || 'X²', 'Superscript'));
+
+    var g5 = addGroup();
+    g5.appendChild(mkBtn('link', null, icons.link || '🔗', 'Insert link'));
+    g5.appendChild(mkBtn('formula', null, icons.formula || '√', 'Insert formula (LaTeX)'));
+    g5.appendChild(mkBtn('clean', null, icons.clean || '⌫', 'Clear formatting'));
+
+    var g6 = addGroup();
+    var sciSel = buildSymbolDropdown(getQuill, 'Sci', SCIENTIFIC);
+    sciSel.classList.add('re-insert-symbol');
+    var grkSel = buildSymbolDropdown(getQuill, 'Greek', GREEK);
+    grkSel.classList.add('re-insert-symbol');
+    g6.appendChild(sciSel);
+    g6.appendChild(grkSel);
+
+    // Insert toolbar as first child of previewEl (but after any <h4> title)
+    var title = previewEl.querySelector('h4');
+    if (title && title.parentNode === previewEl) {
+      previewEl.insertBefore(toolbar, title.nextSibling);
+    } else {
+      previewEl.insertBefore(toolbar, previewEl.firstChild);
+    }
+
+    refreshState();
   }
 
   function initAll(root) {
     ensureKatexGlobal();
     root = root || document;
-    var nodes = root.querySelectorAll('.rich-editor');
+
+    // First handle shared-toolbar previews.
+    var previews = root.querySelectorAll ? root.querySelectorAll('.template-preview') : [];
+    previews.forEach(function(p) {
+      if (p.querySelector('.rich-editor')) initSharedForPreview(p);
+    });
+    // Also handle the case where `root` itself is a template-preview.
+    if (root.classList && root.classList.contains('template-preview') && root.querySelector('.rich-editor')) {
+      initSharedForPreview(root);
+    }
+
+    // Then init any remaining (uninitialized) editors with per-editor toolbars.
+    var nodes = root.querySelectorAll ? root.querySelectorAll('.rich-editor') : [];
     nodes.forEach(initOne);
   }
 

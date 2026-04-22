@@ -467,6 +467,20 @@
   .rich-editor .re-symbol-dropdown { height: 26px; padding: 2px 4px; margin-left: 4px; border: 1px solid #d8d5cc; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; }
   .rich-editor .re-symbol-dropdown:focus { outline: none; border-color: #8c1d40; }
 
+  /* ===== SHARED-TOOLBAR MODE (one toolbar per template) ===== */
+  /* When a .template-preview hosts a shared toolbar, hide each editor's own
+     toolbar and flatten the container border so the shared toolbar sits on top. */
+  .template-preview .re-shared-toolbar { position: sticky; top: 0; z-index: 5; background: #f8f7f2; border: 1px solid #e0ddd5; border-radius: 6px; padding: 4px 6px; margin-bottom: 10px; display: flex; flex-wrap: wrap; gap: 2px; align-items: center; }
+  .template-preview .re-shared-toolbar .ql-formats { display: inline-flex; align-items: center; gap: 2px; margin: 0 6px 0 0; padding-right: 6px; border-right: 1px solid #e0ddd5; }
+  .template-preview .re-shared-toolbar .ql-formats:last-child { border-right: none; }
+  .template-preview .re-shared-toolbar button { height: 26px; min-width: 28px; padding: 2px 6px; border: 1px solid transparent; border-radius: 4px; background: transparent; cursor: pointer; color: #444; font-size: 13px; display: inline-flex; align-items: center; justify-content: center; }
+  .template-preview .re-shared-toolbar button:hover { background: #ebe8dc; border-color: #d8d5cc; }
+  .template-preview .re-shared-toolbar button.active { background: #e3d5db; color: #8c1d40; border-color: #c9a6b5; }
+  .template-preview .re-shared-toolbar button svg { width: 16px; height: 16px; }
+  .template-preview .re-shared-toolbar select { height: 26px; padding: 2px 4px; border: 1px solid #d8d5cc; border-radius: 4px; background: #fff; font-size: 12px; cursor: pointer; font-family: 'Inter', sans-serif; color: #444; }
+  .template-preview.has-shared-toolbar .rich-editor .ql-toolbar.ql-snow { display: none; }
+  .template-preview.has-shared-toolbar .rich-editor .ql-container.ql-snow { border: 1px solid #e0ddd5; border-radius: 6px; }
+
   /* ===== QUIZ BUILDER ===== */
   .quiz-builder { padding: 0; }
   .quiz-question-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 14px; margin-bottom: 10px; }
