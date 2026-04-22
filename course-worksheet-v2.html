@@ -9174,6 +9174,7 @@ ${clone.innerHTML}
       '- You MUST output exactly ' + targetModules + ' rows — one per proposed module, numbered 1 through ' + targetModules + '. Do NOT merge modules. Do NOT stop early.\n' +
       '- Each Topic cell is a short descriptive name for that module (do NOT combine two topics with "AND" — pick one focused topic per module).\n' +
       '- The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X").\n' +
+      '- CAP EACH MODULE AT 4 MLOs MAXIMUM. If consolidating the source weeks into this module would yield more than 4 objectives, MERGE closely-related objectives into broader consolidated MLOs that preserve the underlying learning intent (e.g. combine "explain X" + "explain Y" + "explain Z" into a single "explain X, Y, and Z" objective, keeping the highest cognitive verb). Prefer 3-4 well-scoped MLOs over 5+ narrow ones.\n' +
       '- The Learning Materials cell MUST be a <ul> with one <li> per material (textbook chapter, reading, video, etc.). Do NOT list assignments here.\n' +
       '- Close every tag — the <table>, every <tr>, every <td>, every <ul>. Emit complete, well-formed HTML.\n' +
       '- Do NOT include <html>, <body>, <style>, markdown fences, or any other sections/tables.\n\n' +
@@ -9588,7 +9589,7 @@ ${clone.innerHTML}
       '• ' + moduleCount + ' module(s) with topics + objectives\n' +
       '• ' + parsed.reduce(function(a, p) { return a + p.materials.length; }, 0) + ' module-level material(s)\n' +
       '• ' + assignRows.length + ' assignment(s)\n\n' +
-      'This will overwrite existing content in these areas.';
+      'This will REPLACE all existing activities and materials for this course (across every module).';
     if (!confirm(msg)) return;
 
     var savedMods = loadField('moduleOverviewData') || {};
@@ -9600,6 +9601,11 @@ ${clone.innerHTML}
     saveField('moduleCount', moduleCount);
     if (typeof activeCourse !== 'undefined' && activeCourse) activeCourse.moduleCount = moduleCount;
 
+    // Parser push is a full-course replacement, not a partial merge. Wipe all
+    // activities and materials first so residuals from prior pushes (or the
+    // hardcoded seed) can't linger in modules that the new parse doesn't touch.
+    Object.keys(courseActivities).forEach(function(mk) { delete courseActivities[mk]; });
+    Object.keys(courseMaterials).forEach(function(mk) { delete courseMaterials[mk]; });
     parsed.forEach(function(p) {
       if (!p.materials.length) return;
       courseMaterials[p.num] = p.materials.map(function(title, idx) {
@@ -9607,11 +9613,6 @@ ${clone.innerHTML}
         return { id: 'mat-' + materialCount, type: 'Reading', title: title, links: [], richText: '' };
       });
     });
-    // Replace (don't append) activities per module so re-running Parse doesn't pile duplicates
-    // on top of previously-pushed rows. Only clear modules that the current parse touches.
-    var touchedModules = {};
-    assignRows.forEach(function(a) { touchedModules[a.modNum] = true; });
-    Object.keys(touchedModules).forEach(function(mk) { courseActivities[mk] = []; });
     assignRows.forEach(function(a) {
       if (!courseActivities[a.modNum]) courseActivities[a.modNum] = [];
       activityCounter++;
