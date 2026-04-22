@@ -6129,9 +6129,15 @@
       if (!el.hasChildNodes()) initQuizBuilder(el);
     });
 
-    // Table view — fully editable with objective picker, add, delete
+    // Table view — fully editable with objective picker, add, delete, multi-select
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
+      var thtml = '';
+      thtml += '<div class="overview-bulk-toolbar" id="assignments-bulk-toolbar" style="display:none; margin-bottom:8px; padding:8px 12px; background:#fff3e0; border:1px solid #ffcc80; border-radius:6px; align-items:center; gap:12px;">';
+      thtml += '<span id="assignments-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
+      thtml += '<button class="act-tool-btn btn-delete" onclick="deleteSelectedOverviewActivities()" style="padding:4px 10px; font-size:12px;">🗑 Delete selected</button>';
+      thtml += '<button class="act-tool-btn" onclick="clearOverviewSelection(\'assignments\')" style="padding:4px 10px; font-size:12px;">Clear</button>';
+      thtml += '</div>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
       for (var m = _asn; m < modCount + _asn; m++) {
         var mod = modules[m - _asn];
         var acts = courseActivities[m] || [];
@@ -6139,6 +6145,7 @@
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
           thtml += '<tr class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<td style="text-align:center;"><input type="checkbox" class="overview-row-select" data-activity-id="' + act.id + '" data-module-num="' + m + '" onchange="updateOverviewSelection(\'assignments\')" /></td>';
           thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
@@ -6148,9 +6155,9 @@
           thtml += '</tr>';
         }
         if (acts.length === 0) {
-          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No activities</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
-        thtml += '<tr><td></td><td colspan="5"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="5"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -6261,15 +6268,22 @@
     }
     cardsContainer.innerHTML = html;
 
-    // Table view — fully editable
+    // Table view — fully editable with multi-select
     if (tableContainer) {
-      var thtml = '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
+      var thtml = '';
+      thtml += '<div class="overview-bulk-toolbar" id="materials-bulk-toolbar" style="display:none; margin-bottom:8px; padding:8px 12px; background:#fff3e0; border:1px solid #ffcc80; border-radius:6px; align-items:center; gap:12px;">';
+      thtml += '<span id="materials-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
+      thtml += '<button class="act-tool-btn btn-delete" onclick="deleteSelectedOverviewMaterials()" style="padding:4px 10px; font-size:12px;">🗑 Delete selected</button>';
+      thtml += '<button class="act-tool-btn" onclick="clearOverviewSelection(\'materials\')" style="padding:4px 10px; font-size:12px;">Clear</button>';
+      thtml += '</div>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="materials-select-all" onchange="toggleSelectAllOverview(\'materials\', this.checked)" title="Select all" /></th><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
       for (var m = 1; m <= modCount; m++) {
         var mats = courseMaterials[m] || [];
         thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
           thtml += '<tr draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<td style="text-align:center;"><input type="checkbox" class="overview-row-select" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="updateOverviewSelection(\'materials\')" /></td>';
           thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
@@ -6278,9 +6292,9 @@
           thtml += '</tr>';
         }
         if (mats.length === 0) {
-          thtml += '<tr><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No materials</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No materials</td></tr>';
         }
-        thtml += '<tr><td></td><td colspan="4"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="4"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -6975,6 +6989,71 @@
       open[modNum] = true;
       renderMaterialsOverview(open);
     }
+  }
+
+  function getOverviewTableContainer(type) {
+    return document.getElementById(type === 'assignments' ? 'assignments-overview-table' : 'materials-overview-table');
+  }
+
+  function updateOverviewSelection(type) {
+    var container = getOverviewTableContainer(type);
+    if (!container) return;
+    var checked = container.querySelectorAll('.overview-row-select:checked');
+    var total = container.querySelectorAll('.overview-row-select');
+    var toolbar = document.getElementById(type + '-bulk-toolbar');
+    var count = document.getElementById(type + '-bulk-count');
+    var master = document.getElementById(type + '-select-all');
+    if (toolbar) toolbar.style.display = checked.length ? 'flex' : 'none';
+    if (count) count.textContent = checked.length + ' selected';
+    if (master) {
+      master.checked = total.length > 0 && checked.length === total.length;
+      master.indeterminate = checked.length > 0 && checked.length < total.length;
+    }
+  }
+
+  function toggleSelectAllOverview(type, checked) {
+    var container = getOverviewTableContainer(type);
+    if (!container) return;
+    container.querySelectorAll('.overview-row-select').forEach(function(cb) { cb.checked = checked; });
+    updateOverviewSelection(type);
+  }
+
+  function clearOverviewSelection(type) {
+    toggleSelectAllOverview(type, false);
+  }
+
+  function deleteSelectedOverviewActivities() {
+    var container = getOverviewTableContainer('assignments');
+    if (!container) return;
+    var checked = container.querySelectorAll('.overview-row-select:checked');
+    if (!checked.length) return;
+    if (!confirm('Delete ' + checked.length + ' selected activity(ies)? This cannot be undone from here (use Undo if needed).')) return;
+    captureUndoState('bulk delete activities');
+    checked.forEach(function(cb) {
+      var actId = cb.getAttribute('data-activity-id');
+      var modNum = parseInt(cb.getAttribute('data-module-num'));
+      if (!actId || !modNum || !courseActivities[modNum]) return;
+      courseActivities[modNum] = courseActivities[modNum].filter(function(a) { return a.id !== actId; });
+    });
+    saveActivityData();
+    renderAssignmentsOverview();
+  }
+
+  function deleteSelectedOverviewMaterials() {
+    var container = getOverviewTableContainer('materials');
+    if (!container) return;
+    var checked = container.querySelectorAll('.overview-row-select:checked');
+    if (!checked.length) return;
+    if (!confirm('Delete ' + checked.length + ' selected material(s)? This cannot be undone from here (use Undo if needed).')) return;
+    captureUndoState('bulk delete materials');
+    checked.forEach(function(cb) {
+      var matId = cb.getAttribute('data-material-id');
+      var modNum = parseInt(cb.getAttribute('data-module-num'));
+      if (!matId || !modNum || !courseMaterials[modNum]) return;
+      courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
+    });
+    saveActivityData();
+    renderMaterialsOverview();
   }
 
   function deleteMaterial(btn) {
