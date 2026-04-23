@@ -4891,6 +4891,10 @@
   // Debounced cloud push — runs after 2s of quiet writes.
   // Gated on window._cloudPullComplete so stale pre-pull local data can't overwrite the cloud.
   var _cloudPushTimer = null;
+  // Timestamp (ms) of our most recent successful upsert. Used by the realtime
+  // subscription to ignore echoes of our own saves — anything within ~3s of
+  // our last push is treated as our own change.
+  var _lastLocalPushAt = 0;
   function scheduleCloudPush() {
     if (!window._sbClient || !courseId) return;
     if (!window._cloudPullComplete) { console.info('[cloud push] skipped (pull not complete)'); return; }
@@ -4900,9 +4904,53 @@
       window._sbClient.from('worksheets').upsert({ course_id: courseId, data: data }, { onConflict: 'course_id' })
         .then(function(r) {
           if (r.error) console.warn('[cloud push] failed:', r.error.message);
-          else { var el = document.getElementById('cloud-sync-indicator'); if (el) { el.textContent = '☁ saved'; el.style.color = '#2e7d32'; setTimeout(function() { el.textContent = ''; }, 2000); } }
+          else {
+            _lastLocalPushAt = Date.now();
+            var el = document.getElementById('cloud-sync-indicator'); if (el) { el.textContent = '☁ saved'; el.style.color = '#2e7d32'; setTimeout(function() { el.textContent = ''; }, 2000); }
+          }
         });
     }, 2000);
+  }
+
+  // Subscribe to realtime UPDATE events on the worksheets row for this course.
+  // When a different browser saves changes we surface a non-blocking banner
+  // prompting a reload. We deliberately don't auto-merge — the worksheet's
+  // data shape is too broad to reason about conflict-free merges without CRDTs.
+  var _remoteChangeChannel = null;
+  function subscribeToRemoteWorksheetChanges() {
+    if (!window._sbClient || !courseId) return;
+    if (_remoteChangeChannel) return; // already subscribed
+    _remoteChangeChannel = window._sbClient
+      .channel('worksheet-changes:' + courseId)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'worksheets',
+        filter: 'course_id=eq.' + courseId
+      }, function(payload) {
+        // Ignore echoes of our own save (Supabase re-broadcasts our upserts).
+        if (Date.now() - _lastLocalPushAt < 3000) return;
+        showRemoteChangeBanner(payload && payload.new && payload.new.updated_at);
+      })
+      .subscribe();
+  }
+
+  function showRemoteChangeBanner(updatedAtIso) {
+    var banner = document.getElementById('remote-change-banner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'remote-change-banner';
+      banner.style.cssText = 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10001; background:#fff4cc; border:1px solid #e6b800; color:#664d00; padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:0 4px 16px rgba(0,0,0,0.15); display:flex; align-items:center; gap:12px;';
+      document.body.appendChild(banner);
+    }
+    var time = '';
+    try { if (updatedAtIso) time = ' at ' + new Date(updatedAtIso).toLocaleTimeString(); } catch(e) {}
+    banner.innerHTML =
+      '<span>🔄 Another collaborator saved changes' + time + '.</span>' +
+      '<button id="remote-change-reload" style="background:#664d00; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer;">Reload</button>' +
+      '<button id="remote-change-dismiss" style="background:transparent; color:#664d00; border:1px solid #e6b800; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer;">Dismiss</button>';
+    document.getElementById('remote-change-reload').onclick = function() { location.reload(); };
+    document.getElementById('remote-change-dismiss').onclick = function() { banner.remove(); };
   }
 
   function saveField(key, value) {
@@ -7363,6 +7411,8 @@
 
     // Initialize real-time presence
     initPresence();
+    // Subscribe to remote worksheet changes (banner prompt to reload)
+    subscribeToRemoteWorksheetChanges();
   });
 
   // Resize visible textareas whenever a view or card becomes visible
