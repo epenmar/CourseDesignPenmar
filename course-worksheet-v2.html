@@ -9443,6 +9443,90 @@ ${clone.innerHTML}
       } catch (e) { return 0; }
     };
 
+    // Parse the structure table to extract per-module topic + first MLO number so
+    // injected placeholder assignment rows can be contextually meaningful.
+    var extractModuleContext = function(structHtml) {
+      var ctx = {};
+      try {
+        var doc = new DOMParser().parseFromString('<!doctype html><html><body>' + structHtml + '</body></html>', 'text/html');
+        var table = doc.querySelector('table');
+        if (!table) return ctx;
+        var rows = table.querySelectorAll('tr');
+        rows.forEach(function(r) {
+          var cells = r.querySelectorAll('td');
+          if (cells.length < 3) return;
+          var modMatch = (cells[0].textContent || '').match(/(\d+)/);
+          if (!modMatch) return;
+          var modNum = parseInt(modMatch[1], 10);
+          // Columns: Module | Weeks Covered | Topic | MLOs | Materials
+          var topic = (cells[2] && cells[2].textContent || '').trim();
+          var mloCell = cells[3];
+          var firstMlo = '';
+          if (mloCell) {
+            var firstLi = mloCell.querySelector('li');
+            if (firstLi) {
+              var mloMatch = (firstLi.textContent || '').match(/(\d+\.\d+)/);
+              if (mloMatch) firstMlo = mloMatch[1];
+            }
+          }
+          ctx[modNum] = { topic: topic, firstMlo: firstMlo };
+        });
+      } catch (e) {}
+      return ctx;
+    };
+
+    // For each missing target module, append a placeholder row (with matching Module
+    // number, topic, first MLO) to the assignments table, then re-sort by module.
+    var fillMissingModuleRows = function(assignHtmlFrag, missing, structHtml) {
+      if (!missing || !missing.length) return { html: assignHtmlFrag, added: 0 };
+      try {
+        var ctx = extractModuleContext(structHtml);
+        var doc = new DOMParser().parseFromString('<!doctype html><html><body>' + assignHtmlFrag + '</body></html>', 'text/html');
+        var table = doc.querySelector('table');
+        if (!table) return { html: assignHtmlFrag, added: 0 };
+        var tbody = table.querySelector('tbody') || table;
+        missing.forEach(function(modNum) {
+          var info = ctx[modNum] || { topic: '', firstMlo: '' };
+          var tr = doc.createElement('tr');
+          tr.setAttribute('data-placeholder', '1');
+          var cells = [
+            String(modNum),
+            info.firstMlo || '',
+            'TBD — placeholder' + (info.topic ? ' for "' + info.topic + '"' : ''),
+            'TBD',
+            'TBD',
+            'Auto-added for module coverage; replace or remove'
+          ];
+          cells.forEach(function(text) {
+            var td = doc.createElement('td');
+            td.textContent = text;
+            tr.appendChild(td);
+          });
+          tbody.appendChild(tr);
+        });
+        // Re-sort body rows by Module number (header row stays where it is).
+        var allRows = Array.from(table.querySelectorAll('tr'));
+        var header = null;
+        var bodyRows = [];
+        allRows.forEach(function(r) {
+          if (!header && r.querySelector('th') && !r.querySelector('td')) { header = r; }
+          else bodyRows.push(r);
+        });
+        bodyRows.sort(function(a, b) {
+          var an = parseInt((a.querySelector('td') && a.querySelector('td').textContent || '0').match(/\d+/) || [0], 10);
+          var bn = parseInt((b.querySelector('td') && b.querySelector('td').textContent || '0').match(/\d+/) || [0], 10);
+          return an - bn;
+        });
+        // Rebuild the table rows in order.
+        var parent = (tbody === table) ? table : tbody;
+        // Clear parent's children that are <tr>, then re-append in order.
+        Array.from(parent.querySelectorAll(':scope > tr')).forEach(function(r) { parent.removeChild(r); });
+        if (header && tbody === table) parent.appendChild(header);
+        bodyRows.forEach(function(r) { parent.appendChild(r); });
+        return { html: doc.body.innerHTML, added: missing.length };
+      } catch (e) { return { html: assignHtmlFrag, added: 0 }; }
+    };
+
     // Walk the assignment table and clamp any Module cell outside [1, targetModules].
     // If the AI produced its own numbering (e.g. 10 modules when target=7), proportionally
     // remap. Also reports distinct target-module coverage so the caller can warn when
@@ -9508,10 +9592,22 @@ ${clone.innerHTML}
       var structureRowCount = countStructureModules(structureHtml);
 
       if (status) { status.textContent = 'Step 3/3 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
-      var assignResult = await tryCall(buildAssignmentsQuery(structureHtml), 3000);
-      var assignHtmlRaw = sanitizeFragment(stripFences(assignResult));
+      var assignResult = await tryCall(buildAssignmentsQuery(structureHtml), 4096);
+      var assignRawStr = stripFences(assignResult);
+      // Detect truncation before sanitizeFragment auto-closes the partial table.
+      var truncatedAssignments = !/<\/table>\s*$/i.test(assignRawStr.trim());
+      var assignHtmlRaw = sanitizeFragment(assignRawStr);
       var clampResult = clampAssignmentModules(assignHtmlRaw, targetModules);
       var assignHtml = clampResult.html;
+      // Inject placeholder rows for any target module left empty, using topic + first MLO
+      // pulled from the structure table so the placeholder is at least contextually aligned.
+      if (clampResult.missingModules && clampResult.missingModules.length) {
+        var fillResult = fillMissingModuleRows(assignHtml, clampResult.missingModules, structureHtml);
+        assignHtml = fillResult.html;
+        clampResult.placeholdersAdded = fillResult.added;
+      } else {
+        clampResult.placeholdersAdded = 0;
+      }
 
       var html = metadataHtml + '\n' + structureHtml + '\n' + assignHtml;
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
@@ -9524,11 +9620,14 @@ ${clone.innerHTML}
       if (structureRowCount && structureRowCount !== targetModules) {
         warnings.push('structure returned ' + structureRowCount + ' module rows (expected ' + targetModules + ')');
       }
+      if (truncatedAssignments) {
+        warnings.push('AI response appeared truncated (no closing </table>) — some assignments may be missing');
+      }
       if (clampResult.remappedCount > 0) {
         warnings.push('remapped ' + clampResult.remappedCount + ' assignment row(s) from ' + clampResult.maxSeen + '-module numbering down to ' + targetModules);
       }
-      if (clampResult.missingModules && clampResult.missingModules.length) {
-        warnings.push('no assignments mapped to module ' + clampResult.missingModules.join(', ') + ' (' + clampResult.missingModules.length + ' of ' + targetModules + ' empty) — add rows manually or re-run');
+      if (clampResult.placeholdersAdded > 0) {
+        warnings.push('added placeholder rows for module ' + clampResult.missingModules.join(', ') + ' (AI left ' + clampResult.placeholdersAdded + ' of ' + targetModules + ' modules empty)');
       }
       if (warnings.length) {
         if (status) { status.textContent = '✓ Done with adjustments — ' + warnings.join('; ') + '. Review the right pane.'; status.style.color = '#b26a00'; }
