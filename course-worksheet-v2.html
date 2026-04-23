@@ -5263,16 +5263,24 @@
     const clos = (c.clos || []).filter(function(s) { return s; });
     const elosFlat = getElosFlat();
 
+    // Read MLOs from localStorage moduleOverviewData (canonical source) rather
+    // than activeCourse.modules[i].mlos — the in-memory cache only gets hydrated
+    // when the user interacts with an overview card this session, so modules
+    // the user hasn't touched appear empty to the AI.
+    const savedMods = loadField('moduleOverviewData') || {};
     const modules = [];
     const mods = c.modules || [];
+    const startNum = c.moduleStartZero ? 0 : 1;
     const modCount = c.moduleCount || mods.length || 7;
     for (let i = 0; i < modCount; i++) {
+      const modNum = i + startNum;
       const mod = mods[i];
-      modules.push({
-        num: i + 1,
-        topic: mod ? mod.title : '',
-        objectives: mod && mod.mlos ? mod.mlos : []
-      });
+      const saved = savedMods[modNum] || {};
+      const mlos = saved.mlos && saved.mlos.length
+        ? saved.mlos
+        : (mod && mod.mlos ? mod.mlos : []);
+      const topic = saved.topic || (mod ? mod.title : '') || '';
+      modules.push({ num: modNum, topic: topic, objectives: mlos });
     }
 
     // Gather activities and materials per module
@@ -12013,9 +12021,11 @@ ${clone.innerHTML}
 
     setTimeout(function() {
       injectCommentButtons();
+      // loadAllCommentCounts() populates commentCache then calls
+      // applyFieldCommentIndicators() itself — calling it synchronously here
+      // would race the async fetch and skip the yellow field highlights.
       loadAllCommentCounts();
       loadAndApplyHighlights();
-      applyFieldCommentIndicators();
       // Auto-open comment panel if URL param requests it
       if (urlParams.get('openComments') === '1') {
         setTimeout(function() { openCommentPanel(getCurrentSection()); }, 300);

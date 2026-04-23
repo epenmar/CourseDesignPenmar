@@ -1776,6 +1776,24 @@
   }
   try { triggerSync(); } catch(e) {} // sync on page load, never block initial render
 
+  // Keep Granola/calendar notes fresh while the dashboard is open.
+  // Server throttles /sync to 60s, so we only fire if the tab regains focus
+  // after being hidden (typical flow: meeting ends in another app → user
+  // switches back to dashboard → latest notes appear). Also poll every 3 min
+  // as a safety net when the tab stays visible.
+  var _lastBackgroundSync = Date.now();
+  var SYNC_COOLDOWN_MS = 60000;
+  function maybeBackgroundSync() {
+    if (Date.now() - _lastBackgroundSync < SYNC_COOLDOWN_MS) return;
+    _lastBackgroundSync = Date.now();
+    try { triggerSync(); } catch(e) {}
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') maybeBackgroundSync();
+  });
+  window.addEventListener('focus', maybeBackgroundSync);
+  setInterval(function() { if (document.visibilityState === 'visible') maybeBackgroundSync(); }, 180000);
+
   // Convert plain text body to HTML with embedded links (used by renderDetail + buildEmailDropdown)
   function bodyToHtml(body) {
     let html = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -2174,8 +2192,10 @@
       if (!info) return;
       if (info.addedToDashboard) return;
       if (imported[rid]) {
-        // Already on dashboard (e.g., user imported manually) — just flip flag.
+        // Already on dashboard (e.g., user imported manually) — flip both flags
+        // so the banner also stops surfacing it.
         info.addedToDashboard = true;
+        info.seen = true;
         changed = true;
         return;
       }
@@ -2291,6 +2311,7 @@
         if (!saved0[key].college && cand.college) saved0[key].college = cand.college;
         if ((!saved0[key].program || /^[A-Z]{2,4}$/.test(saved0[key].program)) && cand.program) saved0[key].program = cand.program;
         localStorage.setItem('user_courses', JSON.stringify(saved0));
+        if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved0[key]);
       }
       courseData[key].airtableRecordId = cand.recordId;
       if (!courseData[key].college && cand.college) courseData[key].college = cand.college;
@@ -2359,6 +2380,7 @@
     saved[key] = entry;
     saved[key]._worksheet = worksheetEntry;
     localStorage.setItem('user_courses', JSON.stringify(saved));
+    if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved[key]);
     // Seed Airtable URL so the comment integration works immediately.
     setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
     return { ok: true, key: key, existed: false };
@@ -4123,6 +4145,7 @@
     saved[key] = entry;
     saved[key]._worksheet = worksheetEntry;
     localStorage.setItem('user_courses', JSON.stringify(saved));
+    if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved[key]);
 
     // Airtable URL lives in its own dashboard_state key
     if (airtableUrl) setCourseAirtableUrl(key, airtableUrl);

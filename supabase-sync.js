@@ -107,7 +107,12 @@
     var { data: ucData, error: ucErr } = await sb.from('user_courses').select('course_id, data');
     if (ucErr) errors.push('user_courses: ' + ucErr.message);
     else if (ucData) {
+      // Merge: start with whatever is in localStorage (preserves local-only courses
+      // that were added but not yet pushed), then overlay cloud (cloud wins for
+      // keys that exist in both, since cloud holds the freshest cross-device state).
+      var pre = parseJson(localStorage.getItem('user_courses'), {}) || {};
       var merged = {};
+      Object.keys(pre).forEach(function(k) { merged[k] = pre[k]; });
       ucData.forEach(function(row) { merged[row.course_id] = row.data; });
       localStorage.setItem('user_courses', JSON.stringify(merged));
       pulled.userCourses = ucData.length;
@@ -123,9 +128,23 @@
     return (count || 0) > 0;
   }
 
+  // Fire-and-forget push of a single user_courses row. Used by the dashboard
+  // immediately after adding a course so it survives the next page reload
+  // (otherwise the cloud pull would wipe it since it was never pushed).
+  function pushUserCourse(courseId, data) {
+    if (!courseId || !data) return;
+    sb.from('user_courses').upsert(
+      { course_id: courseId, data: data },
+      { onConflict: 'course_id' }
+    ).then(function(r) {
+      if (r.error) console.warn('[user_courses push]', r.error.message);
+    });
+  }
+
   window.SupabaseSync = {
     pushAllToCloud: pushAllToCloud,
     pullAllFromCloud: pullAllFromCloud,
+    pushUserCourse: pushUserCourse,
     cloudHasData: cloudHasData,
     client: sb
   };
