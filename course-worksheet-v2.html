@@ -8930,8 +8930,11 @@ ${clone.innerHTML}
   }
 
   // ===== COURSE PARSER (15-week → N-module AI proposal) =====
+  // Namespace by the URL's courseId (e.g. "mns521"). Previously used
+  // activeCourse.id, which is actually the instructional designer's name
+  // ("Elisa Penmar") and so every course sharing that ID leaked parser state.
   function cpStorageKey() {
-    return 'course_parser_' + (activeCourse && activeCourse.id ? activeCourse.id : 'default');
+    return 'course_parser_' + (courseId || 'default');
   }
 
   function loadCourseParserState() {
