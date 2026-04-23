@@ -957,6 +957,13 @@
           <button class="btn-generate" style="width:auto; padding:10px 48px; font-size:14px;" onclick="addModuleCard()">+ Add Module</button>
         </div>
 
+        <div style="text-align:center; margin-top:20px; margin-bottom:4px;">
+          <button id="mlos-reviewed-btn" onclick="toggleMlosReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+            Mark MLOs as Reviewed
+          </button>
+          <p id="mlos-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+        </div>
+
         <div class="callout callout-info" style="margin-top:20px;">
           <strong>What happens next:</strong> Once you've defined topics and objectives here, we suggest you move onto the <strong>Assignments Overview</strong> in order to determine how your students will show what they've learned.
         </div>
@@ -1016,6 +1023,13 @@
         </div>
         <div id="assignments-overview-cards"></div>
         <div id="assignments-overview-table" style="display:none;"></div>
+
+        <div style="text-align:center; margin-top:20px; margin-bottom:4px;">
+          <button id="assignments-reviewed-btn" onclick="toggleAssignmentsReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+            Mark Assignments as Reviewed
+          </button>
+          <p id="assignments-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+        </div>
       </div>
 
       <!-- ===== MATERIALS OVERVIEW ===== -->
@@ -2974,6 +2988,59 @@
     }
   }
 
+  // ===== REVIEW TOGGLES FOR MLOs AND ASSIGNMENTS =====
+  // Parse-with-AI fills in MLOs and assignments as drafts. Until a human
+  // reviews them, those sections contribute half credit to course progress
+  // so the dashboard doesn't paint the course as further along than it is.
+  function toggleMlosReviewed() {
+    saveField('mlosReviewed', !loadField('mlosReviewed'));
+    updateMlosReviewedButton();
+    calculateProgress(true);
+  }
+  function updateMlosReviewedButton() {
+    var btn = document.getElementById('mlos-reviewed-btn');
+    var status = document.getElementById('mlos-reviewed-status');
+    if (!btn) return;
+    var reviewed = loadField('mlosReviewed');
+    if (reviewed) {
+      btn.style.background = '#4caf50';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#4caf50';
+      btn.textContent = '✅ MLOs Reviewed';
+      if (status) status.textContent = 'Reviewed — click to revoke';
+    } else {
+      btn.style.background = '#fff';
+      btn.style.color = '#4caf50';
+      btn.style.borderColor = '#4caf50';
+      btn.textContent = 'Mark MLOs as Reviewed';
+      if (status) status.textContent = 'Until marked reviewed, MLOs contribute half credit to progress.';
+    }
+  }
+  function toggleAssignmentsReviewed() {
+    saveField('assignmentsReviewed', !loadField('assignmentsReviewed'));
+    updateAssignmentsReviewedButton();
+    calculateProgress(true);
+  }
+  function updateAssignmentsReviewedButton() {
+    var btn = document.getElementById('assignments-reviewed-btn');
+    var status = document.getElementById('assignments-reviewed-status');
+    if (!btn) return;
+    var reviewed = loadField('assignmentsReviewed');
+    if (reviewed) {
+      btn.style.background = '#4caf50';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#4caf50';
+      btn.textContent = '✅ Assignments Reviewed';
+      if (status) status.textContent = 'Reviewed — click to revoke';
+    } else {
+      btn.style.background = '#fff';
+      btn.style.color = '#4caf50';
+      btn.style.borderColor = '#4caf50';
+      btn.textContent = 'Mark Assignments as Reviewed';
+      if (status) status.textContent = 'Until marked reviewed, assignments contribute half credit to progress.';
+    }
+  }
+
   // ===== ALIGNMENT AUDIT =====
 
   function runAlignmentAudit() {
@@ -4233,6 +4300,8 @@
     // 4. Module MLOs (15%) — each module scores up to 1.0:
     //    0.75 for having MLOs defined, 0.25 for all MLOs tagged with at least one ELO
     // Use moduleOverviewData from localStorage (user's actual saved data), not hardcoded config
+    // Half credit until the user clicks "MLOs reviewed" — Parse-with-AI drafts
+    // shouldn't read as "done" before a human passes over them.
     var savedModOverview = loadField('moduleOverviewData') || {};
     var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
     var moduleScore = 0;
@@ -4259,15 +4328,20 @@
         if (allTagged) moduleScore += 0.25;
       }
     }
-    if (modCount > 0) weightedPct += 15 * (moduleScore / modCount);
+    var mlosReviewed = !!loadField('mlosReviewed');
+    var mlosMultiplier = mlosReviewed ? 1 : 0.5;
+    if (modCount > 0) weightedPct += 15 * (moduleScore / modCount) * mlosMultiplier;
 
     // 5. Assignments (20%) — fraction of modules that have at least one named activity
+    // Half credit until the user clicks "Assignments reviewed" (same rationale).
     var modsWithActs = 0;
     for (var ai = 1; ai <= modCount; ai++) {
       var acts = courseActivities[ai];
       if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) modsWithActs++;
     }
-    if (modCount > 0) weightedPct += 20 * (modsWithActs / modCount);
+    var assignmentsReviewed = !!loadField('assignmentsReviewed');
+    var assignmentsMultiplier = assignmentsReviewed ? 1 : 0.5;
+    if (modCount > 0) weightedPct += 20 * (modsWithActs / modCount) * assignmentsMultiplier;
 
     // 6. Materials (20%) — fraction of modules that have at least one titled material
     var modsWithMats = 0;
@@ -5673,12 +5747,12 @@
     renderPageNav(viewId);
     // Render overview content when navigating to overview views
     if (viewId === 'syllabus-checklist') renderSyllabusChecklist();
-    if (viewId === 'assignments-overview') renderAssignmentsOverview();
+    if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); }
     if (viewId === 'materials-overview') renderMaterialsOverview();
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
-    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); }
+    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); updateMlosReviewedButton(); }
     if (viewId === 'course-parser') { renderCourseParser(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
@@ -10107,6 +10181,12 @@ ${clone.innerHTML}
     });
     saveField('courseActivities', courseActivities);
     saveField('courseMaterials', courseMaterials);
+
+    // Parse-with-AI just overwrote MLOs and assignments with drafts — drop
+    // the "reviewed" flags so progress reflects that a human still needs to
+    // iterate on them before the section counts at full weight.
+    saveField('mlosReviewed', false);
+    saveField('assignmentsReviewed', false);
 
     if (gradeRows.length) saveField('gradingPolicy', gradeRows);
     if (gradeRounding) cpSetFormField('syl-grade-rounding', gradeRounding);
