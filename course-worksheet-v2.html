@@ -4645,22 +4645,32 @@
     if (milestoneStatus && syncedCourse.calendarMeetings) {
       const calMtgs = syncedCourse.calendarMeetings;
       const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; }));
+      // Flat set of stemmed milestone words — used for "loose match" (at least one keyword overlap).
+      const allMilestoneStems = {};
+      msLabels.forEach(function(words) { words.forEach(function(w) { allMilestoneStems[stemWord(w)] = true; }); });
       calMtgs.forEach(function(cm) {
         const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
-        var wasMatched = false;
+        var handled = false; // meeting fully matches SOME milestone — don't surface regardless of that milestone's status
         for (let k = 0; k < msLabels.length; k++) {
           if (msLabels[k].length === 0) continue;
           const matched = msLabels[k].every(function(w) { return fuzzyWordMatch(w, cmLower); });
-          if (matched && (!milestoneStatus[k] || milestoneStatus[k].status === 'pending')) {
+          if (!matched) continue;
+          handled = true;
+          // Only attach if the milestone slot is still empty — don't overwrite an existing assignment.
+          if (!milestoneStatus[k] || milestoneStatus[k].status === 'pending') {
             const d = new Date(cm.date + 'T00:00:00');
             const mo = d.toLocaleDateString('en-US', {month:'short'});
             const day = d.getDate();
             milestoneStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
-            wasMatched = true;
-            break;
           }
+          break;
         }
-        if (!wasMatched) unmatchedMeetings.push(cm);
+        if (handled) return;
+        // Only surface meetings that loosely relate to a milestone (share at least one keyword).
+        // Generic course check-ins (e.g. bare course code) are skipped — the user can ignore remaining noise manually.
+        const cmWords = cmLower.split(/\s+/).filter(function(w) { return w.length > 2; });
+        const looselyRelated = cmWords.some(function(w) { return allMilestoneStems[stemWord(w)]; });
+        if (looselyRelated) unmatchedMeetings.push(cm);
       });
     } else if (syncedCourse && syncedCourse.calendarMeetings) {
       unmatchedMeetings = syncedCourse.calendarMeetings.slice();
@@ -4687,6 +4697,16 @@
         return cm.date !== a.date || (cm.label || '') !== a.label;
       });
     });
+
+    // Drop meetings the user has explicitly dismissed.
+    const ignoredMeetings = loadField('ignoredMeetings') || [];
+    if (ignoredMeetings.length > 0) {
+      const ignoredSet = {};
+      ignoredMeetings.forEach(function(m) { ignoredSet[(m.date || '') + '|' + (m.label || '')] = true; });
+      unmatchedMeetings = unmatchedMeetings.filter(function(cm) {
+        return !ignoredSet[(cm.date || '') + '|' + (cm.label || '')];
+      });
+    }
 
     for (let i = 0; i < milestones.length; i++) {
       const isManualDone = manualComplete[i] === true;
@@ -4776,15 +4796,20 @@
         unmatchedMeetings.forEach(function(cm, idx) {
           var d = new Date(cm.date + 'T00:00:00');
           var mtgPretty = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + (cm.time ? ' at ' + cm.time : '');
+          var escLabel = (cm.label || 'Meeting').replace(/'/g, "\\'");
           boxHtml += '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;' + (idx > 0 ? ' margin-top:8px; padding-top:8px; border-top:1px solid #bbdefb;' : '') + '">' +
             '<span style="font-size:13px; flex:1; min-width:200px;">📅 <strong>' + (cm.label || 'Meeting') + '</strong> — ' + mtgPretty + '</span>' +
-            '<select onchange="assignMeetingToMilestone(this.value, \'' + cm.date + '\', \'' + (cm.time || '') + '\', \'' + (cm.label || 'Meeting').replace(/'/g, "\\'") + '\')" ' +
+            '<select onchange="assignMeetingToMilestone(this.value, \'' + cm.date + '\', \'' + (cm.time || '') + '\', \'' + escLabel + '\')" ' +
             'style="padding:4px 8px; border:1px solid #90caf9; border-radius:4px; font-size:12px; font-family:Inter,sans-serif; background:#fff; cursor:pointer;">' +
             '<option value="">Assign to milestone...</option>';
           milestones.forEach(function(m, mi) {
             boxHtml += '<option value="' + mi + '">' + m.label + '</option>';
           });
-          boxHtml += '</select></div>';
+          boxHtml += '</select>' +
+            '<button onclick="ignoreMeetingSuggestion(\'' + cm.date + '\', \'' + escLabel + '\')" ' +
+            'title="Dismiss this suggestion" ' +
+            'style="border:1px solid #90caf9; background:#fff; color:#1565c0; border-radius:4px; font-size:12px; padding:4px 8px; cursor:pointer;">Ignore</button>' +
+            '</div>';
         });
         assignBox.innerHTML = boxHtml;
         assignBox.style.display = 'block';
@@ -4808,6 +4833,16 @@
     var assignments = loadField('meetingAssignments') || {};
     assignments[String(idx)] = { date: meetingDate, time: meetingTime, label: meetingLabel };
     saveField('meetingAssignments', assignments);
+    recalcTimeline();
+  }
+
+  function ignoreMeetingSuggestion(meetingDate, meetingLabel) {
+    var ignored = loadField('ignoredMeetings') || [];
+    var already = ignored.some(function(m) { return m.date === meetingDate && (m.label || '') === meetingLabel; });
+    if (!already) {
+      ignored.push({ date: meetingDate, label: meetingLabel });
+      saveField('ignoredMeetings', ignored);
+    }
     recalcTimeline();
   }
 
