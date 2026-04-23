@@ -1492,7 +1492,7 @@
         <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
         <td style="font-size:12px;">${c.program || '—'}</td>
         <td style="font-size:12px;">${c.college || '—'}</td>
-        <td>${c.session}</td>
+        <td>${/^\d{4}-\d{2}-\d{2}$/.test(c.session || '') ? airtableDateToSessionLabel(c.session) : (c.session || '—')}</td>
         <td class="progress-cell">
           <div class="progress-bar-outer"><div class="progress-bar-fill ${c.fillClass}" style="width:${c.progress}%"></div></div>
           <div class="progress-text">${c.progressLabel}</div>
@@ -1600,6 +1600,16 @@
     let changed = false;
     Object.keys(courseData).forEach(key => {
       const c = courseData[key];
+      // Migrate Airtable-imported courses whose session field is still an ISO date.
+      if (/^\d{4}-\d{2}-\d{2}$/.test(c.session || '')) {
+        var migratedLabel = airtableDateToSessionLabel(c.session);
+        if (migratedLabel) {
+          if (saved[key]) { saved[key].session = migratedLabel; saved[key].sessionShort = migratedLabel; }
+          c.session = migratedLabel;
+          c.sessionShort = migratedLabel;
+          changed = true;
+        }
+      }
       if (saved[key] && saved[key]._worksheet) {
         // Fix stale moduleCount: 0 from earlier bug
         if (!saved[key]._worksheet.moduleCount) {
