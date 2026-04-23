@@ -2325,6 +2325,16 @@
       });
     }
   }
+  // Fallback: match against activeCourse.instructor when the users map is empty
+  // (e.g. course config never hydrated in this browser, minimal fallback entry).
+  if (!_userMatch && userParam && activeCourse.instructor) {
+    var _lowerParam2 = userParam.toLowerCase();
+    var instrParts = activeCourse.instructor.split(/\s+/);
+    var instrLast = instrParts[instrParts.length - 1].toLowerCase();
+    if (instrLast === _lowerParam2 || activeCourse.instructor.toLowerCase() === _lowerParam2) {
+      _userMatch = { name: activeCourse.instructor, role: 'instructor' };
+    }
+  }
   if (_userMatch) {
     urlIdentity = _userMatch;
     if (roleParam) urlIdentity = { name: _userMatch.name, role: roleParam };
@@ -2332,6 +2342,12 @@
     // Reviewer not in users map yet — derive name from slug
     var reviewerName = userParam.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
     urlIdentity = { name: reviewerName, role: 'reviewer' };
+  } else if (userParam) {
+    // Last resort: derive a display name from the slug and assume the role the
+    // URL asked for (or 'instructor' for the default Send-Worksheet-Link flow,
+    // which uses ?user=slug without a role param).
+    var derivedName = userParam.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    urlIdentity = { name: derivedName, role: roleParam || 'instructor' };
   }
 
   // Pull latest cloud copy for this course (so instructor/reviewer in a fresh browser sees up-to-date content)
