@@ -1893,6 +1893,48 @@
   function getAirtablePat() {
     try { return localStorage.getItem('airtable_pat') || ''; } catch(e) { return ''; }
   }
+  // Returns true when Airtable requests can be served (either proxy mode is on,
+  // or the user has a PAT set locally). Used for UI gating.
+  function hasAirtableAuth() {
+    return !!window.AIRTABLE_VIA_PROXY || !!getAirtablePat();
+  }
+  // Unified Airtable API helper. In proxy mode, calls the `airtable-proxy`
+  // edge function so the PAT stays server-side. Otherwise, calls Airtable
+  // directly with the locally-stored PAT.
+  //   path:   relative to api.airtable.com/v0/ (e.g. 'appXXX/tblYYY/recZZZ')
+  //   method: GET/POST/PATCH/DELETE (default GET)
+  //   body:   object to JSON-encode (POST/PATCH only)
+  // Resolves to the parsed JSON body on 2xx; throws on non-2xx with Airtable's
+  // error message when available.
+  async function callAirtableAPI(path, method, body) {
+    method = (method || 'GET').toUpperCase();
+    var res, json;
+    if (window.AIRTABLE_VIA_PROXY) {
+      res = await fetch(window.SUPABASE_URL + '/functions/v1/airtable-proxy', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + window.SUPABASE_PUBLISHABLE_KEY,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ method: method, path: path, body: body })
+      });
+    } else {
+      var pat = getAirtablePat();
+      if (!pat) throw new Error('No Airtable PAT set');
+      var init = { method: method, headers: { 'Authorization': 'Bearer ' + pat } };
+      if (body != null && method !== 'GET' && method !== 'HEAD') {
+        init.headers['Content-Type'] = 'application/json';
+        init.body = JSON.stringify(body);
+      }
+      res = await fetch('https://api.airtable.com/v0/' + path, init);
+    }
+    try { json = await res.json(); } catch(e) { json = {}; }
+    if (!res.ok) {
+      var msg = (json && json.error && (json.error.message || json.error.type || json.error)) || ('HTTP ' + res.status);
+      throw new Error(msg);
+    }
+    return json;
+  }
   function setAirtablePat(tok) {
     var trimmed = (tok || '').trim();
     if (trimmed) localStorage.setItem('airtable_pat', trimmed);
@@ -1966,16 +2008,9 @@
   // Fetch all Course Development records linked to Elisa's stakeholder.
   // Returns an array of lean record objects for the UI.
   async function fetchAirtableCourseCandidates() {
-    var pat = getAirtablePat();
-    if (!pat) throw new Error('No Airtable PAT set');
+    if (!hasAirtableAuth()) throw new Error('No Airtable auth (set PAT or enable proxy)');
     // Step 1: read stakeholder record to get linked Course Developments
-    var shUrl = 'https://api.airtable.com/v0/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_STAKEHOLDERS_TABLE + '/' + AIRTABLE_MY_STAKEHOLDER_ID;
-    var shRes = await fetch(shUrl, { headers: { 'Authorization': 'Bearer ' + pat } });
-    if (!shRes.ok) {
-      var errJson = await shRes.json().catch(function(){ return {}; });
-      throw new Error((errJson.error && (errJson.error.message || errJson.error.type)) || ('Stakeholder fetch failed: HTTP ' + shRes.status));
-    }
-    var sh = await shRes.json();
+    var sh = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_STAKEHOLDERS_TABLE + '/' + AIRTABLE_MY_STAKEHOLDER_ID);
     var devIds = (sh.fields && sh.fields['Course Developments 2']) || [];
     if (devIds.length === 0) return [];
     // Step 2: fetch the course development records, chunked by 25 (URL-length safe)
@@ -1985,13 +2020,7 @@
     for (var i = 0; i < devIds.length; i += 25) {
       var chunk = devIds.slice(i, i + 25);
       var formula = 'OR(' + chunk.map(function(rid) { return 'RECORD_ID()%3D%22' + rid + '%22'; }).join('%2C') + ')';
-      var cdUrl = 'https://api.airtable.com/v0/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + '&' + fieldQs;
-      var cdRes = await fetch(cdUrl, { headers: { 'Authorization': 'Bearer ' + pat } });
-      if (!cdRes.ok) {
-        var errJson2 = await cdRes.json().catch(function(){ return {}; });
-        throw new Error((errJson2.error && (errJson2.error.message || errJson2.error.type)) || ('Course fetch failed: HTTP ' + cdRes.status));
-      }
-      var cdBody = await cdRes.json();
+      var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + '&' + fieldQs);
       (cdBody.records || []).forEach(function(r) { all.push(r); });
     }
     return all.map(function(r) {
@@ -2013,8 +2042,7 @@
   // Public: run a full sync. Updates state, refreshes the banner, optionally opens modal.
   window.syncAirtableCourses = async function(opts) {
     opts = opts || {};
-    var pat = getAirtablePat();
-    if (!pat) {
+    if (!hasAirtableAuth()) {
       window.setAirtablePatPrompt();
       return;
     }
@@ -2328,8 +2356,7 @@
   window.openAddCourseAirtablePicker = async function() {
     var list = document.getElementById('nc-airtable-list');
     if (!list) return;
-    var pat = getAirtablePat();
-    if (!pat) {
+    if (!hasAirtableAuth()) {
       if (window.setAirtablePatPrompt) window.setAirtablePatPrompt();
       return;
     }
@@ -2543,29 +2570,21 @@
     // Fire-and-forget: if Airtable target is selected, post as a comment on the record via the API.
     if (note && targets.indexOf('airtable') !== -1) {
       var atParsed = parseAirtableUrl(getCourseAirtableUrl(courseId));
-      var atPat = getAirtablePat();
       if (!atParsed) {
         note.airtable = { status: 'error', error: 'No Airtable record URL for ' + courseId };
         savePrivateNotesMap(all);
-      } else if (!atPat) {
-        note.airtable = { status: 'error', error: 'No Airtable Personal Access Token set' };
+      } else if (!hasAirtableAuth()) {
+        note.airtable = { status: 'error', error: 'No Airtable auth (set PAT or enable proxy)' };
         savePrivateNotesMap(all);
       } else if (!note.airtable || note.airtable.status !== 'posted') {
         note.airtable = { status: 'pending', recordId: atParsed.recordId };
         savePrivateNotesMap(all);
-        var atUrl = 'https://api.airtable.com/v0/' + atParsed.baseId + '/' + atParsed.tableId + '/' + atParsed.recordId + '/comments';
-        fetch(atUrl, {
-          method: 'POST',
-          headers: { 'Authorization': 'Bearer ' + atPat, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ text: text })
-        }).then(function(r) {
-          return r.json().then(function(j) { return { ok: r.ok, body: j }; });
-        }).then(function(res) {
+        var commentPath = atParsed.baseId + '/' + atParsed.tableId + '/' + atParsed.recordId + '/comments';
+        callAirtableAPI(commentPath, 'POST', { text: text }).then(function(j) {
           var fresh = readPrivateNotes();
           var n = (fresh[courseId] || []).find(function(x) { return x.id === note.id; });
           if (!n) return;
-          if (res.ok) n.airtable = { status: 'posted', recordId: atParsed.recordId, commentId: res.body.id, postedAt: new Date().toISOString() };
-          else n.airtable = { status: 'error', recordId: atParsed.recordId, error: (res.body && res.body.error && (res.body.error.message || res.body.error.type || res.body.error)) || 'unknown' };
+          n.airtable = { status: 'posted', recordId: atParsed.recordId, commentId: j.id, postedAt: new Date().toISOString() };
           savePrivateNotesMap(fresh);
           renderDetail(courseId);
         }).catch(function(err) {
@@ -2926,12 +2945,14 @@
       ? `<label title="Posts as a comment on ${jiraEpic}"><input type="checkbox" id="pn-t-jira-${id}"> Jira (${jiraEpic})</label>`
       : `<label title="No Epic mapped for ${id} yet" style="opacity:0.55;"><input type="checkbox" id="pn-t-jira-${id}" disabled> Jira (Epic comment)</label>`;
     var airtableParsed = parseAirtableUrl(getCourseAirtableUrl(id));
-    var airtablePat = getAirtablePat();
+    var airtableAuth = hasAirtableAuth();
     var airtableLabel;
     if (!airtableParsed) {
       airtableLabel = `<label title="Add an Airtable Record URL for this course (edit course → Airtable Record URL) to enable" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (no record URL)</label>`;
-    } else if (!airtablePat) {
+    } else if (!airtableAuth) {
       airtableLabel = `<label title="Click 'Set token' to add your Airtable Personal Access Token" style="opacity:0.55;"><input type="checkbox" id="pn-t-airtable-${id}" disabled> Airtable (comment)</label> <a href="#" onclick="event.preventDefault(); setAirtablePatPrompt('${id}')" style="font-size:11px; color:#1a73e8; text-decoration:underline;">Set token</a>`;
+    } else if (window.AIRTABLE_VIA_PROXY) {
+      airtableLabel = `<label title="Posts as a comment on the Airtable record (${airtableParsed.recordId}) via Supabase edge function"><input type="checkbox" id="pn-t-airtable-${id}"> Airtable (comment)</label>`;
     } else {
       airtableLabel = `<label title="Posts as a comment on the Airtable record (${airtableParsed.recordId})"><input type="checkbox" id="pn-t-airtable-${id}"> Airtable (comment)</label> <a href="#" onclick="event.preventDefault(); setAirtablePatPrompt('${id}')" style="font-size:11px; color:#999; text-decoration:underline;" title="Update or clear the stored token">⚙</a>`;
     }
@@ -4609,9 +4630,9 @@
   })();
   renderTable();
 
-  // Airtable sync: render banner from cached state, then kick off a background refresh if PAT is set.
+  // Airtable sync: render banner from cached state, then kick off a background refresh if auth is available.
   try { renderAirtableSyncBanner(); } catch(e) { console.warn('[airtable] banner render failed:', e); }
-  if (getAirtablePat()) {
+  if (hasAirtableAuth()) {
     setTimeout(function() {
       syncAirtableCourses({}).catch(function(err) { console.warn('[airtable] background sync failed:', err && err.message || err); });
     }, 1500);
