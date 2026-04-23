@@ -2023,7 +2023,7 @@
     var devIds = (sh.fields && sh.fields['Course Developments 2']) || [];
     if (devIds.length === 0) return [];
     // Step 2: fetch the course development records, chunked by 25 (URL-length safe)
-    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created'];
+    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created', 'Programs (From APM)', 'College (from Program)'];
     var fieldQs = fields.map(function(f) { return 'fields%5B%5D=' + encodeURIComponent(f); }).join('&');
     var all = [];
     for (var i = 0; i < devIds.length; i += 25) {
@@ -2035,6 +2035,19 @@
     return all.map(function(r) {
       var f = r.fields || {};
       var sessionArr = f['Session Launch (Start Date)'] || [];
+      // Lookup fields return arrays; dedupe and join.
+      var toStr = function(v) {
+        if (!v) return '';
+        if (Array.isArray(v)) {
+          var uniq = [];
+          v.forEach(function(x) {
+            var s = (x == null) ? '' : String(x).trim();
+            if (s && uniq.indexOf(s) === -1) uniq.push(s);
+          });
+          return uniq.join(', ');
+        }
+        return String(v).trim();
+      };
       return {
         recordId: r.id,
         code: f['Course'] || '',
@@ -2043,6 +2056,8 @@
         email: f['Faculty Developer Email'] || '',
         completion: f['Course Completion Percentage'] || 0,
         sessionStart: sessionArr[0] || '',
+        program: toStr(f['Programs (From APM)']),
+        college: toStr(f['College (from Program)']),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
@@ -2268,13 +2283,18 @@
     var key = code.toLowerCase().replace(/\s+/g, '');
     if (!code || !key) return { ok: false, error: 'Record has no Course code' };
     if (courseData[key]) {
-      // Already exists by code — just stamp the record ID for future matching
+      // Already exists by code — stamp the record ID and backfill program/college
+      // if they were missing (e.g. courses imported before those fields were fetched).
       var saved0 = JSON.parse(localStorage.getItem('user_courses') || '{}');
       if (saved0[key]) {
         saved0[key].airtableRecordId = cand.recordId;
+        if (!saved0[key].college && cand.college) saved0[key].college = cand.college;
+        if ((!saved0[key].program || /^[A-Z]{2,4}$/.test(saved0[key].program)) && cand.program) saved0[key].program = cand.program;
         localStorage.setItem('user_courses', JSON.stringify(saved0));
       }
       courseData[key].airtableRecordId = cand.recordId;
+      if (!courseData[key].college && cand.college) courseData[key].college = cand.college;
+      if ((!courseData[key].program || /^[A-Z]{2,4}$/.test(courseData[key].program)) && cand.program) courseData[key].program = cand.program;
       setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
       return { ok: true, key: key, existed: true };
     }
@@ -2293,7 +2313,7 @@
       title: code + ' — ' + name,
       subtitle: instructor + ' \u2022 ' + (sessionShort !== '—' ? ('Launches ' + sessionShort) : 'Session TBD'),
       code: code, courseName: name,
-      program: code.split(/\s/)[0], college: '',
+      program: cand.program || code.split(/\s/)[0], college: cand.college || '',
       instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
       session: sessionShort, phase: pct >= 100 ? 'Complete' : (pct > 0 ? 'In Progress' : 'Not Started'),
       progressLabel: pct + '% — ' + (pct >= 100 ? 'Complete' : pct > 0 ? 'In progress' : 'Not started'),
