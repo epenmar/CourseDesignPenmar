@@ -1910,12 +1910,11 @@
     method = (method || 'GET').toUpperCase();
     var res, json;
     if (window.AIRTABLE_VIA_PROXY) {
+      // No Authorization header: the function is deployed with --no-verify-jwt
+      // and enforces access via its own operation allow-list.
       res = await fetch(window.SUPABASE_URL + '/functions/v1/airtable-proxy', {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + window.SUPABASE_PUBLISHABLE_KEY,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ method: method, path: path, body: body })
       });
     } else {

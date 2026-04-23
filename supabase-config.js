@@ -7,4 +7,4 @@ window.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_di7j_DR1Ie3GJdOtHb8NlQ_rI5eiP4
 // edge function, which injects the PAT server-side. Flip this on after
 // deploying the function (see supabase/functions/airtable-proxy/index.ts).
 // When false, the browser uses the PAT stored in localStorage (prompted once).
-window.AIRTABLE_VIA_PROXY = false;
+window.AIRTABLE_VIA_PROXY = true;
