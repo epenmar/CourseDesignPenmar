@@ -9368,19 +9368,24 @@ ${clone.innerHTML}
     // the proposed module layout. Without that context the AI invents its own
     // module numbering (e.g. 10 modules when source=15, target=7).
     var buildAssignmentsQuery = function(structureHtml) {
-      return 'For this ' + sourceWeeks + '-week course being restructured into ' + targetModules + ' modules, extract EVERY assignment/activity from the source and map each into the PROPOSED MODULE STRUCTURE below. You MUST only use module numbers 1 through ' + targetModules + ' — these are the consolidated target modules, NOT the source weeks.\n\n' +
+      var allowedList = [];
+      for (var i = 1; i <= targetModules; i++) allowedList.push(String(i));
+      var allowedStr = allowedList.join(', ');
+      return 'TARGET MODULE COUNT: ' + targetModules + '. The only valid values for the Module column are: ' + allowedStr + '. Any other number is INVALID and will be rejected.\n\n' +
+      'The source course has ' + sourceWeeks + ' weeks but is being consolidated into ' + targetModules + ' modules. Extract EVERY assignment/activity from the SOURCE and place it into one of the ' + targetModules + ' target modules defined in the PROPOSED MODULE STRUCTURE below.\n\n' +
       '=== PROPOSED MODULE STRUCTURE (authoritative — use these module numbers and these MLO numbers) ===\n' + structureHtml + '\n\n' +
       'Return ONLY a single section as HTML:\n' +
       '<h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Due, Notes.\n\n' +
       'Requirements:\n' +
       '- Output one row per assignment from the source.\n' +
-      '- Module cell: integer from 1 to ' + targetModules + ' (the new module number from the proposed structure above). Do NOT output any module number outside the range 1–' + targetModules + '. Do NOT use source-week numbers.\n' +
+      '- Module cell MUST be one of: ' + allowedStr + '. Do NOT use source-week numbers. Do NOT invent additional modules.\n' +
       '- Objective(s) cell: comma-separated MLO numbers that already appear in the proposed structure above (e.g. "1.1, 1.3"). Do NOT invent new MLO numbers.\n' +
       '- Activity cell: concise name of the assignment from the source.\n' +
       '- Points cell: point value from source, or "TBD".\n' +
       '- Due cell: capture the due date/week/deadline from the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"). If not specified, output "TBD".\n' +
       '- Notes cell: concise — 1 short line max.\n' +
       '- Sort rows by Module (ascending).\n' +
+      '- Before returning, verify that every Module cell is one of ' + allowedStr + '. If any row has a different value, rewrite it to the correct target module before emitting.\n' +
       'Do NOT include <html>, <body>, <style>, markdown fences, or any other sections.\n\n' +
       '=== SOURCE ===\n' + raw;
     };
@@ -9420,6 +9425,64 @@ ${clone.innerHTML}
       } catch (e) { return html; }
     };
 
+    // Count actual module rows the structure call returned. If off, we report it to the user.
+    var countStructureModules = function(structHtml) {
+      try {
+        var doc = new DOMParser().parseFromString('<!doctype html><html><body>' + structHtml + '</body></html>', 'text/html');
+        var table = doc.querySelector('table');
+        if (!table) return 0;
+        var bodyRows = table.querySelectorAll('tbody > tr');
+        var rows = bodyRows.length ? bodyRows : table.querySelectorAll('tr');
+        // If the first row looks like a header (<th> only), skip it.
+        var count = 0;
+        rows.forEach(function(r) {
+          if (r.querySelector('td')) count++;
+        });
+        return count;
+      } catch (e) { return 0; }
+    };
+
+    // Walk the assignment table and clamp any Module cell outside [1, targetModules].
+    // If the AI produced its own numbering (e.g. 10 modules when target=7), proportionally
+    // remap. Returns { html, remappedCount, maxSeen }.
+    var clampAssignmentModules = function(assignHtmlFrag, target) {
+      try {
+        var doc = new DOMParser().parseFromString('<!doctype html><html><body>' + assignHtmlFrag + '</body></html>', 'text/html');
+        var tables = doc.querySelectorAll('table');
+        if (!tables.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 };
+        var maxSeen = 0;
+        var moduleCells = [];
+        tables.forEach(function(table) {
+          var rows = table.querySelectorAll('tr');
+          rows.forEach(function(r) {
+            var cell = r.querySelector('td');
+            if (!cell) return;
+            var raw = (cell.textContent || '').trim();
+            var m = raw.match(/(\d+)/);
+            if (!m) return;
+            var n = parseInt(m[1], 10);
+            if (!isFinite(n) || n < 1) return;
+            if (n > maxSeen) maxSeen = n;
+            moduleCells.push({ cell: cell, original: n });
+          });
+        });
+        if (!moduleCells.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 };
+        var remapped = 0;
+        // If every module is already within range, nothing to do.
+        if (maxSeen <= target) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: maxSeen };
+        // Proportional remap: newModule = ceil(oldModule * target / maxSeen)
+        // This preserves ordering and groups adjacent old modules into the same new module.
+        moduleCells.forEach(function(entry) {
+          var mapped = Math.max(1, Math.min(target, Math.ceil(entry.original * target / maxSeen)));
+          if (mapped !== entry.original) {
+            entry.cell.textContent = String(mapped);
+            remapped++;
+          }
+        });
+        return { html: doc.body.innerHTML, remappedCount: remapped, maxSeen: maxSeen };
+      } catch (e) { return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 }; }
+    };
+
     try {
       if (raw.length > 150000 && status) {
         status.textContent = 'Large input (' + Math.round(raw.length / 1000) + 'KB) — this may take a while or hit size limits…';
@@ -9431,10 +9494,13 @@ ${clone.innerHTML}
       if (status) { status.textContent = 'Step 2/3 — Claude is proposing all ' + targetModules + ' module rows…'; status.style.color = '#888'; }
       var structureResult = await tryCall(structureQuery, 4096);
       var structureHtml = sanitizeFragment(stripFences(structureResult));
+      var structureRowCount = countStructureModules(structureHtml);
 
       if (status) { status.textContent = 'Step 3/3 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
       var assignResult = await tryCall(buildAssignmentsQuery(structureHtml), 3000);
-      var assignHtml = sanitizeFragment(stripFences(assignResult));
+      var assignHtmlRaw = sanitizeFragment(stripFences(assignResult));
+      var clampResult = clampAssignmentModules(assignHtmlRaw, targetModules);
+      var assignHtml = clampResult.html;
 
       var html = metadataHtml + '\n' + structureHtml + '\n' + assignHtml;
       saveCourseParserState({ rawInput: raw, proposalHtml: html, targetModules: targetModules, sourceWeeks: sourceWeeks });
@@ -9443,7 +9509,18 @@ ${clone.innerHTML}
       document.getElementById('cp-proposed').innerHTML = html;
       var propModLabel = document.getElementById('cp-prop-modules');
       if (propModLabel) propModLabel.textContent = targetModules;
-      if (status) { status.textContent = '✓ Done — review and edit the right pane.'; status.style.color = '#2e7d32'; }
+      var warnings = [];
+      if (structureRowCount && structureRowCount !== targetModules) {
+        warnings.push('structure returned ' + structureRowCount + ' module rows (expected ' + targetModules + ')');
+      }
+      if (clampResult.remappedCount > 0) {
+        warnings.push('remapped ' + clampResult.remappedCount + ' assignment row(s) from ' + clampResult.maxSeen + '-module numbering down to ' + targetModules);
+      }
+      if (warnings.length) {
+        if (status) { status.textContent = '✓ Done with adjustments — ' + warnings.join('; ') + '. Review the right pane.'; status.style.color = '#b26a00'; }
+      } else {
+        if (status) { status.textContent = '✓ Done — review and edit the right pane.'; status.style.color = '#2e7d32'; }
+      }
       setTimeout(function() { if (reviewCard) reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 100);
     } catch (e) {
       var msg = e && e.message || String(e);
