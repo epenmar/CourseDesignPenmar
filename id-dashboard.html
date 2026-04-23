@@ -2023,7 +2023,7 @@
     var devIds = (sh.fields && sh.fields['Course Developments 2']) || [];
     if (devIds.length === 0) return [];
     // Step 2: fetch the course development records, chunked by 25 (URL-length safe)
-    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created', 'Programs (From APM)', 'College (from Program)'];
+    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created', 'Programs (From APM)', 'College'];
     var fieldQs = fields.map(function(f) { return 'fields%5B%5D=' + encodeURIComponent(f); }).join('&');
     var all = [];
     for (var i = 0; i < devIds.length; i += 25) {
@@ -2057,7 +2057,7 @@
         completion: f['Course Completion Percentage'] || 0,
         sessionStart: sessionArr[0] || '',
         program: toStr(f['Programs (From APM)']),
-        college: toStr(f['College (from Program)']),
+        college: toStr(f['College']),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
