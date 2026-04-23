@@ -2219,6 +2219,38 @@
     renderAirtableAutoBanner();
   };
 
+  // Translate an ISO session-start date (from Airtable) into an ASU session label
+  // like "Fall A '26". Anchor map covers published dates; month-based fallback
+  // handles future sessions the Registrar hasn't formalized yet.
+  // Reference: https://registrar.asu.edu/academic-calendar
+  function airtableDateToSessionLabel(iso) {
+    if (!iso || typeof iso !== 'string') return '';
+    var anchor = {
+      '2025-08-21': "Fall A '25", '2025-10-15': "Fall B '25",
+      '2026-01-12': "Spring A '26", '2026-03-16': "Spring B '26",
+      '2026-05-18': "Summer A '26", '2026-07-01': "Summer B '26",
+      '2026-08-20': "Fall A '26", '2026-10-14': "Fall B '26",
+      '2027-01-11': "Spring A '27", '2027-03-15': "Spring B '27",
+      '2027-05-17': "Summer A '27", '2027-06-30': "Summer B '27",
+      '2027-08-19': "Fall A '27", '2027-10-13': "Fall B '27",
+      '2028-01-10': "Spring A '28", '2028-03-01': "Spring B '28"
+    };
+    if (anchor[iso]) return anchor[iso];
+    var m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!m) return iso;
+    var year = parseInt(m[1], 10), month = parseInt(m[2], 10), day = parseInt(m[3], 10);
+    var yr2 = String(year).slice(-2);
+    var season, ab;
+    if (month === 1 || (month === 2 && day <= 15)) { season = 'Spring'; ab = 'A'; }
+    else if (month === 2 || month === 3) { season = 'Spring'; ab = 'B'; }
+    else if (month === 4 || month === 5) { season = 'Summer'; ab = 'A'; }
+    else if (month === 6 || month === 7) { season = 'Summer'; ab = 'B'; }
+    else if (month === 8) { season = 'Fall'; ab = 'A'; }
+    else if (month === 9 || month === 10 || month === 11) { season = 'Fall'; ab = 'B'; }
+    else { season = 'Spring'; ab = 'A'; year += 1; yr2 = String(year).slice(-2); }
+    return season + ' ' + ab + " '" + yr2;
+  }
+
   // Airtable → dashboard course mapping. Mirrors the shape built in submitNewCourse().
   function importAirtableCourseRecord(cand) {
     var code = cand.code || '';
@@ -2244,7 +2276,9 @@
     var modules = [];
     for (var i = 1; i <= modCount; i++) modules.push({ name: 'Module ' + i, desc: 'TBD', state: 'empty', label: 'Not started' });
     var pct = Math.round((cand.completion || 0) * 100);
-    var sessionShort = cand.sessionStart || '—';
+    var sessionIso = cand.sessionStart || '';
+    var sessionLabel = airtableDateToSessionLabel(sessionIso);
+    var sessionShort = sessionLabel || sessionIso || '—';
     var entry = {
       title: code + ' — ' + name,
       subtitle: instructor + ' \u2022 ' + (sessionShort !== '—' ? ('Launches ' + sessionShort) : 'Session TBD'),
@@ -2279,7 +2313,7 @@
       session: sessionShort, sessionShort: sessionShort,
       credits: '3', prerequisites: '', sectionLines: '', enrollmentCap: '',
       id: 'Elisa Penmar', textbook: '', driveFolder: '',
-      sessionValue: null, moduleCount: modCount, milestonesCompleted: 0, qaDate: null,
+      sessionValue: sessionIso || null, moduleCount: modCount, milestonesCompleted: 0, qaDate: null,
       clos: [], elos: [],
       modules: Array.from({length: modCount}, function(_, i) { return { title: 'Module ' + (i+1), num: i+1, mlos: [] }; }),
       users: (function() {
@@ -2314,7 +2348,7 @@
         return '<label class="airtable-sync-row"><input type="checkbox" class="airtable-sync-cb" data-rid="' + c.recordId + '" checked>' +
           '<div class="airtable-sync-info">' +
             '<div class="airtable-sync-title"><strong>' + esc(c.code) + '</strong> · ' + esc(c.title) + '</div>' +
-            '<div class="airtable-sync-meta">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · Launch ' + esc(c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div>' +
+            '<div class="airtable-sync-meta">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · ' + esc(airtableDateToSessionLabel(c.sessionStart) || c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div>' +
           '</div>' +
         '</label>';
       }).join('');
@@ -2377,7 +2411,7 @@
         var pct = Math.round((c.completion || 0) * 100);
         return '<div class="nc-at-row" onclick="fillAddCourseFromAirtable(\'' + c.recordId + '\')" style="padding:8px 10px; border-bottom:1px solid #f0ece2; cursor:pointer; font-size:12px; display:flex; gap:10px; align-items:center;" onmouseover="this.style.background=\'#f7f3e8\'" onmouseout="this.style.background=\'\'">' +
           '<div style="flex:1;"><strong>' + esc(c.code || '(no code)') + '</strong> · ' + esc(c.title || '') +
-          '<div style="font-size:11px; color:#888; margin-top:2px;">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · ' + esc(c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div></div>' +
+          '<div style="font-size:11px; color:#888; margin-top:2px;">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · ' + esc(airtableDateToSessionLabel(c.sessionStart) || c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div></div>' +
           '<span style="color:#e65100; font-size:11px; font-weight:600;">Use →</span>' +
         '</div>';
       }).join('');
@@ -2395,7 +2429,7 @@
     setVal('nc-instructor', c.instructor || '');
     setVal('nc-email', c.email || '');
     setVal('nc-program', (c.code || '').split(/\s/)[0] || '');
-    setVal('nc-session', c.sessionStart || '');
+    setVal('nc-session', airtableDateToSessionLabel(c.sessionStart) || '');
     setVal('nc-airtable', 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + c.recordId);
     var list = document.getElementById('nc-airtable-list');
     if (list) list.innerHTML = '<div style="padding:8px; color:#2e7d32; font-size:12px;">✓ Filled from Airtable: <strong>' + (c.code || '') + '</strong> — review the fields below and click Create Course.</div>';
