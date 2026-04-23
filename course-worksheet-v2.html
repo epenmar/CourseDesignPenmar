@@ -766,7 +766,7 @@
               </div>
               <div class="field-group" style="margin-bottom:0;">
                 <label class="field-label" style="display:flex; align-items:center; gap:6px;">
-                  <input type="checkbox" id="summer-toggle" onchange="recalcTimeline()">
+                  <input type="checkbox" id="summer-toggle" onchange="applySummerToggle()">
                   Faculty available over summer?
                 </label>
                 <div style="font-size:11px; color:#999; margin-top:4px;">If unchecked, timeline will not include June–August work weeks.</div>
@@ -4570,7 +4570,9 @@
     }, 500);
   }
 
-  function recalcTimeline() {
+  function recalcTimeline(opts) {
+    opts = opts || {};
+    const forceRecompute = !!opts.forceRecompute;
     const sel = document.getElementById('session-select').value;
     if (!sel) {
       // No session — show TBD message
@@ -4589,10 +4591,12 @@
     const liveDate = savedLive ? new Date(savedLive + 'T00:00:00') :
       (function() { const d = new Date(launch); d.setDate(d.getDate() - 3); return d; })();
 
-    // Use explicit dates if available, otherwise calculate backwards from QA
+    // Use explicit dates if available, otherwise calculate backwards from QA.
+    // forceRecompute (e.g. from the summer toggle) bypasses hardcoded defaults
+    // so the summer-skip logic below actually gets applied.
     const totalMilestones = milestones.length;
     const dates = [];
-    if (activeCourse.milestoneDates && activeCourse.milestoneDates.length === totalMilestones) {
+    if (!forceRecompute && activeCourse.milestoneDates && activeCourse.milestoneDates.length === totalMilestones) {
       for (let i = 0; i < totalMilestones; i++) {
         dates[i] = new Date(activeCourse.milestoneDates[i] + 'T00:00:00');
       }
@@ -4620,8 +4624,9 @@
       }
     }
 
-    // Apply saved date overrides from localStorage
-    const savedDates = loadField('timelineDates') || {};
+    // Apply saved date overrides from localStorage — except when the caller
+    // asked for a full recompute (e.g. the summer-availability toggle was flipped).
+    const savedDates = forceRecompute ? {} : (loadField('timelineDates') || {});
     for (const [idx, val] of Object.entries(savedDates)) {
       const i = parseInt(idx);
       if (i >= 0 && i < totalMilestones && val) {
@@ -4977,6 +4982,23 @@
   function resetTimelineDates() {
     saveField('timelineDates', {});
     recalcTimeline();
+  }
+
+  // Summer-availability checkbox handler. The default recalc path honors any
+  // saved or hardcoded milestone dates, which means flipping the checkbox
+  // visually does nothing for courses whose dates are already set. Force a
+  // full recompute (bypassing both sources) so the summer-skip logic applies.
+  function applySummerToggle() {
+    const hasOverrides = Object.keys(loadField('timelineDates') || {}).length > 0;
+    if (hasOverrides) {
+      if (!confirm('Changing summer availability will recalculate the timeline and clear any manually adjusted dates. Continue?')) {
+        const cb = document.getElementById('summer-toggle');
+        if (cb) cb.checked = !cb.checked;
+        return;
+      }
+      saveField('timelineDates', {});
+    }
+    recalcTimeline({ forceRecompute: true });
   }
 
   // ===== GLOBAL PERSISTENCE ENGINE =====
