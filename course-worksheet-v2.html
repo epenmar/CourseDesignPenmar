@@ -9385,7 +9385,8 @@ ${clone.innerHTML}
       '- Due cell: capture the due date/week/deadline from the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"). If not specified, output "TBD".\n' +
       '- Notes cell: concise — 1 short line max.\n' +
       '- Sort rows by Module (ascending).\n' +
-      '- Before returning, verify that every Module cell is one of ' + allowedStr + '. If any row has a different value, rewrite it to the correct target module before emitting.\n' +
+      '- COVERAGE: every target module (' + allowedStr + ') must appear in the output. If the source does not obviously contain assignments for a given target module, create reasonable placeholder assignment rows for that module (drawn from the topics/MLOs in the proposed structure) so it is still represented. Do NOT leave any of the ' + targetModules + ' modules without at least one row.\n' +
+      '- Before returning, run these checks: (a) every Module cell is one of ' + allowedStr + '; (b) every value in ' + allowedStr + ' appears in at least one row. If either check fails, fix the output before emitting.\n' +
       'Do NOT include <html>, <body>, <style>, markdown fences, or any other sections.\n\n' +
       '=== SOURCE ===\n' + raw;
     };
@@ -9444,12 +9445,14 @@ ${clone.innerHTML}
 
     // Walk the assignment table and clamp any Module cell outside [1, targetModules].
     // If the AI produced its own numbering (e.g. 10 modules when target=7), proportionally
-    // remap. Returns { html, remappedCount, maxSeen }.
+    // remap. Also reports distinct target-module coverage so the caller can warn when
+    // some modules were left empty.
+    // Returns { html, remappedCount, maxSeen, missingModules: [int] }
     var clampAssignmentModules = function(assignHtmlFrag, target) {
       try {
         var doc = new DOMParser().parseFromString('<!doctype html><html><body>' + assignHtmlFrag + '</body></html>', 'text/html');
         var tables = doc.querySelectorAll('table');
-        if (!tables.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 };
+        if (!tables.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0, missingModules: [] };
         var maxSeen = 0;
         var moduleCells = [];
         tables.forEach(function(table) {
@@ -9466,21 +9469,29 @@ ${clone.innerHTML}
             moduleCells.push({ cell: cell, original: n });
           });
         });
-        if (!moduleCells.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 };
+        if (!moduleCells.length) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0, missingModules: [] };
         var remapped = 0;
-        // If every module is already within range, nothing to do.
-        if (maxSeen <= target) return { html: assignHtmlFrag, remappedCount: 0, maxSeen: maxSeen };
-        // Proportional remap: newModule = ceil(oldModule * target / maxSeen)
-        // This preserves ordering and groups adjacent old modules into the same new module.
+        // Proportional remap only when the AI invented a larger numbering than target.
+        if (maxSeen > target) {
+          moduleCells.forEach(function(entry) {
+            var mapped = Math.max(1, Math.min(target, Math.ceil(entry.original * target / maxSeen)));
+            if (mapped !== entry.original) {
+              entry.cell.textContent = String(mapped);
+              remapped++;
+            }
+          });
+        }
+        // Now compute coverage from the (possibly remapped) cells.
+        var present = {};
         moduleCells.forEach(function(entry) {
-          var mapped = Math.max(1, Math.min(target, Math.ceil(entry.original * target / maxSeen)));
-          if (mapped !== entry.original) {
-            entry.cell.textContent = String(mapped);
-            remapped++;
-          }
+          var txt = (entry.cell.textContent || '').trim();
+          var mm = txt.match(/(\d+)/);
+          if (mm) present[parseInt(mm[1], 10)] = true;
         });
-        return { html: doc.body.innerHTML, remappedCount: remapped, maxSeen: maxSeen };
-      } catch (e) { return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0 }; }
+        var missing = [];
+        for (var k = 1; k <= target; k++) if (!present[k]) missing.push(k);
+        return { html: (remapped > 0 ? doc.body.innerHTML : assignHtmlFrag), remappedCount: remapped, maxSeen: maxSeen, missingModules: missing };
+      } catch (e) { return { html: assignHtmlFrag, remappedCount: 0, maxSeen: 0, missingModules: [] }; }
     };
 
     try {
@@ -9515,6 +9526,9 @@ ${clone.innerHTML}
       }
       if (clampResult.remappedCount > 0) {
         warnings.push('remapped ' + clampResult.remappedCount + ' assignment row(s) from ' + clampResult.maxSeen + '-module numbering down to ' + targetModules);
+      }
+      if (clampResult.missingModules && clampResult.missingModules.length) {
+        warnings.push('no assignments mapped to module ' + clampResult.missingModules.join(', ') + ' (' + clampResult.missingModules.length + ' of ' + targetModules + ' empty) — add rows manually or re-run');
       }
       if (warnings.length) {
         if (status) { status.textContent = '✓ Done with adjustments — ' + warnings.join('; ') + '. Review the right pane.'; status.style.color = '#b26a00'; }
