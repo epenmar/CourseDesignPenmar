@@ -1918,6 +1918,30 @@
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
     }
+    // Re-merge user_courses into courseData after the cloud pull. The IIFE at
+    // script-parse time already did this once from whatever localStorage had
+    // at the moment, but the pull may have just added keys we didn't see then.
+    // Previously seed courses kept their stale data (no airtableRecordId)
+    // because the initial IIFE check `if (!courseData[id])` short-circuited
+    // an update. Here we backfill specific fields that are safe to overwrite.
+    try {
+      var savedAfter = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      Object.keys(savedAfter).forEach(function(id) {
+        var s = savedAfter[id];
+        if (!s) return;
+        if (!courseData[id]) {
+          courseData[id] = s;
+          return;
+        }
+        // Backfill fields that the seed doesn't carry or that can change over
+        // the life of a course; leave session/instructor alone since those are
+        // curated in the seed for pre-built courses.
+        if (s.airtableRecordId && !courseData[id].airtableRecordId) courseData[id].airtableRecordId = s.airtableRecordId;
+        if (s.college && !courseData[id].college) courseData[id].college = s.college;
+        if (s.program && !courseData[id].program) courseData[id].program = s.program;
+        if (s.driveFolder && !courseData[id].driveFolder) courseData[id].driveFolder = s.driveFolder;
+      });
+    } catch(e) {}
     // Re-read persisted UI state from localStorage after the cloud pull. The
     // module-level `let hiddenCols` and msFilterState were seeded at parse
     // time from stale local data; the pull may have just overwritten
@@ -2288,6 +2312,16 @@
       }
       if (rid) ids[rid] = k;
     });
+    // Also walk the URL map directly so courses that were stamped with an
+    // Airtable URL but aren't yet in courseData (e.g. still syncing from cloud
+    // after a browser restart) still register as imported. Without this the
+    // "Review → Add Selected" modal kept resurfacing courses that had already
+    // been linked.
+    Object.keys(urlMap).forEach(function(k) {
+      if (ids[k]) return;
+      var parsed = parseAirtableUrl(urlMap[k]);
+      if (parsed && !ids[parsed.recordId]) ids[parsed.recordId] = k;
+    });
     return ids;
   }
 
@@ -2598,17 +2632,21 @@
     if (courseData[key]) {
       // Already exists by code — stamp the record ID and backfill program/college
       // if they were missing (e.g. courses imported before those fields were fetched).
-      var saved0 = JSON.parse(localStorage.getItem('user_courses') || '{}');
-      if (saved0[key]) {
-        saved0[key].airtableRecordId = cand.recordId;
-        if (!saved0[key].college && cand.college) saved0[key].college = cand.college;
-        if ((!saved0[key].program || /^[A-Z]{2,4}$/.test(saved0[key].program)) && cand.program) saved0[key].program = cand.program;
-        localStorage.setItem('user_courses', JSON.stringify(saved0));
-        if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved0[key]);
-      }
       courseData[key].airtableRecordId = cand.recordId;
       if (!courseData[key].college && cand.college) courseData[key].college = cand.college;
       if ((!courseData[key].program || /^[A-Z]{2,4}$/.test(courseData[key].program)) && cand.program) courseData[key].program = cand.program;
+      // Always persist to user_courses (and cloud) — previously we only updated
+      // if an entry already existed, which meant seed courses never had their
+      // airtableRecordId saved anywhere durable. On reload the seed won the
+      // merge and the record ID was gone, so the same "New from Airtable"
+      // banner kept reappearing after every import.
+      var saved0 = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      saved0[key] = Object.assign({}, saved0[key] || {}, courseData[key]);
+      saved0[key].airtableRecordId = cand.recordId;
+      if (cand.college) saved0[key].college = saved0[key].college || cand.college;
+      if (cand.program) saved0[key].program = saved0[key].program || cand.program;
+      localStorage.setItem('user_courses', JSON.stringify(saved0));
+      if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved0[key]);
       setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
       return { ok: true, key: key, existed: true };
     }
