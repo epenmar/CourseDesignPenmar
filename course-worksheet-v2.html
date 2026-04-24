@@ -5112,11 +5112,6 @@
       data.__modifiedAt[key] = Date.now();
       localStorage.setItem(storageKey, JSON.stringify(data));
       scheduleCloudPush();
-      // Live-broadcast structural/state changes so other sessions see
-      // add/delete/reorder/tag updates without a reload. Text edits are
-      // covered by the per-field live-input broadcast; this catches
-      // everything else (arrays, dropdowns, alignment grids, weights…).
-      if (typeof scheduleStateBroadcast === 'function') scheduleStateBroadcast(key, value);
     } catch(e) {
       console.error('Failed to save field "' + key + '":', e);
       if (e.name === 'QuotaExceededError') {
@@ -10638,121 +10633,8 @@ ${clone.innerHTML}
     editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
     editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
     editChannel.on('broadcast', { event: 'item' }, function(msg) { applyRemoteItem(msg.payload); });
-    editChannel.on('broadcast', { event: 'state' }, function(msg) { applyRemoteState(msg.payload); });
     editChannel.subscribe();
     attachLiveEditListeners();
-  }
-
-  // Debounced saveField-broadcast. Every structural key gets a 300ms trailing
-  // broadcast so rapid sequences (like reordering or deleting several items)
-  // collapse into one network message per key.
-  var _stateBroadcastTimers = {};
-  var _suppressStateBroadcastUntil = 0;
-  function scheduleStateBroadcast(key, value) {
-    if (!editChannel) return;
-    if (Date.now() < _suppressStateBroadcastUntil) return; // we're applying a remote update right now
-    // Don't re-broadcast the per-key timestamp meta, and don't broadcast
-    // purely-text keys that the per-field handler already covers.
-    if (key === '__modifiedAt') return;
-    clearTimeout(_stateBroadcastTimers[key]);
-    _stateBroadcastTimers[key] = setTimeout(function() {
-      if (!editChannel) return;
-      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
-      editChannel.send({
-        type: 'broadcast',
-        event: 'state',
-        payload: {
-          key: key,
-          value: value,
-          author: identity && identity.name,
-          at: Date.now()
-        }
-      });
-    }, 300);
-  }
-
-  // Apply a remote saveField. Writes localStorage directly (not through
-  // saveField) so we don't re-broadcast or re-trigger cloud push, and
-  // re-renders whichever view is visible while preserving focus.
-  function applyRemoteState(payload) {
-    if (!payload || !payload.key) return;
-    try {
-      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      data[payload.key] = payload.value;
-      if (!data.__modifiedAt || typeof data.__modifiedAt !== 'object') data.__modifiedAt = {};
-      data.__modifiedAt[payload.key] = payload.at || Date.now();
-      _suppressStateBroadcastUntil = Date.now() + 200;
-      localStorage.setItem(storageKey, JSON.stringify(data));
-    } catch(e) { return; }
-
-    // Sync in-memory data models from the new localStorage so render
-    // functions pick up the change.
-    try {
-      if (payload.key === 'courseActivities') courseActivities = payload.value || {};
-      else if (payload.key === 'courseMaterials') courseMaterials = payload.value || {};
-      else if (payload.key === 'clos') activeCourse.clos = payload.value || [];
-      else if (payload.key === 'flatElos') activeCourse.flatElos = payload.value || [];
-      else if (payload.key === 'cloEloAlignment') activeCourse.cloEloAlignment = payload.value || [];
-      else if (payload.key === 'eloMloAlignment') activeCourse.eloMloAlignment = payload.value || {};
-      else if (payload.key === 'moduleOverviewData') {
-        var mods = payload.value || {};
-        if (activeCourse.modules) {
-          Object.keys(mods).forEach(function(k) {
-            var idx = parseInt(k) - (activeCourse.moduleStartZero ? 0 : 1);
-            if (activeCourse.modules[idx]) {
-              if (mods[k].mlos) activeCourse.modules[idx].mlos = mods[k].mlos;
-              if (mods[k].topic) activeCourse.modules[idx].title = mods[k].topic;
-            }
-          });
-        }
-      } else if (payload.key === 'moduleCount') activeCourse.moduleCount = payload.value;
-      else if (payload.key === 'moduleStartZero') activeCourse.moduleStartZero = !!payload.value;
-    } catch(e) {}
-
-    // Preserve the active field's focus + caret across re-render.
-    var focusKey = null, focusStart = null, focusEnd = null;
-    var active = document.activeElement;
-    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
-      focusKey = liveFieldKey(active);
-      if (typeof active.selectionStart === 'number') {
-        focusStart = active.selectionStart;
-        focusEnd = active.selectionEnd;
-      }
-    }
-
-    rerenderActiveViews(payload.key);
-
-    if (focusKey) {
-      requestAnimationFrame(function() {
-        var restored = findFieldByLiveKey(focusKey);
-        if (restored) {
-          restored.focus();
-          if (focusStart != null && typeof restored.setSelectionRange === 'function') {
-            try { restored.setSelectionRange(focusStart, focusEnd != null ? focusEnd : focusStart); } catch(e) {}
-          }
-        }
-      });
-    }
-  }
-
-  function rerenderActiveViews(key) {
-    // Pick the cheapest set of re-renders that covers the key's influence.
-    try {
-      if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') renderAssignmentsOverview();
-      else if (currentViewId === 'materials-overview' && typeof renderMaterialsOverview === 'function') renderMaterialsOverview();
-      else if (currentViewId === 'module-overview' && typeof renderModuleOverviewCards === 'function') renderModuleOverviewCards();
-      else if (currentViewId === 'objectives') {
-        if (typeof renderEloList === 'function') renderEloList();
-        if (typeof renderCloList === 'function') renderCloList();
-        if (typeof renderAlignmentMatrix === 'function') renderAlignmentMatrix();
-      } else if (currentViewId === 'course-mapping') {
-        if (typeof renderEloMloMatrix === 'function') renderEloMloMatrix();
-        if (typeof runAlignmentAudit === 'function') runAlignmentAudit();
-      } else if (currentViewId === 'module' && typeof currentModuleNum === 'number') {
-        if (typeof renderModuleActivities === 'function') renderModuleActivities(currentModuleNum);
-        if (typeof renderModuleMaterials === 'function') renderModuleMaterials(currentModuleNum);
-      }
-    } catch(e) { console.warn('[live state] render failed', e); }
   }
 
   // Broadcast a structural change to an activity or material so other
@@ -10786,7 +10668,29 @@ ${clone.innerHTML}
     else arr[idx] = payload.item;
     // Persist the updated collection so reloads see the remote change.
     try { saveField(payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials', coll); } catch(e) {}
-    // Re-render whichever view is currently visible.
+    // Defer the re-render if the local user is mid-edit — re-rendering a
+    // view containing their active textarea yanks focus and clobbers
+    // in-flight keystrokes.
+    deferredItemRerender(payload);
+  }
+
+  var _pendingItemRerender = null;
+  var _itemRerenderTimer = null;
+  function deferredItemRerender(payload) {
+    _pendingItemRerender = payload;
+    scheduleItemRerenderCheck();
+  }
+  function scheduleItemRerenderCheck() {
+    clearTimeout(_itemRerenderTimer);
+    _itemRerenderTimer = setTimeout(attemptItemRerender, 1200);
+  }
+  function attemptItemRerender() {
+    if (!_pendingItemRerender) return;
+    var active = document.activeElement;
+    var isEditing = active && active.matches && active.matches('textarea, input[type="text"], [contenteditable="true"]');
+    if (isEditing) { scheduleItemRerenderCheck(); return; }
+    var payload = _pendingItemRerender;
+    _pendingItemRerender = null;
     if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') {
       renderAssignmentsOverview();
     } else if (currentViewId === 'materials-overview' && typeof renderMaterialsOverview === 'function') {
@@ -10795,6 +10699,21 @@ ${clone.innerHTML}
       if (payload.itemType === 'activity' && typeof renderModuleActivities === 'function') renderModuleActivities(payload.modNum);
       if (payload.itemType === 'material' && typeof renderModuleMaterials === 'function') renderModuleMaterials(payload.modNum);
     }
+    // Re-apply any remote focus indicators that were wiped by the re-render.
+    reapplyRemoteFocuses();
+  }
+
+  // Remote focus registry. Tracks which field each collaborator is currently
+  // focused on so we can re-show their colored outline + chip after any
+  // re-render destroys the DOM those lived on.
+  var remoteFocusRegistry = {};
+  function reapplyRemoteFocuses() {
+    Object.keys(remoteFocusRegistry).forEach(function(author) {
+      var state = remoteFocusRegistry[author];
+      if (state && state.key) {
+        applyRemoteFocus({ key: state.key, author: author, focused: true, __skipRegistry: true });
+      }
+    });
   }
 
   function attachLiveEditListeners() {
@@ -10917,31 +10836,31 @@ ${clone.innerHTML}
 
   function applyRemoteFocus(payload) {
     if (!payload || !payload.key || !payload.author) return;
+    // Update registry so we can re-apply after any re-render.
+    if (!payload.__skipRegistry) {
+      if (payload.focused) remoteFocusRegistry[payload.author] = { key: payload.key, at: payload.at || Date.now() };
+      else delete remoteFocusRegistry[payload.author];
+    }
     var el = findFieldByLiveKey(payload.key);
     if (!el || !el.parentElement) return;
     var color = userColorFor(payload.author);
     var badgeClass = 'remote-editor-badge';
     var outlineKey = '_remoteOutline_' + payload.author;
-    var existing = el.parentElement.querySelector('.' + badgeClass + '[data-author="' + payload.author + '"]');
+    // Clear any prior badge the same author had on a different field.
+    document.querySelectorAll('.' + badgeClass + '[data-author="' + payload.author + '"]').forEach(function(b) { b.remove(); });
     if (payload.focused) {
-      // Colored outline on the field so the other person's "cursor" is
-      // visible at a glance — pair it with a chip showing the name.
       el.style.boxShadow = '0 0 0 2px ' + color;
       el.style.borderRadius = '4px';
       el[outlineKey] = true;
-      if (existing) return;
       var badge = document.createElement('span');
       badge.className = badgeClass;
       badge.setAttribute('data-author', payload.author);
       badge.textContent = '✎ ' + payload.author;
       badge.style.cssText = 'display:inline-block; background:' + color + '; color:#fff; font-size:10px; padding:2px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; pointer-events:none; white-space:nowrap;';
       el.parentElement.insertBefore(badge, el.nextSibling);
-    } else {
-      if (el[outlineKey]) {
-        el.style.boxShadow = '';
-        el[outlineKey] = false;
-      }
-      if (existing) existing.remove();
+    } else if (el[outlineKey]) {
+      el.style.boxShadow = '';
+      el[outlineKey] = false;
     }
   }
 
