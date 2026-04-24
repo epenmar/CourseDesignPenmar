@@ -2437,13 +2437,25 @@
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Syncing…'; }
     try {
       var candidates = await fetchAirtableCourseCandidates();
-      // Auto-link: if a candidate's course code already exists on the dashboard,
-      // silently stamp the Airtable record ID on it instead of surfacing as "new".
+      // Auto-link + backfill: if a candidate's course code already matches a
+      // dashboard course, run the import so any newly-populated Airtable
+      // fields (Jira Epic, College, Program) flow into the dashboard. The
+      // existed-course branch is idempotent for values that already match.
+      // Previously we only ran this when airtableRecordId was missing, so
+      // a course that was linked once never picked up subsequent Airtable
+      // edits — meaning a Jira key added to Airtable after import never
+      // connected.
       var autoLinked = 0;
       candidates.forEach(function(c) {
         var codeKey = (c.code || '').toLowerCase().replace(/\s+/g, '');
-        if (codeKey && courseData[codeKey] && !courseData[codeKey].airtableRecordId) {
-          importAirtableCourseRecord(c); // existed=true branch runs, stamps ID + URL
+        if (!codeKey || !courseData[codeKey]) return;
+        var needsBackfill =
+          !courseData[codeKey].airtableRecordId ||
+          (c.college && !courseData[codeKey].college) ||
+          (c.program && !courseData[codeKey].program) ||
+          (c.jiraEpic && !getCourseJiraEpic(codeKey));
+        if (needsBackfill) {
+          importAirtableCourseRecord(c);
           autoLinked++;
         }
       });
