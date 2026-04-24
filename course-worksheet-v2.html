@@ -7586,6 +7586,8 @@
     initPresence();
     // Subscribe to remote worksheet changes (banner prompt to reload)
     subscribeToRemoteWorksheetChanges();
+    // Live collaborative editing — push each keystroke to other sessions.
+    initLiveEditChannel();
   });
 
   // Resize visible textareas whenever a view or card becomes visible
@@ -10560,6 +10562,168 @@ ${clone.innerHTML}
         });
       }
     };
+  }
+
+  // ===== LIVE COLLABORATIVE EDITING =====
+  // Broadcast each editable field's value to other open sessions so the
+  // other collaborator sees typing almost in real time. This is best-effort
+  // last-writer-wins at the per-field level: if two people type in the same
+  // field at once, whichever packet arrives last wins for that instant.
+  // For different fields (the normal case) it behaves like Google Docs.
+  var editChannel = null;
+  var _editBroadcastTimers = {};
+  var _remoteEditIgnoreUntil = 0;
+
+  function liveFieldKey(el) {
+    if (!el) return null;
+    if (el.id) return 'id:' + el.id;
+    var actId = el.getAttribute && el.getAttribute('data-activity-id');
+    var matId = el.getAttribute && el.getAttribute('data-material-id');
+    var field = el.getAttribute && el.getAttribute('data-field');
+    if (actId && field) return 'act:' + actId + ':' + field;
+    if (matId && field) return 'mat:' + matId + ':' + field;
+    var objEntry = el.closest && el.closest('.obj-entry');
+    if (objEntry && el.matches && el.matches('textarea, input')) {
+      var mod = objEntry.getAttribute('data-mod');
+      var idx = objEntry.getAttribute('data-mlo-idx');
+      if (mod != null && idx != null) return 'mlo:' + mod + ':' + idx;
+    }
+    return null;
+  }
+
+  function findFieldByLiveKey(key) {
+    if (!key) return null;
+    if (key.indexOf('id:') === 0) return document.getElementById(key.slice(3));
+    if (key.indexOf('act:') === 0) {
+      var parts = key.slice(4).split(':');
+      return document.querySelector('[data-activity-id="' + parts[0] + '"][data-field="' + parts[1] + '"]');
+    }
+    if (key.indexOf('mat:') === 0) {
+      var parts = key.slice(4).split(':');
+      return document.querySelector('[data-material-id="' + parts[0] + '"][data-field="' + parts[1] + '"]');
+    }
+    if (key.indexOf('mlo:') === 0) {
+      var parts = key.slice(4).split(':');
+      var entry = document.querySelector('.obj-entry[data-mod="' + parts[0] + '"][data-mlo-idx="' + parts[1] + '"]');
+      return entry ? entry.querySelector('textarea, input') : null;
+    }
+    return null;
+  }
+
+  function initLiveEditChannel() {
+    if (!supabaseClient || !courseId) return;
+    if (editChannel) return;
+    editChannel = supabaseClient.channel('worksheet-edits:' + courseId, {
+      config: { broadcast: { self: false } }
+    });
+    editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
+    editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
+    editChannel.subscribe();
+    attachLiveEditListeners();
+  }
+
+  function attachLiveEditListeners() {
+    document.addEventListener('input', onLiveInput, true);
+    document.addEventListener('focusin', onLiveFocus, true);
+    document.addEventListener('focusout', onLiveBlur, true);
+  }
+
+  function onLiveInput(e) {
+    var el = e.target;
+    if (!el || !el.matches) return;
+    if (!el.matches('textarea, input[type="text"]')) return;
+    // Ignore modals + AI panels + comment editor.
+    if (el.closest('.comment-thread-panel, .ai-panel, .highlight-tooltip, #comment-identity-modal')) return;
+    // Ignore echoes of a value we just applied from a remote edit.
+    if (Date.now() < _remoteEditIgnoreUntil) return;
+    var key = liveFieldKey(el);
+    if (!key) return;
+    clearTimeout(_editBroadcastTimers[key]);
+    _editBroadcastTimers[key] = setTimeout(function() {
+      if (!editChannel) return;
+      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      editChannel.send({
+        type: 'broadcast',
+        event: 'field',
+        payload: {
+          key: key,
+          value: el.value,
+          author: identity && identity.name,
+          at: Date.now()
+        }
+      });
+    }, 250);
+  }
+
+  function onLiveFocus(e) {
+    var el = e.target;
+    if (!el || !el.matches) return;
+    if (!el.matches('textarea, input[type="text"]')) return;
+    if (el.closest('.comment-thread-panel, .ai-panel')) return;
+    var key = liveFieldKey(el);
+    if (!key || !editChannel) return;
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'focus',
+      payload: { key: key, focused: true, author: identity && identity.name }
+    });
+  }
+  function onLiveBlur(e) {
+    var el = e.target;
+    if (!el || !el.matches) return;
+    if (!el.matches('textarea, input[type="text"]')) return;
+    if (el.closest('.comment-thread-panel, .ai-panel')) return;
+    var key = liveFieldKey(el);
+    if (!key || !editChannel) return;
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'focus',
+      payload: { key: key, focused: false, author: identity && identity.name }
+    });
+  }
+
+  function applyRemoteFieldEdit(payload) {
+    if (!payload || !payload.key) return;
+    var el = findFieldByLiveKey(payload.key);
+    if (!el) return;
+    // Don't stomp on what the local user is actively typing.
+    if (document.activeElement === el) return;
+    if (el.value === payload.value) return;
+    _remoteEditIgnoreUntil = Date.now() + 100; // suppress echo from our own oninput handler
+    el.value = payload.value;
+    if (el.tagName === 'TEXTAREA') {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+    // Yellow flash so the user notices the change arrived.
+    var orig = el.style.background;
+    el.style.transition = 'background 0.4s';
+    el.style.background = '#fff8d6';
+    setTimeout(function() { el.style.background = orig || ''; }, 700);
+    // Run the same oninput handler the DOM would normally fire so downstream
+    // saveField/autoGrow logic keeps working — without re-broadcasting.
+    try { el.dispatchEvent(new Event('input', { bubbles: false })); } catch(e) {}
+  }
+
+  function applyRemoteFocus(payload) {
+    if (!payload || !payload.key || !payload.author) return;
+    var el = findFieldByLiveKey(payload.key);
+    if (!el || !el.parentElement) return;
+    var badgeClass = 'remote-editor-badge';
+    var existing = el.parentElement.querySelector('.' + badgeClass + '[data-author="' + payload.author + '"]');
+    if (payload.focused) {
+      if (existing) return;
+      var badge = document.createElement('span');
+      badge.className = badgeClass;
+      badge.setAttribute('data-author', payload.author);
+      badge.textContent = '✎ ' + payload.author;
+      badge.style.cssText = 'display:inline-block; background:#8c1d40; color:#fff; font-size:10px; padding:2px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; pointer-events:none;';
+      el.parentElement.insertBefore(badge, el.nextSibling);
+    } else if (existing) {
+      existing.remove();
+    }
   }
 
   function renderPresence() {
