@@ -4005,13 +4005,21 @@
 
   // ===== GOOGLE CALENDAR SECTION =====
   function buildGCalSection(id, c) {
-    // Build Google Calendar search URLs for this course
-    const codeCompact = c.code.replace(/\s+/g, ''); // "MNS521"
-    const codeSpaced = c.code; // "MNS 521"
+    // Always search for both the spaced ("MNS 521") and unspaced ("MNS521")
+    // forms, regardless of which one the course code was stored as.
+    // Previously a course imported as "POP644" yielded a query of
+    // "POP644 OR POP644 OR Tiffany Lemon" — duplicated because the spaced
+    // variant wasn't derived.
+    const codeRaw = (c.code || '').trim();
+    const codeCompact = codeRaw.replace(/\s+/g, '');
+    const codeSpaced = codeCompact.replace(/^([A-Za-z]+)(\d.*)$/, '$1 $2');
     const instructor = c.instructor;
 
-    // Google Calendar search URL
-    const calSearchUrl = `https://calendar.google.com/calendar/r/search?q=${encodeURIComponent(codeSpaced + ' OR ' + codeCompact + ' OR ' + instructor)}`;
+    const variants = [];
+    if (codeSpaced) variants.push(codeSpaced);
+    if (codeCompact && variants.indexOf(codeCompact) === -1) variants.push(codeCompact);
+    if (instructor) variants.push(instructor);
+    const calSearchUrl = `https://calendar.google.com/calendar/r/search?q=${encodeURIComponent(variants.join(' OR '))}`;
 
     let html = `<div class="detail-section"><h3>📅 Calendar</h3>`;
     html += `<div class="gcal-section">`;
