@@ -836,6 +836,33 @@
     return n >= 75 ? '#2e7d32' : (n > 0 ? '#e65100' : '#999');
   }
 
+  // Derive status from actual completion. Used whenever we refresh progress
+  // from the worksheet so the badge can't drift from reality (e.g. a course
+  // sitting at 45% progress still labeled "Not Started"). Manual overrides
+  // saved via the Edit Course dialog take precedence — see statusForCourse.
+  function computeStatusFromProgress(pct) {
+    var n = Number(pct) || 0;
+    if (n === 0) return 'Not Started';
+    if (n >= 100) return 'Complete';
+    return 'In Progress';
+  }
+  function statusForCourse(courseId, pct) {
+    try {
+      var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+      if (overrides[courseId] && overrides[courseId].status) return overrides[courseId].status;
+    } catch(e) {}
+    return computeStatusFromProgress(pct);
+  }
+  function applyComputedStatus(courseId, pct) {
+    var c = courseData[courseId];
+    if (!c) return;
+    var s = statusForCourse(courseId, pct);
+    c.status = s;
+    c.statusClass = 'status-' + s.toLowerCase().replace(/\s+/g, '-');
+    c.phase = s;
+    c.progressLabel = (Number(pct) || 0) + '% — ' + s;
+  }
+
   function mkCourse(code, name, instructor, email, session, program, college, drive, opts) {
     const o = opts || {};
     const parts = instructor.split(/\s+/);
@@ -1039,10 +1066,13 @@
       const ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
       if (typeof ws.completionPct === 'number') {
         courseData[id].progress = ws.completionPct;
-        courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
         courseData[id].progressColor = progressColorFor(ws.completionPct);
         courseData[id].fillClass = fillClassFor(ws.completionPct);
       }
+      // Derive status from current progress for every course, not just those
+      // with a worksheet row — otherwise a seed value like "On Track" sticks
+      // on a course that's still at 0%.
+      applyComputedStatus(id, courseData[id].progress || 0);
       // Store manual milestone completions for use in renderDetail
       if (ws.milestoneManualComplete) {
         courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
@@ -1689,10 +1719,10 @@
         var ws = JSON.parse(localStorage.getItem('worksheet_' + id) || '{}');
         if (typeof ws.completionPct === 'number') {
           courseData[id].progress = ws.completionPct;
-          courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
           courseData[id].progressColor = progressColorFor(ws.completionPct);
           courseData[id].fillClass = fillClassFor(ws.completionPct);
         }
+        applyComputedStatus(id, courseData[id].progress || 0);
         if (ws.milestoneManualComplete) courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
       } catch(e) {}
     });
