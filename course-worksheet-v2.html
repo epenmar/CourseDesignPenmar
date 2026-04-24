@@ -11226,13 +11226,13 @@ ${clone.innerHTML}
     navigateToSection(sectionId);
     // After navigation and highlight re-application, scroll to the highlighted element
     setTimeout(function() {
-      // Try to find the highlight mark for this comment
+      // 1. Inline text-selection highlight (most specific)
       var mark = commentId ? document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]') : null;
+      // 2. Field-anchor highlight (textarea/input referenced by containerSelector)
       if (!mark && commentId) {
-        // Try field comment — search commentCache for this comment's anchor
         Object.values(commentCache).forEach(function(comments) {
           (comments || []).forEach(function(c) {
-            if (c.id === commentId && c.highlight_anchor) {
+            if (c.id === commentId && c.highlight_anchor && c.highlight_anchor.containerSelector) {
               try {
                 var el = document.querySelector(c.highlight_anchor.containerSelector);
                 if (el) mark = el;
@@ -11241,12 +11241,35 @@ ${clone.innerHTML}
           });
         });
       }
+      // 3. Any element the section highlighter already painted yellow for us.
+      if (!mark) mark = document.querySelector('.has-field-comment, .inline-highlight');
+      // 4. Fall back to the section container itself so the user at least lands
+      //    in the right neighborhood. Re-using the same sectionViewMap that
+      //    applyFieldCommentIndicators uses keeps the two in sync.
+      if (!mark) {
+        var sectionSelectorMap = {
+          'course-info': '#view-course-info',
+          'course-context': '#view-additional',
+          'clos-elos': '#view-objectives',
+          'textbooks': '#view-materials',
+          'additional': '#view-additional',
+          'module-overview': '#view-module-overview',
+          'assignments-overview': '#view-assignments-overview',
+          'materials-overview': '#view-materials-overview',
+          'course-mapping': '#view-course-mapping'
+        };
+        var sel = sectionSelectorMap[sectionId];
+        var modMatch = sectionId && sectionId.match(/^module-(\d+)$/);
+        if (modMatch) sel = '#view-module';
+        if (sel) mark = document.querySelector(sel);
+      }
       if (mark) {
-        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        // Flash the highlight to draw attention
-        mark.style.transition = 'background 0.3s';
-        mark.style.background = 'rgba(140, 29, 64, 0.2)';
-        setTimeout(function() { mark.style.background = ''; }, 1500);
+        mark.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Flash the element so the user knows where the comment lives.
+        var prev = mark.style.boxShadow;
+        mark.style.transition = 'box-shadow 0.3s, background 0.3s';
+        mark.style.boxShadow = '0 0 0 3px rgba(255, 224, 102, 0.9)';
+        setTimeout(function() { mark.style.boxShadow = prev || ''; }, 1800);
       }
     }, 500);
   }
@@ -11740,14 +11763,26 @@ ${clone.innerHTML}
       var comments = commentCache[sectionId] || [];
       var hasUnresolved = comments.some(function(c) { return !c.resolved && !c.deleted_at; });
 
-      // Apply field-level highlights
+      // Apply field-level highlights. Earlier versions of the comment creator
+      // didn't always stamp `isField: true`, so legacy comments have an anchor
+      // selector pointing at a textarea/input with no flag. Treat any anchor
+      // whose selector resolves to a form field as a field comment, plus keep
+      // supporting the explicit isField flag for text-selection-on-a-field.
       comments.forEach(function(c) {
-        if (c.highlight_anchor && c.highlight_anchor.isField && !c.resolved && !c.deleted_at) {
-          try {
-            var field = document.querySelector(c.highlight_anchor.containerSelector);
-            if (field) field.classList.add('has-field-comment');
-          } catch(e) {}
-        }
+        if (!c.highlight_anchor || c.resolved || c.deleted_at) return;
+        var sel = c.highlight_anchor.containerSelector;
+        if (!sel) return;
+        try {
+          var field = document.querySelector(sel);
+          if (!field) return;
+          var isFormField = c.highlight_anchor.isField ||
+            field.matches('textarea, input, select') ||
+            field.querySelector('textarea, input, select');
+          if (isFormField) {
+            var target = field.matches('textarea, input, select') ? field : (field.querySelector('textarea, input, select') || field);
+            target.classList.add('has-field-comment');
+          }
+        } catch(e) {}
       });
 
       // Apply section-level highlight (yellow left border on the section's card/container)
