@@ -1595,6 +1595,14 @@
     if (idx >= 0) hiddenCols.splice(idx, 1);
     else hiddenCols.push(key);
     localStorage.setItem('dashboard_hidden_cols', JSON.stringify(hiddenCols));
+    // Push to Supabase immediately so the next cloud pull doesn't overwrite
+    // the user's column choices with the stale cloud copy (same pattern as
+    // setCourseJiraEpic / saveEditCourse).
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'dashboard_hidden_cols', data: hiddenCols }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[hiddenCols] cloud sync failed:', r.error.message); });
+    }
     applyColumnVisibility();
   }
 
