@@ -1248,9 +1248,12 @@
       });
     });
 
-    // Sort by date, limit to 6
+    // Sort by date. Cap high enough that a course with several meetings in
+    // the window doesn't squeeze other courses out — previously the 6-card
+    // limit meant POP 644's two May meetings pushed other May meetings off
+    // the list.
     cards.sort((a, b) => a.date.localeCompare(b.date));
-    const upcoming = cards.slice(0, 6);
+    const upcoming = cards.slice(0, 16);
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {

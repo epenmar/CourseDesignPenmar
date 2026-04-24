@@ -453,12 +453,21 @@ async function main() {
     // --- Calendar meetings ---
     if (calMeetings.length > 0) {
       course.calendarMeetings = calMeetings;
-      // Prefer the meeting whose label contains the course code, else fall back to first
+      // Only consider today/future meetings when choosing nextMeeting —
+      // otherwise, because the lookback window includes past events for
+      // worklog syncing, the earliest past meeting would clobber a future
+      // one that was already set. Prefer a meeting whose label contains
+      // the course code; fall back to the first upcoming meeting.
       const codeUpper = courseId.replace(/(\d+)/, ' $1').toUpperCase(); // e.g. "BST 605"
-      const nextCal = calMeetings.find(m => m.label.toUpperCase().includes(codeUpper)) || calMeetings[0];
-      const existingDate = course.nextMeeting && course.nextMeeting.date;
-      if (!existingDate || nextCal.date <= existingDate) {
-        course.nextMeeting = { date: nextCal.date, time: nextCal.time, label: nextCal.label };
+      const futureMeetings = calMeetings.filter(m => m.date >= todayStr);
+      const nextCal = futureMeetings.find(m => m.label.toUpperCase().includes(codeUpper)) || futureMeetings[0];
+      if (nextCal) {
+        const existingDate = course.nextMeeting && course.nextMeeting.date;
+        // Keep whichever is sooner, but only if both are in the future —
+        // existingDate can still be in the future from the Granola pass.
+        if (!existingDate || existingDate < todayStr || nextCal.date <= existingDate) {
+          course.nextMeeting = { date: nextCal.date, time: nextCal.time, label: nextCal.label };
+        }
       }
     }
 
