@@ -882,6 +882,7 @@
             <div style="display:flex; gap:8px; margin-left:auto;">
               <button onclick="runCourseParserAI()" title="Re-run AI with current input" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">⟳ Re-run</button>
               <button onclick="pushCourseParserToWorksheet()" title="Apply this structure to the Module Overview" style="background:#2e7d32; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">↪ Push to worksheet</button>
+              <button id="cp-drive-btn" onclick="saveCourseParserDocToDrive()" title="Upload this proposal to the course's Google Drive folder" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">📁 Save to Drive</button>
               <button onclick="downloadCourseParserDoc()" style="background:#8c1d40; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">💾 Download .doc</button>
               <button onclick="clearCourseParser()" title="Clear all and start over" style="background:#fff; color:#c62828; border:1px solid #c62828; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✕ Clear</button>
             </div>
@@ -10286,11 +10287,13 @@ ${clone.innerHTML}
     }
   }
 
-  function downloadCourseParserDoc() {
+  // Builds the parser-proposal .doc blob + filename. Shared by download and
+  // Drive-upload actions so the two outputs stay in sync.
+  function _buildCourseParserDoc() {
     var state = loadCourseParserState();
     var proposedEl = document.getElementById('cp-proposed');
     var proposalHtml = proposedEl ? proposedEl.innerHTML : (state.proposalHtml || '');
-    if (!proposalHtml.trim()) { alert('Nothing to download yet — parse a course first.'); return; }
+    if (!proposalHtml.trim()) return null;
     var rawInput = (state.rawInput || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
     var courseCode = (activeCourse && activeCourse.code || 'course').trim();
     var courseTitle = (activeCourse && activeCourse.fullTitle || courseCode);
@@ -10322,11 +10325,45 @@ ${clone.innerHTML}
 
     var blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
     var filename = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
-    var url = URL.createObjectURL(blob);
+    return { blob: blob, filename: filename };
+  }
+
+  function downloadCourseParserDoc() {
+    var doc = _buildCourseParserDoc();
+    if (!doc) { alert('Nothing to download yet — parse a course first.'); return; }
+    var url = URL.createObjectURL(doc.blob);
     var a = document.createElement('a');
-    a.href = url; a.download = filename;
+    a.href = url; a.download = doc.filename;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  function saveCourseParserDocToDrive() {
+    var doc = _buildCourseParserDoc();
+    if (!doc) { alert('Nothing to save yet — parse a course first.'); return; }
+    var driveUrl = activeCourse && activeCourse.driveFolder;
+    if (!window.GDrive || !driveUrl) {
+      alert('No Google Drive folder is configured for this course. Add a Google Drive Folder URL in Course Info to enable direct Drive upload.');
+      return;
+    }
+    var btn = document.getElementById('cp-drive-btn');
+    var origText = btn ? btn.textContent : null;
+    if (btn) { btn.textContent = '⏳ Uploading…'; btn.disabled = true; }
+    window.GDrive.uploadBlob(driveUrl, doc.filename, doc.blob, 'application/vnd.ms-word').then(function(res) {
+      var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
+      var actualParents = res.parents || [];
+      if (actualParents.indexOf(expectedFolderId) === -1) {
+        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+      }
+      if (btn && res.webViewLink) {
+        _replaceExportButton(btn, res.webViewLink, function() { saveCourseParserDocToDrive(); });
+      } else if (btn) {
+        btn.textContent = origText; btn.disabled = false;
+      }
+    }).catch(function(err) {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+      alert('Drive upload failed (' + (err.message || 'unknown') + '). Try downloading the .doc instead.');
+    });
   }
 
   function exportToGoogleDrive() {
