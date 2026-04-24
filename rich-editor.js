@@ -180,8 +180,10 @@
     });
     if (quills.length) activeQuill = quills[0];
 
-    // Build shared toolbar
-    var icons = (window.Quill && window.Quill.import) ? window.Quill.import('ui/icons') : {};
+    // Build shared toolbar. We deliberately ignore Quill's SVG icons and use
+    // plain-text/emoji labels instead — the SVG set renders as hard-to-read
+    // glyphs at our size (vertical dots, blank squares, etc.) which users
+    // can't identify without hovering for the tooltip.
     var toolbar = document.createElement('div');
     toolbar.className = 're-shared-toolbar';
 
@@ -304,25 +306,25 @@
     g1.appendChild(headerSel);
 
     var g2 = addGroup();
-    g2.appendChild(mkBtn('bold', null, icons.bold || '<b>B</b>', 'Bold (Ctrl+B)'));
-    g2.appendChild(mkBtn('italic', null, icons.italic || '<i>I</i>', 'Italic (Ctrl+I)'));
-    g2.appendChild(mkBtn('underline', null, icons.underline || '<u>U</u>', 'Underline (Ctrl+U)'));
-    g2.appendChild(mkBtn('strike', null, icons.strike || 'S', 'Strikethrough'));
+    g2.appendChild(mkBtn('bold', null, '<b>B</b>', 'Bold (Ctrl+B)'));
+    g2.appendChild(mkBtn('italic', null, '<i>I</i>', 'Italic (Ctrl+I)'));
+    g2.appendChild(mkBtn('underline', null, '<u>U</u>', 'Underline (Ctrl+U)'));
+    g2.appendChild(mkBtn('strike', null, '<s>S</s>', 'Strikethrough'));
 
     var g3 = addGroup();
-    g3.appendChild(mkBtn('list', 'ordered', (icons.list && icons.list.ordered) || '1.', 'Ordered list'));
-    g3.appendChild(mkBtn('list', 'bullet',  (icons.list && icons.list.bullet)  || '•',  'Bullet list'));
-    g3.appendChild(mkBtn('indent', '-1', (icons.indent && icons.indent['-1']) || '←', 'Outdent'));
-    g3.appendChild(mkBtn('indent', '+1', (icons.indent && icons.indent['+1']) || '→', 'Indent'));
+    g3.appendChild(mkBtn('list', 'ordered', '1.', 'Ordered list'));
+    g3.appendChild(mkBtn('list', 'bullet',  '•',  'Bullet list'));
+    g3.appendChild(mkBtn('indent', '-1', '←', 'Outdent'));
+    g3.appendChild(mkBtn('indent', '+1', '→', 'Indent'));
 
     var g4 = addGroup();
-    g4.appendChild(mkBtn('script', 'sub',   (icons.script && icons.script.sub)   || 'X₂', 'Subscript'));
-    g4.appendChild(mkBtn('script', 'super', (icons.script && icons.script.super) || 'X²', 'Superscript'));
+    g4.appendChild(mkBtn('script', 'sub',   'X₂', 'Subscript'));
+    g4.appendChild(mkBtn('script', 'super', 'X²', 'Superscript'));
 
     var g5 = addGroup();
-    g5.appendChild(mkBtn('link', null, icons.link || '🔗', 'Insert link'));
-    g5.appendChild(mkBtn('formula', null, icons.formula || '√', 'Insert formula (LaTeX)'));
-    g5.appendChild(mkBtn('clean', null, icons.clean || '⌫', 'Clear formatting'));
+    g5.appendChild(mkBtn('link', null, '🔗', 'Insert link'));
+    g5.appendChild(mkBtn('formula', null, 'ƒx', 'Insert formula (LaTeX)'));
+    g5.appendChild(mkBtn('clean', null, '⌫ clear', 'Clear formatting'));
 
     var g6 = addGroup();
     var sciSel = buildSymbolDropdown(getQuill, 'Sci', SCIENTIFIC);

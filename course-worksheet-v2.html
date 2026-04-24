@@ -11800,11 +11800,10 @@ ${clone.innerHTML}
       var comments = commentCache[sectionId] || [];
       var hasUnresolved = comments.some(function(c) { return !c.resolved && !c.deleted_at; });
 
-      // Apply field-level highlights. Earlier versions of the comment creator
-      // didn't always stamp `isField: true`, so legacy comments have an anchor
-      // selector pointing at a textarea/input with no flag. Treat any anchor
-      // whose selector resolves to a form field as a field comment, plus keep
-      // supporting the explicit isField flag for text-selection-on-a-field.
+      // Apply field-level highlights. Any unresolved comment whose anchor
+      // selector resolves to a DOM element gets the yellow treatment —
+      // previously we required the anchor to be a form field, which excluded
+      // older comments and those made on static content.
       comments.forEach(function(c) {
         if (!c.highlight_anchor || c.resolved || c.deleted_at) return;
         var sel = c.highlight_anchor.containerSelector;
@@ -11812,13 +11811,11 @@ ${clone.innerHTML}
         try {
           var field = document.querySelector(sel);
           if (!field) return;
-          var isFormField = c.highlight_anchor.isField ||
-            field.matches('textarea, input, select') ||
-            field.querySelector('textarea, input, select');
-          if (isFormField) {
-            var target = field.matches('textarea, input, select') ? field : (field.querySelector('textarea, input, select') || field);
-            target.classList.add('has-field-comment');
-          }
+          // Prefer the innermost form field if the selector points at a
+          // wrapper so the highlight sits tight on the actual input.
+          var innerField = !field.matches('textarea, input, select') ? field.querySelector('textarea, input, select') : null;
+          var target = innerField || field;
+          target.classList.add('has-field-comment');
         } catch(e) {}
       });
 
