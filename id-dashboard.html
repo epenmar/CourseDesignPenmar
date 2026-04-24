@@ -848,31 +848,27 @@
     return n >= 75 ? '#2e7d32' : (n > 0 ? '#e65100' : '#999');
   }
 
-  // Derive status from actual completion. Used whenever we refresh progress
-  // from the worksheet so the badge can't drift from reality (e.g. a course
-  // sitting at 45% progress still labeled "Not Started"). Manual overrides
-  // saved via the Edit Course dialog take precedence — see statusForCourse.
+  // Derive status purely from completion percentage. We used to respect a
+  // manual override in course_overrides, but that left courses at 61%
+  // progress stuck on "Not Started" because an old override value kept
+  // winning. If we ever want an "On Track" / "Behind Schedule" distinction
+  // we'll need milestone-aware logic, not a free-text override.
   function computeStatusFromProgress(pct) {
     var n = Number(pct) || 0;
     if (n === 0) return 'Not Started';
     if (n >= 100) return 'Complete';
     return 'In Progress';
   }
-  function statusForCourse(courseId, pct) {
-    try {
-      var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
-      if (overrides[courseId] && overrides[courseId].status) return overrides[courseId].status;
-    } catch(e) {}
-    return computeStatusFromProgress(pct);
-  }
   function applyComputedStatus(courseId, pct) {
     var c = courseData[courseId];
     if (!c) return;
-    var s = statusForCourse(courseId, pct);
+    var s = computeStatusFromProgress(pct);
     c.status = s;
     c.statusClass = 'status-' + s.toLowerCase().replace(/\s+/g, '-');
     c.phase = s;
-    c.progressLabel = (Number(pct) || 0) + '% — ' + s;
+    // Progress bar label is percentage-only now — the status column already
+    // shows the word, so repeating it under the bar was just noise.
+    c.progressLabel = (Number(pct) || 0) + '%';
   }
 
   function mkCourse(code, name, instructor, email, session, program, college, drive, opts) {
@@ -888,7 +884,7 @@
       code: code, courseName: name,
       program: program, college: college,
       instructor: instructor, initials: initials, avatarColor: o.color || colors[Math.abs(key.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % colors.length],
-      session: session || '—', phase: o.phase || 'Not Started', progressLabel: (o.progress||0) + '% — ' + (o.phase || 'Not started'),
+      session: session || '—', phase: o.phase || 'Not Started', progressLabel: (o.progress||0) + '%',
       fillClass: fillClassFor(o.progress),
       lastActive: o.lastActive || 'No activity', lastActiveStale: o.lastActiveStale !== undefined ? o.lastActiveStale : true,
       status: o.status || 'Not Started', statusClass: 'status-' + (o.status || 'Not Started').toLowerCase().replace(/\s+/g, '-'),
@@ -1629,7 +1625,32 @@
 
   // ===== COLUMN FILTERS =====
   // Per-filter selected values. Empty array = no filter = show all.
-  var msFilterState = { program: [], college: [], session: [], status: [] };
+  // Seeded from localStorage so the user's picks survive a reload.
+  var msFilterState = (function() {
+    try {
+      var raw = JSON.parse(localStorage.getItem('dashboard_filters') || 'null');
+      if (raw && typeof raw === 'object') {
+        return {
+          program: Array.isArray(raw.program) ? raw.program : [],
+          college: Array.isArray(raw.college) ? raw.college : [],
+          session: Array.isArray(raw.session) ? raw.session : [],
+          status: Array.isArray(raw.status) ? raw.status : []
+        };
+      }
+    } catch(e) {}
+    return { program: [], college: [], session: [], status: [] };
+  })();
+
+  function persistMsFilterState() {
+    try {
+      localStorage.setItem('dashboard_filters', JSON.stringify(msFilterState));
+      if (window._sbClient) {
+        window._sbClient.from('dashboard_state')
+          .upsert({ key: 'dashboard_filters', data: msFilterState }, { onConflict: 'key' })
+          .then(function(r) { if (r.error) console.warn('[filters] cloud sync failed:', r.error.message); });
+      }
+    } catch(e) {}
+  }
 
   function renderColumnFilters() {
     const programs = new Set();
@@ -1695,10 +1716,12 @@
       btn.textContent = arr.length === 0 ? 'All ' + label : (arr.length === 1 ? arr[0] : label + ' (' + arr.length + ')');
       btn.classList.toggle('active', arr.length > 0);
     }
+    persistMsFilterState();
     applyAllFilters();
   };
   window.clearMsFilter = function(key) {
     msFilterState[key] = [];
+    persistMsFilterState();
     renderColumnFilters();
     applyAllFilters();
   };
@@ -1809,6 +1832,21 @@
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
     }
+    // Re-read persisted UI state from localStorage after the cloud pull. The
+    // module-level `let hiddenCols` and msFilterState were seeded at parse
+    // time from stale local data; the pull may have just overwritten
+    // localStorage with the user's actual preferences, so we re-seed the
+    // in-memory variables and re-render the controls.
+    try {
+      var freshCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null');
+      if (Array.isArray(freshCols)) hiddenCols = freshCols;
+      var freshFilters = JSON.parse(localStorage.getItem('dashboard_filters') || 'null');
+      if (freshFilters && typeof freshFilters === 'object') {
+        ['program', 'college', 'session', 'status'].forEach(function(k) {
+          if (Array.isArray(freshFilters[k])) msFilterState[k] = freshFilters[k];
+        });
+      }
+    } catch(e) {}
     // After cloud pull, merge any nightly-cron auto-imports into courseData
     // before first render so new courses appear immediately.
     try {
@@ -1817,6 +1855,9 @@
     renderSummary();
     renderUpcoming();
     renderTable();
+    // Re-render the filter/column controls so the UI reflects the fresh state.
+    try { renderColumnFilters(); } catch(e) {}
+    applyColumnVisibility();
     try {
       if (typeof renderAirtableAutoBanner === 'function') renderAirtableAutoBanner();
     } catch(e) { console.warn('[airtable auto] banner render failed:', e && e.message); }
@@ -2497,7 +2538,7 @@
       program: cand.program || code.split(/\s/)[0], college: cand.college || '',
       instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
       session: sessionShort, phase: pct >= 100 ? 'Complete' : (pct > 0 ? 'In Progress' : 'Not Started'),
-      progressLabel: pct + '% — ' + (pct >= 100 ? 'Complete' : pct > 0 ? 'In progress' : 'Not started'),
+      progressLabel: pct + '%',
       fillClass: fillClassFor(pct),
       lastActive: 'No activity', lastActiveStale: true,
       status: pct >= 100 ? 'Complete' : pct > 0 ? 'In Progress' : 'Not Started',
@@ -4658,7 +4699,7 @@
     c.statusClass = 'status-' + status.toLowerCase().replace(/\s+/g, '-');
     c.progress = progress;
     c.phase = phase;
-    c.progressLabel = progress + '% — ' + (phase || 'Not started');
+    c.progressLabel = progress + '%';
     c.progressColor = progressColorFor(progress);
     c.fillClass = fillClassFor(progress);
     c.subtitle = instructor + ' &bull; ' + (session || 'Session TBD');
@@ -4878,7 +4919,7 @@
         if (o.progress !== undefined) c.progress = o.progress;
         if (o.phase) c.phase = o.phase;
         if (o.status || o.progress !== undefined || o.phase) {
-          c.progressLabel = (o.progress || c.progress || 0) + '% — ' + (o.phase || c.phase || 'Not started');
+          c.progressLabel = (o.progress || c.progress || 0) + '%';
           c.progressColor = progressColorFor(c.progress);
           c.fillClass = fillClassFor(c.progress);
         }
