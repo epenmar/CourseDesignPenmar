@@ -2016,6 +2016,15 @@
   }
 
   document.addEventListener('keydown', function(e) {
+    // When focus is inside an editable field, hand Cmd/Ctrl+Z back to the
+    // browser so native text undo (for typing, paste, cut) works. The app
+    // undo stack only tracks structural operations — activities added/deleted,
+    // objectives reordered, etc. — and trying to run it during a text edit
+    // would (a) do nothing user-visible and (b) swallow the native undo the
+    // user actually wanted.
+    var t = e.target;
+    var inEditable = t && t.matches && t.matches('textarea, input, select, [contenteditable="true"], [contenteditable=""]');
+    if (inEditable) return;
     if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
       e.preventDefault();
       undo();
