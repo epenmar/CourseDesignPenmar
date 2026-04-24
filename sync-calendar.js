@@ -44,6 +44,8 @@ const COURSE_KEYWORDS = {
   tph591:        ['TPH 591', 'TPH591', 'Jyoti Pathak'],
   tph593:        ['TPH 593', 'TPH593'],
   asb554:        ['ASB 554', 'ASB554', 'One Health', 'India Schneider'],
+  tph504:        ['TPH 504', 'TPH504'],
+  pop644:        ['POP 644', 'POP644', 'Tiffany Lemon'],
 };
 
 // Obsidian project names → course IDs
@@ -71,6 +73,8 @@ const PROJECT_TO_COURSE = {
   'TPH 591': 'tph591', 'TPH591': 'tph591',
   'TPH 593': 'tph593', 'TPH593': 'tph593',
   'ASB 554': 'asb554', 'ASB554': 'asb554',
+  'TPH 504': 'tph504', 'TPH504': 'tph504',
+  'POP 644': 'pop644', 'POP644': 'pop644',
 };
 
 // ===== iCal PARSER =====
@@ -235,9 +239,28 @@ function matchNoteToCourses(note) {
         if (text.includes(kw.toLowerCase())) { courses.add(courseId); break; }
       }
     }
+    // Generic fallback: detect any "XXX ###" course code in the title.
+    genericCodeMatches((note.title || '') + ' ' + path.basename(note.filePath)).forEach(function(id) {
+      courses.add(id);
+    });
   }
 
   return [...courses];
+}
+
+// Generic course-code matcher — catches courses that aren't in the hardcoded
+// map by pattern-matching "XXX ###" or "XXX###" in the event/note text.
+// Without this, every new course added via Airtable had to be manually
+// listed in COURSE_KEYWORDS or its calendar events never associated.
+const GENERIC_CODE_RE = /\b([A-Z]{2,4})\s*(\d{3}[A-Z]?)\b/gi;
+function genericCodeMatches(text) {
+  const matches = new Set();
+  let m;
+  GENERIC_CODE_RE.lastIndex = 0;
+  while ((m = GENERIC_CODE_RE.exec(text)) !== null) {
+    matches.add((m[1] + m[2]).toLowerCase());
+  }
+  return [...matches];
 }
 
 // ===== CALENDAR MATCHING =====
@@ -249,6 +272,12 @@ function matchEventToCourses(event) {
       if (text.includes(kw.toLowerCase())) { matches.push(courseId); break; }
     }
   }
+  // Fallback: any generic "XXX ###" code in the title. Lets a course that
+  // isn't in COURSE_KEYWORDS still get its calendar events.
+  const sourceText = (event.summary || '') + ' ' + (event.description || '');
+  genericCodeMatches(sourceText).forEach(function(id) {
+    if (matches.indexOf(id) === -1) matches.push(id);
+  });
   return matches;
 }
 
