@@ -364,6 +364,17 @@
   .col-filter-row label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.04em; }
   .col-filter { padding: 5px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: #fff; color: #444; cursor: pointer; }
   .col-filter:focus { outline: none; border-color: #8c1d40; }
+  .ms-filter { position: relative; display: inline-block; }
+  .ms-filter-btn { padding: 5px 28px 5px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 12px; font-family: 'Inter', sans-serif; background: #fff; color: #444; cursor: pointer; position: relative; min-width: 120px; text-align: left; }
+  .ms-filter-btn::after { content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%); font-size: 10px; color: #888; }
+  .ms-filter-btn.active { border-color: #8c1d40; color: #8c1d40; font-weight: 600; }
+  .ms-filter-panel { position: absolute; top: 100%; left: 0; margin-top: 4px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); padding: 6px 0; min-width: 180px; max-width: 260px; max-height: 280px; overflow-y: auto; z-index: 50; display: none; }
+  .ms-filter-panel.open { display: block; }
+  .ms-filter-opt { display: flex; align-items: center; gap: 8px; padding: 6px 12px; font-size: 12px; color: #333; cursor: pointer; }
+  .ms-filter-opt:hover { background: #f6f3ee; }
+  .ms-filter-opt input { cursor: pointer; }
+  .ms-filter-clear { display: block; width: 100%; text-align: left; padding: 6px 12px; font-size: 11px; color: #8c1d40; background: none; border: none; border-top: 1px solid #eee; cursor: pointer; margin-top: 4px; }
+  .ms-filter-clear:hover { background: #f6f3ee; }
 
   /* ===== COLUMN VISIBILITY TOGGLE ===== */
   .col-toggle-wrap { position: relative; display: inline-block; }
@@ -1608,6 +1619,9 @@
   });
 
   // ===== COLUMN FILTERS =====
+  // Per-filter selected values. Empty array = no filter = show all.
+  var msFilterState = { program: [], college: [], session: [], status: [] };
+
   function renderColumnFilters() {
     const programs = new Set();
     const colleges = new Set();
@@ -1620,20 +1634,71 @@
       statuses.add(c.status);
     });
     const collegeFullNames = { 'CHS': 'College of Health Solutions (CHS)', 'NCIAS': 'New College of Interdisciplinary Arts & Sciences (NCIAS)', 'STPH': 'School of Technology for Public Health (STPH)' };
-    const makeOpts = (set, label, displayMap) => {
-      let html = `<option value="">All ${label}</option>`;
-      [...set].sort().forEach(v => { html += `<option value="${v}">${displayMap && displayMap[v] || v}</option>`; });
-      return html;
-    };
+    // Drop stale selections when an option no longer exists in the data.
+    msFilterState.program = msFilterState.program.filter(v => programs.has(v));
+    msFilterState.college = msFilterState.college.filter(v => colleges.has(v));
+    msFilterState.session = msFilterState.session.filter(v => sessions.has(v));
+    msFilterState.status = msFilterState.status.filter(v => statuses.has(v));
     document.getElementById('col-filter-row').innerHTML =
       `<label>Filter:</label>` +
-      `<select class="col-filter" id="filter-program" onchange="applyColumnFilters()">${makeOpts(programs, 'Programs')}</select>` +
-      `<select class="col-filter" id="filter-college" onchange="applyColumnFilters()">${makeOpts(colleges, 'Colleges', collegeFullNames)}</select>` +
-      `<select class="col-filter" id="filter-session" onchange="applyColumnFilters()">${makeOpts(sessions, 'Sessions')}</select>` +
-      `<select class="col-filter" id="filter-status" onchange="applyColumnFilters()">${makeOpts(statuses, 'Statuses')}</select>` +
+      buildMultiSelect('program', 'Programs', [...programs].sort()) +
+      buildMultiSelect('college', 'Colleges', [...colleges].sort(), collegeFullNames) +
+      buildMultiSelect('session', 'Sessions', [...sessions].sort()) +
+      buildMultiSelect('status', 'Statuses', [...statuses].sort()) +
       renderColumnToggle();
     applyColumnVisibility();
   }
+
+  function buildMultiSelect(key, label, values, displayMap) {
+    var selected = msFilterState[key] || [];
+    var btnLabel = selected.length === 0 ? 'All ' + label : (selected.length === 1 ? (displayMap && displayMap[selected[0]] || selected[0]) : label + ' (' + selected.length + ')');
+    var opts = values.map(function(v) {
+      var display = displayMap && displayMap[v] || v;
+      var checked = selected.indexOf(v) !== -1 ? ' checked' : '';
+      var safe = String(v).replace(/"/g, '&quot;');
+      return '<label class="ms-filter-opt"><input type="checkbox" value="' + safe + '"' + checked + ' onchange="toggleMsFilter(\'' + key + '\', this.value, this.checked)"> ' + display + '</label>';
+    }).join('');
+    var clear = selected.length ? '<button class="ms-filter-clear" onclick="clearMsFilter(\'' + key + '\')">Clear selection</button>' : '';
+    return '<div class="ms-filter">' +
+           '<button type="button" class="ms-filter-btn' + (selected.length ? ' active' : '') + '" onclick="toggleMsFilterPanel(\'' + key + '\', event)">' + btnLabel + '</button>' +
+           '<div class="ms-filter-panel" id="ms-panel-' + key + '">' + (opts || '<div style="padding:8px 12px; color:#888; font-size:11px;">No options</div>') + clear + '</div>' +
+           '</div>';
+  }
+
+  window.toggleMsFilterPanel = function(key, e) {
+    if (e) e.stopPropagation();
+    var panel = document.getElementById('ms-panel-' + key);
+    if (!panel) return;
+    var wasOpen = panel.classList.contains('open');
+    // Close any other open panels first so only one shows at a time.
+    document.querySelectorAll('.ms-filter-panel.open').forEach(function(p) { p.classList.remove('open'); });
+    if (!wasOpen) panel.classList.add('open');
+  };
+  window.toggleMsFilter = function(key, value, checked) {
+    var arr = msFilterState[key] || (msFilterState[key] = []);
+    var idx = arr.indexOf(value);
+    if (checked && idx === -1) arr.push(value);
+    if (!checked && idx !== -1) arr.splice(idx, 1);
+    // Re-render just the button label so the count/state updates without closing the panel.
+    var btn = document.querySelector('#ms-panel-' + key).previousElementSibling;
+    if (btn) {
+      var label = { program: 'Programs', college: 'Colleges', session: 'Sessions', status: 'Statuses' }[key];
+      btn.textContent = arr.length === 0 ? 'All ' + label : (arr.length === 1 ? arr[0] : label + ' (' + arr.length + ')');
+      btn.classList.toggle('active', arr.length > 0);
+    }
+    applyAllFilters();
+  };
+  window.clearMsFilter = function(key) {
+    msFilterState[key] = [];
+    renderColumnFilters();
+    applyAllFilters();
+  };
+  // Close open panels on outside click.
+  document.addEventListener('click', function(e) {
+    if (!e.target.closest('.ms-filter')) {
+      document.querySelectorAll('.ms-filter-panel.open').forEach(function(p) { p.classList.remove('open'); });
+    }
+  });
 
   // ===== ENSURE WORKSHEET CONFIGS EXIST =====
   // Pre-built courses need worksheet entries in localStorage so the worksheet page can load them
@@ -4044,10 +4109,10 @@
   function applyAllFilters() {
     const searchEl = document.querySelector('.filter-search');
     const searchQ = searchEl ? searchEl.value.toLowerCase() : '';
-    const fp = document.getElementById('filter-program')?.value || '';
-    const fc = document.getElementById('filter-college')?.value || '';
-    const fs = document.getElementById('filter-session')?.value || '';
-    const fst = document.getElementById('filter-status')?.value || '';
+    const fProgs = msFilterState.program;
+    const fColls = msFilterState.college;
+    const fSess = msFilterState.session;
+    const fStats = msFilterState.status;
 
     var visibleCount = 0;
     document.querySelectorAll('.course-table tbody tr').forEach(row => {
@@ -4061,10 +4126,10 @@
       const tabMatch = tabMatches(activeTableTab, c, isInactiveRow);
       const show = tabMatch && statusMatch &&
         (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
-        (!fp || c.program === fp) &&
-        (!fc || c.college === fc) &&
-        (!fs || c.session === fs) &&
-        (!fst || c.status === fst);
+        (fProgs.length === 0 || fProgs.indexOf(c.program) !== -1) &&
+        (fColls.length === 0 || fColls.indexOf(c.college) !== -1) &&
+        (fSess.length === 0 || fSess.indexOf(c.session) !== -1) &&
+        (fStats.length === 0 || fStats.indexOf(c.status) !== -1);
       row.style.display = show ? '' : 'none';
       if (show) visibleCount++;
     });
