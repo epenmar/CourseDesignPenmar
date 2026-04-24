@@ -2361,10 +2361,19 @@
         }
         return String(v).trim();
       };
-      // Field name drift — try the most common aliases and fall back to empty.
-      var pickField = function(aliases) {
+      // Field name drift — try explicit aliases first, then any field whose
+      // name matches a regex. Covers cases where a record has, say,
+      // "College (from Program) 2" or "APM College" without us having to
+      // enumerate every variant.
+      var pickField = function(aliases, regex) {
         for (var ai = 0; ai < aliases.length; ai++) {
           if (f[aliases[ai]] != null) return f[aliases[ai]];
+        }
+        if (regex) {
+          var keys = Object.keys(f);
+          for (var i = 0; i < keys.length; i++) {
+            if (regex.test(keys[i]) && f[keys[i]] != null) return f[keys[i]];
+          }
         }
         return '';
       };
@@ -2376,8 +2385,17 @@
         email: f['Faculty Developer Email'] || '',
         completion: f['Course Completion Percentage'] || 0,
         sessionStart: sessionArr[0] || '',
-        program: toStr(pickField(['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'])),
-        college: toStr(pickField(['College (from Program)', 'College', 'College (from APM)', 'College Name'])),
+        program: toStr(pickField(['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'], /^programs?\b/i)),
+        college: toStr(pickField(['College (from Program)', 'College', 'College (from APM)', 'College Name'], /college/i)),
+        // Pull the Jira Epic key from whichever field the record uses so
+        // importing auto-links the course to its Epic. Only keep values that
+        // look like a Jira key (e.g. EDL-7828) to avoid polluting the flag
+        // with random text from a misnamed column.
+        jiraEpic: (function() {
+          var raw = toStr(pickField(['Jira Key', 'Jira Epic', 'Epic Key', 'Jira Epic Key', 'Jira'], /jira/i));
+          var m = String(raw || '').toUpperCase().trim().match(/\b([A-Z][A-Z0-9]+-\d+)\b/);
+          return m ? m[1] : '';
+        })(),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
@@ -2648,6 +2666,8 @@
       localStorage.setItem('user_courses', JSON.stringify(saved0));
       if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved0[key]);
       setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
+      // Backfill the Jira Epic if Airtable has one and the dashboard doesn't.
+      if (cand.jiraEpic && !getCourseJiraEpic(key)) setCourseJiraEpic(key, cand.jiraEpic);
       return { ok: true, key: key, existed: true };
     }
     var instructor = cand.instructor || 'TBD';
@@ -2714,6 +2734,8 @@
     if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved[key]);
     // Seed Airtable URL so the comment integration works immediately.
     setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
+    // Link the Jira Epic too if Airtable carries one.
+    if (cand.jiraEpic) setCourseJiraEpic(key, cand.jiraEpic);
     return { ok: true, key: key, existed: false };
   }
 
