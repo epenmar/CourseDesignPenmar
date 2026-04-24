@@ -7081,6 +7081,10 @@
     if (owner) {
       owner.item.objectives = selected;
       saveActivityData();
+      // Tell other open sessions so they can update the picker without reload.
+      if (typeof broadcastItemUpdate === 'function') {
+        broadcastItemUpdate(owner.type, owner.modNum, owner.item);
+      }
     }
 
     // Regenerate the full picker HTML to guarantee clean DOM structure
@@ -10564,6 +10568,16 @@ ${clone.innerHTML}
     };
   }
 
+  // Stable color per collaborator so a user's focus outline and edit badge
+  // match their presence avatar. Uses a simple hash of the name.
+  function userColorFor(name) {
+    var palette = ['#8c1d40', '#1565c0', '#2e7d32', '#e65100', '#6a1b9a', '#00838f', '#c62828', '#4527a0'];
+    var h = 0;
+    var s = String(name || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+    return palette[h % palette.length];
+  }
+
   // ===== LIVE COLLABORATIVE EDITING =====
   // Broadcast each editable field's value to other open sessions so the
   // other collaborator sees typing almost in real time. This is best-effort
@@ -10618,8 +10632,51 @@ ${clone.innerHTML}
     });
     editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
     editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
+    editChannel.on('broadcast', { event: 'item' }, function(msg) { applyRemoteItem(msg.payload); });
     editChannel.subscribe();
     attachLiveEditListeners();
+  }
+
+  // Broadcast a structural change to an activity or material so other
+  // sessions can update their in-memory state without a reload. Used for
+  // objective tagging today; easy to extend for add/delete later.
+  function broadcastItemUpdate(itemType, modNum, item) {
+    if (!editChannel || !item) return;
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'item',
+      payload: {
+        itemType: itemType,
+        modNum: modNum,
+        itemId: item.id,
+        item: item,
+        author: identity && identity.name,
+        at: Date.now()
+      }
+    });
+  }
+
+  function applyRemoteItem(payload) {
+    if (!payload || !payload.itemType || !payload.modNum || !payload.item) return;
+    var coll = payload.itemType === 'activity' ? courseActivities : courseMaterials;
+    if (!coll[payload.modNum]) coll[payload.modNum] = [];
+    var arr = coll[payload.modNum];
+    var idx = -1;
+    for (var i = 0; i < arr.length; i++) { if (arr[i].id === payload.itemId) { idx = i; break; } }
+    if (idx === -1) arr.push(payload.item);
+    else arr[idx] = payload.item;
+    // Persist the updated collection so reloads see the remote change.
+    try { saveField(payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials', coll); } catch(e) {}
+    // Re-render whichever view is currently visible.
+    if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') {
+      renderAssignmentsOverview();
+    } else if (currentViewId === 'materials-overview' && typeof renderMaterialsOverview === 'function') {
+      renderMaterialsOverview();
+    } else if (currentViewId === 'module' && currentModuleNum === payload.modNum) {
+      if (payload.itemType === 'activity' && typeof renderModuleActivities === 'function') renderModuleActivities(payload.modNum);
+      if (payload.itemType === 'material' && typeof renderModuleMaterials === 'function') renderModuleMaterials(payload.modNum);
+    }
   }
 
   function attachLiveEditListeners() {
@@ -10711,18 +10768,29 @@ ${clone.innerHTML}
     if (!payload || !payload.key || !payload.author) return;
     var el = findFieldByLiveKey(payload.key);
     if (!el || !el.parentElement) return;
+    var color = userColorFor(payload.author);
     var badgeClass = 'remote-editor-badge';
+    var outlineKey = '_remoteOutline_' + payload.author;
     var existing = el.parentElement.querySelector('.' + badgeClass + '[data-author="' + payload.author + '"]');
     if (payload.focused) {
+      // Colored outline on the field so the other person's "cursor" is
+      // visible at a glance — pair it with a chip showing the name.
+      el.style.boxShadow = '0 0 0 2px ' + color;
+      el.style.borderRadius = '4px';
+      el[outlineKey] = true;
       if (existing) return;
       var badge = document.createElement('span');
       badge.className = badgeClass;
       badge.setAttribute('data-author', payload.author);
       badge.textContent = '✎ ' + payload.author;
-      badge.style.cssText = 'display:inline-block; background:#8c1d40; color:#fff; font-size:10px; padding:2px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; pointer-events:none;';
+      badge.style.cssText = 'display:inline-block; background:' + color + '; color:#fff; font-size:10px; padding:2px 7px; border-radius:10px; margin-left:6px; vertical-align:middle; pointer-events:none; white-space:nowrap;';
       el.parentElement.insertBefore(badge, el.nextSibling);
-    } else if (existing) {
-      existing.remove();
+    } else {
+      if (el[outlineKey]) {
+        el.style.boxShadow = '';
+        el[outlineKey] = false;
+      }
+      if (existing) existing.remove();
     }
   }
 
