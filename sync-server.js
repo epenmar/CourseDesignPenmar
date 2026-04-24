@@ -54,6 +54,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && req.url.startsWith('/jira/sync-time')) {
+    handleJiraSyncTime(req, res);
+    return;
+  }
+
   // GET  /jira/issue/:key       → fetch summary + current status + issue type
   // GET  /jira/transitions/:key → list available transitions for an issue
   // POST /jira/transitions/:key → apply a transition  { transitionId }
@@ -121,6 +126,25 @@ function serveData(res) {
 
 // POST /jira/comment  { issueKey: "EDL-7802", text: "..." }
 // Posts a comment to the given Jira issue using credentials from ~/conductor/.env.
+// POST /jira/sync-time  — runs scripts/sync-jira-time.mjs on demand
+// so the dashboard "Sync time ⇢ Jira" button can trigger the same logic
+// as the nightly cron. Returns stdout/stderr so the UI can show what
+// happened.
+function handleJiraSyncTime(req, res) {
+  const script = path.join(__dirname, 'scripts', 'sync-jira-time.mjs');
+  execFile(process.execPath, [script], { timeout: 90000 }, (err, stdout, stderr) => {
+    if (err) {
+      return sendJson(res, 500, {
+        ok: false,
+        error: err.message,
+        stdout: stdout || '',
+        stderr: stderr || ''
+      });
+    }
+    sendJson(res, 200, { ok: true, stdout: stdout || '', stderr: stderr || '' });
+  });
+}
+
 function handleJiraComment(req, res) {
   let body = '';
   req.on('data', chunk => { body += chunk; if (body.length > 100000) req.destroy(); });

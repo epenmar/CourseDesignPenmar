@@ -627,6 +627,7 @@
         <button class="table-tab" data-tab="ongoing" onclick="switchTableTab('ongoing')">On-going <span class="tab-count" id="tab-count-ongoing"></span></button>
       </div>
       <div style="display:flex; gap:8px;">
+        <button id="jira-sync-btn" onclick="syncJiraTimeNow()" style="padding:6px 14px; background:#fff; color:#0052cc; border:1.5px solid #0052cc; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;" title="Push unsynced worksheet time to Jira worklogs now (same logic as the nightly cron)">⏱ Sync Jira time</button>
         <button id="airtable-sync-btn" onclick="syncAirtableCourses({toastOnEmpty:true})" style="padding:6px 14px; background:#fff; color:#e65100; border:1.5px solid #e65100; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;" title="Pull your Course Developments from Airtable">🔄 Sync Airtable</button>
         <button onclick="openAddCourseModal()" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;">+ Add Course</button>
       </div>
@@ -1852,7 +1853,17 @@
           if (s.nextMeeting) courseData[id].nextMeeting = s.nextMeeting;
           if (s.calendarMeetings) courseData[id].calendarMeetings = s.calendarMeetings;
         });
-        if (fresh.upcomingDeadlines) window.SYNCED_DATA = fresh;
+        // Always swap SYNCED_DATA so courses/meetings stay fresh; preserve
+        // upcomingDeadlines from the prior good sync if this one came back
+        // without them, so the Upcoming widget doesn't flicker when a sync
+        // returns a partial payload.
+        if (fresh) {
+          var prior = window.SYNCED_DATA;
+          if (!fresh.upcomingDeadlines && prior && prior.upcomingDeadlines) {
+            fresh.upcomingDeadlines = prior.upcomingDeadlines;
+          }
+          window.SYNCED_DATA = fresh;
+        }
         renderSummary();
         renderUpcoming();
         renderTable();
@@ -2204,6 +2215,31 @@
       };
     });
   }
+
+  // Public: kick off the local sync-jira-time cron on demand. Needs the
+  // local sync-server running on :3456 (same server that handles the
+  // calendar/granola sync and the Jira comment proxy). Previously the Jira
+  // worklog push only ran nightly — this lets the user flush immediately.
+  window.syncJiraTimeNow = async function() {
+    var btn = document.getElementById('jira-sync-btn');
+    if (btn) { btn.classList.add('syncing'); btn.disabled = true; }
+    try {
+      var r = await fetch('http://127.0.0.1:3456/jira/sync-time', { method: 'POST' });
+      var body = null; try { body = await r.json(); } catch(e) {}
+      if (!r.ok || !(body && body.ok)) {
+        console.warn('[jira sync] failed', body);
+        alert('Jira sync failed.\n\n' + ((body && (body.error || body.stderr)) || ('HTTP ' + r.status)) +
+          '\n\nMake sure the local sync-server is running (it starts automatically with the ID Dashboard app).');
+        return;
+      }
+      var tail = (body.stdout || '').trim().split('\n').slice(-5).join('\n') || 'Done.';
+      alert('Jira time synced.\n\n' + tail);
+    } catch (e) {
+      alert('Could not reach the local sync-server at 127.0.0.1:3456.\n\nStart it by running the ID Dashboard app or `node sync-server.js`.');
+    } finally {
+      if (btn) { btn.classList.remove('syncing'); btn.disabled = false; }
+    }
+  };
 
   // Public: run a full sync. Updates state, refreshes the banner, optionally opens modal.
   window.syncAirtableCourses = async function(opts) {
@@ -2879,6 +2915,14 @@
     const next = !state[k][idx];
     state[k][idx] = next;
     localStorage.setItem('meeting_action_items_state', JSON.stringify(state));
+    // Push immediately so the checkbox survives the next cloud pull. Without
+    // this, pushAllToCloud only runs on the manual Sync button, and checked
+    // items reappeared after reload.
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[action-items] cloud sync failed:', r.error.message); });
+    }
     const row = el.closest('.meeting-action');
     if (row) {
       el.classList.toggle('done', next);

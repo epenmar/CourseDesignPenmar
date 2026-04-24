@@ -2085,7 +2085,17 @@
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
     const _startN = activeCourse.moduleStartZero ? 0 : 1;
     const mod = (activeCourse.modules || [])[moduleNum - _startN];
-    const mlos = mod && mod.mlos ? mod.mlos : [];
+    // Fall back to localStorage moduleOverviewData when the in-memory modules
+    // array doesn't have an entry for this module number — happens when
+    // moduleStartZero is toggled on and the array length no longer covers the
+    // full displayed range, which left the last module's picker empty.
+    var inMemoryMlos = mod && mod.mlos ? mod.mlos : null;
+    if (!inMemoryMlos || inMemoryMlos.length === 0) {
+      var savedMods = loadField('moduleOverviewData') || {};
+      var savedMlos = savedMods[moduleNum] && savedMods[moduleNum].mlos;
+      if (savedMlos && savedMlos.length) inMemoryMlos = savedMlos;
+    }
+    const mlos = inMemoryMlos || [];
     const selected = selectedObjectives || [];
 
     let chipsHtml = '';
@@ -2392,6 +2402,13 @@
   document.addEventListener('DOMContentLoaded', async function() {
     await pullCurrentCourseFromCloud();
     initDataModel();
+    // If cloud pull changed localStorage after any overview containers
+    // already rendered from pre-pull data, re-render them so the current view
+    // reflects the freshest copy — otherwise users see stale content until
+    // they navigate away and back.
+    if (typeof renderAllViews === 'function') {
+      try { renderAllViews(); } catch(e) { console.warn('[post-pull render]', e && e.message); }
+    }
 
     // Sidebar course name
     const sidebarName = document.querySelector('.sidebar-header .course-name');
@@ -4975,16 +4992,63 @@
     if (!window._cloudPullComplete) { console.info('[cloud push] skipped (pull not complete)'); return; }
     clearTimeout(_cloudPushTimer);
     _cloudPushTimer = setTimeout(function() {
-      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
-      window._sbClient.from('worksheets').upsert({ course_id: courseId, data: data }, { onConflict: 'course_id' })
-        .then(function(r) {
-          if (r.error) console.warn('[cloud push] failed:', r.error.message);
-          else {
-            _lastLocalPushAt = Date.now();
-            var el = document.getElementById('cloud-sync-indicator'); if (el) { el.textContent = '☁ saved'; el.style.color = '#2e7d32'; setTimeout(function() { el.textContent = ''; }, 2000); }
-          }
-        });
+      mergeAndPushWorksheet();
     }, 2000);
+  }
+
+  // Before pushing, fetch the cloud copy and merge at the top-level-key level
+  // using our per-key __modifiedAt timestamps. Whichever side was modified
+  // more recently for a given key wins. This turns the previous whole-blob
+  // last-write-wins behavior — which silently lost concurrent edits between
+  // collaborators — into field-level last-write-wins, so two people editing
+  // different sections don't stomp each other.
+  function mergeAndPushWorksheet() {
+    var local = JSON.parse(localStorage.getItem(storageKey) || '{}');
+    window._sbClient.from('worksheets').select('data').eq('course_id', courseId).maybeSingle()
+      .then(function(r) {
+        var cloud = (r && r.data && r.data.data) || {};
+        var merged = mergeWorksheetBlobs(local, cloud);
+        localStorage.setItem(storageKey, JSON.stringify(merged));
+        return window._sbClient.from('worksheets').upsert(
+          { course_id: courseId, data: merged },
+          { onConflict: 'course_id' }
+        );
+      })
+      .then(function(r) {
+        if (r && r.error) { console.warn('[cloud push] failed:', r.error.message); return; }
+        _lastLocalPushAt = Date.now();
+        var el = document.getElementById('cloud-sync-indicator');
+        if (el) { el.textContent = '☁ saved'; el.style.color = '#2e7d32'; setTimeout(function() { el.textContent = ''; }, 2000); }
+      })
+      .catch(function(e) { console.warn('[cloud push] error:', e && e.message); });
+  }
+
+  // Pure merge helper so the logic is easy to reason about. For each top-level
+  // key, pick the side whose __modifiedAt entry is newer. If one side is
+  // missing the key, take the side that has it. __modifiedAt itself merges
+  // key-by-key using Math.max.
+  function mergeWorksheetBlobs(local, cloud) {
+    var lMod = (local && local.__modifiedAt) || {};
+    var cMod = (cloud && cloud.__modifiedAt) || {};
+    var keys = {};
+    Object.keys(local || {}).forEach(function(k) { if (k !== '__modifiedAt') keys[k] = true; });
+    Object.keys(cloud || {}).forEach(function(k) { if (k !== '__modifiedAt') keys[k] = true; });
+    var merged = {};
+    Object.keys(keys).forEach(function(k) {
+      var hasL = local && Object.prototype.hasOwnProperty.call(local, k);
+      var hasC = cloud && Object.prototype.hasOwnProperty.call(cloud, k);
+      if (hasL && !hasC) { merged[k] = local[k]; return; }
+      if (hasC && !hasL) { merged[k] = cloud[k]; return; }
+      var lt = lMod[k] || 0;
+      var ct = cMod[k] || 0;
+      merged[k] = lt >= ct ? local[k] : cloud[k];
+    });
+    // Merge the __modifiedAt map itself — keep the newer timestamp per key.
+    var mMod = {};
+    Object.keys(lMod).forEach(function(k) { mMod[k] = Math.max(mMod[k] || 0, lMod[k] || 0); });
+    Object.keys(cMod).forEach(function(k) { mMod[k] = Math.max(mMod[k] || 0, cMod[k] || 0); });
+    merged.__modifiedAt = mMod;
+    return merged;
   }
 
   // Subscribe to realtime UPDATE events on the worksheets row for this course.
@@ -5032,6 +5096,11 @@
     try {
       const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
       data[key] = value;
+      // Stamp the per-key modification time so the pre-push merge can decide
+      // whether our value or the cloud's value is newer for this field. The
+      // map lives inside the same blob so it rides along with every push/pull.
+      if (!data.__modifiedAt || typeof data.__modifiedAt !== 'object') data.__modifiedAt = {};
+      data.__modifiedAt[key] = Date.now();
       localStorage.setItem(storageKey, JSON.stringify(data));
       scheduleCloudPush();
     } catch(e) {
@@ -6346,7 +6415,7 @@
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           // Objectives picker (interactive)
           html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
-          html += '<input type="text" class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." oninput="syncOverviewActivity(this)" />';
+          html += '<textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Activity name..." style="resize:none; overflow:hidden; min-height:22px; line-height:1.3; white-space:pre-wrap;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.name) + '</textarea>';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '<textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; min-height:20px; resize:none; overflow:hidden; font-size:11px; line-height:1.3;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.due) + '</textarea>';
           html += '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button>';
@@ -6617,6 +6686,18 @@
   var overviewDragData = null;
 
   function overviewDragStart(e) {
+    // Don't hijack text selection inside inputs/textareas/contenteditable
+    // content — drag should only start on the card's chrome (drag handle,
+    // non-editable surface).
+    var t = e.target;
+    if (t && (t.matches && t.matches('textarea, input, select, [contenteditable=true], [contenteditable=""]'))) {
+      e.preventDefault();
+      return;
+    }
+    if (t && t.closest && t.closest('textarea, input, select, [contenteditable=true], [contenteditable=""]')) {
+      e.preventDefault();
+      return;
+    }
     var block = e.target.closest('[data-activity-id], [data-material-id]');
     if (!block) return;
     block.classList.add('dragging');
@@ -10529,6 +10610,12 @@ ${clone.innerHTML}
   var _sessionAccumulated = 0;   // ms since the last flush
   var _sessionCountedThisLoad = false; // ensure we only increment session_count once per page load
   var _lastFlushWallEnd = Date.now(); // wall-clock end of the most recent flushed block
+  var _lastActivityAt = Date.now();
+  var IDLE_THRESHOLD_MS = 3 * 60 * 1000; // 3 min of no input → treat as idle
+  // Any real user input counts as activity. Passive listeners keep this cheap.
+  ['mousemove', 'mousedown', 'keydown', 'wheel', 'touchstart', 'focus'].forEach(function(ev) {
+    document.addEventListener(ev, function() { _lastActivityAt = Date.now(); }, { passive: true, capture: true });
+  });
 
   function _flushSessionTime(isUnload) {
     if (_sessionActive) {
@@ -10537,6 +10624,16 @@ ${clone.innerHTML}
     }
     var deltaMs = _sessionAccumulated;
     _sessionAccumulated = 0;
+    // Strip idle time. If the user hasn't touched the tab in >IDLE_THRESHOLD_MS,
+    // the excess past that threshold doesn't count as working time — it's the
+    // user leaving the tab visible while they did something else. This fixed
+    // the "too much time logged" pattern where a visible but unused tab kept
+    // accumulating minutes.
+    var idleFor = Date.now() - _lastActivityAt;
+    if (idleFor > IDLE_THRESHOLD_MS) {
+      var idleExcess = idleFor - IDLE_THRESHOLD_MS;
+      deltaMs = Math.max(0, deltaMs - idleExcess);
+    }
     if (deltaMs <= 0 && _sessionCountedThisLoad) return;
 
     // Local per-course analytics (browser-wide, pre-existing)
@@ -10663,6 +10760,14 @@ ${clone.innerHTML}
       if (local && local.name) return local;
     } catch(e) {}
     if (urlIdentity) return urlIdentity;
+    // Fallback to the dashboard's id_profile so a session opened without ?user=
+    // (e.g. clicking a course from the dashboard directly) still gets time
+    // logged to Jira instead of silently dropping it. Previously POP644 logged
+    // zero minutes because no identity was ever set on that browser.
+    try {
+      var prof = JSON.parse(localStorage.getItem('id_profile') || 'null');
+      if (prof && prof.name) return { name: prof.name, role: 'id' };
+    } catch(e) {}
     return null;
   }
 

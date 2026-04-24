@@ -135,11 +135,14 @@ function bulletsOf(body) {
   return out;
 }
 
-function firstSentences(text, n = 2) {
+function firstSentences(text, n = 4) {
   if (!text) return '';
   const clean = text.replace(/\s+/g, ' ').trim();
   const parts = clean.split(/(?<=[.!?])\s+/);
-  return parts.slice(0, n).join(' ').slice(0, 320);
+  // Previously capped at 2 sentences / 320 chars, which frequently yielded
+  // a single truncated bullet in the dashboard sidebar. Widen to ~4 sentences
+  // and 1200 chars so real meeting summaries survive the sync intact.
+  return parts.slice(0, n).join(' ').slice(0, 1200);
 }
 
 function parseFollowUp(headerBlock) {
@@ -237,14 +240,16 @@ function parseNote(detail) {
     const skip = /^#?\s*(regular ai notes|obsidian tags)/i;
     const firstKey = Object.keys(sections).find(k => !skip.test(k) && sections[k].trim());
     if (firstKey) {
+      // Keep up to 4 bullets so the sidebar shows the real meat of the
+      // meeting instead of a single truncated sentence.
       const sentences = bulletsOf(sections[firstKey])
-        .slice(0, 2)
+        .slice(0, 4)
         .map(t => t.replace(/\*\*/g, '').replace(/\s+/g, ' '))
         .join('. ');
       summarySource = sentences;
     }
   }
-  const summary = firstSentences(summarySource, 2);
+  const summary = firstSentences(summarySource, 4);
 
   return {
     id: detail.id,
