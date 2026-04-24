@@ -2040,14 +2040,16 @@
     var sh = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_STAKEHOLDERS_TABLE + '/' + AIRTABLE_MY_STAKEHOLDER_ID);
     var devIds = (sh.fields && sh.fields['Course Developments 2']) || [];
     if (devIds.length === 0) return [];
-    // Step 2: fetch the course development records, chunked by 25 (URL-length safe)
-    var fields = ['Course', 'Course Title', 'Faculty Developer Name', 'Faculty Developer Email', 'Course Completion Percentage', 'Session Launch (Start Date)', 'Created', 'Programs (From APM)', 'College'];
-    var fieldQs = fields.map(function(f) { return 'fields%5B%5D=' + encodeURIComponent(f); }).join('&');
+    // Step 2: fetch the course development records, chunked by 25 (URL-length safe).
+    // We don't pass fields[] — the base's actual field names for Program/College
+    // have drifted ("College", "College (from Program)", etc.) and a typo makes
+    // the whole request fail. Pulling all fields lets us try several aliases
+    // without fragile guesses.
     var all = [];
     for (var i = 0; i < devIds.length; i += 25) {
       var chunk = devIds.slice(i, i + 25);
       var formula = 'OR(' + chunk.map(function(rid) { return 'RECORD_ID()%3D%22' + rid + '%22'; }).join('%2C') + ')';
-      var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + '&' + fieldQs);
+      var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula);
       (cdBody.records || []).forEach(function(r) { all.push(r); });
     }
     return all.map(function(r) {
@@ -2066,6 +2068,13 @@
         }
         return String(v).trim();
       };
+      // Field name drift — try the most common aliases and fall back to empty.
+      var pickField = function(aliases) {
+        for (var ai = 0; ai < aliases.length; ai++) {
+          if (f[aliases[ai]] != null) return f[aliases[ai]];
+        }
+        return '';
+      };
       return {
         recordId: r.id,
         code: f['Course'] || '',
@@ -2074,8 +2083,8 @@
         email: f['Faculty Developer Email'] || '',
         completion: f['Course Completion Percentage'] || 0,
         sessionStart: sessionArr[0] || '',
-        program: toStr(f['Programs (From APM)']),
-        college: toStr(f['College']),
+        program: toStr(pickField(['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'])),
+        college: toStr(pickField(['College (from Program)', 'College', 'College (from APM)', 'College Name'])),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
