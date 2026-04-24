@@ -84,6 +84,9 @@
   .course-table-wrap { border: 1px solid #e8e5dd; border-radius: 8px; overflow: auto; max-height: calc(15 * 49px + 40px); background: #fff; }
   .course-table { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 13px; }
   .course-table thead th { text-align: left; padding: 10px 14px; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: #888; border-bottom: 2px solid #e0ddd5; position: sticky; top: 0; z-index: 2; background: #f9f8f5; cursor: pointer; user-select: none; white-space: nowrap; }
+  .course-table thead th[draggable="true"] { cursor: grab; }
+  .course-table thead th.col-dragging { opacity: 0.4; cursor: grabbing; }
+  .course-table thead th.col-drop-target { border-left: 3px solid #8c1d40; background: #fef3e8; }
   .table-tabs { display: flex; gap: 3px; align-items: flex-end; margin-bottom: -1px; }
   .table-tab { padding: 9px 18px; font-size: 14px; font-weight: 500; color: #666; background: #f0ede5; border: 1px solid #d6d3ca; border-bottom: 1px solid #e0ddd5; border-top-left-radius: 8px; border-top-right-radius: 8px; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.15s; position: relative; }
   .table-tab:hover { background: #e8e5dd; color: #8c1d40; }
@@ -650,16 +653,16 @@
         <thead>
           <tr>
             <th style="width:30px; padding:0;"></th>
-            <th data-sort="code" onclick="sortTable('code', this)">Course <span class="sort-arrow">▲</span></th>
-            <th data-sort="instructor" onclick="sortTable('instructor', this)">Instructor <span class="sort-arrow">▲</span></th>
-            <th data-sort="program" onclick="sortTable('program', this)">Program <span class="sort-arrow">▲</span></th>
-            <th data-sort="college" onclick="sortTable('college', this)">College <span class="sort-arrow">▲</span></th>
-            <th data-sort="session" onclick="sortTable('session', this)">Session <span class="sort-arrow">▲</span></th>
-            <th data-sort="progress" onclick="sortTable('progress', this)">Progress <span class="sort-arrow">▲</span></th>
-            <th data-sort="phase" onclick="sortTable('phase', this)">Phase <span class="sort-arrow">▲</span></th>
-            <th data-sort="status" onclick="sortTable('status', this)">Status <span class="sort-arrow">▲</span></th>
-            <th data-sort="qa" onclick="sortTable('qa', this)">QA Date <span class="sort-arrow">▲</span></th>
-            <th data-sort="lastActive" onclick="sortTable('lastActive', this)">Last Active <span class="sort-arrow">▲</span></th>
+            <th data-col-key="code" draggable="true" data-sort="code" onclick="sortTable('code', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Course <span class="sort-arrow">▲</span></th>
+            <th data-col-key="instructor" draggable="true" data-sort="instructor" onclick="sortTable('instructor', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Instructor <span class="sort-arrow">▲</span></th>
+            <th data-col-key="program" draggable="true" data-sort="program" onclick="sortTable('program', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Program <span class="sort-arrow">▲</span></th>
+            <th data-col-key="college" draggable="true" data-sort="college" onclick="sortTable('college', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">College <span class="sort-arrow">▲</span></th>
+            <th data-col-key="session" draggable="true" data-sort="session" onclick="sortTable('session', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Session <span class="sort-arrow">▲</span></th>
+            <th data-col-key="progress" draggable="true" data-sort="progress" onclick="sortTable('progress', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Progress <span class="sort-arrow">▲</span></th>
+            <th data-col-key="phase" draggable="true" data-sort="phase" onclick="sortTable('phase', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Phase <span class="sort-arrow">▲</span></th>
+            <th data-col-key="status" draggable="true" data-sort="status" onclick="sortTable('status', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Status <span class="sort-arrow">▲</span></th>
+            <th data-col-key="qa" draggable="true" data-sort="qa" onclick="sortTable('qa', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">QA Date <span class="sort-arrow">▲</span></th>
+            <th data-col-key="lastActive" draggable="true" data-sort="lastActive" onclick="sortTable('lastActive', this)" ondragstart="colDragStart(event)" ondragover="colDragOver(event)" ondrop="colDrop(event)" ondragend="colDragEnd(event)">Last Active <span class="sort-arrow">▲</span></th>
           </tr>
         </thead>
         <tbody id="course-table-body">
@@ -1538,19 +1541,19 @@
       const starred = starredSet.indexOf(id) !== -1;
       html += `<tr onclick="openDetail('${id}')" data-status="${dataStatus}" data-program="${c.program || ''}" data-college="${c.college || ''}" class="${isInactive ? 'row-inactive' : ''}">
         <td style="padding:0 4px; text-align:center;"><button class="star-btn${starred ? ' starred' : ''}" onclick="toggleStar('${id}', event)" title="${starred ? 'Unstar' : 'Star'} course">${starred ? '★' : '☆'}</button></td>
-        <td><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
-        <td><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
-        <td style="font-size:12px;">${c.program || '—'}</td>
-        <td style="font-size:12px;">${c.college || '—'}</td>
-        <td>${/^\d{4}-\d{2}-\d{2}$/.test(c.session || '') ? airtableDateToSessionLabel(c.session) : (c.session || '—')}</td>
-        <td class="progress-cell">
+        <td data-col-key="code"><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
+        <td data-col-key="instructor"><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
+        <td data-col-key="program" style="font-size:12px;">${c.program || '—'}</td>
+        <td data-col-key="college" style="font-size:12px;">${c.college || '—'}</td>
+        <td data-col-key="session">${/^\d{4}-\d{2}-\d{2}$/.test(c.session || '') ? airtableDateToSessionLabel(c.session) : (c.session || '—')}</td>
+        <td data-col-key="progress" class="progress-cell">
           <div class="progress-bar-outer"><div class="progress-bar-fill ${c.fillClass}" style="width:${c.progress}%"></div></div>
           <div class="progress-text">${c.progressLabel}</div>
         </td>
-        <td><span class="phase-badge">${c.phase}</span></td>
-        <td><span class="status-pill ${displayStatusClass}">${displayStatus}</span></td>
-        <td><span class="qa-date qa-ok">${c.qaShort}</span></td>
-        <td><span class="last-active${c.lastActiveStale ? ' stale' : ''}">${c.lastActive}</span></td>
+        <td data-col-key="phase"><span class="phase-badge">${c.phase}</span></td>
+        <td data-col-key="status"><span class="status-pill ${displayStatusClass}">${displayStatus}</span></td>
+        <td data-col-key="qa"><span class="qa-date qa-ok">${c.qaShort}</span></td>
+        <td data-col-key="lastActive"><span class="last-active${c.lastActiveStale ? ' stale' : ''}">${c.lastActive}</span></td>
       </tr>`;
     });
     tbody.innerHTML = html;
@@ -1558,34 +1561,117 @@
     applyColumnVisibility();
   }
 
-  // ===== COLUMN VISIBILITY =====
+  // ===== COLUMN VISIBILITY & ORDER =====
   const allColumns = [
-    { key: 'code', label: 'Course', idx: 1 },
-    { key: 'instructor', label: 'Instructor', idx: 2 },
-    { key: 'program', label: 'Program', idx: 3 },
-    { key: 'college', label: 'College', idx: 4 },
-    { key: 'session', label: 'Session', idx: 5 },
-    { key: 'progress', label: 'Progress', idx: 6 },
-    { key: 'phase', label: 'Phase', idx: 7 },
-    { key: 'status', label: 'Status', idx: 8 },
-    { key: 'qa', label: 'QA Date', idx: 9 },
-    { key: 'lastActive', label: 'Last Active', idx: 10 }
+    { key: 'code', label: 'Course' },
+    { key: 'instructor', label: 'Instructor' },
+    { key: 'program', label: 'Program' },
+    { key: 'college', label: 'College' },
+    { key: 'session', label: 'Session' },
+    { key: 'progress', label: 'Progress' },
+    { key: 'phase', label: 'Phase' },
+    { key: 'status', label: 'Status' },
+    { key: 'qa', label: 'QA Date' },
+    { key: 'lastActive', label: 'Last Active' }
   ];
+  const COL_KEYS = allColumns.map(c => c.key);
   const defaultHidden = ['program', 'college', 'phase'];
   let hiddenCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null') || defaultHidden;
+  // Column display order. New keys added to allColumns later are appended to
+  // any saved order so users don't lose access when we add a column.
+  let colOrder = (function() {
+    try {
+      var raw = JSON.parse(localStorage.getItem('dashboard_col_order') || 'null');
+      if (Array.isArray(raw)) {
+        var valid = raw.filter(k => COL_KEYS.indexOf(k) !== -1);
+        COL_KEYS.forEach(k => { if (valid.indexOf(k) === -1) valid.push(k); });
+        return valid;
+      }
+    } catch(e) {}
+    return COL_KEYS.slice();
+  })();
 
-  function applyColumnVisibility() {
-    const ths = document.querySelectorAll('.course-table thead th');
-    const rows = document.querySelectorAll('.course-table tbody tr');
-    allColumns.forEach(col => {
-      const hidden = hiddenCols.includes(col.key);
-      if (ths[col.idx]) ths[col.idx].style.display = hidden ? 'none' : '';
-      rows.forEach(row => {
-        const tds = row.querySelectorAll('td');
-        if (tds[col.idx]) tds[col.idx].style.display = hidden ? 'none' : '';
+  function applyColumnOrder() {
+    // Reorder the <th> nodes in the header and the <td> nodes in each row to
+    // match colOrder. We look up cells by data-col-key (the star column has
+    // no key, so it stays put at index 0).
+    var thead = document.querySelector('.course-table thead tr');
+    if (thead) {
+      colOrder.forEach(function(k) {
+        var th = thead.querySelector('th[data-col-key="' + k + '"]');
+        if (th) thead.appendChild(th); // appendChild on existing node = move
+      });
+    }
+    document.querySelectorAll('.course-table tbody tr').forEach(function(row) {
+      colOrder.forEach(function(k) {
+        var td = row.querySelector('td[data-col-key="' + k + '"]');
+        if (td) row.appendChild(td);
       });
     });
   }
+
+  function applyColumnVisibility() {
+    allColumns.forEach(function(col) {
+      var hidden = hiddenCols.includes(col.key);
+      document.querySelectorAll(
+        '.course-table th[data-col-key="' + col.key + '"], .course-table td[data-col-key="' + col.key + '"]'
+      ).forEach(function(el) {
+        el.style.display = hidden ? 'none' : '';
+      });
+    });
+    applyColumnOrder();
+  }
+
+  function persistColOrder() {
+    try {
+      localStorage.setItem('dashboard_col_order', JSON.stringify(colOrder));
+      if (window._sbClient) {
+        window._sbClient.from('dashboard_state')
+          .upsert({ key: 'dashboard_col_order', data: colOrder }, { onConflict: 'key' })
+          .then(function(r) { if (r.error) console.warn('[colOrder] cloud sync failed:', r.error.message); });
+      }
+    } catch(e) {}
+  }
+
+  // ===== COLUMN DRAG & DROP =====
+  var _dragColKey = null;
+  window.colDragStart = function(e) {
+    var th = e.target.closest('th[data-col-key]');
+    if (!th) { e.preventDefault(); return; }
+    _dragColKey = th.getAttribute('data-col-key');
+    e.dataTransfer.effectAllowed = 'move';
+    // Firefox requires data to be set for drag to work.
+    try { e.dataTransfer.setData('text/plain', _dragColKey); } catch(err) {}
+    th.classList.add('col-dragging');
+  };
+  window.colDragOver = function(e) {
+    if (!_dragColKey) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    document.querySelectorAll('.col-drop-target').forEach(function(el) { el.classList.remove('col-drop-target'); });
+    var th = e.currentTarget;
+    if (th && th.getAttribute('data-col-key') !== _dragColKey) th.classList.add('col-drop-target');
+  };
+  window.colDrop = function(e) {
+    e.preventDefault();
+    var targetKey = e.currentTarget.getAttribute('data-col-key');
+    var srcKey = _dragColKey;
+    if (!srcKey || !targetKey || srcKey === targetKey) return;
+    var srcIdx = colOrder.indexOf(srcKey);
+    var tgtIdx = colOrder.indexOf(targetKey);
+    if (srcIdx === -1 || tgtIdx === -1) return;
+    colOrder.splice(srcIdx, 1);
+    var newTgt = colOrder.indexOf(targetKey);
+    colOrder.splice(newTgt + (srcIdx < tgtIdx ? 1 : 0), 0, srcKey);
+    persistColOrder();
+    applyColumnOrder();
+  };
+  window.colDragEnd = function() {
+    _dragColKey = null;
+    document.querySelectorAll('.col-dragging, .col-drop-target').forEach(function(el) {
+      el.classList.remove('col-dragging', 'col-drop-target');
+    });
+  };
 
   function toggleColumn(key) {
     const idx = hiddenCols.indexOf(key);
@@ -1840,6 +1926,12 @@
     try {
       var freshCols = JSON.parse(localStorage.getItem('dashboard_hidden_cols') || 'null');
       if (Array.isArray(freshCols)) hiddenCols = freshCols;
+      var freshOrder = JSON.parse(localStorage.getItem('dashboard_col_order') || 'null');
+      if (Array.isArray(freshOrder)) {
+        var validated = freshOrder.filter(function(k) { return COL_KEYS.indexOf(k) !== -1; });
+        COL_KEYS.forEach(function(k) { if (validated.indexOf(k) === -1) validated.push(k); });
+        colOrder = validated;
+      }
       var freshFilters = JSON.parse(localStorage.getItem('dashboard_filters') || 'null');
       if (freshFilters && typeof freshFilters === 'object') {
         ['program', 'college', 'session', 'status'].forEach(function(k) {
