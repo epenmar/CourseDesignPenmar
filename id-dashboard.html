@@ -824,6 +824,18 @@
   const synced = window.SYNCED_DATA || null;
 
   // Helper: create a base course entry
+  // Single source of truth for progress-bar color. Keyed purely off percentage
+  // so the same % always shows the same color, regardless of which code path
+  // (seed, Airtable import, edit, cloud sync) built the course object.
+  function fillClassFor(pct) {
+    var n = Number(pct) || 0;
+    return n >= 75 ? 'fill-green' : (n > 0 ? 'fill-orange' : 'fill-red');
+  }
+  function progressColorFor(pct) {
+    var n = Number(pct) || 0;
+    return n >= 75 ? '#2e7d32' : (n > 0 ? '#e65100' : '#999');
+  }
+
   function mkCourse(code, name, instructor, email, session, program, college, drive, opts) {
     const o = opts || {};
     const parts = instructor.split(/\s+/);
@@ -838,10 +850,10 @@
       program: program, college: college,
       instructor: instructor, initials: initials, avatarColor: o.color || colors[Math.abs(key.split('').reduce((a,c)=>a+c.charCodeAt(0),0)) % colors.length],
       session: session || '—', phase: o.phase || 'Not Started', progressLabel: (o.progress||0) + '% — ' + (o.phase || 'Not started'),
-      fillClass: o.progress > 0 ? (o.status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red',
+      fillClass: fillClassFor(o.progress),
       lastActive: o.lastActive || 'No activity', lastActiveStale: o.lastActiveStale !== undefined ? o.lastActiveStale : true,
       status: o.status || 'Not Started', statusClass: 'status-' + (o.status || 'Not Started').toLowerCase().replace(/\s+/g, '-'),
-      progress: o.progress || 0, progressColor: o.status === 'On Track' ? '#2e7d32' : (o.progress > 0 ? '#e65100' : '#999'),
+      progress: o.progress || 0, progressColor: progressColorFor(o.progress),
       qa: o.qa || '—', qaShort: o.qaShort || '—',
       devLink: 'course-worksheet-v2.html?course=' + key,
       instructorSlug: slug,
@@ -1028,8 +1040,8 @@
       if (typeof ws.completionPct === 'number') {
         courseData[id].progress = ws.completionPct;
         courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
-        courseData[id].progressColor = ws.completionPct >= 75 ? '#2e7d32' : (ws.completionPct > 0 ? '#e65100' : '#999');
-        courseData[id].fillClass = ws.completionPct >= 75 ? 'fill-green' : (ws.completionPct > 0 ? 'fill-orange' : 'fill-red');
+        courseData[id].progressColor = progressColorFor(ws.completionPct);
+        courseData[id].fillClass = fillClassFor(ws.completionPct);
       }
       // Store manual milestone completions for use in renderDetail
       if (ws.milestoneManualComplete) {
@@ -1678,8 +1690,8 @@
         if (typeof ws.completionPct === 'number') {
           courseData[id].progress = ws.completionPct;
           courseData[id].progressLabel = ws.completionPct + '% — ' + courseData[id].phase;
-          courseData[id].progressColor = ws.completionPct >= 75 ? '#2e7d32' : (ws.completionPct > 0 ? '#e65100' : '#999');
-          courseData[id].fillClass = ws.completionPct >= 75 ? 'fill-green' : (ws.completionPct > 0 ? 'fill-orange' : 'fill-red');
+          courseData[id].progressColor = progressColorFor(ws.completionPct);
+          courseData[id].fillClass = fillClassFor(ws.completionPct);
         }
         if (ws.milestoneManualComplete) courseData[id].milestoneManualComplete = ws.milestoneManualComplete;
       } catch(e) {}
@@ -2347,7 +2359,7 @@
       instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
       session: sessionShort, phase: pct >= 100 ? 'Complete' : (pct > 0 ? 'In Progress' : 'Not Started'),
       progressLabel: pct + '% — ' + (pct >= 100 ? 'Complete' : pct > 0 ? 'In progress' : 'Not started'),
-      fillClass: pct >= 75 ? 'fill-green' : pct >= 40 ? 'fill-yellow' : 'fill-red',
+      fillClass: fillClassFor(pct),
       lastActive: 'No activity', lastActiveStale: true,
       status: pct >= 100 ? 'Complete' : pct > 0 ? 'In Progress' : 'Not Started',
       statusClass: pct >= 100 ? 'status-complete' : pct > 0 ? 'status-in-progress' : 'status-not-started',
@@ -4500,8 +4512,8 @@
     c.progress = progress;
     c.phase = phase;
     c.progressLabel = progress + '% — ' + (phase || 'Not started');
-    c.progressColor = status === 'On Track' ? '#2e7d32' : (progress > 0 ? '#e65100' : '#999');
-    c.fillClass = progress > 0 ? (status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red';
+    c.progressColor = progressColorFor(progress);
+    c.fillClass = fillClassFor(progress);
     c.subtitle = instructor + ' &bull; ' + (session || 'Session TBD');
 
     // Recompute initials
@@ -4514,7 +4526,9 @@
     c.devLink = 'course-worksheet-v2.html?course=' + key;
     c.emailName = code;
 
-    // Save overrides to localStorage
+    // Save overrides to localStorage AND push to Supabase immediately — otherwise
+    // the next page-load cloud pull overwrites our edits with the stale cloud copy
+    // (pushAllToCloud only runs on the manual Sync button, not on every edit).
     var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
     overrides[editCourseId] = {
       code: code, courseName: name, instructor: instructor, email: email,
@@ -4522,6 +4536,11 @@
       id: id, status: status, progress: progress, phase: phase
     };
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[course_overrides] cloud sync failed:', r.error.message); });
+    }
 
     // Airtable URL lives in its own dashboard_state key
     setCourseAirtableUrl(editCourseId, airtableUrl);
@@ -4713,8 +4732,8 @@
         if (o.phase) c.phase = o.phase;
         if (o.status || o.progress !== undefined || o.phase) {
           c.progressLabel = (o.progress || c.progress || 0) + '% — ' + (o.phase || c.phase || 'Not started');
-          c.progressColor = c.status === 'On Track' ? '#2e7d32' : (c.progress > 0 ? '#e65100' : '#999');
-          c.fillClass = c.progress > 0 ? (c.status === 'On Track' ? 'fill-green' : 'fill-orange') : 'fill-red';
+          c.progressColor = progressColorFor(c.progress);
+          c.fillClass = fillClassFor(c.progress);
         }
         if (o.code) {
           var key = o.code.toLowerCase().replace(/[\s\/]+/g, '');
