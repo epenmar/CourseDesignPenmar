@@ -59,6 +59,11 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  if (req.method === 'POST' && req.url.startsWith('/ai/query')) {
+    handleAiProxy(req, res);
+    return;
+  }
+
   // GET  /jira/issue/:key       → fetch summary + current status + issue type
   // GET  /jira/transitions/:key → list available transitions for an issue
   // POST /jira/transitions/:key → apply a transition  { transitionId }
@@ -126,6 +131,73 @@ function serveData(res) {
 
 // POST /jira/comment  { issueKey: "EDL-7802", text: "..." }
 // Posts a comment to the given Jira issue using credentials from ~/conductor/.env.
+// POST /ai/query  — proxies to ASU's CreateAI endpoint with the bearer
+// token held only on this machine (~/conductor/.env CREATE_AI_KEY). Lets
+// the worksheet AI Design Assistant function without shipping the token
+// in the GitHub Pages bundle. Body shape:
+//   { query, systemPrompt, maxTokens, model, provider, temperature }
+// Returns the upstream JSON ({ response: "..." }) verbatim.
+function handleAiProxy(req, res) {
+  let body = '';
+  req.on('data', chunk => { body += chunk; if (body.length > 500000) req.destroy(); });
+  req.on('end', () => {
+    let payload;
+    try { payload = JSON.parse(body); }
+    catch (e) { return sendJson(res, 400, { error: 'Invalid JSON' }); }
+
+    // .env in the parent uses CREATE_AI_API_KEY/URL; accept the shorter
+    // CREATE_AI_KEY/URL names too in case they're added later.
+    const upstreamUrl = ENV.CREATE_AI_API_URL || ENV.CREATE_AI_URL || 'https://api-main.aiml.asu.edu/query';
+    const key = ENV.CREATE_AI_API_KEY || ENV.CREATE_AI_KEY;
+    if (!key) {
+      return sendJson(res, 500, {
+        error: 'CREATE_AI_API_KEY not set in ~/conductor/.env. Add the bearer token there and restart sync-server.'
+      });
+    }
+
+    const upstreamPayload = {
+      action: 'query',
+      request_source: 'override_params',
+      query: payload.query || '',
+      model_provider: payload.provider || 'aws',
+      model_name: payload.model || 'claude4_5_sonnet',
+      model_params: {
+        system_prompt: payload.systemPrompt || '',
+        temperature: typeof payload.temperature === 'number' ? payload.temperature : 0,
+        max_tokens: payload.maxTokens || 1024
+      }
+    };
+
+    const url = new URL(upstreamUrl);
+    const lib = url.protocol === 'https:' ? require('https') : require('http');
+    const upBody = JSON.stringify(upstreamPayload);
+    const upReq = lib.request({
+      method: 'POST',
+      hostname: url.hostname,
+      port: url.port || (url.protocol === 'https:' ? 443 : 80),
+      path: url.pathname + (url.search || ''),
+      headers: {
+        'Authorization': 'Bearer ' + key,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(upBody)
+      }
+    }, upRes => {
+      let chunks = '';
+      upRes.on('data', c => { chunks += c; });
+      upRes.on('end', () => {
+        res.writeHead(upRes.statusCode || 502, { 'Content-Type': 'application/json' });
+        res.end(chunks);
+      });
+    });
+    upReq.on('error', err => {
+      console.error('[ai/query] upstream error', err.message);
+      sendJson(res, 502, { error: 'Upstream AI request failed: ' + err.message });
+    });
+    upReq.write(upBody);
+    upReq.end();
+  });
+}
+
 // POST /jira/sync-time  — runs scripts/sync-jira-time.mjs on demand
 // so the dashboard "Sync time ⇢ Jira" button can trigger the same logic
 // as the nightly cron. Returns stdout/stderr so the UI can show what

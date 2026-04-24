@@ -3721,7 +3721,14 @@
       const dateMatch = text.match(/\b(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2}/i) ||
                         text.match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}/i);
       if (dateMatch) {
-        const refDate = new Date(dateMatch[0] + ', 2026');
+        // Default to current year. If that puts the date >90 days in the
+        // past we treat it as referring to next year — same heuristic the
+        // sync scripts use, replacing a hardcoded "2026" that would have
+        // misclassified everything starting Jan 2027.
+        let y = new Date().getFullYear();
+        const trial = new Date(dateMatch[0] + ', ' + y);
+        if (!isNaN(trial.getTime()) && (Date.now() - trial.getTime()) / 86400000 > 90) y += 1;
+        const refDate = new Date(dateMatch[0] + ', ' + y);
         return refDate < new Date();
       }
       return false;

@@ -159,7 +159,18 @@ function parseFollowUp(headerBlock) {
   const d = line.match(dateRe);
   if (!d) return { label: line };
   const timeM = line.match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
-  const parsed = new Date(d[0] + (d[0].includes('202') ? '' : ', 2026') + (timeM ? ' ' + timeM[1] : ''));
+  // Infer the year if the source string lacks one. Default to current year;
+  // if that puts the date >90d in the past, bump to next year (the note is
+  // pointing at a future event). Replaces a hardcoded ', 2026' that would
+  // have produced wrong dates after that calendar year.
+  let yearTag = '';
+  if (!d[0].match(/\b20\d{2}\b/)) {
+    let y = new Date().getFullYear();
+    const trial = new Date(d[0] + ', ' + y);
+    if (!isNaN(trial.getTime()) && (Date.now() - trial.getTime()) / 86400000 > 90) y += 1;
+    yearTag = ', ' + y;
+  }
+  const parsed = new Date(d[0] + yearTag + (timeM ? ' ' + timeM[1] : ''));
   if (isNaN(parsed.getTime())) return { label: line };
   const date = fmtYmd(parsed);
   const labelAfter = line.split(/\s+[-–—]\s+/).slice(1).join(' - ').trim();

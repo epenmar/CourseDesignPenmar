@@ -178,6 +178,23 @@ function parseObsidianNote(filePath) {
 
   // Follow-ups / next meeting
   note.nextMeeting = null;
+  // Inferred year for follow-up dates that don't include one. Prefer the
+  // note's own date; if absent, prefer the current year — and if that puts
+  // the parsed date more than 90 days in the past, bump to next year (the
+  // note is probably referring to an upcoming event). Avoids the previous
+  // hardcoded "2026" that would have rotted in 2027.
+  const inferYear = (rawDateStr) => {
+    if (!rawDateStr || /\b20\d{2}\b/.test(rawDateStr)) return '';
+    const noteYear = note.date ? new Date(note.date).getFullYear() : NaN;
+    let year = !isNaN(noteYear) ? noteYear : new Date().getFullYear();
+    // Trial-parse with `year` to detect "stale-past" inferences and bump.
+    const trial = new Date(rawDateStr + ', ' + year);
+    if (!isNaN(trial.getTime())) {
+      const ageDays = (Date.now() - trial.getTime()) / 86400000;
+      if (ageDays > 90) year += 1;
+    }
+    return ', ' + year;
+  };
   const followSection = content.match(/## Follow-ups\n([\s\S]*?)(?=\n##|\n$|$)/);
   if (followSection) {
     // Look for date patterns like "April 17, 2:00 PM" or "Apr 6 meeting"
@@ -186,8 +203,7 @@ function parseObsidianNote(filePath) {
     const dateMatches = followText.match(datePattern);
     if (dateMatches && dateMatches.length > 0) {
       note.nextMeetingText = dateMatches[0];
-      // Try to parse
-      const parsed = new Date(dateMatches[0] + (dateMatches[0].includes('202') ? '' : ', 2026'));
+      const parsed = new Date(dateMatches[0] + inferYear(dateMatches[0]));
       if (!isNaN(parsed.getTime())) {
         const timeMatch = dateMatches[0].match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
         note.nextMeeting = {
@@ -206,7 +222,7 @@ function parseObsidianNote(filePath) {
       const datePattern = /(?:January|February|March|April|May|June|July|August|September|October|November|December|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}(?:,?\s+\d{4})?/i;
       const dm = ctxMatch[1].match(datePattern);
       if (dm) {
-        const parsed = new Date(dm[0] + (dm[0].includes('202') ? '' : ', 2026'));
+        const parsed = new Date(dm[0] + inferYear(dm[0]));
         if (!isNaN(parsed.getTime())) {
           const timeMatch = ctxMatch[1].match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
           note.nextMeeting = {

@@ -20,6 +20,8 @@
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script src="rich-editor.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
+<!-- DOMPurify: sanitizes any HTML we inject from AI responses or user-entered content. -->
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>
   if (window.pdfjsLib) {
@@ -5327,9 +5329,12 @@
   let chatHistory = [];
 
   // ── CreateAI (ASU AI/ML Platform) configuration ──
+  // The bearer token used to live here in the shipped HTML, which let
+  // anyone who opened devtools exfiltrate it. The token is now held only
+  // by the local sync-server process (loaded from ~/conductor/.env), which
+  // proxies the request from /ai/query. The browser doesn't see the key.
   var CREATE_AI_CONFIG = {
-    url: 'https://api-main.aiml.asu.edu/query',
-    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJwcm9qZWN0X2lkIjoiZTkyOTZiNzEzYmMxNDI4Njg1NmM5NWE5Y2ViYWU1MzQiLCJzZXJ2aWNlX2FwcCI6InduZmxlbWluLWNvbnRlbnRfZ2VuZXJhdGlvbiIsImtleV9pZCI6IjQzMjI1MmU1LTdiOTYtNDU4NS1hZWE4LTJjZTZjZTQwZDg4NSIsInR5cGUiOiJzZXJ2aWNlIiwiYXBpIjoibWFpbiIsImlhdCI6MTc3MzE5NTgxNiwiaXNzIjoiYWRtaW4ifQ.xarTv0tpapbaROfru1aAz84QjCw5Ns8Jiy4Y40wipNQ',
+    proxyUrl: 'http://127.0.0.1:3456/ai/query',
     model: 'claude4_5_sonnet',
     provider: 'aws'
   };
@@ -5338,20 +5343,16 @@
     maxTokens = maxTokens || 1024;
     timeoutMs = timeoutMs || 90000;
     var payload = {
-      action: 'query',
-      request_source: 'override_params',
       query: query,
-      model_provider: CREATE_AI_CONFIG.provider,
-      model_name: CREATE_AI_CONFIG.model,
-      model_params: {
-        system_prompt: systemPrompt || '',
-        temperature: 0,
-        max_tokens: maxTokens
-      }
+      systemPrompt: systemPrompt || '',
+      maxTokens: maxTokens,
+      model: CREATE_AI_CONFIG.model,
+      provider: CREATE_AI_CONFIG.provider,
+      temperature: 0
     };
     var body = JSON.stringify(payload);
     console.log('[callCreateAI] request:', {
-      url: CREATE_AI_CONFIG.url,
+      proxyUrl: CREATE_AI_CONFIG.proxyUrl,
       model: CREATE_AI_CONFIG.model,
       maxTokens: maxTokens,
       queryBytes: (query || '').length,
@@ -5361,18 +5362,19 @@
     var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
     var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
     try {
-      var response = await fetch(CREATE_AI_CONFIG.url, {
+      var response = await fetch(CREATE_AI_CONFIG.proxyUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': 'Bearer ' + CREATE_AI_CONFIG.key,
-          'Content-Type': 'application/json'
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: body,
         signal: controller ? controller.signal : undefined
       });
       if (!response.ok) {
-        var errBody = await response.text().catch(function() { return 'API error'; });
+        var errBody = await response.text().catch(function() { return 'proxy error'; });
         console.error('[callCreateAI] HTTP error', response.status, errBody);
+        // Friendly hint when the local sync-server isn't running.
+        if (response.status === 0 || response.status >= 500) {
+          throw new Error('AI proxy unreachable. Make sure the local sync-server is running (the ID Dashboard app starts it).');
+        }
         throw new Error('CreateAI error (' + response.status + '): ' + errBody);
       }
       var data = await response.json();
@@ -5381,6 +5383,11 @@
       if (err && err.name === 'AbortError') {
         console.error('[callCreateAI] timed out after', timeoutMs, 'ms');
         throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the ASU AI endpoint did not respond.');
+      }
+      // Browser-level network failure usually means the local sync-server
+      // isn't running — call that out.
+      if (err && err.message && /Failed to fetch|NetworkError/i.test(err.message)) {
+        throw new Error('Could not reach the local sync-server at 127.0.0.1:3456. Start it (the ID Dashboard app does this) and try again.');
       }
       console.error('[callCreateAI] fetch threw:', err && err.name, err && err.message, err);
       throw err;
@@ -5403,12 +5410,39 @@
     doSendAIMessage(message);
   }
 
+  // Allow-list of HTML tags/attributes the AI is permitted to emit. The
+  // system prompt asks for <br>, <strong>, <em>, <ul>/<li>; everything else
+  // is stripped by DOMPurify. Same sanitizer is used for the typing
+  // indicator so the call shape stays uniform.
+  var AI_HTML_ALLOWED = {
+    ALLOWED_TAGS: ['br', 'strong', 'em', 'b', 'i', 'u', 'ul', 'ol', 'li', 'p', 'span', 'code', 'pre', 'h3', 'h4'],
+    ALLOWED_ATTR: ['class', 'style']
+  };
+  function sanitizeAIHtml(html) {
+    if (!html) return '';
+    if (window.DOMPurify) return window.DOMPurify.sanitize(String(html), AI_HTML_ALLOWED);
+    // No sanitizer loaded — escape everything as text (safe fallback).
+    var div = document.createElement('div');
+    div.textContent = String(html);
+    return div.innerHTML;
+  }
+
   function appendAIMessage(role, text) {
     const container = document.getElementById('ai-messages');
     const msg = document.createElement('div');
     msg.className = 'ai-msg ' + role;
     const label = role === 'assistant' ? 'Design Assistant' : 'You';
-    msg.innerHTML = '<div class="ai-msg-label ' + role + '">' + label + '</div><div class="ai-msg-body">' + text + '</div>';
+    const labelDiv = document.createElement('div');
+    labelDiv.className = 'ai-msg-label ' + role;
+    labelDiv.textContent = label;
+    const bodyDiv = document.createElement('div');
+    bodyDiv.className = 'ai-msg-body';
+    // For 'user' messages, treat input as plain text (no formatting needed).
+    // For 'assistant' messages, allow our small HTML tag set via DOMPurify.
+    if (role === 'user') bodyDiv.textContent = text || '';
+    else bodyDiv.innerHTML = sanitizeAIHtml(text || '');
+    msg.appendChild(labelDiv);
+    msg.appendChild(bodyDiv);
     container.appendChild(msg);
     container.scrollTop = container.scrollHeight;
     return msg;
@@ -5738,15 +5772,20 @@
       const assistantText = await callCreateAI(query, systemPrompt, 1024);
       chatHistory.push({ role: 'assistant', content: assistantText });
 
-      // Replace typing indicator with response (convert markdown-ish to HTML)
+      // Replace typing indicator with response. Markdown-ish patterns first,
+      // then sanitize so any HTML the model emits is restricted to our
+      // allow-list (no <script>, no event handlers, no inline JS).
       const htmlText = assistantText
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>');
-      typingMsg.querySelector('.ai-msg-body').innerHTML = htmlText;
+      typingMsg.querySelector('.ai-msg-body').innerHTML = sanitizeAIHtml(htmlText);
     } catch (err) {
-      typingMsg.querySelector('.ai-msg-body').innerHTML = '<span style="color:#c62828;">Error: ' + err.message + '</span><br><br><span style="font-size:12px; color:#888;">Please try again.</span>';
+      var safeMsg = (err && err.message) ? String(err.message).replace(/[&<>"']/g, function(c) {
+        return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
+      }) : 'Unknown error';
+      typingMsg.querySelector('.ai-msg-body').innerHTML = sanitizeAIHtml('<span style="color:#c62828;">Error: ' + safeMsg + '</span><br><br><span style="font-size:12px; color:#888;">Please try again.</span>');
     }
 
     document.getElementById('ai-messages').scrollTop = document.getElementById('ai-messages').scrollHeight;
