@@ -3616,6 +3616,7 @@
       activeCourse.modules[_arrayIdx].mlos = mlos;
     }
     renderModuleOverviewCards();
+    if (typeof broadcastModuleOverview === 'function') broadcastModuleOverview();
   }
 
   function initCardMloDragDrop(container) {
@@ -6677,6 +6678,7 @@
     courseActivities[modNum].push(newAct);
     saveActivityData();
     renderAssignmentsOverview(openModules);
+    if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate('activity', modNum, newAct);
   }
 
   function addMaterialToModule(modNum) {
@@ -6689,6 +6691,7 @@
     courseMaterials[modNum].push(newMat);
     saveActivityData();
     renderMaterialsOverview(openModules);
+    if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate('material', modNum, newMat);
   }
 
   // ===== CROSS-MODULE DRAG & DROP =====
@@ -6897,6 +6900,14 @@
         openM[targetModule] = true;
         renderMaterialsOverview(openM);
       }
+    }
+    // Broadcast the affected module(s) so the other session sees the move /
+    // reorder without reloading. Same module for in-module reorder; both
+    // source and target for cross-module moves.
+    if (typeof broadcastModuleList === 'function') {
+      var itemType = overviewDragData.type === 'assignments' ? 'activity' : 'material';
+      var mods = sourceModule === targetModule ? [sourceModule] : [sourceModule, targetModule];
+      broadcastModuleList(itemType, mods);
     }
   }
 
@@ -7194,6 +7205,7 @@
     mlos.push('');
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
+    if (typeof broadcastModuleOverview === 'function') broadcastModuleOverview();
     var startNum = activeCourse.moduleStartZero ? 0 : 1;
     var arrayIdx = modNum - startNum;
     if (activeCourse.modules && activeCourse.modules[arrayIdx]) {
@@ -7319,6 +7331,7 @@
       var open = getOpenOverviewModules('assignments-overview-cards');
       open[modNum] = true;
       renderAssignmentsOverview(open);
+      if (typeof broadcastItemDelete === 'function') broadcastItemDelete('activity', modNum, actId);
     }
   }
 
@@ -7332,6 +7345,7 @@
       var open = getOpenOverviewModules('materials-overview-cards');
       open[modNum] = true;
       renderMaterialsOverview(open);
+      if (typeof broadcastItemDelete === 'function') broadcastItemDelete('material', modNum, matId);
     }
   }
 
@@ -7373,14 +7387,19 @@
     if (!checked.length) return;
     if (!confirm('Delete ' + checked.length + ' selected activity(ies)? This cannot be undone from here (use Undo if needed).')) return;
     captureUndoState('bulk delete activities');
+    var deletedByMod = {};
     checked.forEach(function(cb) {
       var actId = cb.getAttribute('data-activity-id');
       var modNum = parseInt(cb.getAttribute('data-module-num'));
       if (!actId || !modNum || !courseActivities[modNum]) return;
       courseActivities[modNum] = courseActivities[modNum].filter(function(a) { return a.id !== actId; });
+      (deletedByMod[modNum] = deletedByMod[modNum] || []).push(actId);
     });
     saveActivityData();
     renderAssignmentsOverview();
+    if (typeof broadcastItemDelete === 'function') {
+      Object.keys(deletedByMod).forEach(function(m) { broadcastItemDelete('activity', parseInt(m), deletedByMod[m]); });
+    }
   }
 
   function deleteSelectedOverviewMaterials() {
@@ -7390,14 +7409,19 @@
     if (!checked.length) return;
     if (!confirm('Delete ' + checked.length + ' selected material(s)? This cannot be undone from here (use Undo if needed).')) return;
     captureUndoState('bulk delete materials');
+    var deletedMatsByMod = {};
     checked.forEach(function(cb) {
       var matId = cb.getAttribute('data-material-id');
       var modNum = parseInt(cb.getAttribute('data-module-num'));
       if (!matId || !modNum || !courseMaterials[modNum]) return;
       courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
+      (deletedMatsByMod[modNum] = deletedMatsByMod[modNum] || []).push(matId);
     });
     saveActivityData();
     renderMaterialsOverview();
+    if (typeof broadcastItemDelete === 'function') {
+      Object.keys(deletedMatsByMod).forEach(function(m) { broadcastItemDelete('material', parseInt(m), deletedMatsByMod[m]); });
+    }
   }
 
   function deleteMaterial(btn) {
@@ -10633,8 +10657,96 @@ ${clone.innerHTML}
     editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
     editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
     editChannel.on('broadcast', { event: 'item' }, function(msg) { applyRemoteItem(msg.payload); });
+    editChannel.on('broadcast', { event: 'item-delete' }, function(msg) { applyRemoteItemDelete(msg.payload); });
+    editChannel.on('broadcast', { event: 'module-overview' }, function(msg) { applyRemoteModuleOverview(msg.payload); });
+    editChannel.on('broadcast', { event: 'module-list' }, function(msg) { applyRemoteModuleList(msg.payload); });
     editChannel.subscribe();
     attachLiveEditListeners();
+  }
+
+  function broadcastItemDelete(itemType, modNum, itemIds) {
+    if (!editChannel) return;
+    var ids = Array.isArray(itemIds) ? itemIds : [itemIds];
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'item-delete',
+      payload: {
+        itemType: itemType,
+        modNum: modNum,
+        ids: ids,
+        author: identity && identity.name,
+        at: Date.now()
+      }
+    });
+  }
+
+  function applyRemoteItemDelete(payload) {
+    if (!payload || !payload.itemType || !payload.modNum || !payload.ids) return;
+    var coll = payload.itemType === 'activity' ? courseActivities : courseMaterials;
+    if (!coll[payload.modNum]) return;
+    coll[payload.modNum] = coll[payload.modNum].filter(function(it) { return payload.ids.indexOf(it.id) === -1; });
+    try { saveField(payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials', coll); } catch(e) {}
+    deferredItemRerender({ itemType: payload.itemType, modNum: payload.modNum });
+  }
+
+  function broadcastModuleOverview() {
+    if (!editChannel) return;
+    var data = loadField('moduleOverviewData') || {};
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'module-overview',
+      payload: { data: data, author: identity && identity.name, at: Date.now() }
+    });
+  }
+
+  // For reorders / cross-module moves, replace the affected module(s)' full
+  // list. Caller passes one or two modules so a cross-module drag broadcasts
+  // both the source and the target in a single message.
+  function broadcastModuleList(itemType, mods) {
+    if (!editChannel) return;
+    var coll = itemType === 'activity' ? courseActivities : courseMaterials;
+    var snapshot = {};
+    (Array.isArray(mods) ? mods : [mods]).forEach(function(m) { snapshot[m] = coll[m] || []; });
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'module-list',
+      payload: {
+        itemType: itemType,
+        mods: snapshot,
+        author: identity && identity.name,
+        at: Date.now()
+      }
+    });
+  }
+
+  function applyRemoteModuleList(payload) {
+    if (!payload || !payload.itemType || !payload.mods) return;
+    var coll = payload.itemType === 'activity' ? courseActivities : courseMaterials;
+    Object.keys(payload.mods).forEach(function(m) { coll[parseInt(m)] = payload.mods[m] || []; });
+    try { saveField(payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials', coll); } catch(e) {}
+    var firstMod = parseInt(Object.keys(payload.mods)[0]);
+    deferredItemRerender({ itemType: payload.itemType, modNum: firstMod });
+  }
+
+  function applyRemoteModuleOverview(payload) {
+    if (!payload || !payload.data) return;
+    try {
+      saveField('moduleOverviewData', payload.data);
+      var startN = activeCourse.moduleStartZero ? 0 : 1;
+      Object.keys(payload.data).forEach(function(k) {
+        var idx = parseInt(k) - startN;
+        if (activeCourse.modules && activeCourse.modules[idx]) {
+          if (payload.data[k].mlos) activeCourse.modules[idx].mlos = payload.data[k].mlos;
+          if (payload.data[k].topic) activeCourse.modules[idx].title = payload.data[k].topic;
+        }
+      });
+    } catch(e) {}
+    // Use the same idle-aware rerender path. The payload object satisfies its
+    // shape requirements minimally so the right view re-renders.
+    deferredItemRerender({ itemType: 'mlo', modNum: 0 });
   }
 
   // Broadcast a structural change to an activity or material so other
@@ -10695,11 +10807,22 @@ ${clone.innerHTML}
       renderAssignmentsOverview();
     } else if (currentViewId === 'materials-overview' && typeof renderMaterialsOverview === 'function') {
       renderMaterialsOverview();
+    } else if (currentViewId === 'module-overview' && typeof renderModuleOverviewCards === 'function') {
+      renderModuleOverviewCards();
     } else if (currentViewId === 'module' && currentModuleNum === payload.modNum) {
       if (payload.itemType === 'activity' && typeof renderModuleActivities === 'function') renderModuleActivities(payload.modNum);
       if (payload.itemType === 'material' && typeof renderModuleMaterials === 'function') renderModuleMaterials(payload.modNum);
+      // For MLO changes, re-render the module's objective list.
+      if (payload.itemType === 'mlo') {
+        var modules = activeCourse.modules || [];
+        var _sn = activeCourse.moduleStartZero ? 0 : 1;
+        var mod = modules[currentModuleNum - _sn];
+        var objList = document.getElementById('module-objectives-list');
+        if (objList && mod && mod.mlos) {
+          objList.innerHTML = mod.mlos.map(function(mlo, i) { return '<strong>' + currentModuleNum + '.' + (i+1) + '</strong> ' + mlo; }).join('<br>');
+        }
+      }
     }
-    // Re-apply any remote focus indicators that were wiped by the re-render.
     reapplyRemoteFocuses();
   }
 
