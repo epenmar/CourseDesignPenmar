@@ -5112,6 +5112,11 @@
       data.__modifiedAt[key] = Date.now();
       localStorage.setItem(storageKey, JSON.stringify(data));
       scheduleCloudPush();
+      // Live-broadcast structural/state changes so other sessions see
+      // add/delete/reorder/tag updates without a reload. Text edits are
+      // covered by the per-field live-input broadcast; this catches
+      // everything else (arrays, dropdowns, alignment grids, weights…).
+      if (typeof scheduleStateBroadcast === 'function') scheduleStateBroadcast(key, value);
     } catch(e) {
       console.error('Failed to save field "' + key + '":', e);
       if (e.name === 'QuotaExceededError') {
@@ -10633,8 +10638,121 @@ ${clone.innerHTML}
     editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
     editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
     editChannel.on('broadcast', { event: 'item' }, function(msg) { applyRemoteItem(msg.payload); });
+    editChannel.on('broadcast', { event: 'state' }, function(msg) { applyRemoteState(msg.payload); });
     editChannel.subscribe();
     attachLiveEditListeners();
+  }
+
+  // Debounced saveField-broadcast. Every structural key gets a 300ms trailing
+  // broadcast so rapid sequences (like reordering or deleting several items)
+  // collapse into one network message per key.
+  var _stateBroadcastTimers = {};
+  var _suppressStateBroadcastUntil = 0;
+  function scheduleStateBroadcast(key, value) {
+    if (!editChannel) return;
+    if (Date.now() < _suppressStateBroadcastUntil) return; // we're applying a remote update right now
+    // Don't re-broadcast the per-key timestamp meta, and don't broadcast
+    // purely-text keys that the per-field handler already covers.
+    if (key === '__modifiedAt') return;
+    clearTimeout(_stateBroadcastTimers[key]);
+    _stateBroadcastTimers[key] = setTimeout(function() {
+      if (!editChannel) return;
+      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      editChannel.send({
+        type: 'broadcast',
+        event: 'state',
+        payload: {
+          key: key,
+          value: value,
+          author: identity && identity.name,
+          at: Date.now()
+        }
+      });
+    }, 300);
+  }
+
+  // Apply a remote saveField. Writes localStorage directly (not through
+  // saveField) so we don't re-broadcast or re-trigger cloud push, and
+  // re-renders whichever view is visible while preserving focus.
+  function applyRemoteState(payload) {
+    if (!payload || !payload.key) return;
+    try {
+      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      data[payload.key] = payload.value;
+      if (!data.__modifiedAt || typeof data.__modifiedAt !== 'object') data.__modifiedAt = {};
+      data.__modifiedAt[payload.key] = payload.at || Date.now();
+      _suppressStateBroadcastUntil = Date.now() + 200;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch(e) { return; }
+
+    // Sync in-memory data models from the new localStorage so render
+    // functions pick up the change.
+    try {
+      if (payload.key === 'courseActivities') courseActivities = payload.value || {};
+      else if (payload.key === 'courseMaterials') courseMaterials = payload.value || {};
+      else if (payload.key === 'clos') activeCourse.clos = payload.value || [];
+      else if (payload.key === 'flatElos') activeCourse.flatElos = payload.value || [];
+      else if (payload.key === 'cloEloAlignment') activeCourse.cloEloAlignment = payload.value || [];
+      else if (payload.key === 'eloMloAlignment') activeCourse.eloMloAlignment = payload.value || {};
+      else if (payload.key === 'moduleOverviewData') {
+        var mods = payload.value || {};
+        if (activeCourse.modules) {
+          Object.keys(mods).forEach(function(k) {
+            var idx = parseInt(k) - (activeCourse.moduleStartZero ? 0 : 1);
+            if (activeCourse.modules[idx]) {
+              if (mods[k].mlos) activeCourse.modules[idx].mlos = mods[k].mlos;
+              if (mods[k].topic) activeCourse.modules[idx].title = mods[k].topic;
+            }
+          });
+        }
+      } else if (payload.key === 'moduleCount') activeCourse.moduleCount = payload.value;
+      else if (payload.key === 'moduleStartZero') activeCourse.moduleStartZero = !!payload.value;
+    } catch(e) {}
+
+    // Preserve the active field's focus + caret across re-render.
+    var focusKey = null, focusStart = null, focusEnd = null;
+    var active = document.activeElement;
+    if (active && (active.tagName === 'TEXTAREA' || active.tagName === 'INPUT')) {
+      focusKey = liveFieldKey(active);
+      if (typeof active.selectionStart === 'number') {
+        focusStart = active.selectionStart;
+        focusEnd = active.selectionEnd;
+      }
+    }
+
+    rerenderActiveViews(payload.key);
+
+    if (focusKey) {
+      requestAnimationFrame(function() {
+        var restored = findFieldByLiveKey(focusKey);
+        if (restored) {
+          restored.focus();
+          if (focusStart != null && typeof restored.setSelectionRange === 'function') {
+            try { restored.setSelectionRange(focusStart, focusEnd != null ? focusEnd : focusStart); } catch(e) {}
+          }
+        }
+      });
+    }
+  }
+
+  function rerenderActiveViews(key) {
+    // Pick the cheapest set of re-renders that covers the key's influence.
+    try {
+      if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') renderAssignmentsOverview();
+      else if (currentViewId === 'materials-overview' && typeof renderMaterialsOverview === 'function') renderMaterialsOverview();
+      else if (currentViewId === 'module-overview' && typeof renderModuleOverviewCards === 'function') renderModuleOverviewCards();
+      else if (currentViewId === 'objectives') {
+        if (typeof renderEloList === 'function') renderEloList();
+        if (typeof renderCloList === 'function') renderCloList();
+        if (typeof renderAlignmentMatrix === 'function') renderAlignmentMatrix();
+      } else if (currentViewId === 'course-mapping') {
+        if (typeof renderEloMloMatrix === 'function') renderEloMloMatrix();
+        if (typeof runAlignmentAudit === 'function') runAlignmentAudit();
+      } else if (currentViewId === 'module' && typeof currentModuleNum === 'number') {
+        if (typeof renderModuleActivities === 'function') renderModuleActivities(currentModuleNum);
+        if (typeof renderModuleMaterials === 'function') renderModuleMaterials(currentModuleNum);
+      }
+    } catch(e) { console.warn('[live state] render failed', e); }
   }
 
   // Broadcast a structural change to an activity or material so other
@@ -10681,8 +10799,33 @@ ${clone.innerHTML}
 
   function attachLiveEditListeners() {
     document.addEventListener('input', onLiveInput, true);
+    document.addEventListener('change', onLiveChange, true);
     document.addEventListener('focusin', onLiveFocus, true);
     document.addEventListener('focusout', onLiveBlur, true);
+  }
+
+  // Dropdowns, checkboxes, and radios don't fire `input`, only `change`.
+  // Broadcast them as field updates so other sessions see the selection.
+  function onLiveChange(e) {
+    var el = e.target;
+    if (!el || !el.matches) return;
+    if (!el.matches('select, input[type="checkbox"], input[type="radio"]')) return;
+    if (el.closest('.comment-thread-panel, .ai-panel')) return;
+    if (Date.now() < _remoteEditIgnoreUntil) return;
+    var key = liveFieldKey(el);
+    if (!key || !editChannel) return;
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    editChannel.send({
+      type: 'broadcast',
+      event: 'field',
+      payload: {
+        key: key,
+        value: el.type === 'checkbox' || el.type === 'radio' ? el.checked : el.value,
+        kind: el.type === 'checkbox' ? 'checkbox' : el.type === 'radio' ? 'radio' : 'select',
+        author: identity && identity.name,
+        at: Date.now()
+      }
+    });
   }
 
   function onLiveInput(e) {
@@ -10747,9 +10890,14 @@ ${clone.innerHTML}
     if (!el) return;
     // Don't stomp on what the local user is actively typing.
     if (document.activeElement === el) return;
-    if (el.value === payload.value) return;
-    _remoteEditIgnoreUntil = Date.now() + 100; // suppress echo from our own oninput handler
-    el.value = payload.value;
+    _remoteEditIgnoreUntil = Date.now() + 150; // suppress echo from our own input/change handlers
+    var changed = false;
+    if (payload.kind === 'checkbox' || payload.kind === 'radio') {
+      if (el.checked !== !!payload.value) { el.checked = !!payload.value; changed = true; }
+    } else {
+      if (el.value !== payload.value) { el.value = payload.value; changed = true; }
+    }
+    if (!changed) return;
     if (el.tagName === 'TEXTAREA') {
       el.style.height = 'auto';
       el.style.height = el.scrollHeight + 'px';
@@ -10759,9 +10907,12 @@ ${clone.innerHTML}
     el.style.transition = 'background 0.4s';
     el.style.background = '#fff8d6';
     setTimeout(function() { el.style.background = orig || ''; }, 700);
-    // Run the same oninput handler the DOM would normally fire so downstream
+    // Run the corresponding handler the DOM would normally fire so downstream
     // saveField/autoGrow logic keeps working — without re-broadcasting.
-    try { el.dispatchEvent(new Event('input', { bubbles: false })); } catch(e) {}
+    try {
+      var evt = payload.kind ? 'change' : 'input';
+      el.dispatchEvent(new Event(evt, { bubbles: false }));
+    } catch(e) {}
   }
 
   function applyRemoteFocus(payload) {
