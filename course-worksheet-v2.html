@@ -43,6 +43,8 @@
   .nav-item { display: flex; align-items: center; padding: 7px 12px; border-radius: 8px; cursor: pointer; font-size: 13px; color: #444; transition: all 0.15s; margin-bottom: 1px; }
   .nav-item:hover { background: #f5f5f0; }
   .nav-item.active { background: #fef3e8; color: #8c1d40; font-weight: 500; }
+  /* Per-user nav highlights — set inline by renderPresence with the user's color. */
+  .nav-item .presence-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:auto; flex-shrink:0; }
   .nav-item .icon { width: 20px; margin-right: 8px; text-align: center; font-size: 13px; }
   .nav-item .badge { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
   .badge-done { background: #e8f5e9; color: #2e7d32; }
@@ -10878,6 +10880,7 @@ ${clone.innerHTML}
     if (el.closest('.comment-thread-panel, .ai-panel, .highlight-tooltip, #comment-identity-modal')) return;
     // Ignore echoes of a value we just applied from a remote edit.
     if (Date.now() < _remoteEditIgnoreUntil) return;
+    el._lastLocalEditAt = Date.now();
     var key = liveFieldKey(el);
     if (!key) return;
     clearTimeout(_editBroadcastTimers[key]);
@@ -10932,6 +10935,12 @@ ${clone.innerHTML}
     if (!el) return;
     // Don't stomp on what the local user is actively typing.
     if (document.activeElement === el) return;
+    // Don't overwrite a field where the user has highlighted/selected text —
+    // they're probably about to comment on it and a remote broadcast carrying
+    // a stale value would silently delete their selection.
+    if (typeof el.selectionStart === 'number' && el.selectionStart !== el.selectionEnd) return;
+    // Don't overwrite a field the user has touched in the last 5 seconds.
+    if (el._lastLocalEditAt && Date.now() - el._lastLocalEditAt < 5000) return;
     _remoteEditIgnoreUntil = Date.now() + 150; // suppress echo from our own input/change handlers
     var changed = false;
     if (payload.kind === 'checkbox' || payload.kind === 'radio') {
@@ -11015,17 +11024,75 @@ ${clone.innerHTML}
     users.forEach(function(u) {
       var isMe = identity && u.name === identity.name;
       var initials = (u.name || '?').split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
-      var roleColor = u.role === 'instructor' ? '#ffc627' : u.role === 'id' ? '#78BE20' : '#8c1d40';
+      var pillColor = userColorFor(u.name);
       var roleLabel = u.role === 'instructor' ? 'Faculty' : u.role === 'id' ? 'ID' : u.role;
       var viewName = getViewLabel(u.page);
       var tooltip = u.name + ' (' + roleLabel + ')' + (viewName ? ' — viewing ' + viewName : '');
-      html += '<div title="' + escapeHtml(tooltip) + '" style="display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:10px; background:' + roleColor + '22; border:1px solid ' + roleColor + '44; font-size:10px; color:#fff; white-space:nowrap;">';
-      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:' + roleColor + '; color:#fff; font-size:8px; font-weight:700;">' + initials + '</span>';
-      html += '<span style="color:' + roleColor + '; font-weight:500;">' + escapeHtml(u.name.split(' ')[0]) + '</span>';
+      html += '<div title="' + escapeHtml(tooltip) + '" style="display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:10px; background:' + pillColor + '22; border:1px solid ' + pillColor + '88; font-size:10px; color:#fff; white-space:nowrap;">';
+      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:' + pillColor + '; color:#fff; font-size:8px; font-weight:700;">' + initials + '</span>';
+      html += '<span style="color:' + pillColor + '; font-weight:500;">' + escapeHtml(u.name.split(' ')[0]) + '</span>';
       if (isMe) html += '<span style="color:#999; font-size:9px;">(you)</span>';
       html += '</div>';
     });
     container.innerHTML = html;
+
+    // Color sidebar nav items by who's on each page. The local user's active
+    // page is recolored to their pill color; collaborators on other pages
+    // get a small colored dot next to the matching nav item.
+    paintNavPresence(users, identity);
+  }
+
+  function paintNavPresence(users, identity) {
+    // Clear any prior dots/colors so we can recompute fresh.
+    document.querySelectorAll('.nav-item .presence-dot').forEach(function(d) { d.remove(); });
+    document.querySelectorAll('.nav-item').forEach(function(item) {
+      if (item.dataset._presenceColored) {
+        item.style.background = '';
+        item.style.color = '';
+        item.style.borderLeft = '';
+        delete item.dataset._presenceColored;
+      }
+    });
+
+    function navFor(viewId) {
+      // module-N pages don't have a top-level nav-item; map to the per-module sidebar entries.
+      var modMatch = viewId && viewId.match(/^module-(\d+)$/);
+      if (modMatch) {
+        var sidebarList = document.getElementById('sidebar-module-list');
+        if (!sidebarList) return null;
+        var items = sidebarList.querySelectorAll('.nav-item');
+        var n = parseInt(modMatch[1]);
+        var startN = activeCourse.moduleStartZero ? 0 : 1;
+        return items[n - startN] || null;
+      }
+      // Sidebar nav items are tagged via showView('xxx').
+      return document.querySelector('.nav-item[onclick*="showView(\'' + viewId + '\')"]');
+    }
+
+    users.forEach(function(u) {
+      var item = navFor(u.page);
+      if (!item) return;
+      var color = userColorFor(u.name);
+      var isMe = identity && u.name === identity.name;
+      if (isMe) {
+        // Recolor the local user's active item to their pill color so the
+        // active marker matches the pill in the presence bar.
+        if (item.classList.contains('active')) {
+          item.style.background = color + '20';
+          item.style.color = color;
+          item.style.borderLeft = '3px solid ' + color;
+          item.dataset._presenceColored = '1';
+        }
+      } else {
+        // Mark a collaborator's page with a colored dot. If the same page
+        // already has a dot from another collaborator, append another.
+        var dot = document.createElement('span');
+        dot.className = 'presence-dot';
+        dot.style.background = color;
+        dot.title = u.name + ' is here';
+        item.appendChild(dot);
+      }
+    });
   }
 
   function getViewLabel(viewId) {

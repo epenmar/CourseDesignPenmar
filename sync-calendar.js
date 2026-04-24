@@ -249,16 +249,23 @@ function matchNoteToCourses(note) {
 }
 
 // Generic course-code matcher — catches courses that aren't in the hardcoded
-// map by pattern-matching "XXX ###" or "XXX###" in the event/note text.
-// Without this, every new course added via Airtable had to be manually
-// listed in COURSE_KEYWORDS or its calendar events never associated.
-const GENERIC_CODE_RE = /\b([A-Z]{2,4})\s*(\d{3}[A-Z]?)\b/gi;
+// map by pattern-matching "XXX ###" or "XXX###" in the event/note text. The
+// allow-list of academic prefixes keeps "Rm 201", "Room 252", random session
+// IDs, and other non-course tokens from generating bogus course buckets in
+// dashboard-data.js (per the Apr 24 audit).
+const GENERIC_CODE_RE = /\b([A-Z]{2,4})\s*(\d{3}[A-Z]?)\b/g;
+const ACADEMIC_PREFIXES = new Set([
+  'BST', 'BMI', 'MNS', 'TPH', 'POP', 'LSC', 'STP', 'ASB', 'CHS', 'NCIAS',
+  'NUR', 'EDL', 'ITAC', 'EXW', 'KIN', 'PAS', 'MSE', 'MED', 'PUP', 'COM'
+]);
 function genericCodeMatches(text) {
   const matches = new Set();
   let m;
   GENERIC_CODE_RE.lastIndex = 0;
   while ((m = GENERIC_CODE_RE.exec(text)) !== null) {
-    matches.add((m[1] + m[2]).toLowerCase());
+    const prefix = m[1].toUpperCase();
+    if (!ACADEMIC_PREFIXES.has(prefix)) continue;
+    matches.add((prefix + m[2]).toLowerCase());
   }
   return [...matches];
 }
@@ -380,7 +387,14 @@ async function main() {
       }
     }
     for (const courseId of Object.keys(courseCalendar)) {
-      courseCalendar[courseId].sort((a, b) => a.date.localeCompare(b.date) || a.time.localeCompare(b.time));
+      // Sort by epoch (dtStartIso) — lexicographic time comparison would put
+      // "12:00 PM" before "9:00 AM" and corrupt nextMeeting selection.
+      courseCalendar[courseId].sort((a, b) => {
+        if (a.date !== b.date) return a.date.localeCompare(b.date);
+        var ta = a.dtStartIso ? Date.parse(a.dtStartIso) : 0;
+        var tb = b.dtStartIso ? Date.parse(b.dtStartIso) : 0;
+        return ta - tb;
+      });
     }
     for (const [courseId, meetings] of Object.entries(courseCalendar)) {
       console.log(`[sync] Calendar: ${courseId} → ${meetings.length} meeting(s)`);

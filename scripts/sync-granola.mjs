@@ -48,9 +48,12 @@ const PROJECT_TO_COURSE = {
   'TPH 591': 'tph591', 'TPH591': 'tph591',
   'TPH 593': 'tph593', 'TPH593': 'tph593',
   'ASB 554': 'asb554', 'ASB554': 'asb554',
+  'TPH 504': 'tph504', 'TPH504': 'tph504',
+  'POP 644': 'pop644', 'POP644': 'pop644',
 };
-// Course-code regex fallback for titles lacking a project checkbox
-const TITLE_CODE_RE = /\b(MNS|BST|BMI|LSC|TPH|ASB)\s*0?(\d{3})\b/i;
+// Course-code regex fallback for titles lacking a project checkbox.
+// Keep the prefix list aligned with sync-calendar.js's ACADEMIC_PREFIXES.
+const TITLE_CODE_RE = /\b(MNS|BST|BMI|LSC|STP|TPH|POP|ASB|EXW|KIN|NUR)\s*0?(\d{3})\b/i;
 
 // ===== ENV =====
 function loadApiKey() {

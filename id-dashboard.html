@@ -3303,7 +3303,32 @@
       } else {
         html += `<div class="activity-summary"><span class="activity-badge none"><span class="dot"></span>Instructor: not yet opened</span></div>`;
       }
-      var sorted = sessions.slice().sort(function(a, b) { return (b.last_visit || '').localeCompare(a.last_visit || ''); });
+      // Dedupe rows that point to the same person typed under different
+      // identity names (e.g. "Navabi" vs "Dariush Navabi"). Keying off the
+      // last token of the name + role catches the common cases. We sum the
+      // time and sessions, keep the longest name we've seen, and use the
+      // most recent last_visit.
+      function _identityKey(s) {
+        var name = (s.identity_name || '').trim().toLowerCase();
+        var last = name.split(/\s+/).pop();
+        return (s.identity_role || '') + ':' + last;
+      }
+      var dedupMap = {};
+      sessions.forEach(function(s) {
+        var k = _identityKey(s);
+        if (!dedupMap[k]) {
+          dedupMap[k] = Object.assign({}, s);
+          return;
+        }
+        var existing = dedupMap[k];
+        existing.total_ms = (existing.total_ms || 0) + (s.total_ms || 0);
+        existing.session_count = (existing.session_count || 0) + (s.session_count || 0);
+        if ((s.last_visit || '') > (existing.last_visit || '')) existing.last_visit = s.last_visit;
+        // Prefer the longer (more specific) name — "Dariush Navabi" beats "Navabi".
+        if ((s.identity_name || '').length > (existing.identity_name || '').length) existing.identity_name = s.identity_name;
+      });
+      var deduped = Object.keys(dedupMap).map(function(k) { return dedupMap[k]; });
+      var sorted = deduped.sort(function(a, b) { return (b.last_visit || '').localeCompare(a.last_visit || ''); });
       html += `<table class="activity-table"><thead><tr><th>Who</th><th>Role</th><th>Time</th><th>Sessions</th><th>Last visit</th></tr></thead><tbody>`;
       sorted.forEach(function(s) {
         var role = (s.identity_role || '').toLowerCase();
