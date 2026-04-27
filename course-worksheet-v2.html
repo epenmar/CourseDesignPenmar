@@ -4713,36 +4713,40 @@
     const liveDate = savedLive ? new Date(savedLive + 'T00:00:00') :
       (function() { const d = new Date(launch); d.setDate(d.getDate() - 3); return d; })();
 
-    // Use explicit dates if available, otherwise calculate backwards from QA.
-    // forceRecompute (e.g. from the summer toggle) bypasses hardcoded defaults
-    // so the summer-skip logic below actually gets applied.
+    // Always backward-compute from the QA date so the schedule reflects the
+    // current session + summer setting. The previous behavior preferred a
+    // hardcoded activeCourse.milestoneDates list, which (a) ignored the
+    // summer toggle on initial load, and (b) went stale once the QA/launch
+    // date moved. User overrides via timelineDates still win below.
     const totalMilestones = milestones.length;
     const dates = [];
-    if (!forceRecompute && activeCourse.milestoneDates && activeCourse.milestoneDates.length === totalMilestones) {
-      for (let i = 0; i < totalMilestones; i++) {
-        dates[i] = new Date(activeCourse.milestoneDates[i] + 'T00:00:00');
-      }
-    } else {
-      let cursor = new Date(qaDate);
+    const inSummer = function(d) { return d.getMonth() >= 5 && d.getMonth() <= 7; };
+    let cursor = new Date(qaDate);
+    cursor.setDate(cursor.getDate() - 7);
+    for (let i = totalMilestones - 1; i >= 0; i--) {
+      dates[i] = new Date(cursor);
       cursor.setDate(cursor.getDate() - 7);
-      for (let i = totalMilestones - 1; i >= 0; i--) {
-        dates[i] = new Date(cursor);
-        cursor.setDate(cursor.getDate() - 7);
+      if (!summerOk) {
+        while (inSummer(cursor)) cursor.setDate(cursor.getDate() - 7);
+      }
+    }
+    // Clamp + spread: no milestone in the past, and consecutive milestones
+    // must be at least one workable week apart (skipping summer when the
+    // toggle is off). Previously this loop only collapsed past dates to
+    // today and forced non-decreasing, which produced multiple milestones
+    // landing on the same day.
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    for (let i = 0; i < totalMilestones; i++) {
+      if (dates[i] < today) dates[i] = new Date(today);
+      if (i > 0) {
+        var prev = dates[i - 1];
+        var min = new Date(prev);
+        min.setDate(min.getDate() + 7);
         if (!summerOk) {
-          while (cursor.getMonth() >= 5 && cursor.getMonth() <= 7) {
-            cursor.setDate(cursor.getDate() - 7);
-          }
+          while (inSummer(min)) min.setDate(min.getDate() + 7);
         }
-      }
-      // Clamp: no milestone date should be in the past
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      for (let i = 0; i < totalMilestones; i++) {
-        if (dates[i] < today) dates[i] = new Date(today);
-      }
-      // Ensure dates are non-decreasing (spread same-day milestones forward if possible)
-      for (let i = 1; i < totalMilestones; i++) {
-        if (dates[i] < dates[i - 1]) dates[i] = new Date(dates[i - 1]);
+        if (dates[i] < min) dates[i] = new Date(min);
       }
     }
 
@@ -4874,7 +4878,12 @@
       const checkedAttr = isManualDone ? ' checked' : '';
       html += `<tr class="${rowClass}">
         <td>${labelHtml}</td>
-        <td><input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" /></td>
+        <td>
+          <div style="display:flex; align-items:center; gap:6px;">
+            <input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" />
+            <button type="button" class="ms-push-btn" title="Push this milestone and everything after it back by 1 week" onclick="pushDatesFrom(${i}, 1)" style="padding:2px 6px; font-size:11px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#666;">+1 wk →</button>
+          </div>
+        </td>
         <td style="font-size:12px; color:${statusColor}"><label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" data-managed="true"${checkedAttr} onchange="toggleMilestoneComplete(${i}, this.checked)" style="width:14px; height:14px; cursor:pointer;">${statusLabel}</label></td>
       </tr>`;
     }
@@ -5191,17 +5200,22 @@
   // Push all remaining (non-done) milestone dates by N weeks
   function pushDates(weeks) {
     const completed = activeCourse.milestonesCompleted || 0;
+    pushDatesFrom(completed, weeks);
+  }
+
+  // Push the milestone at `startIdx` and everything after it back by `weeks`
+  // weeks. Same logic as pushDates but rooted at a specific row, so the user
+  // can push from a particular milestone instead of from the top.
+  function pushDatesFrom(startIdx, weeks) {
     const dateInputs = document.querySelectorAll('#timeline-body .date-input');
     const saved = loadField('timelineDates') || {};
     const shiftMs = weeks * 7 * 86400000;
-
-    for (let i = completed; i < milestones.length; i++) {
+    for (let i = startIdx; i < milestones.length; i++) {
       const input = dateInputs[i];
       if (!input || !input.value) continue;
       const d = new Date(input.value + 'T00:00:00');
       d.setTime(d.getTime() + shiftMs);
-      const newVal = fmt(d);
-      saved[i] = newVal;
+      saved[i] = fmt(d);
     }
     saveField('timelineDates', saved);
     recalcTimeline();
