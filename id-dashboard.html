@@ -2433,6 +2433,16 @@
       var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + fmtSuffix);
       (cdBody.records || []).forEach(function(r) { all.push(r); });
     }
+    // One-time diagnostic: list every field key Airtable returned, so a
+    // missing QA Alert / Program value reveals the actual field name.
+    // Toggle on by setting localStorage.debug_airtable_fields = '1'.
+    if (all.length > 0 && localStorage.getItem('debug_airtable_fields') === '1') {
+      console.groupCollapsed('[airtable] field keys per record');
+      all.forEach(function(r) {
+        console.log((r.fields && r.fields.Course) || r.id, '→', Object.keys(r.fields || {}));
+      });
+      console.groupEnd();
+    }
     return all.map(function(r) {
       var f = r.fields || {};
       var sessionArr = f['Session Launch (Start Date)'] || [];
@@ -2488,8 +2498,16 @@
         // "QA: Alert ID of this New Dev" — single-select that drives whether
         // the kickoff email has been sent. We can read it but not mutate it
         // (the Designer Interface link is the only way to update from here).
-        qaAlertStatus: toStr(pickField(['QA: Alert ID of this New Dev', 'QA Alert', 'QA: Alert ID'], /^qa.*alert/i)),
-        qaKickoffStatus: toStr(pickField(['QA: Send QA Kickof Email to Instructor', 'QA: Send QA Kickoff Email to Instructor', 'QA: Kickoff Email'], /qa.*kickoff/i)),
+        // Match permissively — Airtable field names can have stray whitespace
+        // or unicode colons that break exact-match aliases.
+        qaAlertStatus: toStr(pickField(
+          ['QA: Alert ID of this New Dev', 'QA Alert', 'QA: Alert ID', 'Alert ID of this New Dev', 'QA Alert ID', 'QA: Alert'],
+          /alert\s*id/i
+        )),
+        qaKickoffStatus: toStr(pickField(
+          ['QA: Send QA Kickof Email to Instructor', 'QA: Send QA Kickoff Email to Instructor', 'QA: Kickoff Email', 'Send QA Kickoff Email', 'Send QA Kickof Email to Instructor', 'QA Kickoff Email'],
+          /kickof+\s*email/i
+        )),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
