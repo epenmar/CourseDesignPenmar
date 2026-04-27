@@ -209,6 +209,60 @@ function resolveEpic(courseId, overrides) {
   return BUILT_IN_EPICS[bare] || null;
 }
 
+// Build the human-readable course code variants Jira's summary search will
+// match against ("POP 644", "POP644"). Course IDs are stored lowercase
+// without spaces (e.g. "pop644").
+function courseCodeVariants(courseId) {
+  const upper = String(courseId).toUpperCase();
+  const m = upper.match(/^([A-Z]+)(\d.*)$/);
+  if (!m) return [upper];
+  return [m[1] + ' ' + m[2], m[1] + m[2]];
+}
+
+// Try to discover the Jira Epic for a course by searching for issues whose
+// summary contains the course code. Used when neither user overrides nor
+// BUILT_IN_EPICS know about the course. Returns the Epic key or null.
+async function discoverEpicForCourse(courseId) {
+  const variants = courseCodeVariants(courseId);
+  // Search across all projects for an Epic whose summary contains a variant.
+  // Order by created desc so the most recent Epic wins if multiple exist.
+  const escaped = variants.map(v => `"${v}"`).join(' OR ');
+  const jql = `issuetype = Epic AND (summary ~ ${escaped}) ORDER BY created DESC`;
+  try {
+    const r = await fetch(`${JIRA_BASE}/rest/api/3/search/jql`, {
+      method: 'POST',
+      headers: JIRA_HEADERS,
+      body: JSON.stringify({ jql: jql, fields: ['summary'], maxResults: 5 })
+    });
+    if (!r.ok) return null;
+    const data = await r.json();
+    const issues = (data && data.issues) || [];
+    if (!issues.length) return null;
+    // Prefer Epics whose summary contains the spaced variant — those are
+    // course-development Epics; a generic project Epic with a stray code
+    // hit ranks lower.
+    const spacedNeedle = variants[0].toUpperCase();
+    const spacedHit = issues.find(it => (it.fields && it.fields.summary || '').toUpperCase().includes(spacedNeedle));
+    return (spacedHit || issues[0]).key;
+  } catch (e) {
+    console.warn(`[discover-epic] ${courseId}: ${e.message}`);
+    return null;
+  }
+}
+
+async function persistDiscoveredEpics(overrides) {
+  try {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/dashboard_state`, {
+      method: 'POST',
+      headers: { ...SB_HEADERS, Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ key: 'course_jira_epics', data: overrides })
+    });
+    if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
+  } catch (e) {
+    console.warn('[sync-jira-time] Could not persist discovered Epics:', e.message);
+  }
+}
+
 // ---------- Jira ----------
 async function findDesigningChild(epicKey) {
   const r = await fetch(`${JIRA_BASE}/rest/api/3/search/jql`, {
@@ -305,6 +359,7 @@ async function main() {
   }
 
   const overrides = await loadEpicOverrides();
+  let overridesDirty = false;
 
   const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0, meetingMinutes: 0 };
   let anyMeetingUidsNewlySynced = false;
@@ -317,10 +372,22 @@ async function main() {
       console.log(`  · ${courseId}: ${seconds}s unsynced — below threshold, skipping`);
       continue;
     }
-    const epic = resolveEpic(courseId, overrides);
+    let epic = resolveEpic(courseId, overrides);
+    if (!epic) {
+      // Auto-discover by searching Jira for an Epic whose summary contains
+      // the course code. Persists the result so future runs hit the
+      // overrides cache instead of re-querying.
+      const discovered = await discoverEpicForCourse(courseId);
+      if (discovered) {
+        overrides[courseId] = discovered;
+        overridesDirty = true;
+        epic = discovered;
+        console.log(`  · ${courseId}: auto-discovered Epic ${discovered}`);
+      }
+    }
     if (!epic) {
       summary.skippedNoEpic++;
-      console.log(`  · ${courseId}: ${Math.round(seconds/60)}m unsynced — no Jira Epic mapped, skipping`);
+      console.log(`  · ${courseId}: ${Math.round(seconds/60)}m unsynced — no Jira Epic found, skipping`);
       continue;
     }
 
@@ -363,6 +430,9 @@ async function main() {
 
   if (anyMeetingUidsNewlySynced) {
     await saveSyncedMeetingUids(syncedUidMap);
+  }
+  if (overridesDirty && !DRY) {
+    await persistDiscoveredEpics(overrides);
   }
 
   console.log(`[sync-jira-time] Done. posted=${summary.posted} failed=${summary.failed} skipped_no_epic=${summary.skippedNoEpic} skipped_below_min=${summary.skippedBelowMin} total_minutes=${summary.minutesLogged} (meetings=${summary.meetingMinutes})`);
