@@ -2561,24 +2561,14 @@
       candidates.forEach(function(c) {
         var codeKey = (c.code || '').toLowerCase().replace(/\s+/g, '');
         if (!codeKey || !courseData[codeKey]) return;
-        var existingProgram = courseData[codeKey].program || '';
-        var existingCollege = courseData[codeKey].college || '';
-        // "Stale" markers: a record-ID-shaped program from the pre-cellFormat
-        // sync, a bare 2–4 letter prefix we synthesized, or a college that
-        // hasn't been run through collegeAbbr().
-        var programIsStale = existingProgram && (/^rec[A-Za-z0-9]{14,}/.test(existingProgram) || /^[A-Z]{2,4}$/.test(existingProgram));
-        var collegeNeedsAbbr = !!c.college && existingCollege && existingCollege !== collegeAbbr(c.college);
-        var needsBackfill =
-          !courseData[codeKey].airtableRecordId ||
-          (c.college && !existingCollege) ||
-          collegeNeedsAbbr ||
-          (c.program && !existingProgram) ||
-          (c.program && programIsStale) ||
-          (c.jiraEpic && !getCourseJiraEpic(codeKey));
-        if (needsBackfill) {
-          importAirtableCourseRecord(c);
-          autoLinked++;
-        }
+        // Always re-run the import for matching candidates — the existed
+        // branch is idempotent for clean fields, and "always" lets us pick
+        // up changes Airtable made to single-selects (QA Alert ID, Kickoff
+        // Email status) that don't change any of our gating values.
+        // Previously gating on "missing field" meant once a course was
+        // fully linked, those single-selects never refreshed.
+        importAirtableCourseRecord(c);
+        autoLinked++;
       });
       var imported = getImportedAirtableRecordIds();
       var state = getAirtableSyncState();
