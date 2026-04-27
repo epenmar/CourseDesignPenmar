@@ -630,6 +630,7 @@
         <button class="table-tab active" data-tab="all" onclick="switchTableTab('all')">All Courses <span class="tab-count" id="tab-count-all"></span></button>
         <button class="table-tab" data-tab="developments" onclick="switchTableTab('developments')">Developments <span class="tab-count" id="tab-count-developments"></span></button>
         <button class="table-tab" data-tab="ongoing" onclick="switchTableTab('ongoing')">On-going <span class="tab-count" id="tab-count-ongoing"></span></button>
+        <button class="table-tab" data-tab="inactive" onclick="switchTableTab('inactive')" title="Courses you've marked as Inactive in their side-panel toggle">Inactive <span class="tab-count" id="tab-count-inactive"></span></button>
       </div>
       <div style="display:flex; gap:8px;">
         <button id="jira-sync-btn" onclick="syncJiraTimeNow()" style="padding:6px 14px; background:#fff; color:#0052cc; border:1.5px solid #0052cc; border-radius:8px; font-size:12px; font-weight:600; cursor:pointer; font-family:'Inter',sans-serif;" title="Push unsynced worksheet time to Jira worklogs now (same logic as the nightly cron)">⏱ Sync Jira time</button>
@@ -4577,6 +4578,7 @@
     if (tab === 'all') return !isInactiveRow;
     if (tab === 'developments') return !isInactiveRow && c.status !== 'Complete';
     if (tab === 'ongoing') return !isInactiveRow && c.status === 'Complete';
+    if (tab === 'inactive') return isInactiveRow;
     return true;
   }
 
@@ -4591,18 +4593,20 @@
 
   function updateTabCounts() {
     var inactiveMap = getInactiveCourses();
-    var all = 0, dev = 0, ong = 0;
+    var all = 0, dev = 0, ong = 0, inact = 0;
     Object.keys(courseData).forEach(id => {
       var c = courseData[id];
       var isInactive = !!inactiveMap[id];
       if (tabMatches('all', c, isInactive)) all++;
       if (tabMatches('developments', c, isInactive)) dev++;
       if (tabMatches('ongoing', c, isInactive)) ong++;
+      if (tabMatches('inactive', c, isInactive)) inact++;
     });
     var el;
     if (el = document.getElementById('tab-count-all')) el.textContent = '(' + all + ')';
     if (el = document.getElementById('tab-count-developments')) el.textContent = '(' + dev + ')';
     if (el = document.getElementById('tab-count-ongoing')) el.textContent = '(' + ong + ')';
+    if (el = document.getElementById('tab-count-inactive')) el.textContent = '(' + inact + ')';
   }
 
   renderFilters();
