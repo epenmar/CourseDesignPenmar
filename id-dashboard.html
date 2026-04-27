@@ -2001,7 +2001,14 @@
     if (btn) btn.classList.add('syncing');
     var url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
     var controller = new AbortController();
-    var timer = setTimeout(function() { controller.abort(); }, 15000);
+    // A force sync re-fetches the iCal feed (slow) and walks all Granola
+    // summaries — typically 30–50s end to end. The previous 15s cap fired
+    // before the local sync finished, then the catch path fell back to the
+    // GitHub-Pages-served (committed, stale) dashboard-data.js — which is
+    // why "stuck in sync" left meeting notes and recent calendar items
+    // missing. Cached (non-force) syncs still return in <1s.
+    var timeoutMs = force ? 90000 : 20000;
+    var timer = setTimeout(function() { controller.abort(); }, timeoutMs);
     fetch(url, { signal: controller.signal })
       .then(function(r) { return r.ok ? r.json() : Promise.reject('not ok'); })
       .then(function(fresh) {
