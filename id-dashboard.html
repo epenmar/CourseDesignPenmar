@@ -4630,7 +4630,11 @@
       if (!id || !courseData[id]) return;
       const c = courseData[id];
       const isInactiveRow = row.dataset.status === 'inactive';
-      const statusMatch = activeStatusFilter === 'all' ? !isInactiveRow :
+      // When the Inactive tab is active, let inactive rows through —
+      // otherwise the legacy "all hides inactive" rule strips them out
+      // even though the tab is explicitly asking for them.
+      const statusMatch = activeTableTab === 'inactive' ? isInactiveRow :
+                          activeStatusFilter === 'all' ? !isInactiveRow :
                           activeStatusFilter === 'inactive' ? isInactiveRow :
                           row.dataset.status === activeStatusFilter;
       const tabMatch = tabMatches(activeTableTab, c, isInactiveRow);
