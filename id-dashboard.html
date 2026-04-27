@@ -791,6 +791,8 @@
   <div class="ctx-menu-divider"></div>
   <div class="ctx-menu-item" onclick="ctxOpenWorksheet()">📄 Open Worksheet</div>
   <div class="ctx-menu-item" onclick="ctxOpenDrive()">📂 Open Google Drive</div>
+  <div class="ctx-menu-item" onclick="ctxOpenAirtable()">🪐 Open in Airtable</div>
+  <div class="ctx-menu-item" onclick="ctxOpenJira()">🟦 Open in Jira</div>
 </div>
 
 <!-- ===== EDIT COURSE MODAL ===== -->
@@ -2299,6 +2301,9 @@
   // import any that aren't already on the dashboard. Banner appears on the
   // dashboard when new-to-us records are detected.
   var AIRTABLE_BASE_ID = 'appRrjeSGPrfXPSuu';
+  // Designer Interface (the "viewer" page Elisa actually wants to land on
+  // from the right-click menu, not the raw API table URL).
+  var AIRTABLE_DESIGNER_PAGE_ID = 'pagO1uwLHfokiy0Fk';
   var AIRTABLE_STAKEHOLDERS_TABLE = 'tblrrgIPU8UsVGcUg';
   var AIRTABLE_DEVELOPMENTS_TABLE = 'tblhu9fDKBqoG9HQ3';
   var AIRTABLE_MY_STAKEHOLDER_ID = 'recq21R3WHqhbqHAt'; // Elisa Penmar
@@ -2345,6 +2350,32 @@
     return ids;
   }
 
+  // Map Airtable's full college names to the abbreviations used in the
+  // dashboard's college dropdown. Anything we don't recognize falls
+  // through unchanged so we don't lose information.
+  var COLLEGE_ABBR_MAP = {
+    'college of health solutions': 'CHS',
+    'new college of interdisciplinary arts & sciences': 'NCIAS',
+    'new college of interdisciplinary arts and sciences': 'NCIAS',
+    'school of technology for public health': 'STPH',
+    'school of technology': 'STPH',
+    'edson college of nursing and health innovation': 'EDSON',
+    "watts college of public service and community solutions": 'WATTS',
+    'sandra day o’connor college of law': 'LAW',
+    'sandra day o\'connor college of law': 'LAW'
+  };
+  function collegeAbbr(name) {
+    var s = String(name || '').trim();
+    if (!s) return '';
+    var key = s.toLowerCase();
+    if (COLLEGE_ABBR_MAP[key]) return COLLEGE_ABBR_MAP[key];
+    // Try matching the first comma-separated segment ("School of Tech...,
+    // ASU Online" → "school of tech...").
+    var first = key.split(',')[0].trim();
+    if (COLLEGE_ABBR_MAP[first]) return COLLEGE_ABBR_MAP[first];
+    return s;
+  }
+
   // Fetch all Course Development records linked to Elisa's stakeholder.
   // Returns an array of lean record objects for the UI.
   async function fetchAirtableCourseCandidates() {
@@ -2357,12 +2388,17 @@
     // We don't pass fields[] — the base's actual field names for Program/College
     // have drifted ("College", "College (from Program)", etc.) and a typo makes
     // the whole request fail. Pulling all fields lets us try several aliases
-    // without fragile guesses.
+    // without fragile guesses. cellFormat=string asks Airtable to return
+    // linked-record fields as their primary-field text instead of record IDs
+    // — without this, "Programs (From APM)" came back as ['recXXX'] strings
+    // and got saved as the record ID rather than the human program name.
+    // (cellFormat=string requires timeZone + userLocale to be set.)
     var all = [];
+    var fmtSuffix = '&cellFormat=string&timeZone=America%2FPhoenix&userLocale=en-us';
     for (var i = 0; i < devIds.length; i += 25) {
       var chunk = devIds.slice(i, i + 25);
       var formula = 'OR(' + chunk.map(function(rid) { return 'RECORD_ID()%3D%22' + rid + '%22'; }).join('%2C') + ')';
-      var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula);
+      var cdBody = await callAirtableAPI(AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '?filterByFormula=' + formula + fmtSuffix);
       (cdBody.records || []).forEach(function(r) { all.push(r); });
     }
     return all.map(function(r) {
@@ -2406,13 +2442,14 @@
         completion: f['Course Completion Percentage'] || 0,
         sessionStart: sessionArr[0] || '',
         program: toStr(pickField(['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'], /^programs?\b/i)),
-        college: toStr(pickField(['College (from Program)', 'College', 'College (from APM)', 'College Name'], /college/i)),
+        college: collegeAbbr(toStr(pickField(['College (from Program)', 'College', 'College (from APM)', 'College Name'], /college/i))),
         // Pull the Jira Epic key from whichever field the record uses so
         // importing auto-links the course to its Epic. Only keep values that
         // look like a Jira key (e.g. EDL-7828) to avoid polluting the flag
-        // with random text from a misnamed column.
+        // with random text from a misnamed column. Note the lowercase
+        // "Jira key" alias — that's the actual field name in our base.
         jiraEpic: (function() {
-          var raw = toStr(pickField(['Jira Key', 'Jira Epic', 'Epic Key', 'Jira Epic Key', 'Jira'], /jira/i));
+          var raw = toStr(pickField(['Jira key', 'Jira Key', 'Jira Epic', 'Epic Key', 'Jira Epic Key', 'Jira'], /jira/i));
           var m = String(raw || '').toUpperCase().trim().match(/\b([A-Z][A-Z0-9]+-\d+)\b/);
           return m ? m[1] : '';
         })(),
@@ -4875,6 +4912,34 @@
   function ctxOpenDrive() {
     var c = courseData[ctxCourseId];
     if (c && c.driveFolder) window.open(c.driveFolder, '_blank');
+  }
+
+  // Open the course's record in the Airtable Designer Interface (the human
+  // viewer page) rather than the raw API table URL we use for sync.
+  function ctxOpenAirtable() {
+    var c = courseData[ctxCourseId];
+    if (!c) return;
+    var rid = c.airtableRecordId;
+    if (!rid) {
+      var url = (typeof getCourseAirtableUrl === 'function') ? getCourseAirtableUrl(ctxCourseId) : '';
+      var parsed = url ? parseAirtableUrl(url) : null;
+      if (parsed) rid = parsed.recordId;
+    }
+    if (!rid) {
+      alert('No Airtable record linked to this course yet. Run Sync Airtable or set the URL in Edit Course.');
+      return;
+    }
+    var designerUrl = 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DESIGNER_PAGE_ID + '/' + rid + '?tableId=' + AIRTABLE_DEVELOPMENTS_TABLE;
+    window.open(designerUrl, '_blank');
+  }
+
+  function ctxOpenJira() {
+    var key = (typeof getCourseJiraEpic === 'function') ? getCourseJiraEpic(ctxCourseId) : '';
+    if (!key) {
+      alert('No Jira Epic linked to this course yet. Sync Airtable (if the Epic is set there) or paste the key in Edit Course.');
+      return;
+    }
+    window.open('https://asudev.jira.com/browse/' + encodeURIComponent(key), '_blank');
   }
 
   // ===== EDIT COURSE MODAL =====
