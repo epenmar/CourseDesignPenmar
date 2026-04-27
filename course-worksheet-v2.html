@@ -1452,6 +1452,8 @@
           <button class="view-btn active">📄 Document Preview</button>
           <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
           <button class="view-btn" onclick="downloadDocument()">💾 Download Document</button>
+          <button class="view-btn" onclick="downloadCourseBriefJson()" title="Structured JSON snapshot of the worksheet — handoff/import format for build tools (CanvasCurate)">🧾 Course Brief (.json)</button>
+          <button class="view-btn" onclick="downloadCourseBriefMarkdown()" title="Readable Markdown snapshot of the worksheet — share with anyone">📝 Course Brief (.md)</button>
         </div>
         <div class="doc-preview" id="doc-preview-content"></div>
       </div>
@@ -9280,6 +9282,182 @@ ${clone.innerHTML}
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+  }
+
+  // ===== COURSE BRIEF (handoff to build tools) =====
+  // Single structured snapshot of everything the worksheet collects:
+  // course info, CLOs/ELOs, module topics + MLOs, activities (with
+  // objectives/points/due), materials, assignment weights, grading
+  // policy, the "reviewed" flags, and the milestone timeline. Designed
+  // as the input format CanvasCurate (or any future build tool) can
+  // ingest without re-uploading source documents.
+  function _buildCourseBrief() {
+    var c = activeCourse || {};
+    var savedClos = (loadField('clos') || c.clos || []).filter(function(s) { return s && String(s).trim(); });
+    var savedElos = (loadField('flatElos') || c.flatElos || []).filter(function(s) { return s && String(s).trim(); });
+    var modOverview = loadField('moduleOverviewData') || {};
+    var startN = c.moduleStartZero ? 0 : 1;
+    var modCount = c.moduleCount || (c.modules || []).length || 7;
+    var modules = [];
+    for (var i = 0; i < modCount; i++) {
+      var n = i + startN;
+      var saved = modOverview[n] || {};
+      var fromCfg = (c.modules || [])[i] || {};
+      var mlos = (saved.mlos && saved.mlos.length ? saved.mlos : (fromCfg.mlos || [])).filter(function(s) { return s && String(s).trim(); });
+      var topic = saved.topic || fromCfg.title || '';
+      var acts = (courseActivities[n] || []).map(function(a) {
+        return {
+          id: a.id, name: a.name || '', type: a.contentType || 'assignment',
+          points: a.points || '', due: a.due || '',
+          objectives: (a.objectives || []).slice(),
+          richText: a.richText || ''
+        };
+      });
+      var mats = (courseMaterials[n] || []).map(function(m) {
+        return {
+          id: m.id, type: m.type || 'Reading', title: m.title || '',
+          objectives: (m.objectives || []).slice(),
+          richText: m.richText || ''
+        };
+      });
+      modules.push({ number: n, topic: topic, mlos: mlos, activities: acts, materials: mats });
+    }
+    var formData = loadField('formData') || {};
+    var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
+    var courseContext = {};
+    contextFieldIds.forEach(function(id) { if (formData[id]) courseContext[id] = formData[id]; });
+    return {
+      _format: 'asu-course-brief/v1',
+      generatedAt: new Date().toISOString(),
+      generatedBy: (function() { var i = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null; return i && i.name; })() || null,
+      course: {
+        code: c.code || '',
+        name: c.name || c.fullTitle || '',
+        instructor: c.instructor || '',
+        instructorEmail: c.email || '',
+        session: c.session || c.sessionShort || '',
+        credits: c.credits || formData['ci-credits'] || '',
+        prerequisites: c.prerequisites || formData['ci-prerequisites'] || '',
+        textbook: c.textbook || formData['mat-textbook-1'] || '',
+        driveFolder: c.driveFolder || ''
+      },
+      courseContext: courseContext,
+      objectives: {
+        clos: savedClos,
+        elos: savedElos,
+        cloEloAlignment: c.cloEloAlignment || loadField('cloEloAlignment') || [],
+        eloMloAlignment: c.eloMloAlignment || loadField('eloMloAlignment') || {}
+      },
+      modules: modules,
+      assignmentWeights: loadField('assignmentWeights') || [],
+      gradingPolicy: loadField('gradingPolicy') || [],
+      timeline: {
+        milestoneDates: loadField('timelineDates') || {},
+        milestonesCompleted: loadField('milestoneManualComplete') || {}
+      },
+      reviewStatus: {
+        mlosReviewed: !!loadField('mlosReviewed'),
+        assignmentsReviewed: !!loadField('assignmentsReviewed'),
+        courseMappingApproved: !!loadField('courseMappingApproved')
+      },
+      progressPct: loadField('completionPct') || 0
+    };
+  }
+
+  function _briefBaseFilename() {
+    var code = (activeCourse && activeCourse.code) || 'course';
+    return (code + ' - Course Brief').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function downloadCourseBriefJson() {
+    var brief = _buildCourseBrief();
+    var blob = new Blob([JSON.stringify(brief, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = _briefBaseFilename() + '.json';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+  }
+
+  function downloadCourseBriefMarkdown() {
+    var b = _buildCourseBrief();
+    var lines = [];
+    lines.push('# ' + (b.course.code + ' — ' + b.course.name).trim());
+    lines.push('');
+    lines.push('_Generated ' + new Date(b.generatedAt).toLocaleString() + (b.generatedBy ? ' by ' + b.generatedBy : '') + '_');
+    lines.push('');
+    lines.push('## Course Info');
+    lines.push('- **Instructor:** ' + (b.course.instructor || '—') + (b.course.instructorEmail ? ' (' + b.course.instructorEmail + ')' : ''));
+    lines.push('- **Session:** ' + (b.course.session || '—'));
+    if (b.course.credits) lines.push('- **Credits:** ' + b.course.credits);
+    if (b.course.prerequisites) lines.push('- **Prerequisites:** ' + b.course.prerequisites);
+    if (b.course.textbook) lines.push('- **Textbook:** ' + b.course.textbook);
+    if (b.course.driveFolder) lines.push('- **Drive folder:** ' + b.course.driveFolder);
+    lines.push('');
+    var ctxLabels = {
+      'ctx-audience': 'Audience', 'ctx-outcomes': 'Desired outcomes',
+      'ctx-standards': 'Standards', 'ctx-current': 'Current course state',
+      'ctx-prereqs': 'Prerequisite knowledge', 'ctx-struggles': 'Common struggles',
+      'ctx-technology': 'Technology', 'ctx-existing': 'Existing assets'
+    };
+    var ctxKeys = Object.keys(b.courseContext);
+    if (ctxKeys.length) {
+      lines.push('## Course Context');
+      ctxKeys.forEach(function(k) { lines.push('### ' + (ctxLabels[k] || k)); lines.push(b.courseContext[k]); lines.push(''); });
+    }
+    if (b.objectives.clos.length) {
+      lines.push('## Course Learning Outcomes (CLOs)');
+      b.objectives.clos.forEach(function(t, i) { lines.push((i + 1) + '. ' + t); });
+      lines.push('');
+    }
+    if (b.objectives.elos.length) {
+      lines.push('## Expected Learning Outcomes (ELOs)');
+      b.objectives.elos.forEach(function(t, i) { lines.push((i + 1) + '. ' + t); });
+      lines.push('');
+    }
+    lines.push('## Modules');
+    b.modules.forEach(function(m) {
+      lines.push('### Module ' + m.number + (m.topic ? ': ' + m.topic : ''));
+      if (m.mlos.length) {
+        lines.push('**Module Learning Objectives:**');
+        m.mlos.forEach(function(o, i) { lines.push('- ' + m.number + '.' + (i + 1) + ' ' + o); });
+      }
+      if (m.activities.length) {
+        lines.push('');
+        lines.push('**Activities:**');
+        m.activities.forEach(function(a) {
+          var pts = a.points ? ' · ' + a.points + ' pts' : '';
+          var due = a.due ? ' · due ' + a.due : '';
+          var objs = a.objectives.length ? ' [' + a.objectives.join(', ') + ']' : '';
+          lines.push('- _' + (a.type || 'assignment') + '_ — ' + (a.name || '(unnamed)') + pts + due + objs);
+        });
+      }
+      if (m.materials.length) {
+        lines.push('');
+        lines.push('**Materials:**');
+        m.materials.forEach(function(mat) {
+          var objs = mat.objectives.length ? ' [' + mat.objectives.join(', ') + ']' : '';
+          lines.push('- _' + (mat.type || 'Reading') + '_ — ' + (mat.title || '(untitled)') + objs);
+        });
+      }
+      lines.push('');
+    });
+    if (b.assignmentWeights && b.assignmentWeights.length) {
+      lines.push('## Assignment Weighting');
+      b.assignmentWeights.forEach(function(w) { lines.push('- ' + (w.category || w.name || '—') + ': ' + (w.weight || w.percent || '') + '%'); });
+      lines.push('');
+    }
+    lines.push('## Review Status');
+    lines.push('- MLOs reviewed: ' + (b.reviewStatus.mlosReviewed ? 'yes' : 'no'));
+    lines.push('- Assignments reviewed: ' + (b.reviewStatus.assignmentsReviewed ? 'yes' : 'no'));
+    lines.push('- Course mapping approved: ' + (b.reviewStatus.courseMappingApproved ? 'yes' : 'no'));
+    lines.push('- Overall progress: ' + b.progressPct + '%');
+    var blob = new Blob([lines.join('\n')], { type: 'text/markdown;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = _briefBaseFilename() + '.md';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
   }
 
   // ===== COURSE PARSER (15-week → N-module AI proposal) =====

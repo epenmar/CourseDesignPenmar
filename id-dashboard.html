@@ -793,6 +793,10 @@
   <div class="ctx-menu-item" onclick="ctxOpenDrive()">📂 Open Google Drive</div>
   <div class="ctx-menu-item" onclick="ctxOpenAirtable()">🪐 Open in Airtable</div>
   <div class="ctx-menu-item" onclick="ctxOpenJira()">🟦 Open in Jira</div>
+  <div class="ctx-menu-divider"></div>
+  <div class="ctx-menu-item" onclick="ctxOpenCanvasDev()">📚 Canvas Dev Shell</div>
+  <div class="ctx-menu-item" onclick="ctxOpenCanvasLive()">📡 Canvas Live</div>
+  <div class="ctx-menu-item" onclick="ctxOpenCanvasCurate()">🎨 Open in CanvasCurate</div>
 </div>
 
 <!-- ===== EDIT COURSE MODAL ===== -->
@@ -813,6 +817,9 @@
       <div class="edit-field"><label>Google Drive Link</label><input type="text" id="edit-drive" placeholder="https://drive.google.com/..."><div style="margin-top:6px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Shared Drive reminder:</strong> add the instructor (and any reviewers) as a <strong>Contributor</strong> on this folder's Shared Drive so worksheet uploads don't get blocked.</div></div>
       <div class="edit-field"><label>Airtable Record URL <span style="color:#999; font-weight:400;">(opens this course's row in the "Developments" table)</span></label><input type="text" id="edit-airtable" placeholder="https://airtable.com/appRrjeSGPrfXPSuu/…"></div>
       <div class="edit-field"><label>Jira Epic Key <span style="color:#999; font-weight:400;">(e.g. EDL-7802)</span></label><input type="text" id="edit-jira-epic" placeholder="EDL-XXXX" style="text-transform:uppercase;"></div>
+      <div class="edit-field"><label>Canvas Dev Shell URL <span style="color:#999; font-weight:400;">(where the build happens)</span></label><input type="text" id="edit-canvas-dev" placeholder="https://canvas.asu.edu/courses/..."></div>
+      <div class="edit-field"><label>Canvas Live Shell URL <span style="color:#999; font-weight:400;">(production course)</span></label><input type="text" id="edit-canvas-live" placeholder="https://canvas.asu.edu/courses/..."></div>
+      <div class="edit-field"><label>CanvasCurate URL <span style="color:#999; font-weight:400;">(session link in CanvasCurate)</span></label><input type="text" id="edit-canvas-curate" placeholder="https://canvas-curator.vercel.app/session/..."></div>
       <div class="edit-field"><label>Instructional Designer</label><input type="text" id="edit-id" placeholder="e.g. Elisa Penmar"></div>
       <div style="display:flex; gap:12px;">
         <div class="edit-field" style="flex:1;"><label>Status</label>
@@ -5000,6 +5007,22 @@
     window.open('https://asudev.jira.com/browse/' + encodeURIComponent(key), '_blank');
   }
 
+  function ctxOpenCanvasDev() {
+    var c = courseData[ctxCourseId];
+    if (c && c.canvasDevUrl) window.open(c.canvasDevUrl, '_blank');
+    else alert('No Canvas Dev Shell URL set. Right-click → Edit Course Info to add one.');
+  }
+  function ctxOpenCanvasLive() {
+    var c = courseData[ctxCourseId];
+    if (c && c.canvasLiveUrl) window.open(c.canvasLiveUrl, '_blank');
+    else alert('No Canvas Live URL set. Right-click → Edit Course Info to add one.');
+  }
+  function ctxOpenCanvasCurate() {
+    var c = courseData[ctxCourseId];
+    if (c && c.canvasCurateUrl) window.open(c.canvasCurateUrl, '_blank');
+    else alert('No CanvasCurate URL set yet. Once you spin up a session in CanvasCurate, paste the URL via Edit Course Info.');
+  }
+
   // ===== EDIT COURSE MODAL =====
   var editCourseId = null;
 
@@ -5018,6 +5041,9 @@
     document.getElementById('edit-drive').value = c.driveFolder || '';
     document.getElementById('edit-airtable').value = getCourseAirtableUrl(editCourseId);
     document.getElementById('edit-jira-epic').value = getCourseJiraEpic(editCourseId);
+    document.getElementById('edit-canvas-dev').value = c.canvasDevUrl || '';
+    document.getElementById('edit-canvas-live').value = c.canvasLiveUrl || '';
+    document.getElementById('edit-canvas-curate').value = c.canvasCurateUrl || '';
     document.getElementById('edit-id').value = (c.id || '').replace(/&amp;/g, '&');
     document.getElementById('edit-status').value = c.status || 'Not Started';
     document.getElementById('edit-progress').value = c.progress || 0;
@@ -5045,6 +5071,9 @@
     var drive = document.getElementById('edit-drive').value.trim();
     var airtableUrl = document.getElementById('edit-airtable').value.trim();
     var jiraEpic = document.getElementById('edit-jira-epic').value.trim().toUpperCase();
+    var canvasDevUrl = document.getElementById('edit-canvas-dev').value.trim();
+    var canvasLiveUrl = document.getElementById('edit-canvas-live').value.trim();
+    var canvasCurateUrl = document.getElementById('edit-canvas-curate').value.trim();
     var id = document.getElementById('edit-id').value.trim();
     var status = document.getElementById('edit-status').value;
     var progress = parseInt(document.getElementById('edit-progress').value) || 0;
@@ -5060,6 +5089,9 @@
     c.program = program;
     c.college = college;
     c.driveFolder = drive;
+    c.canvasDevUrl = canvasDevUrl;
+    c.canvasLiveUrl = canvasLiveUrl;
+    c.canvasCurateUrl = canvasCurateUrl;
     c.id = id.replace(/&/g, '&amp;');
     c.status = status;
     c.statusClass = 'status-' + status.toLowerCase().replace(/\s+/g, '-');
@@ -5087,6 +5119,7 @@
     overrides[editCourseId] = {
       code: code, courseName: name, instructor: instructor, email: email,
       session: session, program: program, college: college, driveFolder: drive,
+      canvasDevUrl: canvasDevUrl, canvasLiveUrl: canvasLiveUrl, canvasCurateUrl: canvasCurateUrl,
       id: id, status: status, progress: progress, phase: phase
     };
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
@@ -5277,6 +5310,9 @@
         if (o.program !== undefined) c.program = o.program;
         if (o.college !== undefined) c.college = o.college;
         if (o.driveFolder !== undefined) c.driveFolder = o.driveFolder;
+        if (o.canvasDevUrl !== undefined) c.canvasDevUrl = o.canvasDevUrl;
+        if (o.canvasLiveUrl !== undefined) c.canvasLiveUrl = o.canvasLiveUrl;
+        if (o.canvasCurateUrl !== undefined) c.canvasCurateUrl = o.canvasCurateUrl;
         if (o.id) c.id = o.id.replace(/&/g, '&amp;');
         if (o.status) {
           c.status = o.status;
