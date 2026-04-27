@@ -251,6 +251,8 @@
   .meeting-section-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; color: #8c1d40; margin-bottom: 6px; margin-top: 12px; }
   .meeting-decision { font-size: 12px; color: #444; padding: 3px 0; padding-left: 14px; position: relative; }
   .meeting-decision::before { content: "→"; position: absolute; left: 0; color: #8c1d40; }
+  .meeting-bullets { list-style: disc; padding-left: 22px; margin: 4px 0 8px 0; }
+  .meeting-bullets li { font-size: 12px; color: #444; line-height: 1.55; padding: 2px 0; }
   .meeting-action { font-size: 12px; color: #444; padding: 3px 0; display: flex; align-items: flex-start; gap: 6px; }
   .meeting-action .check { width: 14px; height: 14px; border-radius: 3px; border: 1.5px solid #ccc; display: flex; align-items: center; justify-content: center; font-size: 9px; flex-shrink: 0; margin-top: 1px; cursor: pointer; transition: background 0.12s, border-color 0.12s; }
   .meeting-action .check:hover { border-color: #8c1d40; }
@@ -3248,12 +3250,17 @@
     </div>`;
 
     // ===== Action Items: aggregate Granola action items + manually-added =====
-    html += `<div class="detail-section" style="margin-top:16px;"><h3>Action Items</h3>`;
+    // Only show items the ID is responsible for. Granola items are tagged
+    // with `who: 'id' | 'faculty'` by sync-granola; faculty items render in
+    // the Meeting Notes card under "Faculty to-dos" instead of cluttering
+    // the top section.
+    html += `<div class="detail-section" style="margin-top:16px;"><h3>My Action Items</h3>`;
     var actionItemsHtml = '';
     var anyOpenItem = false;
     (c.meetings || []).forEach(function(m) {
       var mKey = meetingKey(m);
       (m.actionItems || []).forEach(function(a, aIdx) {
+        if (a && a.who === 'faculty') return; // shown in the Meeting Notes card
         var checked = isActionChecked(id, mKey, aIdx, a.done);
         if (checked) return; // hide completed items
         anyOpenItem = true;
@@ -3632,24 +3639,38 @@
             </div>
             <span class="meeting-card-toggle${isFirst ? ' open' : ''}">▾</span>
           </div>
-          <div class="meeting-card-body${isFirst ? ' open' : ''}">
-            <div class="meeting-summary">${m.summary}</div>`;
+          <div class="meeting-card-body${isFirst ? ' open' : ''}">`;
 
-        // Decisions
-        if (m.decisions && m.decisions.length > 0) {
-          html += `<div class="meeting-section-label">Decisions</div>`;
-          m.decisions.forEach(d => {
-            html += `<div class="meeting-decision">${d}</div>`;
-          });
+        // Section 1 — Relationship building (bulleted tidbits to remember).
+        // Falls back to the prose summary as a single bullet when granola
+        // didn't tag a dedicated section. Empty meetings just skip it.
+        var relBullets = (m.relationshipBuilding && m.relationshipBuilding.length)
+          ? m.relationshipBuilding
+          : (m.summary ? [m.summary] : []);
+        if (relBullets.length) {
+          html += `<div class="meeting-section-label">Relationship Building</div><ul class="meeting-bullets">`;
+          relBullets.forEach(function(b) { html += '<li>' + (b || '').replace(/</g,'&lt;') + '</li>'; });
+          html += `</ul>`;
         }
 
-        // Action items (interactive checkboxes, state persisted per meeting)
-        if (m.actionItems && m.actionItems.length > 0) {
+        // Section 2 — Decisions made.
+        if (m.decisions && m.decisions.length > 0) {
+          html += `<div class="meeting-section-label">Decisions Made</div><ul class="meeting-bullets">`;
+          m.decisions.forEach(function(d) { html += '<li>' + (d || '').replace(/</g,'&lt;') + '</li>'; });
+          html += `</ul>`;
+        }
+
+        // Section 3 — Faculty to-dos. Only items tagged who:'faculty';
+        // the ID's items live in the top-of-panel "My Action Items".
+        const facultyItems = (m.actionItems || []).map(function(a, aIdx) { return { a: a, aIdx: aIdx }; })
+          .filter(function(x) { return x.a && x.a.who === 'faculty'; });
+        if (facultyItems.length > 0) {
           const mKey = meetingKey(m);
-          html += `<div class="meeting-section-label">Action Items</div>`;
-          m.actionItems.forEach((a, aIdx) => {
+          html += `<div class="meeting-section-label">Faculty To-dos</div>`;
+          facultyItems.forEach(function(x) {
+            const a = x.a, aIdx = x.aIdx;
             const checked = isActionChecked(id, mKey, aIdx, a.done);
-            const safeText = (a.text || '').replace(/"/g, '&quot;');
+            const safeText = (a.text || '').replace(/</g,'&lt;');
             html += `<div class="meeting-action">`
               + `<span class="check${checked ? ' done' : ''}" onclick="toggleActionItem('${id}','${mKey}',${aIdx}, this)">${checked ? '✓' : ''}</span>`
               + `<span class="action-text${checked ? ' done' : ''}">${safeText}</span>`

@@ -483,21 +483,16 @@ async function main() {
     // --- Calendar meetings ---
     if (calMeetings.length > 0) {
       course.calendarMeetings = calMeetings;
-      // Only consider today/future meetings when choosing nextMeeting —
-      // otherwise, because the lookback window includes past events for
-      // worklog syncing, the earliest past meeting would clobber a future
-      // one that was already set. Prefer a meeting whose label contains
-      // the course code; fall back to the first upcoming meeting.
-      const codeUpper = courseId.replace(/(\d+)/, ' $1').toUpperCase(); // e.g. "BST 605"
+      // nextMeeting = the soonest future meeting for this course, full stop.
+      // Prior logic preferred a label containing the spaced "POP 644" form
+      // and skipped the May 1 "POP644 - MLO Review" event (no space) in
+      // favor of a later "POP 644 - Assignments" meeting. calMeetings is
+      // already filtered to events that matched this course, so simple
+      // chronological order is correct.
       const futureMeetings = calMeetings.filter(m => m.date >= todayStr);
-      const nextCal = futureMeetings.find(m => m.label.toUpperCase().includes(codeUpper)) || futureMeetings[0];
+      const nextCal = futureMeetings[0];
       if (nextCal) {
-        const existingDate = course.nextMeeting && course.nextMeeting.date;
-        // Keep whichever is sooner, but only if both are in the future —
-        // existingDate can still be in the future from the Granola pass.
-        if (!existingDate || existingDate < todayStr || nextCal.date <= existingDate) {
-          course.nextMeeting = { date: nextCal.date, time: nextCal.time, label: nextCal.label };
-        }
+        course.nextMeeting = { date: nextCal.date, time: nextCal.time, label: nextCal.label };
       }
     }
 

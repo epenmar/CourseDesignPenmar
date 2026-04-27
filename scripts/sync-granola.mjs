@@ -228,11 +228,31 @@ function parseNote(detail) {
 
   const decisions = bulletsOf(pickSection(sections, ['decisions', 'key decisions', 'decisions made']));
   const actionRaw = bulletsOf(pickSection(sections, ['action items', 'next steps', 'follow-up actions', 'follow-ups']));
+  // Pull "tid bits to remember about the faculty member" from whichever
+  // section best fits — Granola notes name them inconsistently, so try a
+  // bunch of aliases.
+  const relationshipBuilding = bulletsOf(pickSection(sections, [
+    'relationship building', 'relationship', 'rapport', 'personal',
+    'context', 'background', 'small talk', 'tidbits', 'about the faculty'
+  ]));
+  // Tag each action item by who it's for so the dashboard can show only
+  // "things Elisa has to do" up top and "what the faculty owes" in the
+  // meeting card. Recognized ID-side prefixes: "Elisa:", "Elisa Penmar:",
+  // "ID:", or just no prefix (defaults to ID — typical for unattributed
+  // bullets that the ID would track on the faculty's behalf).
+  const ID_PREFIXES = /^(elisa(?:\s+penmar)?|penmar|id|me|i)\b\s*[:\-]/i;
+  const FACULTY_PREFIX = /^([a-z][\w .'-]{0,40}?)\s*[:\-]\s+/i;
   const actionItems = actionRaw.map(t => {
-    // Granola action items are plain text; default not-done. If the line has
-    // an explicit [x] or "(done)" marker we honor it.
     const done = /\bdone\b/i.test(t) || /^\[x\]/i.test(t);
-    return { text: t.replace(/^\[[ x]\]\s*/i, '').trim(), done };
+    const text = t.replace(/^\[[ x]\]\s*/i, '').trim();
+    // Strip leading markdown bold/italic so "**Faculty member**: …"
+    // classifies on the inner text.
+    const naked = text.replace(/^[*_]+/, '').replace(/^[*_]+:/, ':');
+    let who = 'id';
+    if (ID_PREFIXES.test(naked)) who = 'id';
+    else if (/^(faculty|instructor)\b/i.test(naked)) who = 'faculty';
+    else if (FACULTY_PREFIX.test(naked)) who = 'faculty';
+    return { text, done, who };
   });
 
   // Summary: first 2 sentences of the highest-signal section. If there's no
@@ -278,6 +298,7 @@ function parseNote(detail) {
     summary,
     decisions,
     actionItems,
+    relationshipBuilding,
   };
 }
 
@@ -382,6 +403,7 @@ async function main() {
       people: n.people.length ? n.people : ['Elisa Penmar'],
       summary: n.summary,
       decisions: n.decisions,
+      relationshipBuilding: n.relationshipBuilding || [],
       actionItems: n.actionItems,
       granola: n.webUrl,
       transcriptUrl: n.transcriptUrl,
