@@ -38,6 +38,18 @@ const DRY = process.argv.includes('--dry');
 const minArg = (process.argv.find(a => a.startsWith('--min=')) || '').split('=')[1];
 const MIN_SECONDS = Math.max(60, parseInt(minArg || '1', 10) * 60);
 
+// Course IDs we won't bother syncing time for. Earlier matchers polluted
+// session events and dashboard-data with non-academic prefixes (room, rm,
+// shs is real but not Elisa's portfolio, etc.). Skip them silently rather
+// than logging "no Epic mapped" every nightly run.
+const ID_PREFIX_DENYLIST = new Set(['ROOM', 'RM', 'SHS', 'CONF', 'CONFROOM']);
+function isCourseIdSyncable(courseId) {
+  var letterGroups = String(courseId || '').match(/[a-z]+/gi) || [];
+  if (!letterGroups.length) return false;
+  // If ANY letter group is in the denylist, skip the whole id.
+  return !letterGroups.some(function(lg) { return ID_PREFIX_DENYLIST.has(lg.toUpperCase()); });
+}
+
 // Keep this in lockstep with COURSE_JIRA_EPICS in id-dashboard.html.
 // Overrides from dashboard_state.course_jira_epics take precedence at runtime.
 const BUILT_IN_EPICS = {
@@ -365,6 +377,12 @@ async function main() {
   let anyMeetingUidsNewlySynced = false;
   for (const courseId of Object.keys(buckets).sort()) {
     const bucket = buckets[courseId];
+    if (!isCourseIdSyncable(courseId)) {
+      // Silently skip non-portfolio / room-pattern IDs that older matchers
+      // left behind. Don't log noise — they'll keep showing up forever
+      // until the underlying session_events get cleaned up.
+      continue;
+    }
     const totalMs = bucket.worksheetMs + bucket.meetingMs;
     const seconds = Math.floor(totalMs / 1000);
     if (seconds < MIN_SECONDS) {

@@ -463,7 +463,28 @@ async function main() {
     existing = { syncedAt: null, source: 'granola', courses: {}, upcomingDeadlines: [] };
   }
 
-  // ===== 4. MERGE INTO COURSES =====
+  // ===== 4. CLEAN STALE / NON-ACADEMIC COURSE IDS =====
+  // Earlier versions of the matcher used an unrestricted regex and polluted
+  // dashboard-data.js with course IDs derived from room numbers, conference
+  // labels, and unrelated programs (room252, rm201, shs250, …). Drop any
+  // existing.courses entry whose prefix isn't in the academic allowlist.
+  const allowedPrefix = function(courseId) {
+    var m = String(courseId).match(/^([a-z]{2,4})\d/i);
+    return m && ACADEMIC_PREFIXES.has(m[1].toUpperCase());
+  };
+  Object.keys(existing.courses).forEach(function(id) {
+    // Allow compound ids like "lsc598stp494" — match each prefix.
+    var parts = id.split(/(?=\d)/); // ["lsc", "598stp", "494"] → recombine
+    // Simpler: any letter-then-digit boundary; check that EVERY letter group is allowed.
+    var letterGroups = id.match(/[a-z]+/gi) || [];
+    var anyValid = letterGroups.some(function(lg) { return ACADEMIC_PREFIXES.has(lg.toUpperCase()); });
+    if (!anyValid && !allowedPrefix(id)) {
+      console.log(`[sync] Dropping non-academic course id from cache: ${id}`);
+      delete existing.courses[id];
+    }
+  });
+
+  // ===== 5. MERGE INTO COURSES =====
   const allCourseIds = new Set([...Object.keys(courseCalendar), ...Object.keys(courseNotes)]);
 
   for (const courseId of allCourseIds) {
