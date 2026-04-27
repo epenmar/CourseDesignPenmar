@@ -2485,6 +2485,11 @@
           var m = String(raw || '').toUpperCase().trim().match(/\b([A-Z][A-Z0-9]+-\d+)\b/);
           return m ? m[1] : '';
         })(),
+        // "QA: Alert ID of this New Dev" — single-select that drives whether
+        // the kickoff email has been sent. We can read it but not mutate it
+        // (the Designer Interface link is the only way to update from here).
+        qaAlertStatus: toStr(pickField(['QA: Alert ID of this New Dev', 'QA Alert', 'QA: Alert ID'], /^qa.*alert/i)),
+        qaKickoffStatus: toStr(pickField(['QA: Send QA Kickof Email to Instructor', 'QA: Send QA Kickoff Email to Instructor', 'QA: Kickoff Email'], /qa.*kickoff/i)),
         createdAirtable: f['Created'] || r.createdTime.slice(0,10)
       };
     });
@@ -2770,6 +2775,13 @@
       // college names) would survive every subsequent sync because we only
       // backfilled missing fields.
       courseData[key].airtableRecordId = cand.recordId;
+      // QA Alert + Kickoff status come from Airtable single-selects. We
+      // surface them in the side panel's Airtable Status section so the
+      // user can tell at a glance whether the kickoff email has been
+      // sent. Always overwrite — these fields are authoritative on
+      // Airtable's side, not editable from the dashboard.
+      if (cand.qaAlertStatus !== undefined) courseData[key].qaAlertStatus = cand.qaAlertStatus || '';
+      if (cand.qaKickoffStatus !== undefined) courseData[key].qaKickoffStatus = cand.qaKickoffStatus || '';
       var staleProgram = function(v) {
         if (!v) return true;
         if (/^rec[A-Za-z0-9]{14,}/.test(v)) return true; // stranded record ID
@@ -2792,6 +2804,8 @@
       saved0[key].airtableRecordId = cand.recordId;
       if (cand.college) saved0[key].college = collegeAbbr(cand.college);
       if (cand.program && staleProgram(saved0[key].program)) saved0[key].program = cand.program;
+      if (cand.qaAlertStatus !== undefined) saved0[key].qaAlertStatus = cand.qaAlertStatus || '';
+      if (cand.qaKickoffStatus !== undefined) saved0[key].qaKickoffStatus = cand.qaKickoffStatus || '';
       localStorage.setItem('user_courses', JSON.stringify(saved0));
       if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved0[key]);
       setCourseAirtableUrl(key, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId);
@@ -3471,6 +3485,52 @@
       pastMeetings = syncedCourseEarly.calendarMeetings.filter(function(cm) { return cm.past === true; });
       pastMeetings.sort(function(a, b) { return (b.date || '').localeCompare(a.date || ''); });
     }
+
+    // ===== Airtable Status: kickoff email gate + link to update in Airtable =====
+    // The QA: Alert ID single-select drives whether the kickoff email goes out
+    // via Airtable automation. We can read it from the API but not write it
+    // (the field's edit gate is on the QA team's side), so the only action
+    // we offer is a link into the Designer Interface page.
+    var qaAlert = c.qaAlertStatus || '';
+    var qaKickoff = c.qaKickoffStatus || '';
+    var atRecord = c.airtableRecordId || (function() {
+      var url = (typeof getCourseAirtableUrl === 'function') ? getCourseAirtableUrl(id) : '';
+      var p = url ? parseAirtableUrl(url) : null;
+      return p ? p.recordId : '';
+    })();
+    var atDesignerUrl = atRecord ? ('https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DESIGNER_PAGE_ID + '/' + atRecord + '?tableId=' + AIRTABLE_DEVELOPMENTS_TABLE) : '';
+    function _qaAlertColor(v) {
+      if (!v) return '#999';
+      var s = v.toLowerCase();
+      if (/new\s*-\s*simple/.test(s)) return '#2e7d32'; // kickoff email queued/sent
+      if (/already received/.test(s)) return '#1565c0';
+      if (/not received/.test(s)) return '#e65100';
+      if (/^na\b/.test(s) || /unit id developed/.test(s)) return '#666';
+      return '#666';
+    }
+    var atCollapsed = isSectionCollapsed('airtable-status');
+    html += `<div class="detail-section" style="margin-top:16px;">
+      <div class="ds-head">
+        <h3>Airtable Status</h3>
+        <button class="ds-toggle ${atCollapsed ? 'collapsed' : ''}" id="ds-toggle-airtable-status" onclick="toggleDetailSection('airtable-status', event)">▾</button>
+      </div>
+      <div class="ds-body ${atCollapsed ? 'collapsed' : ''}" id="ds-body-airtable-status">`;
+    if (!atRecord) {
+      html += `<div style="font-size:12px; color:#999; font-style:italic;">No Airtable record linked yet. Run Sync Airtable.</div>`;
+    } else {
+      html += `<div style="font-size:12px; line-height:1.7;">`
+        + `<div><span style="color:#888;">QA: Alert ID of this New Dev:</span> `
+        + (qaAlert
+          ? `<span style="font-weight:600; color:${_qaAlertColor(qaAlert)};">${qaAlert.replace(/</g,'&lt;')}</span>`
+          : `<span style="color:#aaa; font-style:italic;">(empty)</span>`)
+        + `</div>`;
+      if (qaKickoff) {
+        html += `<div><span style="color:#888;">QA Kickoff Email:</span> <span style="font-weight:600;">${qaKickoff.replace(/</g,'&lt;')}</span></div>`;
+      }
+      html += `<div style="margin-top:8px;"><a href="${atDesignerUrl}" target="_blank" style="display:inline-flex; align-items:center; gap:4px; padding:5px 10px; background:#fff; color:#8c1d40; border:1px solid #8c1d40; border-radius:5px; text-decoration:none; font-size:11px; font-weight:500;">Open ID view in Airtable →</a></div>`;
+      html += `</div>`;
+    }
+    html += `</div></div>`;
 
     // ===== Jira Status: change the Epic's status + children from the side panel =====
     var jiraEpic = getCourseJiraEpic(id);
@@ -5313,6 +5373,8 @@
         if (o.canvasDevUrl !== undefined) c.canvasDevUrl = o.canvasDevUrl;
         if (o.canvasLiveUrl !== undefined) c.canvasLiveUrl = o.canvasLiveUrl;
         if (o.canvasCurateUrl !== undefined) c.canvasCurateUrl = o.canvasCurateUrl;
+        if (o.qaAlertStatus !== undefined) c.qaAlertStatus = o.qaAlertStatus;
+        if (o.qaKickoffStatus !== undefined) c.qaKickoffStatus = o.qaKickoffStatus;
         if (o.id) c.id = o.id.replace(/&/g, '&amp;');
         if (o.status) {
           c.status = o.status;
