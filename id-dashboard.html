@@ -1927,6 +1927,31 @@
   }
 
   // ===== INIT =====
+  // One-shot: collapse program values that look like a copy of the course
+  // code ("POP644", "TPH101", "LSC598/STP494") down to their letter prefix
+  // so the column doesn't read as a duplicate of the course title. Runs at
+  // boot and is idempotent — once a real Programs value comes back from
+  // Airtable it sticks.
+  (function migrateCompactProgramCodes() {
+    var saved;
+    try { saved = JSON.parse(localStorage.getItem('user_courses') || '{}'); } catch(e) { saved = {}; }
+    var compactRe = /^[A-Z]{2,4}\d{2,4}[A-Z]?(\/[A-Z]{2,4}\d{2,4}[A-Z]?)?$/;
+    var changed = false;
+    Object.keys(saved).forEach(function(id) {
+      var s = saved[id];
+      if (!s || !s.program) return;
+      if (!compactRe.test(s.program)) return;
+      var prefix = (s.program.match(/^[A-Za-z]+/) || [''])[0].toUpperCase();
+      if (prefix && prefix !== s.program) {
+        s.program = prefix;
+        changed = true;
+      }
+    });
+    if (changed) {
+      try { localStorage.setItem('user_courses', JSON.stringify(saved)); } catch(e) {}
+    }
+  })();
+
   // Pull latest cloud state first so the table reflects fresh per-course completionPct
   (async function bootDashboard() {
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
@@ -2742,6 +2767,10 @@
         if (!v) return true;
         if (/^rec[A-Za-z0-9]{14,}/.test(v)) return true; // stranded record ID
         if (/^[A-Z]{2,4}$/.test(v)) return true; // bare prefix like "POP"
+        // Compact-code-as-program: "POP644", "TPH101", "LSC598/STP494".
+        // We use these as a fallback when Airtable has no program; they
+        // shouldn't survive once a real value comes in.
+        if (/^[A-Z]{2,4}\d{2,4}[A-Z]?(\/[A-Z]{2,4}\d{2,4}[A-Z]?)?$/.test(v)) return true;
         return false;
       };
       if (cand.college) {
@@ -2778,7 +2807,12 @@
       title: code + ' — ' + name,
       subtitle: instructor + ' \u2022 ' + (sessionShort !== '—' ? ('Launches ' + sessionShort) : 'Session TBD'),
       code: code, courseName: name,
-      program: cand.program || code.split(/\s/)[0], college: cand.college || '',
+      // When Airtable doesn't have a Programs value for this record, fall
+      // back to the letter prefix of the course code ("POP" for "POP 644"
+      // or "POP644") rather than the whole compact code, which previously
+      // produced a Program column reading as a copy of the course title.
+      program: cand.program || (code.match(/^[A-Za-z]+/) ? code.match(/^[A-Za-z]+/)[0].toUpperCase() : code),
+      college: cand.college || '',
       instructor: instructor, initials: initials, avatarColor: avatarColors[colorIdx],
       session: sessionShort, phase: pct >= 100 ? 'Complete' : (pct > 0 ? 'In Progress' : 'Not Started'),
       progressLabel: pct + '%',
