@@ -1232,10 +1232,12 @@
       const datesForCourse = deadlineDatesByCourse[id] || [];
       allMeetings.forEach(m => {
         if (!m.date || m.date < todayStr || m.date > cutoffStr) return;
-        // Check if this meeting is already associated with a nearby deadline (within 2 days)
-        const mTime = new Date(m.date + 'T00:00:00').getTime();
-        const nearDeadline = datesForCourse.some(dd => Math.abs(new Date(dd + 'T00:00:00').getTime() - mTime) <= 2 * 86400000);
-        if (!nearDeadline) {
+        // Only suppress when a deadline already exists on the exact same
+        // day for this course — previously a ±2-day window absorbed
+        // standalone meetings sitting next to (but not on) a deadline,
+        // making it look like meetings were missing from the widget.
+        const sameDayDeadline = datesForCourse.indexOf(m.date) !== -1;
+        if (!sameDayDeadline) {
           cards.push({
             title: m.label || 'Meeting',
             course: c.title,
