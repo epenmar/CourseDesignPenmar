@@ -5117,6 +5117,13 @@
       data.__modifiedAt[key] = Date.now();
       localStorage.setItem(storageKey, JSON.stringify(data));
       scheduleCloudPush();
+      // Live-broadcast the timeline state so other collaborators redraw the
+      // dashboard milestone table without waiting for the cloud-push debounce
+      // + remote-change banner reload. Keep this narrow on purpose — earlier
+      // attempts to broadcast every saveField caused flicker on shared views.
+      if ((key === 'timelineDates' || key === 'milestoneManualComplete') && typeof scheduleTimelineBroadcast === 'function') {
+        scheduleTimelineBroadcast();
+      }
     } catch(e) {
       console.error('Failed to save field "' + key + '":', e);
       if (e.name === 'QuotaExceededError') {
@@ -10701,6 +10708,7 @@ ${clone.innerHTML}
     editChannel.on('broadcast', { event: 'item-delete' }, function(msg) { applyRemoteItemDelete(msg.payload); });
     editChannel.on('broadcast', { event: 'module-overview' }, function(msg) { applyRemoteModuleOverview(msg.payload); });
     editChannel.on('broadcast', { event: 'module-list' }, function(msg) { applyRemoteModuleList(msg.payload); });
+    editChannel.on('broadcast', { event: 'timeline' }, function(msg) { applyRemoteTimeline(msg.payload); });
     editChannel.subscribe();
     attachLiveEditListeners();
   }
@@ -10788,6 +10796,56 @@ ${clone.innerHTML}
     // Use the same idle-aware rerender path. The payload object satisfies its
     // shape requirements minimally so the right view re-renders.
     deferredItemRerender({ itemType: 'mlo', modNum: 0 });
+  }
+
+  // Live timeline broadcast — push current timelineDates +
+  // milestoneManualComplete after a short debounce so collaborators see the
+  // milestone table update without waiting for the cloud-push cycle and a
+  // manual reload. We write directly to localStorage on the receive side
+  // (bypassing saveField) to avoid bouncing the broadcast back.
+  var _timelineBroadcastTimer = null;
+  function scheduleTimelineBroadcast() {
+    if (!editChannel) return;
+    clearTimeout(_timelineBroadcastTimer);
+    _timelineBroadcastTimer = setTimeout(function() {
+      var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      editChannel.send({
+        type: 'broadcast',
+        event: 'timeline',
+        payload: {
+          timelineDates: loadField('timelineDates') || {},
+          milestoneManualComplete: loadField('milestoneManualComplete') || {},
+          author: identity && identity.name,
+          at: Date.now()
+        }
+      });
+    }, 250);
+  }
+
+  function applyRemoteTimeline(payload) {
+    if (!payload) return;
+    try {
+      var data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      if (payload.timelineDates) data.timelineDates = payload.timelineDates;
+      if (payload.milestoneManualComplete) data.milestoneManualComplete = payload.milestoneManualComplete;
+      if (!data.__modifiedAt || typeof data.__modifiedAt !== 'object') data.__modifiedAt = {};
+      var ts = payload.at || Date.now();
+      data.__modifiedAt.timelineDates = ts;
+      data.__modifiedAt.milestoneManualComplete = ts;
+      localStorage.setItem(storageKey, JSON.stringify(data));
+    } catch(e) { return; }
+    // Re-draw the timeline. recalcTimeline reads from localStorage so the
+    // table reflects the new values immediately. Skip if the user is
+    // mid-edit on a date input — wait until they're idle to avoid yanking
+    // the input value out from under them.
+    var active = document.activeElement;
+    if (active && active.matches && active.matches('input[type="date"]')) {
+      setTimeout(applyRemoteTimeline.bind(null, payload), 1500);
+      return;
+    }
+    if (typeof recalcTimeline === 'function') {
+      try { recalcTimeline(); } catch(e) {}
+    }
   }
 
   // Broadcast a structural change to an activity or material so other
