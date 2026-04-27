@@ -4575,7 +4575,7 @@
   let activeTableTab = localStorage.getItem('dashboard_table_tab') || 'all';
 
   function tabMatches(tab, c, isInactiveRow) {
-    if (tab === 'all') return !isInactiveRow;
+    if (tab === 'all') return true;
     if (tab === 'developments') return !isInactiveRow && c.status !== 'Complete';
     if (tab === 'ongoing') return !isInactiveRow && c.status === 'Complete';
     if (tab === 'inactive') return isInactiveRow;
@@ -4630,11 +4630,9 @@
       if (!id || !courseData[id]) return;
       const c = courseData[id];
       const isInactiveRow = row.dataset.status === 'inactive';
-      // When the Inactive tab is active, let inactive rows through —
-      // otherwise the legacy "all hides inactive" rule strips them out
-      // even though the tab is explicitly asking for them.
-      const statusMatch = activeTableTab === 'inactive' ? isInactiveRow :
-                          activeStatusFilter === 'all' ? !isInactiveRow :
+      // tabMatches owns the inactive include/exclude decision now. The
+      // status filter only narrows further by specific status pills.
+      const statusMatch = activeStatusFilter === 'all' ? true :
                           activeStatusFilter === 'inactive' ? isInactiveRow :
                           row.dataset.status === activeStatusFilter;
       const tabMatch = tabMatches(activeTableTab, c, isInactiveRow);
