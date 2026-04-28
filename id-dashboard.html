@@ -1524,6 +1524,16 @@
     try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
   }
 
+  // Push the current inactive map to Supabase immediately so the next
+  // cloud pull doesn't overwrite our toggle with the stale cloud copy
+  // (same pattern as setCourseJiraEpic / saveEditCourse).
+  function pushInactiveCoursesToCloud(map) {
+    if (!window._sbClient) return;
+    window._sbClient.from('dashboard_state')
+      .upsert({ key: 'inactive_courses', data: map }, { onConflict: 'key' })
+      .then(function(r) { if (r.error) console.warn('[inactive_courses] cloud sync failed:', r.error.message); });
+  }
+
   function toggleCourseInactive(courseId, isInactive) {
     var map = getInactiveCourses();
     if (isInactive) {
@@ -1535,6 +1545,7 @@
       document.getElementById('inactive-note-area').style.display = 'none';
     }
     localStorage.setItem('inactive_courses', JSON.stringify(map));
+    pushInactiveCoursesToCloud(map);
     renderTable();
     renderFilters();
     // Refresh the status pill in the open detail panel
@@ -1546,6 +1557,7 @@
     if (map[courseId]) {
       map[courseId].note = note;
       localStorage.setItem('inactive_courses', JSON.stringify(map));
+      pushInactiveCoursesToCloud(map);
     }
   }
 
