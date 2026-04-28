@@ -10790,11 +10790,26 @@ ${clone.innerHTML}
 
   // ===== REAL-TIME PRESENCE =====
   let presenceChannel = null;
+  let _presenceRetryDelay = 1000;
+  let _presenceRetryTimer = null;
+
+  function _trackPresence(identity) {
+    if (!presenceChannel) return;
+    try {
+      presenceChannel.track({
+        name: identity.name,
+        role: identity.role,
+        page: currentViewId || 'dashboard',
+        online_at: new Date().toISOString()
+      });
+    } catch (e) { console.warn('[presence] track failed:', e && e.message); }
+  }
 
   function initPresence() {
     if (!supabaseClient) return;
     const identity = getCommentIdentity();
     if (!identity) return;
+    if (presenceChannel) return; // already initialized
     const courseId = activeCourse ? (activeCourse.code || '').replace(/\s+/g, '').toLowerCase() : 'unknown';
     const channelName = 'presence:' + courseId;
 
@@ -10808,29 +10823,51 @@ ${clone.innerHTML}
 
     presenceChannel.subscribe(function(status) {
       if (status === 'SUBSCRIBED') {
-        presenceChannel.track({
-          name: identity.name,
-          role: identity.role,
-          page: currentViewId || 'dashboard',
-          online_at: new Date().toISOString()
-        });
+        _presenceRetryDelay = 1000;
+        _trackPresence(identity);
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn('[presence] channel status', status, '— retrying in', _presenceRetryDelay, 'ms');
+        // Tear down and re-create. Just calling subscribe() again on a closed
+        // channel doesn't always recover, so drop the reference and rebuild.
+        try { supabaseClient.removeChannel(presenceChannel); } catch (e) {}
+        presenceChannel = null;
+        clearTimeout(_presenceRetryTimer);
+        _presenceRetryTimer = setTimeout(function() {
+          _presenceRetryDelay = Math.min(_presenceRetryDelay * 2, 30000);
+          initPresence();
+        }, _presenceRetryDelay);
       }
     });
 
-    // Update presence when switching views
-    var origShowView = window.showView;
-    window.showView = function() {
-      origShowView.apply(this, arguments);
-      if (presenceChannel) {
-        presenceChannel.track({
-          name: identity.name,
-          role: identity.role,
-          page: currentViewId || 'dashboard',
-          online_at: new Date().toISOString()
-        });
-      }
-    };
+    // Update presence when switching views. Repaint nav highlight immediately
+    // so the local user's active item gets their pill color without waiting
+    // for the async sync echo from Supabase. Wrap once even across retries.
+    if (!window._showViewWrappedForPresence) {
+      var origShowView = window.showView;
+      window.showView = function() {
+        origShowView.apply(this, arguments);
+        var id = getCommentIdentity();
+        if (id) _trackPresence(id);
+        if (typeof renderPresence === 'function') renderPresence();
+      };
+      window._showViewWrappedForPresence = true;
+    }
   }
+
+  // Re-track presence when the tab becomes visible again. Backgrounded tabs
+  // often have their websocket throttled or closed by the browser, which left
+  // collaborators stuck thinking we'd disappeared.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'visible') return;
+    var identity = getCommentIdentity();
+    if (!identity) return;
+    if (!presenceChannel) {
+      initPresence();
+    } else {
+      _trackPresence(identity);
+    }
+    if (!editChannel) initLiveEditChannel();
+  });
 
   // Stable color per collaborator so a user's focus outline and edit badge
   // match their presence avatar. Uses a simple hash of the name.
@@ -10888,6 +10925,9 @@ ${clone.innerHTML}
     return null;
   }
 
+  var _editRetryDelay = 1000;
+  var _editRetryTimer = null;
+  var _editListenersAttached = false;
   function initLiveEditChannel() {
     if (!supabaseClient || !courseId) return;
     if (editChannel) return;
@@ -10901,8 +10941,24 @@ ${clone.innerHTML}
     editChannel.on('broadcast', { event: 'module-overview' }, function(msg) { applyRemoteModuleOverview(msg.payload); });
     editChannel.on('broadcast', { event: 'module-list' }, function(msg) { applyRemoteModuleList(msg.payload); });
     editChannel.on('broadcast', { event: 'timeline' }, function(msg) { applyRemoteTimeline(msg.payload); });
-    editChannel.subscribe();
-    attachLiveEditListeners();
+    editChannel.subscribe(function(status) {
+      if (status === 'SUBSCRIBED') {
+        _editRetryDelay = 1000;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        console.warn('[edit channel] status', status, '— retrying in', _editRetryDelay, 'ms');
+        try { supabaseClient.removeChannel(editChannel); } catch (e) {}
+        editChannel = null;
+        clearTimeout(_editRetryTimer);
+        _editRetryTimer = setTimeout(function() {
+          _editRetryDelay = Math.min(_editRetryDelay * 2, 30000);
+          initLiveEditChannel();
+        }, _editRetryDelay);
+      }
+    });
+    if (!_editListenersAttached) {
+      attachLiveEditListeners();
+      _editListenersAttached = true;
+    }
   }
 
   function broadcastItemDelete(itemType, modNum, itemIds) {
