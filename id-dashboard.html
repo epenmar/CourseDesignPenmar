@@ -4006,15 +4006,19 @@
           </div>
           <div class="meeting-card-body${isFirst ? ' open' : ''}">`;
 
-        // Section 1 — Relationship building (bulleted tidbits to remember).
-        // Falls back to the prose summary as a single bullet when granola
-        // didn't tag a dedicated section. Empty meetings just skip it.
-        var relBullets = (m.relationshipBuilding && m.relationshipBuilding.length)
-          ? m.relationshipBuilding
-          : (m.summary ? [m.summary] : []);
-        if (relBullets.length) {
+        // Section 1a — Summary (prose, when Granola gave us one). Always shown
+        // first if present so the reader gets the gist before the bullets.
+        if (m.summary) {
+          html += `<div class="meeting-section-label">Summary</div><p class="meeting-summary">${(m.summary || '').replace(/</g,'&lt;')}</p>`;
+        }
+
+        // Section 1b — Relationship building (bulleted tidbits to remember).
+        // Only renders when Granola actually tagged a rapport section; we no
+        // longer fake one out of the summary because that mislabeled prose as
+        // "tidbits to remember about the faculty member."
+        if (m.relationshipBuilding && m.relationshipBuilding.length > 0) {
           html += `<div class="meeting-section-label">Relationship Building</div><ul class="meeting-bullets">`;
-          relBullets.forEach(function(b) { html += '<li>' + (b || '').replace(/</g,'&lt;') + '</li>'; });
+          m.relationshipBuilding.forEach(function(b) { html += '<li>' + (b || '').replace(/</g,'&lt;') + '</li>'; });
           html += `</ul>`;
         }
 
