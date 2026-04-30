@@ -2126,6 +2126,75 @@
   }
   try { triggerSync(); } catch(e) {} // sync on page load, never block initial render
 
+  // Pull meetings from Supabase. The local `meetings` table mirrors what
+  // sync-granola.mjs writes, so the dashboard stays accurate even when the
+  // current machine hasn't run the Granola sync recently. Supabase wins
+  // (newer/global) over the file-based dashboard-data.js for any course it
+  // covers — silent fallback to file data otherwise.
+  async function loadMeetingsFromSupabase() {
+    if (!window._sbClient) return;
+    try {
+      var r = await window._sbClient
+        .from('meetings')
+        .select('granola_id, course_id, meeting_date, title, people, summary, decisions, action_items, follow_up, granola_url, transcript_url, source')
+        .order('meeting_date', { ascending: false });
+      if (r.error) { console.warn('[meetings sb] error:', r.error.message); return; }
+      var byCourse = {};
+      (r.data || []).forEach(function(row) {
+        var converted = {
+          date: row.meeting_date ? new Date(row.meeting_date + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+          dateIso: row.meeting_date,
+          title: row.title || '',
+          people: Array.isArray(row.people) ? row.people : [],
+          summary: row.summary || '',
+          decisions: Array.isArray(row.decisions) ? row.decisions : [],
+          actionItems: Array.isArray(row.action_items) ? row.action_items : [],
+          followUp: row.follow_up || null,
+          granola: row.granola_url || null,
+          transcriptUrl: row.transcript_url || null,
+          source: row.source === 'granola' ? 'Granola' : (row.source || 'Manual'),
+          granola_id: row.granola_id,
+        };
+        (byCourse[row.course_id] ||= []).push(converted);
+      });
+      // Apply per-course meeting lists to courseData. Supabase wins because
+      // it's the multi-machine source of truth; if Supabase is empty for a
+      // course we keep whatever dashboard-data.js gave us.
+      Object.keys(byCourse).forEach(function(cid) {
+        if (!courseData[cid]) return;
+        courseData[cid].meetings = byCourse[cid];
+        // Refresh lastActive from latest meeting if Supabase has fresher data.
+        var latest = byCourse[cid][0];
+        if (latest && latest.dateIso) {
+          var diff = Math.floor((new Date() - new Date(latest.dateIso + 'T00:00:00')) / 86400000);
+          courseData[cid].lastActiveDate = latest.dateIso;
+          courseData[cid].lastActive = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : diff < 14 ? diff + ' days ago' : diff + ' days ago';
+          courseData[cid].lastActiveStale = diff > 14;
+        }
+      });
+      // Re-render the views that depend on meetings.
+      if (typeof renderSummary === 'function') renderSummary();
+      if (typeof renderUpcoming === 'function') renderUpcoming();
+      if (typeof renderTable === 'function') renderTable();
+      // If a side panel is open, refresh it so the new meetings show up.
+      var ov = document.getElementById('detail-overlay');
+      if (ov && ov._currentId && typeof renderDetail === 'function') renderDetail(ov._currentId);
+    } catch(e) {
+      console.warn('[meetings sb] load failed:', e && e.message);
+    }
+  }
+  // Wait for the Supabase client to attach, then load.
+  function _kickMeetingsLoad() {
+    if (window._sbClient) loadMeetingsFromSupabase();
+    else setTimeout(_kickMeetingsLoad, 200);
+  }
+  _kickMeetingsLoad();
+  // Also reload meetings on focus/visibilitychange so notes added on another
+  // machine appear quickly without a full page reload.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') loadMeetingsFromSupabase();
+  });
+
   // Keep Granola/calendar notes fresh while the dashboard is open.
   // Server throttles /sync to 60s, so we only fire if the tab regains focus
   // after being hidden (typical flow: meeting ends in another app → user

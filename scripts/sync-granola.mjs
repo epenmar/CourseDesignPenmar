@@ -466,6 +466,67 @@ async function main() {
   }
   writeFileSync(DATA_FILE, out);
   console.log(`\n[granola] wrote ${DATA_FILE}`);
+
+  // Mirror to Supabase so the dashboard reads stay live even when this script
+  // hasn't run on the latest machine. Failure here is non-fatal — the file
+  // write above is still the primary source of truth.
+  await upsertMeetingsToSupabase(courseNotes).catch(e => {
+    console.warn(`[granola] Supabase mirror failed (non-fatal): ${e.message}`);
+  });
+}
+
+// ===== SUPABASE MIRROR =====
+function loadSupabaseCreds() {
+  // Prefer service_role key for writes; fall back to the URL pulled from the
+  // dashboard config + a service key in conductor's .env.
+  if (!existsSync(ENV_FILE)) return null;
+  const raw = readFileSync(ENV_FILE, 'utf8');
+  const url = (raw.match(/^\s*SUPABASE_URL\s*=\s*"?([^"\s#]+)"?/m) || [])[1]
+    || 'https://gflnymqjraxonbdtbxma.supabase.co';
+  const key = (raw.match(/^\s*SUPABASE_SERVICE_ROLE_KEY\s*=\s*"?([^"\s#]+)"?/m) || [])[1];
+  if (!key) return null;
+  return { url, key };
+}
+
+async function upsertMeetingsToSupabase(courseNotes) {
+  const creds = loadSupabaseCreds();
+  if (!creds) {
+    console.log('[granola] skip Supabase mirror — set SUPABASE_SERVICE_ROLE_KEY in', ENV_FILE);
+    return;
+  }
+  const rows = [];
+  for (const [courseId, notes] of Object.entries(courseNotes)) {
+    for (const n of notes) {
+      rows.push({
+        granola_id: n.id,
+        course_id: courseId,
+        meeting_date: n.date || null,
+        title: n.title || null,
+        people: n.people || [],
+        summary: n.summary || null,
+        decisions: n.decisions || [],
+        action_items: n.actionItems || [],
+        follow_up: n.followUp || null,
+        granola_url: n.webUrl || null,
+        transcript_url: n.transcriptUrl || null,
+        source: 'granola',
+        synced_at: new Date().toISOString(),
+      });
+    }
+  }
+  if (!rows.length) { console.log('[granola] no rows to upsert'); return; }
+  const r = await fetch(creds.url + '/rest/v1/meetings?on_conflict=granola_id', {
+    method: 'POST',
+    headers: {
+      apikey: creds.key,
+      Authorization: 'Bearer ' + creds.key,
+      'Content-Type': 'application/json',
+      Prefer: 'resolution=merge-duplicates',
+    },
+    body: JSON.stringify(rows),
+  });
+  if (!r.ok) throw new Error(`upsert ${r.status} ${await r.text()}`);
+  console.log(`[granola] upserted ${rows.length} meeting rows to Supabase`);
 }
 
 main().catch(e => { console.error('[granola] ERROR:', e.message); process.exit(1); });
