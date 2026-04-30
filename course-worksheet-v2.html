@@ -1829,32 +1829,29 @@
   var undoDebounceTimer = null;
   var undoCapturedForCurrentEdit = false;
 
-  function captureUndoState(label) {
-    undoStack.push({
+  function _snapshotForUndo(label) {
+    return {
       label: label || 'edit',
       activities: JSON.parse(JSON.stringify(courseActivities)),
       materials: JSON.parse(JSON.stringify(courseMaterials)),
       clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
       flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
       alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: loadField('moduleOverviewData') || null
-    });
+      moduleOverviewData: loadField('moduleOverviewData') || null,
+      timelineDates: loadField('timelineDates') || null,
+      milestoneManualComplete: loadField('milestoneManualComplete') || null
+    };
+  }
+
+  function captureUndoState(label) {
+    undoStack.push(_snapshotForUndo(label));
     if (undoStack.length > MAX_UNDO) undoStack.shift();
     redoStack = []; // clear redo on new action
   }
 
   function undo() {
     if (undoStack.length === 0) return;
-    // Save current state to redo
-    redoStack.push({
-      label: 'redo',
-      activities: JSON.parse(JSON.stringify(courseActivities)),
-      materials: JSON.parse(JSON.stringify(courseMaterials)),
-      clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
-      flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
-      alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: loadField('moduleOverviewData') || null
-    });
+    redoStack.push(_snapshotForUndo('redo'));
     var state = undoStack.pop();
     restoreState(state);
     updateUndoRedoState();
@@ -1862,15 +1859,7 @@
 
   function redo() {
     if (redoStack.length === 0) return;
-    undoStack.push({
-      label: 'undo',
-      activities: JSON.parse(JSON.stringify(courseActivities)),
-      materials: JSON.parse(JSON.stringify(courseMaterials)),
-      clos: JSON.parse(JSON.stringify(activeCourse.clos || [])),
-      flatElos: JSON.parse(JSON.stringify(activeCourse.flatElos || [])),
-      alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
-      moduleOverviewData: loadField('moduleOverviewData') || null
-    });
+    undoStack.push(_snapshotForUndo('undo'));
     var state = redoStack.pop();
     restoreState(state);
     updateUndoRedoState();
@@ -1915,11 +1904,19 @@
         _seenM[m.id] = true;
       });
     });
+    // Restore timeline state if captured
+    if (state.timelineDates !== undefined) {
+      saveField('timelineDates', state.timelineDates || {});
+    }
+    if (state.milestoneManualComplete !== undefined) {
+      saveField('milestoneManualComplete', state.milestoneManualComplete || {});
+    }
     // Persist
     saveActivityData();
     saveObjectivesState();
     // Re-render everything
     renderAllViews();
+    if (typeof recalcTimeline === 'function') recalcTimeline();
   }
 
   // ===== UNDO/REDO DROPDOWN UI =====
@@ -5216,6 +5213,7 @@
   // weeks. Same logic as pushDates but rooted at a specific row, so the user
   // can push from a particular milestone instead of from the top.
   function pushDatesFrom(startIdx, weeks) {
+    captureUndoState(weeks > 0 ? 'push timeline +' + weeks + ' wk' : 'pull timeline ' + weeks + ' wk');
     const dateInputs = document.querySelectorAll('#timeline-body .date-input');
     const saved = loadField('timelineDates') || {};
     const shiftMs = weeks * 7 * 86400000;
@@ -7383,6 +7381,7 @@
     const name = block.querySelector('input[data-field="name"]');
     const nameStr = name ? name.value : 'this activity';
     if (confirm('Delete "' + nameStr + '"?')) {
+      captureUndoState('delete activity');
       if (courseActivities[modNum]) {
         courseActivities[modNum] = courseActivities[modNum].filter(function(a) { return a.id !== actId; });
         saveActivityData();
@@ -7501,6 +7500,7 @@
     const matId = block.getAttribute('data-material-id');
     const modNum = parseInt(block.getAttribute('data-module-num'));
     if (confirm('Delete this material?')) {
+      captureUndoState('delete material');
       if (courseMaterials[modNum]) {
         courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
         saveActivityData();
@@ -10571,6 +10571,7 @@ ${clone.innerHTML}
     });
     if (cloItems.length || eloItems.length) {
       if (typeof activeCourse !== 'undefined' && activeCourse) {
+        captureUndoState('replace from course parser');
         if (cloItems.length) activeCourse.clos = cloItems.slice();
         if (eloItems.length) activeCourse.flatElos = eloItems.slice();
         var clos = activeCourse.clos || [];
@@ -13369,7 +13370,8 @@ ${clone.innerHTML}
       preview += t.rich ? frCountInRichText(text, q, caseSensitive) : frCountInText(text, q, caseSensitive);
     });
     if (preview === 0) { if (status) { status.textContent = 'No matches to replace.'; status.style.color = '#999'; } return; }
-    if (!confirm('Replace ' + preview + ' occurrence' + (preview === 1 ? '' : 's') + ' of "' + q + '" with "' + r + '" across the worksheet? This cannot be undone.')) return;
+    if (!confirm('Replace ' + preview + ' occurrence' + (preview === 1 ? '' : 's') + ' of "' + q + '" with "' + r + '" across the worksheet?')) return;
+    captureUndoState('find/replace: ' + q.slice(0, 20));
 
     var replaced = 0;
     var counter = { count: 0 };
