@@ -3108,6 +3108,64 @@
     saveJiraEpicOverridesMap(map);
   }
 
+  // ===== AIRTABLE COMMENTS (mirror) =====
+  // Comments live on Airtable. We pull them via the proxy and cache in memory
+  // + localStorage so the side panel renders instantly between fetches. Users
+  // can hide individual comments locally; hidden state is persisted client-side.
+  // Shape: window._airtableComments[courseId] = { fetchedAt, comments: [{id,text,createdTime,author}] }
+  if (!window._airtableComments) window._airtableComments = {};
+  function readAirtableHidden() {
+    try { return JSON.parse(localStorage.getItem('airtable_comments_hidden') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function writeAirtableHidden(map) {
+    localStorage.setItem('airtable_comments_hidden', JSON.stringify(map));
+  }
+  function getHiddenAirtableCommentIds(courseId) {
+    var all = readAirtableHidden();
+    return all[courseId] || [];
+  }
+  window.hideAirtableComment = function(courseId, commentId) {
+    var all = readAirtableHidden();
+    if (!all[courseId]) all[courseId] = [];
+    if (all[courseId].indexOf(commentId) === -1) all[courseId].push(commentId);
+    writeAirtableHidden(all);
+    if (typeof renderDetail === 'function') renderDetail(courseId);
+  };
+  window.unhideAirtableComment = function(courseId, commentId) {
+    var all = readAirtableHidden();
+    if (!all[courseId]) return;
+    all[courseId] = all[courseId].filter(function(x) { return x !== commentId; });
+    writeAirtableHidden(all);
+    if (typeof renderDetail === 'function') renderDetail(courseId);
+  };
+  window.toggleAirtableHiddenVisible = function(courseId) {
+    if (!window._showHiddenAirtable) window._showHiddenAirtable = {};
+    window._showHiddenAirtable[courseId] = !window._showHiddenAirtable[courseId];
+    if (typeof renderDetail === 'function') renderDetail(courseId);
+  };
+  async function refreshAirtableComments(courseId, opts) {
+    opts = opts || {};
+    var url = (typeof getCourseAirtableUrl === 'function') ? getCourseAirtableUrl(courseId) : '';
+    var parsed = url ? parseAirtableUrl(url) : null;
+    if (!parsed) return null;
+    if (!window.AIRTABLE_VIA_PROXY && !hasAirtableAuth()) return null;
+    var path = parsed.baseId + '/' + parsed.tableId + '/' + parsed.recordId + '/comments?pageSize=100';
+    try {
+      var res = await callAirtableAPI(path, 'GET');
+      var list = (res && res.comments) || [];
+      window._airtableComments[courseId] = { fetchedAt: Date.now(), comments: list };
+      if (!opts.silent && typeof renderDetail === 'function') renderDetail(courseId);
+      return list;
+    } catch(e) {
+      console.warn('[airtable comments] fetch failed for ' + courseId + ':', e.message);
+      window._airtableComments[courseId] = { fetchedAt: Date.now(), comments: [], error: e.message };
+      if (!opts.silent && typeof renderDetail === 'function') renderDetail(courseId);
+      return null;
+    }
+  }
+  window.refreshAirtableComments = refreshAirtableComments;
+
   // ===== PRIVATE NOTES (multi-target) =====
   // Shape: { [courseId]: [{ id, text, createdAt, targets: ['self','jira','airtable'] }, ...] }
   function readPrivateNotes() {
@@ -3625,17 +3683,36 @@
     // ===== Development Notes (moved here from below, now an accordion) =====
     var dnCollapsed = isSectionCollapsed('dev-notes');
     var privateNotes = getCoursePrivateNotes(id);
+    var atCommentsCache = window._airtableComments[id];
+    var atComments = (atCommentsCache && atCommentsCache.comments) || [];
+    var atHiddenIds = getHiddenAirtableCommentIds(id);
+    var atHiddenSet = {};
+    atHiddenIds.forEach(function(x) { atHiddenSet[x] = true; });
+    var atVisibleCount = atComments.filter(function(c2) { return !atHiddenSet[c2.id]; }).length;
+    var totalCount = privateNotes.length + atVisibleCount;
+    var atFetchableNow = !!parseAirtableUrl(getCourseAirtableUrl(id)) && (window.AIRTABLE_VIA_PROXY || hasAirtableAuth());
+    // Auto-fetch on first open (cache miss) — non-blocking, will re-render when it lands.
+    if (atFetchableNow && !atCommentsCache) {
+      setTimeout(function() { refreshAirtableComments(id); }, 50);
+    }
     html += `<div class="detail-section">
       <div class="ds-head">
         <h3>Development Notes</h3>
         <div class="ds-head-inline">
-          <div style="font-size:11px; color:#999;">${privateNotes.length > 0 ? privateNotes.length + ' note' + (privateNotes.length === 1 ? '' : 's') : ''}</div>
+          <div style="font-size:11px; color:#999;">${totalCount > 0 ? totalCount + ' note' + (totalCount === 1 ? '' : 's') : ''}</div>
         </div>
         <button class="ds-toggle ${dnCollapsed ? 'collapsed' : ''}" id="ds-toggle-dev-notes" onclick="toggleDetailSection('dev-notes', event)">▾</button>
       </div>
       <div class="ds-body ${dnCollapsed ? 'collapsed' : ''}" id="ds-body-dev-notes">`;
+    var atRefreshLabel = atFetchableNow
+      ? (atCommentsCache && atCommentsCache.error
+          ? '⚠ Airtable: ' + String(atCommentsCache.error).replace(/</g,'&lt;')
+          : (atCommentsCache
+              ? 'Refresh from Airtable (' + new Date(atCommentsCache.fetchedAt).toLocaleTimeString() + ')'
+              : 'Pull comments from Airtable'))
+      : '';
     html += `<div class="pn-toolbar">
-      <div></div>
+      <div>${atFetchableNow ? `<button class="pn-refresh-btn" style="background:none; border:none; color:#1a73e8; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="refreshAirtableComments('${id}')">${atRefreshLabel}</button>` : ''}</div>
       <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
     </div>`;
     var jiraLabel = jiraEpic
@@ -3696,8 +3773,38 @@
         ${targetsHtml ? '<div class="pn-note-targets">' + targetsHtml + '</div>' : ''}
       </div>`;
     });
-    if (privateNotes.length === 0) {
-      html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.</div>`;
+    // Airtable comments — interleaved by date with private notes via simple
+    // append since they're already rendered above in createdAt-desc order. We
+    // render them after, sorted desc, with hide controls. Hidden comments are
+    // shown when window._showHiddenAirtable[id] is true.
+    var showHiddenAt = !!(window._showHiddenAirtable && window._showHiddenAirtable[id]);
+    var atSorted = atComments.slice().sort(function(a, b) {
+      return (b.createdTime || '').localeCompare(a.createdTime || '');
+    });
+    atSorted.forEach(function(cm) {
+      var isHidden = !!atHiddenSet[cm.id];
+      if (isHidden && !showHiddenAt) return;
+      var safeText = String(cm.text || '').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      var authorName = (cm.author && cm.author.name) || (cm.author && cm.author.email) || 'Airtable';
+      var dateStr = '';
+      try { dateStr = cm.createdTime ? new Date(cm.createdTime).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) + ' · ' + new Date(cm.createdTime).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }) : ''; } catch(e) {}
+      var hideAction = isHidden
+        ? '<button class="pn-edit" onclick="unhideAirtableComment(\'' + id + '\',\'' + cm.id + '\')" title="Unhide">↺</button>'
+        : '<button class="pn-del" onclick="hideAirtableComment(\'' + id + '\',\'' + cm.id + '\')" title="Hide this comment">×</button>';
+      html += `<div class="pn-note-card" style="${isHidden ? 'opacity:0.55; border-style:dashed;' : ''}">
+        <div class="pn-note-header">
+          <div class="pn-note-date">${dateStr} · <span style="color:#1a73e8;">${authorName.replace(/</g,'&lt;')}</span></div>
+          <div class="pn-note-actions">${hideAction}</div>
+        </div>
+        <div class="pn-note-text">${safeText}</div>
+        <div class="pn-note-targets"><span class="pn-target-chip airtable" title="Synced from Airtable">📋 Airtable comment</span></div>
+      </div>`;
+    });
+    if (atHiddenIds.length > 0) {
+      html += `<div style="margin-top:6px; text-align:center;"><button onclick="toggleAirtableHiddenVisible('${id}')" style="background:none; border:none; color:#888; font-size:11px; cursor:pointer; text-decoration:underline; font-family:Inter,sans-serif;">${showHiddenAt ? 'Hide ' : 'Show '} ${atHiddenIds.length} hidden Airtable comment${atHiddenIds.length === 1 ? '' : 's'}</button></div>`;
+    }
+    if (totalCount === 0) {
+      html += `<div style="font-size:12px; color:#999; font-style:italic;">No development notes yet.${atFetchableNow ? '' : ' Add an Airtable record URL to also pull comments.'}</div>`;
     }
     html += `</div></div>`; // close ds-body, detail-section
 

@@ -50,6 +50,8 @@ const ALLOWED_OPS: Array<{ method: string; pattern: RegExp }> = [
   { method: 'GET', pattern: new RegExp('^' + ALLOWED_BASE_ID + '/' + DEVELOPMENTS_TABLE + '/rec[A-Za-z0-9]+$') },
   // Post a comment on any record in the allowed base
   { method: 'POST', pattern: new RegExp('^' + ALLOWED_BASE_ID + '/tbl[A-Za-z0-9]+/rec[A-Za-z0-9]+/comments$') },
+  // Read comments on any record in the allowed base (with optional pageSize/offset)
+  { method: 'GET', pattern: new RegExp('^' + ALLOWED_BASE_ID + '/tbl[A-Za-z0-9]+/rec[A-Za-z0-9]+/comments(\\?.*)?$') },
 ];
 
 function isAllowed(method: string, path: string): boolean {
