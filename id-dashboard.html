@@ -3235,6 +3235,49 @@
   }
   window.refreshAirtableComments = refreshAirtableComments;
 
+  // ===== GRANOLA SYNC TRIGGER =====
+  // Calls the granola-sync edge function which pulls notes from Granola and
+  // upserts them into the meetings table. After it returns, re-load meetings
+  // from Supabase so the side panel reflects the new data immediately.
+  window.triggerGranolaSync = async function(courseId) {
+    var btn = document.getElementById('granola-sync-btn-' + courseId);
+    var origText = btn ? btn.innerHTML : '';
+    if (btn) { btn.innerHTML = '⟳ Syncing… (~30s)'; btn.disabled = true; btn.style.opacity = '0.7'; }
+    try {
+      var res = await fetch(window.SUPABASE_URL + '/functions/v1/granola-sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      var json = await res.json().catch(function() { return {}; });
+      if (!res.ok || !json.ok) {
+        var errMsg = (json && json.error) ? json.error : ('HTTP ' + res.status);
+        throw new Error(errMsg);
+      }
+      if (btn) {
+        btn.innerHTML = '✓ Synced ' + (json.matched || 0) + ' / ' + (json.fetched || 0) + ' notes';
+        btn.style.color = '#2e7d32';
+      }
+      // Pull fresh rows into the dashboard's in-memory cache + re-render the panel.
+      if (typeof loadMeetingsFromSupabase === 'function') {
+        await loadMeetingsFromSupabase();
+        if (typeof renderDetail === 'function') renderDetail(courseId);
+      }
+      // Reset button label after a moment so it's clickable again for another sync.
+      setTimeout(function() {
+        var b = document.getElementById('granola-sync-btn-' + courseId);
+        if (b) { b.innerHTML = '⟳ Sync from Granola'; b.disabled = false; b.style.opacity = ''; b.style.color = '#8c1d40'; }
+      }, 4000);
+    } catch (e) {
+      console.error('[granola-sync] failed:', e);
+      if (btn) {
+        btn.innerHTML = '⚠ Sync failed: ' + String(e.message || e).slice(0, 60);
+        btn.style.color = '#c62828';
+        btn.disabled = false;
+        btn.style.opacity = '';
+      }
+    }
+  };
+
   // ===== PRIVATE NOTES (multi-target) =====
   // Shape: { [courseId]: [{ id, text, createdAt, targets: ['self','jira','airtable'] }, ...] }
   function readPrivateNotes() {
@@ -3781,7 +3824,10 @@
               : 'Pull comments from Airtable'))
       : '';
     html += `<div class="pn-toolbar">
-      <div>${atFetchableNow ? `<button class="pn-refresh-btn" style="background:none; border:none; color:#1a73e8; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="refreshAirtableComments('${id}')">${atRefreshLabel}</button>` : ''}</div>
+      <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+        <button class="pn-refresh-btn" id="granola-sync-btn-${id}" style="background:none; border:none; color:#8c1d40; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="triggerGranolaSync('${id}')" title="Pull latest meeting notes from Granola into Supabase">⟳ Sync from Granola</button>
+        ${atFetchableNow ? `<button class="pn-refresh-btn" style="background:none; border:none; color:#1a73e8; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="refreshAirtableComments('${id}')">${atRefreshLabel}</button>` : ''}
+      </div>
       <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
     </div>`;
     var jiraLabel = jiraEpic
