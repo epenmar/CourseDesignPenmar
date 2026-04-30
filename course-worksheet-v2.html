@@ -5081,6 +5081,10 @@
   // prompting a reload. We deliberately don't auto-merge — the worksheet's
   // data shape is too broad to reason about conflict-free merges without CRDTs.
   var _remoteChangeChannel = null;
+  // Timestamp of the most recent live broadcast we applied. The postgres_changes
+  // UPDATE that follows ~2s later represents the same edit, so we suppress the
+  // reload banner in that window — the user already saw the change land live.
+  var _lastRemoteLiveEditAt = 0;
   function subscribeToRemoteWorksheetChanges() {
     if (!window._sbClient || !courseId) return;
     if (_remoteChangeChannel) return; // already subscribed
@@ -5094,6 +5098,9 @@
       }, function(payload) {
         // Ignore echoes of our own save (Supabase re-broadcasts our upserts).
         if (Date.now() - _lastLocalPushAt < 3000) return;
+        // If the live broadcast channel just delivered an edit, this UPDATE is
+        // the same event reaching us a second time — don't nag for a reload.
+        if (Date.now() - _lastRemoteLiveEditAt < 10000) return;
         showRemoteChangeBanner(payload && payload.new && payload.new.updated_at);
       })
       .subscribe();
@@ -10934,13 +10941,14 @@ ${clone.innerHTML}
     editChannel = supabaseClient.channel('worksheet-edits:' + courseId, {
       config: { broadcast: { self: false } }
     });
-    editChannel.on('broadcast', { event: 'field' }, function(msg) { applyRemoteFieldEdit(msg.payload); });
+    function _stampLive() { _lastRemoteLiveEditAt = Date.now(); }
+    editChannel.on('broadcast', { event: 'field' }, function(msg) { _stampLive(); applyRemoteFieldEdit(msg.payload); });
     editChannel.on('broadcast', { event: 'focus' }, function(msg) { applyRemoteFocus(msg.payload); });
-    editChannel.on('broadcast', { event: 'item' }, function(msg) { applyRemoteItem(msg.payload); });
-    editChannel.on('broadcast', { event: 'item-delete' }, function(msg) { applyRemoteItemDelete(msg.payload); });
-    editChannel.on('broadcast', { event: 'module-overview' }, function(msg) { applyRemoteModuleOverview(msg.payload); });
-    editChannel.on('broadcast', { event: 'module-list' }, function(msg) { applyRemoteModuleList(msg.payload); });
-    editChannel.on('broadcast', { event: 'timeline' }, function(msg) { applyRemoteTimeline(msg.payload); });
+    editChannel.on('broadcast', { event: 'item' }, function(msg) { _stampLive(); applyRemoteItem(msg.payload); });
+    editChannel.on('broadcast', { event: 'item-delete' }, function(msg) { _stampLive(); applyRemoteItemDelete(msg.payload); });
+    editChannel.on('broadcast', { event: 'module-overview' }, function(msg) { _stampLive(); applyRemoteModuleOverview(msg.payload); });
+    editChannel.on('broadcast', { event: 'module-list' }, function(msg) { _stampLive(); applyRemoteModuleList(msg.payload); });
+    editChannel.on('broadcast', { event: 'timeline' }, function(msg) { _stampLive(); applyRemoteTimeline(msg.payload); });
     editChannel.subscribe(function(status) {
       if (status === 'SUBSCRIBED') {
         _editRetryDelay = 1000;
