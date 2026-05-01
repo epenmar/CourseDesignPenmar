@@ -2237,9 +2237,10 @@
           '</div>' +
           '<div class="content-attach-body hidden" id="' + id + '-link">' +
             '<div class="link-input-row">' +
-              '<input type="text" class="activity-input" data-managed="true" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />' +
-              '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>' +
+              '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />' +
+              '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>' +
             '</div>' +
+            '<div id="' + id + '-link-list"></div>' +
           '</div>' +
           '<div class="content-attach-body hidden" id="' + id + '-template">' +
             '<div class="template-type-selector">' +
@@ -2333,7 +2334,7 @@
           '<div id="' + id + '-files"></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-link">' +
-          '<div class="link-input-row"><input type="text" class="activity-input" data-managed="true" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div>' +
+          '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button></div><div id="' + id + '-link-list"></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-template">' +
           '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + id + '" data-module-num="' + moduleNum + '" data-field="richText" data-placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div>' +
@@ -6420,9 +6421,9 @@
     // Link tab
     html += '<div class="content-attach-body hidden" id="' + id + '-link">';
     html += '<div class="link-input-row">';
-    html += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" />';
-    html += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button>';
-    html += '</div></div>';
+    html += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />';
+    html += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>';
+    html += '</div><div id="' + id + '-link-list"></div></div>';
     // Template tab with dropdown selector
     html += '<div class="content-attach-body hidden" id="' + id + '-template">';
     html += '<div class="template-type-selector">';
@@ -6703,7 +6704,7 @@
           html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
           html += '<div id="' + ovMatId + '-files"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
-          html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;">Add Link</button></div></div>';
+          html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + ovMatId + '\');}" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + ovMatId + '\')">Add Link</button></div><div id="' + ovMatId + '-link-list"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
           html += '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-field="richText" data-placeholder="Enter or paste content here..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div></div>';
           html += '</div></div></div>';
@@ -8491,6 +8492,75 @@
     refreshContentIndicator(prefix);
   }
 
+  // Find the activity or material object behind a content prefix. Strips an
+  // optional 'ov-' overview prefix and looks up by id in either collection.
+  function _itemForContentPrefix(prefix) {
+    if (!prefix) return null;
+    var rawId = String(prefix).replace(/^ov-/, '');
+    var collections = [
+      { coll: courseActivities || {}, kind: 'activity' },
+      { coll: courseMaterials || {}, kind: 'material' },
+    ];
+    for (var c = 0; c < collections.length; c++) {
+      var coll = collections[c].coll;
+      var keys = Object.keys(coll);
+      for (var i = 0; i < keys.length; i++) {
+        var arr = coll[keys[i]] || [];
+        for (var j = 0; j < arr.length; j++) {
+          if (arr[j] && arr[j].id === rawId) {
+            return { item: arr[j], modNum: parseInt(keys[i], 10), kind: collections[c].kind };
+          }
+        }
+      }
+    }
+    return null;
+  }
+
+  function _renderContentLinks(prefix) {
+    var listEl = document.getElementById(prefix + '-link-list');
+    if (!listEl) return;
+    var info = _itemForContentPrefix(prefix);
+    if (!info) { listEl.innerHTML = ''; return; }
+    var links = info.item.links || [];
+    if (!links.length) { listEl.innerHTML = ''; return; }
+    listEl.innerHTML = links.map(function(url, idx) {
+      var safe = String(url || '').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      return '<div class="attached-file" style="margin-top:6px;">🔗 <a href="' + safe + '" target="_blank" style="color:#1a73e8; text-decoration:none; flex:1; word-break:break-all;">' + safe + '</a> <span class="remove-file" onclick="removeContentLink(\'' + prefix + '\',' + idx + ')">×</span></div>';
+    }).join('');
+  }
+
+  // Add a URL to an activity or material's links[] array. Validates that the
+  // input has something pasted; otherwise blinks the input red briefly so the
+  // user knows the click registered but the field was empty.
+  window.addContentLink = function(prefix) {
+    var inputEl = document.querySelector('#' + prefix + '-link .link-input-row input');
+    if (!inputEl) return;
+    var url = (inputEl.value || '').trim();
+    if (!url) {
+      inputEl.style.background = '#ffebee';
+      setTimeout(function() { inputEl.style.background = ''; }, 600);
+      return;
+    }
+    var info = _itemForContentPrefix(prefix);
+    if (!info) return;
+    if (!Array.isArray(info.item.links)) info.item.links = [];
+    info.item.links.push(url);
+    inputEl.value = '';
+    if (typeof saveActivityData === 'function') saveActivityData();
+    _renderContentLinks(prefix);
+    refreshContentIndicator(prefix);
+  };
+
+  window.removeContentLink = function(prefix, idx) {
+    var info = _itemForContentPrefix(prefix);
+    if (!info || !Array.isArray(info.item.links)) return;
+    info.item.links.splice(idx, 1);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    _renderContentLinks(prefix);
+    refreshContentIndicator(prefix);
+  };
+  window._renderContentLinks = _renderContentLinks;
+
   // Walks the content body for a given activity/material id and decides
   // whether anything has been attached, linked, or typed into the template.
   // Toggles the .has-content class on the matching ▸ Content toggle button
@@ -8544,10 +8614,12 @@
 
   // Refresh every Content toggle in the current view — called after batch
   // re-renders so newly-rendered activities pick up their indicator state.
+  // Also re-paints the saved-links list inside each Link tab.
   function refreshAllContentIndicators() {
     document.querySelectorAll('[id^="attach-"], [id^="mat-attach-"]').forEach(function(body) {
       var prefix = body.id.replace(/^(mat-)?attach-/, '');
       refreshContentIndicator(prefix);
+      _renderContentLinks(prefix);
     });
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
