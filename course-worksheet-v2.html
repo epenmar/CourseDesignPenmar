@@ -405,6 +405,8 @@
   .overview-act-content { margin-top: 4px; margin-left: 24px; }
   .overview-act-expand { font-size: 11px; color: #8c1d40; cursor: pointer; border: none; background: none; font-weight: 500; padding: 2px 0; font-family: 'Inter', sans-serif; }
   .overview-act-expand:hover { text-decoration: underline; }
+  .overview-act-expand.has-content { color: #2e7d32; font-weight: 600; }
+  .overview-act-expand.has-content::before { content: '✓ '; font-weight: 700; }
   .overview-content-body { display: none; margin-top: 6px; }
   .overview-content-body.open { display: block; }
 
@@ -6611,6 +6613,7 @@
       if (cardsContainer) window.RichEditor.initAll(cardsContainer);
       if (tableContainer) window.RichEditor.initAll(tableContainer);
     }
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
   function renderMaterialsOverview(openModules) {
@@ -6748,6 +6751,7 @@
       if (cardsContainer) window.RichEditor.initAll(cardsContainer);
       if (tableContainer) window.RichEditor.initAll(tableContainer);
     }
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
   // Sync overview edits back to data model
@@ -8484,7 +8488,74 @@
     if (!file) return;
     input.value = ''; // reset so same file can be re-added
     _uploadAttachedFile(file, prefix);
+    refreshContentIndicator(prefix);
   }
+
+  // Walks the content body for a given activity/material id and decides
+  // whether anything has been attached, linked, or typed into the template.
+  // Toggles the .has-content class on the matching ▸ Content toggle button
+  // so the user can see at a glance which activities still need content.
+  function _contentIsPresent(bodyEl) {
+    if (!bodyEl) return false;
+    if (bodyEl.querySelector('.attached-file')) return true;
+    var inputs = bodyEl.querySelectorAll('input[type="text"]');
+    for (var i = 0; i < inputs.length; i++) { if ((inputs[i].value || '').trim()) return true; }
+    var textareas = bodyEl.querySelectorAll('textarea');
+    for (var j = 0; j < textareas.length; j++) { if ((textareas[j].value || '').trim()) return true; }
+    // Quill rich-editor renders into .ql-editor; check for non-empty content.
+    var qls = bodyEl.querySelectorAll('.ql-editor');
+    for (var k = 0; k < qls.length; k++) {
+      var t = (qls[k].textContent || '').trim();
+      if (t) return true;
+    }
+    return false;
+  }
+
+  function refreshContentIndicator(prefix) {
+    if (!prefix) return;
+    // The Content body has id "attach-<id>" (activities) or "mat-attach-<id>"
+    // (materials) — try both.
+    var bodyA = document.getElementById('attach-' + prefix);
+    var bodyB = document.getElementById('mat-attach-' + prefix);
+    var body = bodyA || bodyB;
+    if (!body) return;
+    var btn = body.previousElementSibling && body.previousElementSibling.querySelector
+      ? body.previousElementSibling.querySelector('.overview-act-expand')
+      : null;
+    if (!btn) {
+      // Fallback: scan the parent activity-block for the button.
+      var parent = body.closest('.activity-block, .material-block') || body.parentElement;
+      btn = parent ? parent.querySelector('.overview-act-expand') : null;
+    }
+    if (!btn) return;
+    btn.classList.toggle('has-content', _contentIsPresent(body));
+  }
+
+  // Refresh every Content toggle in the current view — called after batch
+  // re-renders so newly-rendered activities pick up their indicator state.
+  function refreshAllContentIndicators() {
+    document.querySelectorAll('[id^="attach-"], [id^="mat-attach-"]').forEach(function(body) {
+      var prefix = body.id.replace(/^(mat-)?attach-/, '');
+      refreshContentIndicator(prefix);
+    });
+  }
+  window.refreshAllContentIndicators = refreshAllContentIndicators;
+
+  // React to user edits anywhere in a content body (link added, template
+  // typed, etc.). Delegated at the document level so we don't need to wire
+  // listeners onto every input that might exist now or later.
+  document.addEventListener('input', function(e) {
+    var body = e.target && e.target.closest && e.target.closest('[id^="attach-"], [id^="mat-attach-"]');
+    if (!body) return;
+    var prefix = body.id.replace(/^(mat-)?attach-/, '');
+    refreshContentIndicator(prefix);
+  });
+  document.addEventListener('change', function(e) {
+    var body = e.target && e.target.closest && e.target.closest('[id^="attach-"], [id^="mat-attach-"]');
+    if (!body) return;
+    var prefix = body.id.replace(/^(mat-)?attach-/, '');
+    refreshContentIndicator(prefix);
+  });
 
   // OS drag-and-drop onto an .upload-zone. The activity-block above also has
   // a dragover/drop pair (for internal reordering), so we stopPropagation
@@ -8514,6 +8585,7 @@
     var files = e.dataTransfer && e.dataTransfer.files;
     if (!files || files.length === 0) return;
     for (var i = 0; i < files.length; i++) _uploadAttachedFile(files[i], prefix);
+    refreshContentIndicator(prefix);
   }
 
   function autoExpand(el) {
