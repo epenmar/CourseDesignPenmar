@@ -2398,15 +2398,72 @@
     if (!courseId) { console.warn('[cloud pull] no courseId'); window._cloudPullComplete = true; return; }
     setIndicator('☁ pulling…', '#999');
     try {
+      // Pull worksheet data (per-course)
       var r = await window._sbClient.from('worksheets').select('data, updated_at').eq('course_id', courseId).maybeSingle();
-      if (r.error) { console.warn('[cloud pull] error:', r.error.message); setIndicator('☁ pull error', '#c62828'); return; }
-      if (!r.data) { console.info('[cloud pull] no cloud copy for', courseId); setIndicator('☁ new course', '#999'); return; }
-      if (r.data.data && typeof r.data.data === 'object') {
+      if (r.error) { console.warn('[cloud pull] error:', r.error.message); setIndicator('☁ pull error', '#c62828'); }
+      else if (r.data && r.data.data && typeof r.data.data === 'object') {
         localStorage.setItem(storageKey, JSON.stringify(r.data.data));
         var t = r.data.updated_at ? new Date(r.data.updated_at).toLocaleTimeString() : 'now';
         console.info('[cloud pull] loaded', courseId, 'updated at', t);
         setIndicator('☁ pulled ' + t, '#2e7d32');
+      } else {
+        console.info('[cloud pull] no cloud copy for', courseId); setIndicator('☁ new course', '#999');
       }
+
+      // Also pull the course's metadata (driveFolder, instructor, etc.) from
+      // user_courses so a fresh browser — like the instructor's incognito
+      // session — sees the right Drive folder. Without this the worksheet
+      // falls back to its hardcoded map (which only has bst605 + mns521) and
+      // every other course shows "(no Drive folder set for this course)".
+      try {
+        var uc = await window._sbClient.from('user_courses').select('data').eq('course_id', courseId).maybeSingle();
+        if (uc && uc.data && uc.data.data) {
+          var cfg = uc.data.data;
+          var ws = cfg._worksheet || cfg;
+          // Hydrate fields that the worksheet uses to render but that may be
+          // missing from the local fallback. Don't blow away values the
+          // hardcoded map already supplied.
+          ['driveFolder','instructor','email','session','sessionShort','code','name','fullTitle','program','college','id','users','sessionValue','qaDate','milestoneDates','moduleCount']
+            .forEach(function(k) { if (!activeCourse[k] && ws[k]) activeCourse[k] = ws[k]; });
+          // Also write to localStorage user_courses so subsequent loads have it
+          // synchronously available (no flash of empty Drive link on reload).
+          try {
+            var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+            saved[courseId] = cfg;
+            localStorage.setItem('user_courses', JSON.stringify(saved));
+          } catch(e) {}
+        }
+      } catch(e) { console.warn('[cloud pull] user_courses fetch failed:', e && e.message); }
+
+      // Apply course_overrides (per-course Drive URL/instructor edits made via
+      // the dashboard) — same dashboard_state row that the dashboard reads.
+      try {
+        var ov = await window._sbClient.from('dashboard_state').select('data').eq('key', 'course_overrides').maybeSingle();
+        var overrideMap = ov && ov.data && ov.data.data;
+        var thisOverride = overrideMap && overrideMap[courseId];
+        if (thisOverride) {
+          if (thisOverride.driveFolder) activeCourse.driveFolder = thisOverride.driveFolder;
+          if (thisOverride.instructor) activeCourse.instructor = thisOverride.instructor;
+          if (thisOverride.email) activeCourse.email = thisOverride.email;
+          if (thisOverride.id) activeCourse.id = thisOverride.id;
+          if (thisOverride.session) { activeCourse.session = thisOverride.session; activeCourse.sessionShort = thisOverride.session; }
+          // Mirror to localStorage for the dashboard pages
+          try {
+            var rawOv = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+            rawOv[courseId] = thisOverride;
+            localStorage.setItem('course_overrides', JSON.stringify(rawOv));
+          } catch(e) {}
+        }
+      } catch(e) { console.warn('[cloud pull] course_overrides fetch failed:', e && e.message); }
+
+      // Refresh the sidebar Drive link if it was hidden because driveFolder was empty.
+      try {
+        var driveLink = document.getElementById('sidebar-drive-link');
+        if (driveLink && activeCourse.driveFolder) {
+          driveLink.href = activeCourse.driveFolder;
+          driveLink.style.display = 'inline-flex';
+        }
+      } catch(e) {}
     } catch(e) { console.warn('[cloud pull] failed:', e.message); setIndicator('☁ pull failed', '#c62828'); }
     finally { window._cloudPullComplete = true; }
   }
@@ -11675,13 +11732,15 @@ ${clone.innerHTML}
 
   // ===== IDENTITY =====
   function getCommentIdentity() {
-    // Locally saved identity takes priority — URL identity is only a default
-    // for first-time visitors (e.g., an instructor opening their link in a fresh browser).
+    // URL identity wins when present — these links are how the ID impersonates
+    // an instructor or reviewer (e.g., to test what they'll see). If the same
+    // browser also has a saved identity (the ID's own), that should NOT
+    // override an explicit ?user= parameter for the duration of this session.
+    if (urlIdentity) return urlIdentity;
     try {
       var local = JSON.parse(localStorage.getItem('comment_identity'));
       if (local && local.name) return local;
     } catch(e) {}
-    if (urlIdentity) return urlIdentity;
     // Fallback to the dashboard's id_profile so a session opened without ?user=
     // (e.g. clicking a course from the dashboard directly) still gets time
     // logged to Jira instead of silently dropping it. Previously POP644 logged
