@@ -3814,7 +3814,6 @@
       : '';
     html += `<div class="pn-toolbar">
       <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
-        <button class="pn-refresh-btn" id="granola-sync-btn-${id}" style="background:none; border:none; color:#8c1d40; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="triggerGranolaSync('${id}')" title="Pull latest meeting notes from Granola into Supabase">⟳ Sync from Granola</button>
         ${atFetchableNow ? `<button class="pn-refresh-btn" style="background:none; border:none; color:#1a73e8; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="refreshAirtableComments('${id}')">${atRefreshLabel}</button>` : ''}
       </div>
       <button class="pn-add-btn" onclick="togglePrivateNoteComposer('${id}')">+ Add Note</button>
@@ -4052,9 +4051,19 @@
       }
     }
 
-    // Meeting history — only renders when Granola meetings exist for this course.
+    // Meeting history. Always renders the section header so the Sync from
+    // Granola button is reachable even when no meetings have been synced
+    // yet — that's exactly when the button is most useful.
+    html += `<div class="detail-section">
+      <div style="display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap;">
+        <h3 style="margin:0;">Meeting Notes</h3>
+        <button class="pn-refresh-btn" id="granola-sync-btn-${id}" style="background:none; border:none; color:#8c1d40; font-size:11px; cursor:pointer; padding:0; text-decoration:underline; font-family:Inter,sans-serif;" onclick="triggerGranolaSync('${id}')" title="Pull latest meeting notes from Granola into Supabase">⟳ Sync from Granola</button>
+      </div>`;
+    if (!c.meetings || c.meetings.length === 0) {
+      html += `<div style="font-size:12px; color:#999; font-style:italic; margin-top:8px;">No meeting notes yet. Click "Sync from Granola" to pull the latest from Granola.</div>`;
+      html += `</div>`;
+    }
     if (c.meetings && c.meetings.length > 0) {
-      html += `<div class="detail-section"><h3>Meeting Notes</h3>`;
       c.meetings.forEach((m, idx) => {
         const isFirst = idx === 0;
         html += `<div class="meeting-card">
