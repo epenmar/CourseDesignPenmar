@@ -226,7 +226,21 @@ function parseNote(detail) {
 
   const sections = splitSections(body);
 
-  const decisions = bulletsOf(pickSection(sections, ['decisions', 'key decisions', 'decisions made']));
+  let decisions = bulletsOf(pickSection(sections, ['decisions', 'key decisions', 'decisions made']));
+  // Granola users rarely create a literal "Decisions Made" heading. Instead
+  // they file outcomes under sections titled "Assignment Weighting Structure
+  // Finalized" or "Module Format Established". Scan section titles for
+  // decision-language keywords and merge their bullets in. False positives
+  // are rare and benign — a "Finalized X" section almost always documents
+  // a decision worth surfacing on the dashboard.
+  const decisionTitleRe = /\b(finalized|established|agreed|decided|chosen|selected|approved|locked\s+in)\b/i;
+  for (const heading of Object.keys(sections)) {
+    if (heading.match(/^(decisions|key decisions|decisions made)/)) continue; // already pulled above
+    if (decisionTitleRe.test(heading)) {
+      const items = bulletsOf(sections[heading]);
+      if (items.length > 0) decisions = decisions.concat(items);
+    }
+  }
   const actionRaw = bulletsOf(pickSection(sections, ['action items', 'next steps', 'follow-up actions', 'follow-ups']));
   // Pull "tid bits to remember about the faculty member" from whichever
   // section best fits — Granola notes name them inconsistently, so try a

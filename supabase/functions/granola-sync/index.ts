@@ -183,7 +183,19 @@ function parseNote(detail: { id: string; title: string; created_at?: string; upd
   const projects = findCheckedItems(projectBlock);
   const peopleChecked = findCheckedItems(peopleBlock);
   const sections = splitSections(body);
-  const decisions = bulletsOf(pickSection(sections, ['decisions', 'key decisions', 'decisions made']));
+  let decisions = bulletsOf(pickSection(sections, ['decisions', 'key decisions', 'decisions made']));
+  // Mirror of sync-granola.mjs — Granola notes rarely have a literal
+  // "Decisions Made" heading; outcomes get filed under section titles like
+  // "Assignment Weighting Structure Finalized". Scan headings for decision-
+  // language keywords and merge their bullets in.
+  const decisionTitleRe = /\b(finalized|established|agreed|decided|chosen|selected|approved|locked\s+in)\b/i;
+  for (const heading of Object.keys(sections)) {
+    if (/^(decisions|key decisions|decisions made)/.test(heading)) continue;
+    if (decisionTitleRe.test(heading)) {
+      const items = bulletsOf(sections[heading]);
+      if (items.length > 0) decisions = decisions.concat(items);
+    }
+  }
   const actionRaw = bulletsOf(pickSection(sections, ['action items', 'next steps', 'follow-up actions', 'follow-ups']));
   const relationshipBuilding = bulletsOf(pickSection(sections, [
     'relationship building', 'relationship', 'rapport', 'personal',
