@@ -8896,19 +8896,22 @@
     if (!holder) return;
     holder.innerHTML = _buildMaterialLinkPickerHtml(prefix);
   }
-  function _frInsertBadge(el, badge) {
-    var insertTarget = el.querySelector('.act-drag-handle');
-    if (insertTarget && insertTarget.nextSibling) insertTarget.parentNode.insertBefore(badge, insertTarget.nextSibling);
-    else el.prepend(badge);
-  }
   function _setLinkBadge(el, count, tooltip) {
-    var badge = el.querySelector('.mat-usage-badge');
+    var badge = el.querySelector(':scope > .mat-usage-badge');
     if (count > 0) {
+      // Make sure the row is a positioning context so the absolute-positioned
+      // badge anchors to it. Skip if it's already absolute/relative/fixed.
+      var pos = (el.style.position || '').toLowerCase();
+      if (!pos) el.style.position = 'relative';
       if (!badge) {
         badge = document.createElement('span');
         badge.className = 'mat-usage-badge';
-        badge.style.cssText = 'display:inline-block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:1px 7px; font-size:10px; font-weight:600; margin-left:6px; white-space:nowrap; cursor:help;';
-        _frInsertBadge(el, badge);
+        // Float over the upper-left of the row instead of taking a slot in
+        // the activity-block's CSS grid. Earlier we inserted as a sibling of
+        // .act-drag-handle, which became its own grid cell and shifted every
+        // subsequent column right by one — breaking row alignment.
+        badge.style.cssText = 'position:absolute; top:-7px; left:14px; z-index:2; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:0 6px; font-size:9px; font-weight:600; line-height:14px; height:14px; white-space:nowrap; cursor:help; box-shadow:0 1px 2px rgba(0,0,0,0.05);';
+        el.appendChild(badge);
       }
       badge.textContent = '🔗 ' + count;
       badge.title = tooltip;
