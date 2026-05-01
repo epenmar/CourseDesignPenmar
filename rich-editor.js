@@ -77,6 +77,15 @@
     return sel;
   }
 
+  function _bumpContentIndicator(el) {
+    if (typeof window.refreshAllContentIndicators !== 'function') return;
+    // Quill text-change fires before the indicator's input listener sees the
+    // value, and contenteditable mutation events don't always bubble. Run a
+    // pass through every Content toggle on the page so the green ✓ tracks
+    // typing in real time.
+    try { window.refreshAllContentIndicators(); } catch(e) {}
+  }
+
   function persistTemplateChange(el, html) {
     if (typeof window.saveTemplateField !== 'function') return;
     window.saveTemplateField(
@@ -85,6 +94,7 @@
       el.getAttribute('data-section'),
       html
     );
+    _bumpContentIndicator(el);
   }
 
   function persistMaterialChange(el, html) {
@@ -94,6 +104,7 @@
     if (typeof window.saveMaterialField === 'function') {
       window.saveMaterialField(matId, modNum, field, html);
     }
+    _bumpContentIndicator(el);
   }
 
   function defaultToolbarOptions() {

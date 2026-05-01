@@ -2216,7 +2216,7 @@
         '<input type="text" class="activity-input" data-managed="true" data-field="name" value="' + escapeHtml(act.name) + '" placeholder="Activity name..." />' +
         '<input type="text" class="activity-input" data-managed="true" data-field="points" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" />' +
         '<input type="text" class="activity-input" data-managed="true" data-field="due" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" />' +
-        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
+        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="toggleContentBody(this, \'' + id + '\')">▸ Content</button>' +
       '</div>' +
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
@@ -2307,7 +2307,7 @@
       '<div style="display:flex; gap:12px; align-items:center;">' +
         '<select class="activity-input" data-managed="true" data-field="type" data-material-id="' + id + '" data-module-num="' + moduleNum + '" onchange="syncOverviewMaterial(this)" style="width:140px; font-size:12px; padding:6px 8px;">' + typeOptions + '</select>' +
         '<textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)" placeholder="Material title..." style="flex:1; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;">' + escapeHtml(mat.title) + '</textarea>' +
-        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=document.getElementById(\'mat-attach-' + id + '\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>' +
+        '<button class="overview-act-expand" style="flex-shrink:0;" onclick="toggleContentBody(this, \'' + id + '\')">▸ Content</button>' +
         '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteMaterial(this)" style="flex-shrink:0;">✕</button>' +
       '</div>' +
       '<div style="margin-top:8px; padding:6px 8px; background:#fafaf7; border:1px solid #ebe8e0; border-radius:6px;">' +
@@ -6400,7 +6400,7 @@
     var activeType = act.contentType || 'assignment';
 
     var html = '<div class="overview-act-content">';
-    html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\';">▸ Content</button>';
+    html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\'; refreshContentIndicator(\'' + id + '\');">▸ Content</button>';
     html += '<div class="overview-content-body">';
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
@@ -8511,6 +8511,17 @@
     return false;
   }
 
+  // Toggle a Content section open/closed and immediately refresh the green
+  // indicator so the user sees the right state without waiting for any
+  // input event. Wired to the ▸/▾ Content button across both views.
+  window.toggleContentBody = function(btn, prefix, openLabel, closedLabel) {
+    var body = document.getElementById('attach-' + prefix) || document.getElementById('mat-attach-' + prefix);
+    if (!body) return;
+    body.classList.toggle('open');
+    btn.textContent = body.classList.contains('open') ? (openLabel || '▾ Content') : (closedLabel || '▸ Content');
+    refreshContentIndicator(prefix);
+  };
+
   function refreshContentIndicator(prefix) {
     if (!prefix) return;
     // The Content body has id "attach-<id>" (activities) or "mat-attach-<id>"
@@ -8540,6 +8551,7 @@
     });
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
+  window.refreshContentIndicator = refreshContentIndicator;
 
   // React to user edits anywhere in a content body (link added, template
   // typed, etc.). Delegated at the document level so we don't need to wire
