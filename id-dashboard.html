@@ -3773,22 +3773,11 @@
       </div>
       <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
       <div class="jira-children" id="jira-children-${id}">${(cached && cached.childrenHtml) || ''}</div>`;
-      // Past meetings nested under the Jira Status tasks
-      if (pastMeetings.length > 0) {
-        html += `<div class="jira-past-meetings">
-          <div class="jira-past-meetings-title">Past Meetings (${pastMeetings.length})</div>`;
-        pastMeetings.slice(0, 10).forEach(function(pm) {
-          var dateDisp = new Date(pm.date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'});
-          var durTxt = pm.durationMinutes ? ' · ' + pm.durationMinutes + 'm' : '';
-          var safeLabel = String(pm.label || '').replace(/</g, '&lt;');
-          html += `<div class="jira-past-mtg-row">
-            <span class="past-date">${dateDisp}</span>
-            <span class="past-label">${safeLabel}</span>
-            <span class="past-dur">${durTxt}</span>
-          </div>`;
-        });
-        html += `</div>`;
-      }
+      // Past Meetings list under Jira used to render here. Removed because
+      // it sourced from Outlook calendar and duplicated the Meeting Notes
+      // section below (sometimes with the same meeting under two slightly
+      // different titles, like BST 605's Apr 10 entries). The Meeting Notes
+      // card down-page is the canonical place to see past meetings.
     }
     html += `</div></div>`; // close ds-body, detail-section
 
@@ -4025,16 +4014,42 @@
     }
     html += `</ul></div>`;
 
-    // Milestones
+    // Milestones — hide entries that the faculty has already checked off
+    // in the worksheet timeline. Each upcoming-milestone label maps back to
+    // the same index used by milestoneManualComplete in the worksheet, so
+    // when the instructor ticks "Materials Review" complete, the dashboard
+    // side panel stops showing it.
+    function _milestoneIdxForLabel(label, modCount) {
+      var l = String(label || '').toLowerCase().replace(/\s*\([^)]*\)\s*/g, '').trim();
+      if (l.indexOf('elo') !== -1 && l.indexOf('clo') !== -1) return 0;
+      if ((l.indexOf('mlo') !== -1 || l.indexOf('module mlos') !== -1) && (l.indexOf('topic') !== -1 || l.indexOf('module mlos') !== -1)) return 1;
+      if (l.indexOf('assignment') !== -1) return 2;
+      if (l.indexOf('material') !== -1) return 3;
+      var mm = l.match(/^module\s+(\d+)/);
+      if (mm) return 4 + parseInt(mm[1], 10) - 1;
+      if (l.indexOf('course shell draft') !== -1) return 4 + modCount;
+      if (l.indexOf('course lecture') !== -1 || l.indexOf('lectures') !== -1) return 5 + modCount;
+      if (l.indexOf('course shell') !== -1 || l.indexOf('final qa') !== -1 || l.indexOf('final walkthrough') !== -1 || l.indexOf('qa') !== -1) return 6 + modCount;
+      return -1;
+    }
     if (c.milestones.length > 0) {
-      html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
-      c.milestones.forEach(m => {
-        const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
-        const labelStyle = m.bold ? 'font-weight:600;' : '';
-        const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
-        html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
+      var _msMc = c.milestoneManualComplete || {};
+      var _msModCount = (c.modules && c.modules.length) || 7;
+      var _visibleMs = c.milestones.filter(function(m) {
+        var idx = _milestoneIdxForLabel(m.label, _msModCount);
+        if (idx === -1) return true; // unknown label — keep
+        return !_msMc[idx];
       });
-      html += `</div>`;
+      if (_visibleMs.length > 0) {
+        html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
+        _visibleMs.forEach(m => {
+          const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
+          const labelStyle = m.bold ? 'font-weight:600;' : '';
+          const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
+          html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
+        });
+        html += `</div>`;
+      }
     }
 
     // Meeting history — only renders when Granola meetings exist for this course.
