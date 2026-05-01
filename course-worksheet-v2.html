@@ -2096,6 +2096,13 @@
     saveField('courseActivities', courseActivities);
     saveField('courseMaterials', courseMaterials);
     if (typeof scheduleProgressUpdate === 'function') scheduleProgressUpdate();
+    // Every save path eventually flows through here. Refreshing the green ✓
+    // indicators on save catches every case (file upload, link add, template
+    // type, link to existing material, …) without needing every caller to
+    // remember to do it themselves.
+    if (typeof refreshAllContentIndicators === 'function') {
+      try { refreshAllContentIndicators(); } catch(e) {}
+    }
   }
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
