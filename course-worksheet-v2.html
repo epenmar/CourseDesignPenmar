@@ -8473,17 +8473,22 @@
     // the first linked material's module folder. Keeps Drive clean — every
     // assignment that shares a reading lands the file in one place.
     var redirectInfo = '';
+    var linkedMaterialName = null;
     if (info && info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) {
       var linkedMats = _getLinkedMaterialsForActivity(info.item);
       if (linkedMats.length > 0) {
         modNum = linkedMats[0].modNum;
-        redirectInfo = ' (linked to ' + (linkedMats[0].mat.title || 'material') + ')';
+        linkedMaterialName = linkedMats[0].mat.title || 'material';
+        redirectInfo = ' (linked to ' + linkedMaterialName + ')';
       }
     }
     var subfolderName = modNum ? ('Module ' + modNum) : null;
 
     var container = document.getElementById(prefix + '-files');
     if (!container) return;
+    // Optimistic placeholder row that we update once the upload/link
+    // resolves. Doesn't get persisted until success — only the data-model
+    // version (recorded via _recordAttachedFile) survives a re-render.
     var el = document.createElement('div');
     el.className = 'attached-file';
     el.setAttribute('data-filename', file.name);
@@ -8503,44 +8508,49 @@
       return;
     }
 
+    function _doUpload() {
+      status.textContent = 'Uploading to Drive…';
+      status.style.color = '#1a73e8';
+      var uploader = subfolderName
+        ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
+        : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
+      uploader.then(function(res) {
+        _recordAttachedFile(prefix, {
+          name: file.name, size: file.size,
+          webViewLink: res.webViewLink, driveId: res.id,
+          status: 'uploaded', folderName: subfolderName, redirectedTo: linkedMaterialName
+        });
+        // Repaint from data so the row index lines up for remove(×).
+        _renderAttachedFiles(prefix);
+        refreshContentIndicator(prefix);
+      }).catch(function(err) {
+        status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
+        status.style.color = '#c62828';
+      });
+    }
+
     // Phase 1: ask Drive whether this file already exists somewhere under the
     // course folder. If yes, treat the upload as a link — no second copy in
-    // Drive, no double-warn UX, the user just sees that the existing file is
-    // now attached here too.
+    // Drive, the user just sees that the existing file is now attached here.
     status.textContent = 'Checking Drive for existing copy…';
     status.style.color = '#999';
     window.GDrive.findFileInCourseTree(activeCourse.driveFolder, file.name).then(function(existing) {
       if (existing && existing.id) {
-        status.innerHTML = '<a href="' + existing.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Linked to existing — open in Drive</a>';
+        _recordAttachedFile(prefix, {
+          name: file.name, size: file.size,
+          webViewLink: existing.webViewLink, driveId: existing.id,
+          status: 'linked', folderName: subfolderName, redirectedTo: linkedMaterialName
+        });
+        _renderAttachedFiles(prefix);
+        refreshContentIndicator(prefix);
         return;
       }
-      // Not in Drive yet — proceed with upload.
-      status.textContent = 'Uploading to Drive…';
-      status.style.color = '#1a73e8';
-      var uploader = subfolderName
-        ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
-        : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
-      uploader.then(function(res) {
-        status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
-      }).catch(function(err) {
-        status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
-        status.style.color = '#c62828';
-      });
+      _doUpload();
     }).catch(function() {
       // findFileInCourseTree shouldn't reject (it returns null on errors),
       // but if it does, fall through to a normal upload rather than blocking
       // the user.
-      status.textContent = 'Uploading to Drive…';
-      status.style.color = '#1a73e8';
-      var uploader = subfolderName
-        ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
-        : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
-      uploader.then(function(res) {
-        status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
-      }).catch(function(err) {
-        status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
-        status.style.color = '#c62828';
-      });
+      _doUpload();
     });
   }
 
@@ -8551,6 +8561,48 @@
     _uploadAttachedFile(file, prefix);
     refreshContentIndicator(prefix);
   }
+
+  // Persist file metadata onto the activity/material so the row survives
+  // re-renders + reloads. Without this, attached-file divs are DOM-only and
+  // disappear the moment renderAssignmentsOverview() rebuilds innerHTML.
+  function _recordAttachedFile(prefix, meta) {
+    var info = _itemForContentPrefix(prefix);
+    if (!info) return;
+    if (!Array.isArray(info.item.attachedFiles)) info.item.attachedFiles = [];
+    info.item.attachedFiles.push(meta);
+    if (typeof saveActivityData === 'function') saveActivityData();
+  }
+
+  // Repaint the saved attached-file rows for a single content prefix.
+  // Bound to refreshAllContentIndicators so a render cycle picks them up.
+  function _renderAttachedFiles(prefix) {
+    var container = document.getElementById(prefix + '-files');
+    if (!container) return;
+    var info = _itemForContentPrefix(prefix);
+    if (!info || !Array.isArray(info.item.attachedFiles)) { container.innerHTML = ''; return; }
+    container.innerHTML = info.item.attachedFiles.map(function(meta, idx) {
+      var name = String(meta.name || '').replace(/</g, '&lt;');
+      var safeName = String(meta.name || '').replace(/"/g, '&quot;');
+      var size = meta.size ? ' (' + (meta.size / 1024).toFixed(0) + ' KB)' : '';
+      var folderHint = meta.folderName ? ' → <em style="color:#888;">' + meta.folderName + (meta.redirectedTo ? ' (linked to ' + String(meta.redirectedTo).replace(/</g, '&lt;') + ')' : '') + '</em>' : '';
+      var statusLabel = meta.status === 'linked'
+        ? '<a href="' + (meta.webViewLink || '#') + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Linked to existing — open in Drive</a>'
+        : (meta.webViewLink
+            ? '<a href="' + meta.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>'
+            : '');
+      return '<div class="attached-file" data-filename="' + safeName + '">📎 ' + name + ' <span style="color:#999; font-size:11px;">' + size + folderHint + '</span> <span class="upload-status" style="margin-left:6px; font-size:11px;">' + statusLabel + '</span> <span class="remove-file" onclick="removeAttachedFile(\'' + prefix + '\',' + idx + ')">×</span></div>';
+    }).join('');
+  }
+  window._renderAttachedFiles = _renderAttachedFiles;
+
+  window.removeAttachedFile = function(prefix, idx) {
+    var info = _itemForContentPrefix(prefix);
+    if (!info || !Array.isArray(info.item.attachedFiles)) return;
+    info.item.attachedFiles.splice(idx, 1);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    _renderAttachedFiles(prefix);
+    refreshContentIndicator(prefix);
+  };
 
   // Find the activity or material object behind a content prefix. Strips an
   // optional 'ov-' overview prefix and looks up by id in either collection.
@@ -8859,10 +8911,14 @@
       if (t) return true;
     }
     // Linked materials/assignments via the cross-link picker also count.
+    // Also check the data model directly for attachedFiles + links so the
+    // indicator is correct even before _render* paints rows into the DOM.
     if (bodyEl.id) {
       var prefix = bodyEl.id.replace(/^(mat-)?attach-/, '');
       var info = _itemForContentPrefix(prefix);
       if (info) {
+        if (Array.isArray(info.item.attachedFiles) && info.item.attachedFiles.length > 0) return true;
+        if (Array.isArray(info.item.links) && info.item.links.length > 0) return true;
         if (info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) return true;
         if (info.kind === 'material' && _getActivitiesLinkedToMaterial(info.item.id).length > 0) return true;
       }
@@ -8909,8 +8965,9 @@
   function refreshAllContentIndicators() {
     document.querySelectorAll('[id^="attach-"], [id^="mat-attach-"]').forEach(function(body) {
       var prefix = body.id.replace(/^(mat-)?attach-/, '');
-      refreshContentIndicator(prefix);
+      _renderAttachedFiles(prefix);
       _renderContentLinks(prefix);
+      refreshContentIndicator(prefix);
       var info = _itemForContentPrefix(prefix);
       if (info && info.kind === 'activity' && document.getElementById(prefix + '-linked-materials')) {
         _renderActivityLinkedMaterials(prefix);
@@ -9918,6 +9975,7 @@ ${clone.innerHTML}
           objectives: (a.objectives || []).slice(),
           richText: a.richText || '',
           links: (a.links || []).slice(),
+          attachedFiles: (a.attachedFiles || []).slice(),
           // Cross-references to materials in this course. Canvas Curate can use
           // these to reuse the same Canvas resource instead of re-uploading.
           linkedMaterialIds: (a.linkedMaterialIds || []).slice()
@@ -9942,6 +10000,7 @@ ${clone.innerHTML}
           objectives: (m.objectives || []).slice(),
           richText: m.richText || '',
           links: (m.links || []).slice(),
+          attachedFiles: (m.attachedFiles || []).slice(),
           linkedActivityIds: linkedActivityIds
         };
       });
