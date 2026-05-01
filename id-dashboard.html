@@ -3455,12 +3455,42 @@
         .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: 'key' })
         .then(function(r) { if (r.error) console.warn('[action-items] cloud sync failed:', r.error.message); });
     }
-    const row = el.closest('.meeting-action');
-    if (row) {
+    // In-place update — used for the Faculty To-dos rows in the Meeting
+    // Notes card (which keeps the row visible with strikethrough rather
+    // than hiding it on check).
+    const facultyRow = el.closest('.meeting-action');
+    if (facultyRow) {
       el.classList.toggle('done', next);
       el.textContent = next ? '✓' : '';
-      const txt = row.querySelector('.action-text');
+      const txt = facultyRow.querySelector('.action-text');
       if (txt) txt.classList.toggle('done', next);
+      return;
+    }
+    // For the My Action Items list at the top of the panel, completed items
+    // hide. Fade + remove the row directly instead of re-rendering the
+    // whole panel — the previous full re-render path was occasionally
+    // racing with loadMeetingsFromSupabase and blanking out the entire
+    // section until reload.
+    const myRow = el.closest('.action-item-row');
+    if (myRow && next) {
+      myRow.style.transition = 'opacity 0.2s';
+      myRow.style.opacity = '0';
+      setTimeout(function() {
+        var list = myRow.parentElement;
+        myRow.remove();
+        // If the list emptied out, replace it with the empty-state message.
+        if (list && list.classList.contains('action-items-list') && list.children.length === 0) {
+          var empty = document.createElement('div');
+          empty.style.cssText = 'font-size:12px; color:#999; font-style:italic;';
+          empty.textContent = 'No open action items.';
+          list.parentNode.replaceChild(empty, list);
+        }
+      }, 220);
+    } else if (myRow && !next) {
+      // Re-checking (un-doing): just toggle visual state. The user would
+      // have to refresh or reopen the panel to see it back in the list,
+      // but that's an edge case — un-doing is rare.
+      el.classList.toggle('done', next);
     }
   };
 
@@ -3580,7 +3610,7 @@
         var safeText = (a.text || '').replace(/</g, '&lt;');
         var mDate = m.date ? new Date(m.date + 'T00:00:00').toLocaleDateString('en-US', {month:'short', day:'numeric'}) : '';
         actionItemsHtml += '<li class="action-item-row">'
-          + '<span class="check" onclick="toggleActionItem(\'' + id + '\',\'' + mKey + '\',' + aIdx + ', this); renderDetail(\'' + id + '\');"></span>'
+          + '<span class="check" onclick="toggleActionItem(\'' + id + '\',\'' + mKey + '\',' + aIdx + ', this)"></span>'
           + '<span class="action-text">' + safeText + '</span>'
           + (mDate ? '<span class="action-src" title="' + (m.title || '').replace(/"/g,'&quot;') + '">Granola · ' + mDate + '</span>' : '')
           + '</li>';
