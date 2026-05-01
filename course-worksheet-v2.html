@@ -13923,6 +13923,26 @@ ${clone.innerHTML}
     if (typeof _doSaveAllFields === 'function') _doSaveAllFields();
   }
 
+  // Human-readable name for a view id — used in result labels so the user
+  // sees "Course Info → Section Lines" instead of "Field: ci-section-lines".
+  function _frViewLabel(view) {
+    var labels = {
+      'dashboard': 'Dashboard', 'course-info': 'Course Info',
+      'materials': 'Textbooks & Materials', 'additional': 'Course Context Q&A',
+      'objectives': 'ELOs & CLOs', 'syllabus': 'Syllabus Builder',
+      'course-mapping': 'Course Mapping', 'module-overview': 'Module Overview',
+      'assignments-overview': 'Assignments Overview',
+      'materials-overview': 'Materials Overview',
+    };
+    return labels[view] || view || 'Worksheet';
+  }
+  // Field IDs are kebab-case slugs. Convert to a friendly display name:
+  // "ci-section-lines" → "Section Lines".
+  function _frPrettyFieldId(id) {
+    var stripped = String(id || '').replace(/^[a-z]+-/i, '');
+    return stripped.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+  }
+
   // Build targets to search/replace. Each target carries `view`/`selector`
   // so the find-only UI can jump to it on click.
   function frBuildTargets() {
@@ -13936,14 +13956,21 @@ ${clone.innerHTML}
       if (id.indexOf('course-overview') === 0) return 'course-info';
       return null;
     }
+    // Skip the find-replace dialog's own inputs — formData['fr-find']
+    // contains whatever the user just typed, so without this every search
+    // returned a self-match titled "Field: fr-find".
+    var SKIP_FORM_IDS = /^(fr-|comment-|ai-|cp-|new-course-|edit-)/;
     Object.keys(formData).forEach(function(id) {
       if (typeof formData[id] !== 'string') return;
+      if (SKIP_FORM_IDS.test(id)) return;
+      var view = _viewForFormFieldId(id);
+      var pretty = _frPrettyFieldId(id);
       targets.push({
         kind: 'form',
-        label: 'Field: ' + id,
+        label: _frViewLabel(view) + ' → ' + pretty,
         read: function() { return formData[id] || ''; },
         write: function(t) { formData[id] = t; },
-        view: _viewForFormFieldId(id),
+        view: view,
         selector: '#' + CSS.escape(id),
       });
     });
@@ -13953,7 +13980,7 @@ ${clone.innerHTML}
       var m = mods[k] || {};
       if (typeof m.topic === 'string') {
         targets.push({
-          kind: 'mod', label: 'Module ' + k + ' topic',
+          kind: 'mod', label: 'Module Overview → Module ' + k + ' (topic)',
           read: function() { return m.topic || ''; },
           write: function(t) { m.topic = t; },
           view: 'module-overview',
@@ -13965,7 +13992,7 @@ ${clone.innerHTML}
         m.mlos.forEach(function(_, idx) {
           targets.push({
             kind: 'mlo',
-            label: 'Module ' + k + ' MLO ' + (idx + 1),
+            label: 'Module Overview → Module ' + k + ' → MLO ' + k + '.' + (idx + 1),
             read: function() { return m.mlos[idx] || ''; },
             write: function(t) { m.mlos[idx] = t; },
             view: 'module-overview',
@@ -13979,7 +14006,7 @@ ${clone.innerHTML}
     var clos = loadField('clos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.clos : null) || [];
     clos.forEach(function(_, idx) {
       targets.push({
-        kind: 'clo', label: 'CLO ' + (idx + 1),
+        kind: 'clo', label: 'ELOs & CLOs → CLO ' + (idx + 1),
         read: function() { return clos[idx] || ''; },
         write: function(t) { clos[idx] = t; },
         view: 'objectives',
@@ -13989,7 +14016,7 @@ ${clone.innerHTML}
     var elos = loadField('flatElos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.flatElos : null) || [];
     elos.forEach(function(_, idx) {
       targets.push({
-        kind: 'elo', label: 'ELO ' + (idx + 1),
+        kind: 'elo', label: 'ELOs & CLOs → ELO ' + (idx + 1),
         read: function() { return elos[idx] || ''; },
         write: function(t) { elos[idx] = t; },
         view: 'objectives',
@@ -14000,11 +14027,12 @@ ${clone.innerHTML}
     var acts = loadField('courseActivities') || {};
     Object.keys(acts).forEach(function(k) {
       (acts[k] || []).forEach(function(a, idx) {
+        var actDisplayName = a.name ? '"' + String(a.name).slice(0, 40) + (a.name.length > 40 ? '…' : '') + '"' : 'Activity ' + (idx + 1);
         ['name', 'points', 'due', 'contentType', 'notes'].forEach(function(field) {
           if (typeof a[field] === 'string' && a[field].length) {
             targets.push({
               kind: 'act-' + field,
-              label: 'Module ' + k + ' activity ' + (idx + 1) + ' ' + field,
+              label: 'Assignments Overview → Module ' + k + ' → ' + actDisplayName + ' (' + field + ')',
               read: function() { return a[field] || ''; },
               write: function(t) { a[field] = t; },
               view: 'assignments-overview',
@@ -14016,7 +14044,7 @@ ${clone.innerHTML}
         if (typeof a.richText === 'string' && a.richText.length) {
           targets.push({
             kind: 'act-rich',
-            label: 'Module ' + k + ' activity ' + (idx + 1) + ' rich text',
+            label: 'Assignments Overview → Module ' + k + ' → ' + actDisplayName + ' (rich text)',
             read: function() { return a.richText || ''; },
             write: function(t) { a.richText = t; },
             rich: true,
@@ -14031,11 +14059,12 @@ ${clone.innerHTML}
     var mats = loadField('courseMaterials') || {};
     Object.keys(mats).forEach(function(k) {
       (mats[k] || []).forEach(function(mat, idx) {
+        var matDisplayName = mat.title ? '"' + String(mat.title).slice(0, 40) + (mat.title.length > 40 ? '…' : '') + '"' : 'Material ' + (idx + 1);
         ['title', 'type'].forEach(function(field) {
           if (typeof mat[field] === 'string' && mat[field].length) {
             targets.push({
               kind: 'mat-' + field,
-              label: 'Module ' + k + ' material ' + (idx + 1) + ' ' + field,
+              label: 'Materials Overview → Module ' + k + ' → ' + matDisplayName + ' (' + field + ')',
               read: function() { return mat[field] || ''; },
               write: function(t) { mat[field] = t; },
               view: 'materials-overview',
@@ -14047,7 +14076,7 @@ ${clone.innerHTML}
         if (typeof mat.richText === 'string' && mat.richText.length) {
           targets.push({
             kind: 'mat-rich',
-            label: 'Module ' + k + ' material ' + (idx + 1) + ' rich text',
+            label: 'Materials Overview → Module ' + k + ' → ' + matDisplayName + ' (rich text)',
             read: function() { return mat.richText || ''; },
             write: function(t) { mat.richText = t; },
             rich: true,
