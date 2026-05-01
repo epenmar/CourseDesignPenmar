@@ -140,10 +140,41 @@
     });
   }
 
+  // Search the course folder + every immediate child folder for a file
+  // matching `fileName`. Returns the matched file metadata (id, name,
+  // parents, webViewLink) or null. Two API calls: one to enumerate child
+  // folders, one to query for the file across all candidate parents.
+  function findFileInCourseTree(courseFolderUrl, fileName) {
+    var courseId = folderIdFromUrl(courseFolderUrl);
+    if (!courseId || !fileName) return Promise.resolve(null);
+    return getAccessToken().then(function(token) {
+      var foldersQ = "'" + courseId + "' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false";
+      var foldersUrl = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(foldersQ) +
+        '&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=200';
+      return fetch(foldersUrl, { headers: { Authorization: 'Bearer ' + token } })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          var parentIds = [courseId].concat((res.files || []).map(function(f) { return f.id; }));
+          var parentClause = parentIds.map(function(id) { return "'" + id + "' in parents"; }).join(' or ');
+          var safeName = String(fileName).replace(/'/g, "\\'");
+          var q = "(" + parentClause + ") and name='" + safeName + "' and trashed=false";
+          var fileUrl = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
+            '&fields=files(id,name,parents,webViewLink,webContentLink)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=10';
+          return fetch(fileUrl, { headers: { Authorization: 'Bearer ' + token } })
+            .then(function(r) { return r.json(); })
+            .then(function(res2) {
+              return (res2 && res2.files && res2.files[0]) || null;
+            });
+        })
+        .catch(function() { return null; });
+    });
+  }
+
   window.GDrive = {
     uploadBlob: uploadBlob,
     uploadBlobToSubfolder: uploadBlobToSubfolder,
     findOrCreateFolder: findOrCreateFolder,
+    findFileInCourseTree: findFileInCourseTree,
     folderIdFromUrl: folderIdFromUrl,
     getAccessToken: getAccessToken
   };

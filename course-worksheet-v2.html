@@ -8465,37 +8465,13 @@
   function _uploadAttachedFile(file, prefix) {
     if (!file) return;
 
-    // Duplicate-filename warning. Scans every attached-file row currently in
-    // the page; if any other place already has a file with this name, ask
-    // the user to link instead of uploading a second copy. Same-session
-    // visibility only — doesn't query Drive — but covers the typical case
-    // where faculty paste the same reading into multiple spots.
-    var existingDup = null;
-    var allFileRows = document.querySelectorAll('.attached-file[data-filename="' + (file.name || '').replace(/"/g, '\\"') + '"]');
-    if (allFileRows.length > 0) existingDup = allFileRows[0];
-    if (existingDup) {
-      var location = '';
-      var ownerBody = existingDup.closest('[id^="attach-"], [id^="mat-attach-"]');
-      if (ownerBody) {
-        var ownerPrefix = ownerBody.id.replace(/^(mat-)?attach-/, '');
-        var ownerInfo = _itemForContentPrefix(ownerPrefix);
-        if (ownerInfo) location = ownerInfo.kind === 'activity'
-          ? '"' + (ownerInfo.item.name || ownerPrefix) + '" (assignment)'
-          : '"' + (ownerInfo.item.title || ownerPrefix) + '" (material)';
-      }
-      var dupMsg = 'A file named "' + file.name + '" is already attached' + (location ? ' to ' + location : '') + '.\n\nTo avoid duplicates, click Cancel and use the 🔗 tab to link to the existing item — that way every assignment shares one Drive file. Upload another copy anyway?';
-      if (!confirm(dupMsg)) return;
-    }
-
     var rawId = String(prefix || '').replace(/^ov-/, '');
     var info = _itemForContentPrefix(prefix);
     var modNum = _moduleNumForItemId(rawId);
 
     // If this is an activity with linked materials, redirect the upload to
     // the first linked material's module folder. Keeps Drive clean — every
-    // assignment that shares a reading lands the file in one place. The
-    // visible "→ Module N" hint on the file row tells the user where it
-    // actually went, so the redirect is transparent.
+    // assignment that shares a reading lands the file in one place.
     var redirectInfo = '';
     if (info && info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) {
       var linkedMats = _getLinkedMaterialsForActivity(info.item);
@@ -8526,16 +8502,45 @@
       status.style.color = '#999';
       return;
     }
-    status.textContent = 'Uploading to Drive…';
-    status.style.color = '#1a73e8';
-    var uploader = subfolderName
-      ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
-      : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
-    uploader.then(function(res) {
-      status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
-    }).catch(function(err) {
-      status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
-      status.style.color = '#c62828';
+
+    // Phase 1: ask Drive whether this file already exists somewhere under the
+    // course folder. If yes, treat the upload as a link — no second copy in
+    // Drive, no double-warn UX, the user just sees that the existing file is
+    // now attached here too.
+    status.textContent = 'Checking Drive for existing copy…';
+    status.style.color = '#999';
+    window.GDrive.findFileInCourseTree(activeCourse.driveFolder, file.name).then(function(existing) {
+      if (existing && existing.id) {
+        status.innerHTML = '<a href="' + existing.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Linked to existing — open in Drive</a>';
+        return;
+      }
+      // Not in Drive yet — proceed with upload.
+      status.textContent = 'Uploading to Drive…';
+      status.style.color = '#1a73e8';
+      var uploader = subfolderName
+        ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
+        : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
+      uploader.then(function(res) {
+        status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
+      }).catch(function(err) {
+        status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
+        status.style.color = '#c62828';
+      });
+    }).catch(function() {
+      // findFileInCourseTree shouldn't reject (it returns null on errors),
+      // but if it does, fall through to a normal upload rather than blocking
+      // the user.
+      status.textContent = 'Uploading to Drive…';
+      status.style.color = '#1a73e8';
+      var uploader = subfolderName
+        ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
+        : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
+      uploader.then(function(res) {
+        status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
+      }).catch(function(err) {
+        status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
+        status.style.color = '#c62828';
+      });
     });
   }
 
