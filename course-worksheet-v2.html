@@ -5448,12 +5448,16 @@
   let chatHistory = [];
 
   // ── CreateAI (ASU AI/ML Platform) configuration ──
-  // The bearer token used to live here in the shipped HTML, which let
-  // anyone who opened devtools exfiltrate it. The token is now held only
-  // by the local sync-server process (loaded from ~/conductor/.env), which
-  // proxies the request from /ai/query. The browser doesn't see the key.
+  // The bearer token never lives in the browser. Two server-side proxies
+  // hold it: the local sync-server (for the ID running the dashboard
+  // locally) and a Supabase Edge Function (for every collaborator). We
+  // try the Edge Function first because it works for everyone — the
+  // local server is now just an optional cache when running on the ID's
+  // own machine. Without this, instructors and reviewers got a "Could
+  // not reach 127.0.0.1:3456" error any time they used an AI feature.
   var CREATE_AI_CONFIG = {
-    proxyUrl: 'http://127.0.0.1:3456/ai/query',
+    edgeUrl: (window.SUPABASE_URL || '') + '/functions/v1/ai-proxy',
+    localUrl: 'http://127.0.0.1:3456/ai/query',
     model: 'claude4_5_sonnet',
     provider: 'aws'
   };
@@ -5470,48 +5474,45 @@
       temperature: 0
     };
     var body = JSON.stringify(payload);
-    console.log('[callCreateAI] request:', {
-      proxyUrl: CREATE_AI_CONFIG.proxyUrl,
-      model: CREATE_AI_CONFIG.model,
-      maxTokens: maxTokens,
-      queryBytes: (query || '').length,
-      systemPromptBytes: (systemPrompt || '').length,
-      totalBodyBytes: body.length
-    });
-    var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
-    var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
-    try {
-      var response = await fetch(CREATE_AI_CONFIG.proxyUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: body,
-        signal: controller ? controller.signal : undefined
-      });
-      if (!response.ok) {
-        var errBody = await response.text().catch(function() { return 'proxy error'; });
-        console.error('[callCreateAI] HTTP error', response.status, errBody);
-        // Friendly hint when the local sync-server isn't running.
-        if (response.status === 0 || response.status >= 500) {
-          throw new Error('AI proxy unreachable. Make sure the local sync-server is running (the ID Dashboard app starts it).');
+
+    async function _post(url) {
+      var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = controller ? setTimeout(function() { controller.abort(); }, timeoutMs) : null;
+      try {
+        var response = await fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: body,
+          signal: controller ? controller.signal : undefined
+        });
+        if (!response.ok) {
+          var errBody = await response.text().catch(function() { return ''; });
+          throw new Error('HTTP ' + response.status + (errBody ? ': ' + errBody : ''));
         }
-        throw new Error('CreateAI error (' + response.status + '): ' + errBody);
+        var data = await response.json();
+        return data.response;
+      } finally { if (timer) clearTimeout(timer); }
+    }
+
+    // Try the Edge Function first. If it fails for any reason — function
+    // not deployed, network error, AI upstream hiccup — fall back to the
+    // local sync-server. That preserves the existing behavior for the
+    // dashboard owner while making remote collaborators work.
+    try {
+      return await _post(CREATE_AI_CONFIG.edgeUrl);
+    } catch (edgeErr) {
+      console.warn('[callCreateAI] edge function failed, trying local:', edgeErr && edgeErr.message);
+      try {
+        return await _post(CREATE_AI_CONFIG.localUrl);
+      } catch (localErr) {
+        if (localErr && localErr.name === 'AbortError') {
+          throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the AI endpoint did not respond.');
+        }
+        // Both failed. Surface the edge error since that's the path
+        // most users hit.
+        var msg = (edgeErr && edgeErr.message) || (localErr && localErr.message) || 'unknown';
+        throw new Error('AI proxy unreachable (' + msg + '). The Supabase ai-proxy function may need redeployment.');
       }
-      var data = await response.json();
-      return data.response;
-    } catch (err) {
-      if (err && err.name === 'AbortError') {
-        console.error('[callCreateAI] timed out after', timeoutMs, 'ms');
-        throw new Error('Request timed out after ' + Math.round(timeoutMs / 1000) + 's — the ASU AI endpoint did not respond.');
-      }
-      // Browser-level network failure usually means the local sync-server
-      // isn't running — call that out.
-      if (err && err.message && /Failed to fetch|NetworkError/i.test(err.message)) {
-        throw new Error('Could not reach the local sync-server at 127.0.0.1:3456. Start it (the ID Dashboard app does this) and try again.');
-      }
-      console.error('[callCreateAI] fetch threw:', err && err.name, err && err.message, err);
-      throw err;
-    } finally {
-      if (timer) clearTimeout(timer);
     }
   }
 
