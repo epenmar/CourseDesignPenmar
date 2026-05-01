@@ -203,11 +203,12 @@ function parseNote(detail: { id: string; title: string; created_at?: string; upd
   ]));
   const ID_PREFIXES = /^(elisa(?:\s+penmar)?|penmar|id|me|i)\b\s*[:\-]/i;
   const FACULTY_PREFIX = /^([a-z][\w .'-]{0,40}?)\s*[:\-]\s+/i;
+  // Default is 'faculty' — see scripts/sync-granola.mjs for rationale.
   const actionItems = actionRaw.map(t => {
     const done = /\bdone\b/i.test(t) || /^\[x\]/i.test(t);
     const text = t.replace(/^\[[ x]\]\s*/i, '').trim();
     const naked = text.replace(/^[*_]+/, '').replace(/^[*_]+:/, ':');
-    let who = 'id';
+    let who = 'faculty';
     if (ID_PREFIXES.test(naked)) who = 'id';
     else if (/^(faculty|instructor)\b/i.test(naked)) who = 'faculty';
     else if (FACULTY_PREFIX.test(naked)) who = 'faculty';

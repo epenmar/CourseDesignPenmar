@@ -252,8 +252,11 @@ function parseNote(detail) {
   // Tag each action item by who it's for so the dashboard can show only
   // "things Elisa has to do" up top and "what the faculty owes" in the
   // meeting card. Recognized ID-side prefixes: "Elisa:", "Elisa Penmar:",
-  // "ID:", or just no prefix (defaults to ID — typical for unattributed
-  // bullets that the ID would track on the faculty's behalf).
+  // "ID:", or "Me:". Default is 'faculty' — most Granola-AI-generated
+  // bullets describe academic work the faculty owns (review module
+  // objectives, draft assignment, etc.), so falling-through to faculty
+  // produces a more accurate My Action Items panel than treating
+  // unattributed items as the ID's.
   const ID_PREFIXES = /^(elisa(?:\s+penmar)?|penmar|id|me|i)\b\s*[:\-]/i;
   const FACULTY_PREFIX = /^([a-z][\w .'-]{0,40}?)\s*[:\-]\s+/i;
   const actionItems = actionRaw.map(t => {
@@ -262,7 +265,7 @@ function parseNote(detail) {
     // Strip leading markdown bold/italic so "**Faculty member**: …"
     // classifies on the inner text.
     const naked = text.replace(/^[*_]+/, '').replace(/^[*_]+:/, ':');
-    let who = 'id';
+    let who = 'faculty';
     if (ID_PREFIXES.test(naked)) who = 'id';
     else if (/^(faculty|instructor)\b/i.test(naked)) who = 'faculty';
     else if (FACULTY_PREFIX.test(naked)) who = 'faculty';
