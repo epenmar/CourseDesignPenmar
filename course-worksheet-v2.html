@@ -2224,6 +2224,7 @@
             '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
             '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
             '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
+            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>' +
           '</div>' +
           '<div class="content-attach-body" id="' + id + '-upload">' +
             '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">' +
@@ -2290,6 +2291,7 @@
               '</div>' +
             '</div>' +
           '</div>' +
+          '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -2325,6 +2327,7 @@
           '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
           '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
           '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Text Entry</button>' +
+          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>' +
         '</div>' +
         '<div class="content-attach-body" id="' + id + '-upload">' +
           '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
@@ -2339,6 +2342,7 @@
         '<div class="content-attach-body hidden" id="' + id + '-template">' +
           '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + id + '" data-module-num="' + moduleNum + '" data-field="richText" data-placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div>' +
         '</div>' +
+        '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-assignments"></div></div>' +
       '</div>' +
       '</div>' +
     '</div>';
@@ -6409,6 +6413,7 @@
     html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
     html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
     html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
+    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>';
     html += '</div>';
     // Upload tab
     html += '<div class="content-attach-body" id="' + id + '-upload">';
@@ -6471,6 +6476,7 @@
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     html += '</div>'; // template body
+    html += '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>';
     html += '</div></div>'; // content-attach-inner + content-attach
     html += '</div></div>'; // overview-content-body + overview-act-content
     return html;
@@ -6698,6 +6704,7 @@
           html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + ovMatId + '\',\'upload\',this)">📁 Upload</button>';
           html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'link\',this)">🔗 Link</button>';
           html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'template\',this)">📝 Text Entry</button>';
+          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>';
           html += '</div>';
           html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
           html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + ovMatId + '\')" ondragleave="handleFileDragLeave(event,\'' + ovMatId + '\')" ondrop="handleFileDrop(event,\'' + ovMatId + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
@@ -6707,6 +6714,7 @@
           html += '<div class="link-input-row"><input type="text" class="activity-input" placeholder="Paste URL to resource..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + ovMatId + '\');}" /><button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + ovMatId + '\')">Add Link</button></div><div id="' + ovMatId + '-link-list"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
           html += '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-field="richText" data-placeholder="Enter or paste content here..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div></div>';
+          html += '<div class="content-attach-body hidden" id="' + ovMatId + '-linked"><div id="' + ovMatId + '-linked-assignments"></div></div>';
           html += '</div></div></div>';
         }
       }
@@ -7469,17 +7477,16 @@
   }
 
   function deleteOverviewMaterial(matId, modNum) {
+    if (!_confirmAndStripMaterialLinks([matId], 'Delete this material?')) return;
     captureUndoState('delete material');
-    if (confirm('Delete this material?')) {
-      if (courseMaterials[modNum]) {
-        courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
-        saveActivityData();
-      }
-      var open = getOpenOverviewModules('materials-overview-cards');
-      open[modNum] = true;
-      renderMaterialsOverview(open);
-      if (typeof broadcastItemDelete === 'function') broadcastItemDelete('material', modNum, matId);
+    if (courseMaterials[modNum]) {
+      courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
+      saveActivityData();
     }
+    var open = getOpenOverviewModules('materials-overview-cards');
+    open[modNum] = true;
+    renderMaterialsOverview(open);
+    if (typeof broadcastItemDelete === 'function') broadcastItemDelete('material', modNum, matId);
   }
 
   function getOverviewTableContainer(type) {
@@ -7540,7 +7547,8 @@
     if (!container) return;
     var checked = container.querySelectorAll('.overview-row-select:checked');
     if (!checked.length) return;
-    if (!confirm('Delete ' + checked.length + ' selected material(s)? This cannot be undone from here (use Undo if needed).')) return;
+    var matIds = Array.prototype.map.call(checked, function(cb) { return cb.getAttribute('data-material-id'); }).filter(Boolean);
+    if (!_confirmAndStripMaterialLinks(matIds, 'Delete ' + checked.length + ' selected material(s)? This cannot be undone from here (use Undo if needed).')) return;
     captureUndoState('bulk delete materials');
     var deletedMatsByMod = {};
     checked.forEach(function(cb) {
@@ -7562,7 +7570,7 @@
     if (!block) return;
     const matId = block.getAttribute('data-material-id');
     const modNum = parseInt(block.getAttribute('data-module-num'));
-    if (confirm('Delete this material?')) {
+    if (_confirmAndStripMaterialLinks([matId], 'Delete this material?')) {
       captureUndoState('delete material');
       if (courseMaterials[modNum]) {
         courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
@@ -7779,6 +7787,14 @@
     // Show the selected body
     const target = document.getElementById(prefix + '-' + tab);
     if (target) target.classList.remove('hidden');
+    // The linked-materials/linked-assignments picker depends on data that may
+    // have changed since render (e.g., new materials added). Re-render fresh
+    // every time the user clicks into the picker tab.
+    if (tab === 'linked') {
+      var info = _itemForContentPrefix(prefix);
+      if (info && info.kind === 'activity') _renderActivityLinkedMaterials(prefix);
+      else if (info && info.kind === 'material') _renderMaterialLinkedAssignments(prefix);
+    }
   }
 
   function switchTemplate(prefix, type, btn) {
@@ -8561,6 +8577,226 @@
   };
   window._renderContentLinks = _renderContentLinks;
 
+  // ===== ACTIVITY ↔ MATERIAL CROSS-LINKING =====
+  // Single source of truth: activity.linkedMaterialIds = [matId, …]. The
+  // material side computes "linked activities" by scanning activities, so the
+  // two pickers (one on each side) write to the same field but from different
+  // ends. Keeps deletes simple — warning + strip the material id from every
+  // activity that referenced it.
+  function _allMaterialsFlat() {
+    var out = [];
+    var keys = Object.keys(courseMaterials || {}).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    keys.forEach(function(m) {
+      (courseMaterials[m] || []).forEach(function(mat) { out.push({ modNum: m, mat: mat }); });
+    });
+    return out;
+  }
+  function _allActivitiesFlat() {
+    var out = [];
+    var keys = Object.keys(courseActivities || {}).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    keys.forEach(function(m) {
+      (courseActivities[m] || []).forEach(function(act) { out.push({ modNum: m, act: act }); });
+    });
+    return out;
+  }
+  function _getActivitiesLinkedToMaterial(matId) {
+    return _allActivitiesFlat().filter(function(row) {
+      return Array.isArray(row.act.linkedMaterialIds) && row.act.linkedMaterialIds.indexOf(matId) !== -1;
+    });
+  }
+  function _getLinkedMaterialsForActivity(act) {
+    if (!act || !Array.isArray(act.linkedMaterialIds) || !act.linkedMaterialIds.length) return [];
+    var ids = act.linkedMaterialIds;
+    var rows = _allMaterialsFlat();
+    var out = [];
+    ids.forEach(function(id) {
+      var match = rows.find(function(r) { return r.mat.id === id; });
+      if (match) out.push(match);
+    });
+    return out;
+  }
+
+  // Toggle membership of matId in activity.linkedMaterialIds. Used by both
+  // the activity-side picker (acting on its own activity) and the
+  // material-side picker (acting on the OTHER activity record). prefix is
+  // either an act-* or ov-act-* id; matId is always the bare material id.
+  window.toggleActivityMaterialLink = function(activityPrefix, matId) {
+    var info = _itemForContentPrefix(activityPrefix);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    if (!Array.isArray(act.linkedMaterialIds)) act.linkedMaterialIds = [];
+    var idx = act.linkedMaterialIds.indexOf(matId);
+    if (idx === -1) act.linkedMaterialIds.push(matId);
+    else act.linkedMaterialIds.splice(idx, 1);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    // Repaint both sides — the activity panel and the material panel. We
+    // don't know which view is on screen, so just refresh everything cheap.
+    _renderActivityLinkedMaterials(activityPrefix);
+    refreshAllContentIndicators();
+    if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
+  };
+
+  // Same toggle, but invoked from a material's picker. The id passed is the
+  // ov-act-* prefix for the activity row in the materials-side picker.
+  window.toggleMaterialActivityLink = function(matId, activityRawId) {
+    // Find the activity object directly to mutate its linkedMaterialIds.
+    var info = _itemForContentPrefix(activityRawId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    if (!Array.isArray(act.linkedMaterialIds)) act.linkedMaterialIds = [];
+    var idx = act.linkedMaterialIds.indexOf(matId);
+    if (idx === -1) act.linkedMaterialIds.push(matId);
+    else act.linkedMaterialIds.splice(idx, 1);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    refreshAllContentIndicators();
+    if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
+  };
+
+  // Build the markup for the "🔗 Linked Materials" picker on an activity.
+  // Two parts: a list of currently-linked materials (with file/links the
+  // material owns, so the assignment "uses" the material's resources without
+  // re-uploading), then a checkbox picker of every material in the course.
+  function _buildActivityLinkPickerHtml(activityPrefix) {
+    var info = _itemForContentPrefix(activityPrefix);
+    if (!info || info.kind !== 'activity') return '';
+    var act = info.item;
+    var linked = _getLinkedMaterialsForActivity(act);
+    var html = '';
+    // Linked materials inline display
+    if (linked.length) {
+      html += '<div style="margin-bottom:10px;">';
+      linked.forEach(function(row) {
+        var title = (row.mat.title || row.mat.type || '(untitled material)').replace(/</g, '&lt;');
+        var firstLink = (row.mat.links && row.mat.links[0]) || '';
+        var linkChip = firstLink ? ' · <a href="' + String(firstLink).replace(/"/g, '&quot;') + '" target="_blank" style="color:#1a73e8; text-decoration:none;">open file</a>' : '';
+        html += '<div class="attached-file" style="background:#e8f5e9; border-color:#a5d6a7;">'
+          + '🔗 <span style="flex:1;"><strong>' + title + '</strong> <span style="color:#666; font-size:11px;">· Module ' + row.modNum + linkChip + '</span></span>'
+          + '<span class="remove-file" title="Unlink this material" onclick="toggleActivityMaterialLink(\'' + activityPrefix + '\',\'' + row.mat.id + '\')">×</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+    // Picker — checkbox list of all materials in this course
+    var allMats = _allMaterialsFlat();
+    var linkedSet = {}; (act.linkedMaterialIds || []).forEach(function(id) { linkedSet[id] = true; });
+    if (!allMats.length) {
+      html += '<div style="font-size:12px; color:#999; font-style:italic;">No materials in this course yet. Add a material first, then come back here to link it.</div>';
+    } else {
+      html += '<div style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;">Available materials</div>';
+      html += '<div class="link-picker-list" style="max-height:180px; overflow-y:auto; border:1px solid #e0ddd5; border-radius:6px; padding:4px 8px;">';
+      allMats.forEach(function(row) {
+        var checked = linkedSet[row.mat.id] ? 'checked' : '';
+        var matTitle = (row.mat.title || row.mat.type || '(untitled)').replace(/</g, '&lt;');
+        html += '<label style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:12px; cursor:pointer;">'
+          + '<input type="checkbox" ' + checked + ' onchange="toggleActivityMaterialLink(\'' + activityPrefix + '\',\'' + row.mat.id + '\')" />'
+          + '<span style="flex:1;">' + matTitle + '</span>'
+          + '<span style="color:#999; font-size:10px;">M' + row.modNum + '</span>'
+          + '</label>';
+      });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  // Same idea on the material side: an "🔗 Linked Assignments" panel showing
+  // assignments currently linked to this material, plus a picker of all
+  // assignments in the course so faculty can link from either direction.
+  function _buildMaterialLinkPickerHtml(materialPrefix) {
+    var info = _itemForContentPrefix(materialPrefix);
+    if (!info || info.kind !== 'material') return '';
+    var mat = info.item;
+    var linkedRows = _getActivitiesLinkedToMaterial(mat.id);
+    var html = '';
+    if (linkedRows.length) {
+      html += '<div style="margin-bottom:10px;">';
+      linkedRows.forEach(function(row) {
+        var name = (row.act.name || '(untitled activity)').replace(/</g, '&lt;');
+        html += '<div class="attached-file" style="background:#e8f5e9; border-color:#a5d6a7;">'
+          + '🔗 <span style="flex:1;"><strong>' + name + '</strong> <span style="color:#666; font-size:11px;">· Module ' + row.modNum + '</span></span>'
+          + '<span class="remove-file" title="Unlink this assignment" onclick="toggleMaterialActivityLink(\'' + mat.id + '\',\'' + row.act.id + '\')">×</span>'
+          + '</div>';
+      });
+      html += '</div>';
+    }
+    var allActs = _allActivitiesFlat();
+    var linkedSet = {}; linkedRows.forEach(function(r) { linkedSet[r.act.id] = true; });
+    if (!allActs.length) {
+      html += '<div style="font-size:12px; color:#999; font-style:italic;">No assignments in this course yet.</div>';
+    } else {
+      html += '<div style="font-size:11px; color:#888; text-transform:uppercase; letter-spacing:0.04em; margin-bottom:6px; font-weight:600;">Available assignments</div>';
+      html += '<div class="link-picker-list" style="max-height:180px; overflow-y:auto; border:1px solid #e0ddd5; border-radius:6px; padding:4px 8px;">';
+      allActs.forEach(function(row) {
+        var checked = linkedSet[row.act.id] ? 'checked' : '';
+        var actName = (row.act.name || '(untitled)').replace(/</g, '&lt;');
+        html += '<label style="display:flex; align-items:center; gap:8px; padding:4px 0; font-size:12px; cursor:pointer;">'
+          + '<input type="checkbox" ' + checked + ' onchange="toggleMaterialActivityLink(\'' + mat.id + '\',\'' + row.act.id + '\')" />'
+          + '<span style="flex:1;">' + actName + '</span>'
+          + '<span style="color:#999; font-size:10px;">M' + row.modNum + '</span>'
+          + '</label>';
+      });
+      html += '</div>';
+    }
+    return html;
+  }
+
+  function _renderActivityLinkedMaterials(prefix) {
+    var holder = document.getElementById(prefix + '-linked-materials');
+    if (!holder) return;
+    holder.innerHTML = _buildActivityLinkPickerHtml(prefix);
+  }
+  function _renderMaterialLinkedAssignments(prefix) {
+    var holder = document.getElementById(prefix + '-linked-assignments');
+    if (!holder) return;
+    holder.innerHTML = _buildMaterialLinkPickerHtml(prefix);
+  }
+  function refreshAllMaterialUsageBadges() {
+    document.querySelectorAll('[data-material-id]').forEach(function(el) {
+      var matId = el.getAttribute('data-material-id');
+      var count = _getActivitiesLinkedToMaterial(matId).length;
+      var badge = el.querySelector('.mat-usage-badge');
+      if (count > 0) {
+        if (!badge) {
+          badge = document.createElement('span');
+          badge.className = 'mat-usage-badge';
+          badge.style.cssText = 'display:inline-block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:1px 7px; font-size:10px; font-weight:600; margin-left:6px; white-space:nowrap;';
+          var insertTarget = el.querySelector('.act-drag-handle');
+          if (insertTarget && insertTarget.nextSibling) insertTarget.parentNode.insertBefore(badge, insertTarget.nextSibling);
+          else el.prepend(badge);
+        }
+        badge.textContent = '🔗 ' + count;
+        badge.title = 'Used in ' + count + ' assignment' + (count === 1 ? '' : 's');
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+  }
+  window._renderActivityLinkedMaterials = _renderActivityLinkedMaterials;
+  window._renderMaterialLinkedAssignments = _renderMaterialLinkedAssignments;
+  window.refreshAllMaterialUsageBadges = refreshAllMaterialUsageBadges;
+
+  // Confirm a material delete with a count of dependent assignment links and,
+  // on yes, strip the material id from every activity's linkedMaterialIds.
+  // Returns true if the caller should proceed with the actual delete.
+  function _confirmAndStripMaterialLinks(matIds, baseMessage) {
+    var ids = Array.isArray(matIds) ? matIds : [matIds];
+    var totalLinks = 0;
+    ids.forEach(function(matId) { totalLinks += _getActivitiesLinkedToMaterial(matId).length; });
+    var msg = baseMessage + (totalLinks > 0
+      ? '\n\nThis material is linked from ' + totalLinks + ' assignment' + (totalLinks === 1 ? '' : 's') + '. Deleting will remove the link.'
+      : '');
+    if (!confirm(msg)) return false;
+    ids.forEach(function(matId) {
+      _allActivitiesFlat().forEach(function(row) {
+        if (Array.isArray(row.act.linkedMaterialIds)) {
+          var idx = row.act.linkedMaterialIds.indexOf(matId);
+          if (idx !== -1) row.act.linkedMaterialIds.splice(idx, 1);
+        }
+      });
+    });
+    return true;
+  }
+  window._confirmAndStripMaterialLinks = _confirmAndStripMaterialLinks;
+
   // Walks the content body for a given activity/material id and decides
   // whether anything has been attached, linked, or typed into the template.
   // Toggles the .has-content class on the matching ▸ Content toggle button
@@ -8577,6 +8813,15 @@
     for (var k = 0; k < qls.length; k++) {
       var t = (qls[k].textContent || '').trim();
       if (t) return true;
+    }
+    // Linked materials/assignments via the cross-link picker also count.
+    if (bodyEl.id) {
+      var prefix = bodyEl.id.replace(/^(mat-)?attach-/, '');
+      var info = _itemForContentPrefix(prefix);
+      if (info) {
+        if (info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) return true;
+        if (info.kind === 'material' && _getActivitiesLinkedToMaterial(info.item.id).length > 0) return true;
+      }
     }
     return false;
   }
@@ -8614,13 +8859,23 @@
 
   // Refresh every Content toggle in the current view — called after batch
   // re-renders so newly-rendered activities pick up their indicator state.
-  // Also re-paints the saved-links list inside each Link tab.
+  // Also re-paints the saved-links list inside each Link tab and the
+  // linked-materials/linked-assignments picker, plus the per-material usage
+  // badge so "🔗 N assignments" stays current.
   function refreshAllContentIndicators() {
     document.querySelectorAll('[id^="attach-"], [id^="mat-attach-"]').forEach(function(body) {
       var prefix = body.id.replace(/^(mat-)?attach-/, '');
       refreshContentIndicator(prefix);
       _renderContentLinks(prefix);
+      var info = _itemForContentPrefix(prefix);
+      if (info && info.kind === 'activity' && document.getElementById(prefix + '-linked-materials')) {
+        _renderActivityLinkedMaterials(prefix);
+      }
+      if (info && info.kind === 'material' && document.getElementById(prefix + '-linked-assignments')) {
+        _renderMaterialLinkedAssignments(prefix);
+      }
     });
+    if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
   window.refreshContentIndicator = refreshContentIndicator;
