@@ -3480,9 +3480,26 @@
     // Get saved MLO data from localStorage
     const savedMods = loadField('moduleOverviewData') || {};
 
-    for (let m = 0; m < modCount; m++) {
-      const modNum = m + startNum;
-      const modData = modules[m] || {};
+    // Modules to render = the canonical range plus any module that has
+    // saved data (activities, materials, overview) outside that range.
+    // Without this, a course that started with moduleStartZero on and
+    // accumulated content in Module 0 would visually "lose" that module
+    // when the toggle was flipped off — the data persists but no card
+    // ever re-rendered to display it.
+    const modSet = {};
+    for (let m = 0; m < modCount; m++) modSet[m + startNum] = true;
+    Object.keys(savedMods || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
+    Object.keys(courseActivities || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && (courseActivities[k] || []).length > 0) modSet[n] = true; });
+    Object.keys(courseMaterials || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && (courseMaterials[k] || []).length > 0) modSet[n] = true; });
+    const allModNums = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+
+    for (let mi = 0; mi < allModNums.length; mi++) {
+      const modNum = allModNums[mi];
+      // The original modules[] array is indexed 0-based regardless of startNum,
+      // so back out which slot this modNum corresponds to. May be undefined for
+      // modules outside the canonical range — fall back to {} so we still render.
+      const modIdx = modNum - startNum;
+      const modData = (modIdx >= 0 ? modules[modIdx] : null) || {};
       const savedMod = savedMods[modNum] || {};
       const topic = savedMod.topic || modData.title || '';
       const mlos = savedMod.mlos || modData.mlos || [];
@@ -6500,6 +6517,15 @@
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
     var savedMods = loadField('moduleOverviewData') || {};
+    // Union of canonical-range modules and any module-with-content. See
+    // renderModuleOverviewCards for the full rationale — keeps Module 0
+    // (or any out-of-range slot) visible whenever it has activities.
+    var _startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modSet = {};
+    for (var _i = 0; _i < modCount; _i++) modSet[_i + _startN] = true;
+    Object.keys(courseActivities || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && (courseActivities[k] || []).length > 0) modSet[n] = true; });
+    Object.keys(savedMods || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
+    var modNumList = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
 
     // Render course objectives accordion at page top
     renderCourseObjectivesAccordion();
@@ -6530,8 +6556,9 @@
       }
     }
     var _asn = activeCourse.moduleStartZero ? 0 : 1;
-    for (var m = _asn; m < modCount + _asn; m++) {
-      var mod = modules[m - _asn];
+    for (var _mi = 0; _mi < modNumList.length; _mi++) {
+      var m = modNumList[_mi];
+      var mod = modules[m - _asn] || null;
       var savedMod = savedMods[m] || {};
       var modTitle = savedMod.topic || (mod ? mod.title : '') || 'Module ' + m;
       var acts = courseActivities[m] || [];
@@ -6602,8 +6629,9 @@
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'assignments\')">Clear</button>';
       thtml += '</div>';
       thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
-      for (var m = _asn; m < modCount + _asn; m++) {
-        var mod = modules[m - _asn];
+      for (var _ti = 0; _ti < modNumList.length; _ti++) {
+        var m = modNumList[_ti];
+        var mod = modules[m - _asn] || null;
         var acts = courseActivities[m] || [];
         thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < acts.length; i++) {
@@ -6665,8 +6693,15 @@
       }
     }
     var _msn = activeCourse.moduleStartZero ? 0 : 1;
-    for (var m = _msn; m < modCount + _msn; m++) {
-      var mod = modules[m - _msn];
+    // Same union approach as renderAssignmentsOverview / renderModuleOverviewCards.
+    var matModSet = {};
+    for (var _mi = 0; _mi < modCount; _mi++) matModSet[_mi + _msn] = true;
+    Object.keys(courseMaterials || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && (courseMaterials[k] || []).length > 0) matModSet[n] = true; });
+    Object.keys(matSavedMods || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) matModSet[n] = true; });
+    var matModList = Object.keys(matModSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    for (var _mli = 0; _mli < matModList.length; _mli++) {
+      var m = matModList[_mli];
+      var mod = modules[m - _msn] || null;
       var matSavedMod = matSavedMods[m] || {};
       var modTitle = matSavedMod.topic || (mod ? mod.title : '') || 'Module ' + m;
       var mats = courseMaterials[m] || [];
@@ -6744,7 +6779,8 @@
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'materials\')">Clear</button>';
       thtml += '</div>';
       thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="materials-select-all" onchange="toggleSelectAllOverview(\'materials\', this.checked)" title="Select all" /></th><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
-      for (var m = 1; m <= modCount; m++) {
+      for (var _tmi = 0; _tmi < matModList.length; _tmi++) {
+        var m = matModList[_tmi];
         var mats = courseMaterials[m] || [];
         thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < mats.length; i++) {
