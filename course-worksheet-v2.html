@@ -8464,15 +8464,54 @@
   // the underlying item id used by the data model.
   function _uploadAttachedFile(file, prefix) {
     if (!file) return;
+
+    // Duplicate-filename warning. Scans every attached-file row currently in
+    // the page; if any other place already has a file with this name, ask
+    // the user to link instead of uploading a second copy. Same-session
+    // visibility only — doesn't query Drive — but covers the typical case
+    // where faculty paste the same reading into multiple spots.
+    var existingDup = null;
+    var allFileRows = document.querySelectorAll('.attached-file[data-filename="' + (file.name || '').replace(/"/g, '\\"') + '"]');
+    if (allFileRows.length > 0) existingDup = allFileRows[0];
+    if (existingDup) {
+      var location = '';
+      var ownerBody = existingDup.closest('[id^="attach-"], [id^="mat-attach-"]');
+      if (ownerBody) {
+        var ownerPrefix = ownerBody.id.replace(/^(mat-)?attach-/, '');
+        var ownerInfo = _itemForContentPrefix(ownerPrefix);
+        if (ownerInfo) location = ownerInfo.kind === 'activity'
+          ? '"' + (ownerInfo.item.name || ownerPrefix) + '" (assignment)'
+          : '"' + (ownerInfo.item.title || ownerPrefix) + '" (material)';
+      }
+      var dupMsg = 'A file named "' + file.name + '" is already attached' + (location ? ' to ' + location : '') + '.\n\nTo avoid duplicates, click Cancel and use the 🔗 tab to link to the existing item — that way every assignment shares one Drive file. Upload another copy anyway?';
+      if (!confirm(dupMsg)) return;
+    }
+
     var rawId = String(prefix || '').replace(/^ov-/, '');
+    var info = _itemForContentPrefix(prefix);
     var modNum = _moduleNumForItemId(rawId);
+
+    // If this is an activity with linked materials, redirect the upload to
+    // the first linked material's module folder. Keeps Drive clean — every
+    // assignment that shares a reading lands the file in one place. The
+    // visible "→ Module N" hint on the file row tells the user where it
+    // actually went, so the redirect is transparent.
+    var redirectInfo = '';
+    if (info && info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) {
+      var linkedMats = _getLinkedMaterialsForActivity(info.item);
+      if (linkedMats.length > 0) {
+        modNum = linkedMats[0].modNum;
+        redirectInfo = ' (linked to ' + (linkedMats[0].mat.title || 'material') + ')';
+      }
+    }
     var subfolderName = modNum ? ('Module ' + modNum) : null;
 
     var container = document.getElementById(prefix + '-files');
     if (!container) return;
     var el = document.createElement('div');
     el.className = 'attached-file';
-    var folderHint = subfolderName ? ' → <em style="color:#888;">' + subfolderName + '</em>' : '';
+    el.setAttribute('data-filename', file.name);
+    var folderHint = subfolderName ? ' → <em style="color:#888;">' + subfolderName + redirectInfo + '</em>' : '';
     el.innerHTML = '📎 ' + file.name + ' <span style="color:#999; font-size:11px;">(' + (file.size / 1024).toFixed(0) + ' KB)' + folderHint + '</span> <span class="upload-status" style="margin-left:6px; font-size:11px;"></span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>';
     container.appendChild(el);
 
@@ -9872,14 +9911,33 @@ ${clone.innerHTML}
           id: a.id, name: a.name || '', type: a.contentType || 'assignment',
           points: a.points || '', due: a.due || '',
           objectives: (a.objectives || []).slice(),
-          richText: a.richText || ''
+          richText: a.richText || '',
+          links: (a.links || []).slice(),
+          // Cross-references to materials in this course. Canvas Curate can use
+          // these to reuse the same Canvas resource instead of re-uploading.
+          linkedMaterialIds: (a.linkedMaterialIds || []).slice()
         };
       });
       var mats = (courseMaterials[n] || []).map(function(m) {
+        // Computed list of activity ids that link to this material (single
+        // source of truth lives on the activity, surfaced here for consumers
+        // that read materials first).
+        var linkedActivityIds = [];
+        var allMods = Object.keys(courseActivities || {});
+        for (var ami = 0; ami < allMods.length; ami++) {
+          var arr = courseActivities[allMods[ami]] || [];
+          for (var ai = 0; ai < arr.length; ai++) {
+            if (Array.isArray(arr[ai].linkedMaterialIds) && arr[ai].linkedMaterialIds.indexOf(m.id) !== -1) {
+              linkedActivityIds.push(arr[ai].id);
+            }
+          }
+        }
         return {
           id: m.id, type: m.type || 'Reading', title: m.title || '',
           objectives: (m.objectives || []).slice(),
-          richText: m.richText || ''
+          richText: m.richText || '',
+          links: (m.links || []).slice(),
+          linkedActivityIds: linkedActivityIds
         };
       });
       modules.push({ number: n, topic: topic, mlos: mlos, activities: acts, materials: mats });
