@@ -12123,29 +12123,36 @@ ${clone.innerHTML}
       return document.querySelector('.nav-item[onclick*="showView(\'' + viewId + '\')"]');
     }
 
+    // Paint the LOCAL user's color from identity directly rather than via
+    // presenceState. presenceChannel.track() is async, so when paintNavPresence
+    // runs synchronously after a navigation, our entry in users[] may still
+    // hold the previous page — meaning the new active item never gets the
+    // pill color and the user sees the default ASU maroon. Using identity +
+    // currentViewId is always current.
+    if (identity && identity.name) {
+      var myItem = navFor(currentViewId || 'dashboard');
+      if (myItem && myItem.classList.contains('active')) {
+        var myColor = userColorFor(identity.name);
+        myItem.style.background = myColor + '20';
+        myItem.style.color = myColor;
+        myItem.style.borderLeft = '3px solid ' + myColor;
+        myItem.dataset._presenceColored = '1';
+      }
+    }
+
     users.forEach(function(u) {
+      var isMe = identity && u.name === identity.name;
+      if (isMe) return; // already handled above
       var item = navFor(u.page);
       if (!item) return;
       var color = userColorFor(u.name);
-      var isMe = identity && u.name === identity.name;
-      if (isMe) {
-        // Recolor the local user's active item to their pill color so the
-        // active marker matches the pill in the presence bar.
-        if (item.classList.contains('active')) {
-          item.style.background = color + '20';
-          item.style.color = color;
-          item.style.borderLeft = '3px solid ' + color;
-          item.dataset._presenceColored = '1';
-        }
-      } else {
-        // Mark a collaborator's page with a colored dot. If the same page
-        // already has a dot from another collaborator, append another.
-        var dot = document.createElement('span');
-        dot.className = 'presence-dot';
-        dot.style.background = color;
-        dot.title = u.name + ' is here';
-        item.appendChild(dot);
-      }
+      // Mark a collaborator's page with a colored dot. If the same page
+      // already has a dot from another collaborator, append another.
+      var dot = document.createElement('span');
+      dot.className = 'presence-dot';
+      dot.style.background = color;
+      dot.title = u.name + ' is here';
+      item.appendChild(dot);
     });
   }
 
