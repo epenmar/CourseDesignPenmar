@@ -2202,7 +2202,7 @@
     const driveHref = activeCourse.driveFolder || '#';
     const activeType = act.contentType || 'discussion';
 
-    return '<div class="activity-block" draggable="true" data-activity-id="' + id + '" data-module-num="' + moduleNum + '" ' +
+    return '<div class="activity-block" draggable="false" data-activity-id="' + id + '" data-module-num="' + moduleNum + '" ' +
       'ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">' +
       '<div class="activity-block-toolbar">' +
         '<span class="act-drag-handle" title="Drag to reorder">⠿</span>' +
@@ -6548,7 +6548,7 @@
         html += '</div>';
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
-          html += '<div class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
+          html += '<div class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
           html += '<div style="display:grid; grid-template-columns:24px 2fr 3fr 80px 100px 28px; gap:8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
@@ -6589,9 +6589,9 @@
         thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="assignments" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < acts.length; i++) {
           var act = acts[i];
-          thtml += '<tr class="activity-block" draggable="true" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<tr class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
           thtml += '<td style="text-align:center;"><input type="checkbox" class="overview-row-select" data-activity-id="' + act.id + '" data-module-num="' + m + '" onchange="updateOverviewSelection(\'assignments\')" /></td>';
-          thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
+          thtml += '<td style="font-weight:600; color:#8c1d40;"><span class="act-drag-handle" title="Drag to move" style="cursor:grab; margin-right:4px;">⠿</span>M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
@@ -6671,7 +6671,7 @@
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
           var ovMatId = 'ov-' + mat.id;
-          html += '<div class="material-item" draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ';
+          html += '<div class="material-item" draggable="false" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)" ';
           html += 'style="padding:8px; border:1px solid #e8e5dd; border-radius:6px; margin-bottom:6px; background:#fff;">';
           // Row 1: drag handle, type, title, optional, content toggle, delete
@@ -6728,9 +6728,9 @@
         thtml += '<tbody class="' + (m % 2 === 0 ? 'mod-band-alt' : '') + '" data-drop-zone="materials-ov" data-drop-module="' + m + '" ondragover="overviewDragOver(event)" ondrop="overviewDrop(event)" ondragleave="overviewDragLeave(event)">';
         for (var i = 0; i < mats.length; i++) {
           var mat = mats[i];
-          thtml += '<tr draggable="true" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
+          thtml += '<tr class="material-block" draggable="false" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-overview-type="materials-ov" ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
           thtml += '<td style="text-align:center;"><input type="checkbox" class="overview-row-select" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="updateOverviewSelection(\'materials\')" /></td>';
-          thtml += '<td style="font-weight:600; color:#8c1d40; cursor:grab;">M' + m + '</td>';
+          thtml += '<td style="font-weight:600; color:#8c1d40;"><span class="act-drag-handle" title="Drag to move" style="cursor:grab; margin-right:4px;">⠿</span>M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
@@ -8556,6 +8556,26 @@
     var prefix = body.id.replace(/^(mat-)?attach-/, '');
     refreshContentIndicator(prefix);
   });
+
+  // Drag-handle gating. Activity/material rows are rendered with
+  // draggable="false" by default. We flip it to "true" only when the user
+  // mousedowns on the ⠿ handle, then back to "false" on mouseup. This
+  // restricts drag-to-reorder to the handle while leaving the rest of the
+  // row freely clickable for text selection, button presses, etc.
+  document.addEventListener('mousedown', function(e) {
+    if (!e.target || !e.target.closest) return;
+    var row = e.target.closest('.activity-block, .material-item, .material-block');
+    if (!row) return;
+    var onHandle = e.target.closest('.act-drag-handle');
+    row.setAttribute('draggable', onHandle ? 'true' : 'false');
+  }, true);
+  // Reset draggable back to false after any mouseup so a stale "true" can't
+  // accidentally trigger a drag from a future click anywhere on the row.
+  document.addEventListener('mouseup', function(e) {
+    if (!e.target || !e.target.closest) return;
+    var row = e.target.closest('.activity-block, .material-item, .material-block');
+    if (row) row.setAttribute('draggable', 'false');
+  }, true);
 
   // OS drag-and-drop onto an .upload-zone. The activity-block above also has
   // a dragover/drop pair (for internal reordering), so we stopPropagation
