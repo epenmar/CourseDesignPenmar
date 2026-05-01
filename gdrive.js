@@ -63,11 +63,7 @@
     });
   }
 
-  function uploadBlob(folderUrl, name, blob, mimeType, onProgress) {
-    var folderId = folderIdFromUrl(folderUrl);
-    if (!folderId) {
-      return Promise.reject(new Error('No Drive folder configured for this course. Set the Google Drive Folder URL in Course Info.'));
-    }
+  function _uploadToFolderId(folderId, name, blob, mimeType, onProgress) {
     return getAccessToken().then(function(token) {
       var metadata = { name: name, parents: [folderId] };
       if (mimeType) metadata.mimeType = mimeType;
@@ -101,8 +97,53 @@
     });
   }
 
+  function uploadBlob(folderUrl, name, blob, mimeType, onProgress) {
+    var folderId = folderIdFromUrl(folderUrl);
+    if (!folderId) {
+      return Promise.reject(new Error('No Drive folder configured for this course. Set the Google Drive Folder URL in Course Info.'));
+    }
+    return _uploadToFolderId(folderId, name, blob, mimeType, onProgress);
+  }
+
+  // Find a child folder named `name` under `parentId`, or create it. Returns
+  // the child folder's id. Drive folder names are not unique by default, so
+  // we take the first match. supportsAllDrives + includeItemsFromAllDrives so
+  // shared-drive course folders work the same as personal-drive ones.
+  function findOrCreateFolder(parentFolderUrlOrId, name) {
+    var parentId = /\/folders\//.test(String(parentFolderUrlOrId))
+      ? folderIdFromUrl(parentFolderUrlOrId)
+      : parentFolderUrlOrId;
+    if (!parentId) return Promise.reject(new Error('No parent Drive folder.'));
+    return getAccessToken().then(function(token) {
+      var safeName = name.replace(/'/g, "\\'");
+      var q = "'" + parentId + "' in parents and mimeType='application/vnd.google-apps.folder' and name='" + safeName + "' and trashed=false";
+      var listUrl = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) + '&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true';
+      return fetch(listUrl, { headers: { Authorization: 'Bearer ' + token } })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res && res.files && res.files.length > 0) return res.files[0].id;
+          return fetch('https://www.googleapis.com/drive/v3/files?supportsAllDrives=true&fields=id,name', {
+            method: 'POST',
+            headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: name, mimeType: 'application/vnd.google-apps.folder', parents: [parentId] })
+          }).then(function(r) { return r.json(); }).then(function(f) {
+            if (!f || !f.id) throw new Error('Failed to create Drive folder: ' + JSON.stringify(f));
+            return f.id;
+          });
+        });
+    });
+  }
+
+  function uploadBlobToSubfolder(parentFolderUrl, subfolderName, name, blob, mimeType, onProgress) {
+    return findOrCreateFolder(parentFolderUrl, subfolderName).then(function(subfolderId) {
+      return _uploadToFolderId(subfolderId, name, blob, mimeType, onProgress);
+    });
+  }
+
   window.GDrive = {
     uploadBlob: uploadBlob,
+    uploadBlobToSubfolder: uploadBlobToSubfolder,
+    findOrCreateFolder: findOrCreateFolder,
     folderIdFromUrl: folderIdFromUrl,
     getAccessToken: getAccessToken
   };

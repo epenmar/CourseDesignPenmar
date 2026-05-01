@@ -447,6 +447,7 @@
   .template-preview.hidden { display: none; }
   .upload-zone { border: 2px dashed #d0cdc5; border-radius: 8px; padding: 16px; text-align: center; color: #999; font-size: 12px; cursor: pointer; transition: all 0.15s; }
   .upload-zone:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
+  .upload-zone.drag-over-file { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; border-style: solid; }
   .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
   .link-input-row { display: flex; gap: 8px; align-items: center; }
   .link-input-row input { flex: 1; }
@@ -2223,7 +2224,7 @@
             '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
           '</div>' +
           '<div class="content-attach-body" id="' + id + '-upload">' +
-            '<div class="upload-zone" onclick="this.querySelector(\'input\').click()">' +
+            '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">' +
               '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>' +
               '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />' +
             '</div>' +
@@ -2323,7 +2324,7 @@
           '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Text Entry</button>' +
         '</div>' +
         '<div class="content-attach-body" id="' + id + '-upload">' +
-          '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
+          '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
           '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
             '<strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. When uploading slide presentations, consider using the original PowerPoint file. For all documents, use built-in heading styles and add alt text to images before uploading.' +
           '</div>' +
@@ -6351,7 +6352,7 @@
     html += '</div>';
     // Upload tab
     html += '<div class="content-attach-body" id="' + id + '-upload">';
-    html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()">';
+    html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">';
     html += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
     html += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
     html += '</div>';
@@ -6638,7 +6639,7 @@
           html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'template\',this)">📝 Text Entry</button>';
           html += '</div>';
           html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
-          html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
+          html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + ovMatId + '\')" ondragleave="handleFileDragLeave(event,\'' + ovMatId + '\')" ondrop="handleFileDrop(event,\'' + ovMatId + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
           html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
           html += '<div id="' + ovMatId + '-files"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
@@ -8361,17 +8362,43 @@
     });
   }
 
-  function handleFileAttach(input, prefix) {
-    const file = input.files[0];
-    if (!file) return;
-    const container = document.getElementById(prefix + '-files');
-    const el = document.createElement('div');
-    el.className = 'attached-file';
-    el.innerHTML = `📎 ${file.name} <span style="color:#999; font-size:11px;">(${(file.size / 1024).toFixed(0)} KB)</span> <span class="upload-status" style="margin-left:6px; font-size:11px;"></span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>`;
-    container.appendChild(el);
-    input.value = ''; // reset so same file can be re-added
+  // Find which module an activity/material id lives in. Used so uploaded
+  // files land in a "Module N" subfolder of the course Drive folder.
+  function _moduleNumForItemId(itemId) {
+    if (!itemId) return null;
+    var collections = [courseActivities || {}, courseMaterials || {}];
+    for (var c = 0; c < collections.length; c++) {
+      var coll = collections[c];
+      var keys = Object.keys(coll);
+      for (var i = 0; i < keys.length; i++) {
+        var arr = coll[keys[i]] || [];
+        for (var j = 0; j < arr.length; j++) {
+          if (arr[j] && arr[j].id === itemId) return parseInt(keys[i], 10);
+        }
+      }
+    }
+    return null;
+  }
 
-    const status = el.querySelector('.upload-status');
+  // Shared upload routine — called by both the click-to-attach handler and
+  // the drop-on-zone handler. prefix is the activity or material id (e.g.
+  // "act-3" or "ov-mat-12"). The "ov-" overview prefix is stripped to find
+  // the underlying item id used by the data model.
+  function _uploadAttachedFile(file, prefix) {
+    if (!file) return;
+    var rawId = String(prefix || '').replace(/^ov-/, '');
+    var modNum = _moduleNumForItemId(rawId);
+    var subfolderName = modNum ? ('Module ' + modNum) : null;
+
+    var container = document.getElementById(prefix + '-files');
+    if (!container) return;
+    var el = document.createElement('div');
+    el.className = 'attached-file';
+    var folderHint = subfolderName ? ' → <em style="color:#888;">' + subfolderName + '</em>' : '';
+    el.innerHTML = '📎 ' + file.name + ' <span style="color:#999; font-size:11px;">(' + (file.size / 1024).toFixed(0) + ' KB)' + folderHint + '</span> <span class="upload-status" style="margin-left:6px; font-size:11px;"></span> <span class="remove-file" onclick="this.parentElement.remove()">×</span>';
+    container.appendChild(el);
+
+    var status = el.querySelector('.upload-status');
     if (!window.GDrive) {
       status.textContent = '(Drive helper unavailable)';
       status.style.color = '#999';
@@ -8384,12 +8411,52 @@
     }
     status.textContent = 'Uploading to Drive…';
     status.style.color = '#1a73e8';
-    window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type).then(function(res) {
+    var uploader = subfolderName
+      ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, file.name, file, file.type)
+      : window.GDrive.uploadBlob(activeCourse.driveFolder, file.name, file, file.type);
+    uploader.then(function(res) {
       status.innerHTML = '<a href="' + res.webViewLink + '" target="_blank" style="color:#2e7d32; text-decoration:none;">✓ Uploaded — open in Drive</a>';
     }).catch(function(err) {
       status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
       status.style.color = '#c62828';
     });
+  }
+
+  function handleFileAttach(input, prefix) {
+    var file = input.files[0];
+    if (!file) return;
+    input.value = ''; // reset so same file can be re-added
+    _uploadAttachedFile(file, prefix);
+  }
+
+  // OS drag-and-drop onto an .upload-zone. The activity-block above also has
+  // a dragover/drop pair (for internal reordering), so we stopPropagation
+  // here and bypass the reorder path. preventDefault on dragover is required
+  // by the HTML5 drag-and-drop spec to make the zone a valid drop target.
+  function handleFileDragOver(e, prefix) {
+    if (!e.dataTransfer) return;
+    var hasFile = false;
+    for (var i = 0; i < (e.dataTransfer.types || []).length; i++) {
+      if (e.dataTransfer.types[i] === 'Files') { hasFile = true; break; }
+    }
+    if (!hasFile) return;
+    e.preventDefault();
+    e.stopPropagation();
+    var zone = e.currentTarget;
+    if (zone) zone.classList.add('drag-over-file');
+  }
+  function handleFileDragLeave(e, prefix) {
+    var zone = e.currentTarget;
+    if (zone) zone.classList.remove('drag-over-file');
+  }
+  function handleFileDrop(e, prefix) {
+    e.preventDefault();
+    e.stopPropagation();
+    var zone = e.currentTarget;
+    if (zone) zone.classList.remove('drag-over-file');
+    var files = e.dataTransfer && e.dataTransfer.files;
+    if (!files || files.length === 0) return;
+    for (var i = 0; i < files.length; i++) _uploadAttachedFile(files[i], prefix);
   }
 
   function autoExpand(el) {
