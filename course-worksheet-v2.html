@@ -1547,27 +1547,28 @@
 </div>
 
 <div id="find-replace-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:250; align-items:flex-start; justify-content:center; padding-top:80px;" onclick="if(event.target===this) closeFindReplace();">
-  <div style="background:#fff; border-radius:12px; padding:20px 24px; max-width:480px; width:90%; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+  <div style="background:#fff; border-radius:12px; padding:20px 24px; max-width:560px; width:90%; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
       <h3 style="margin:0; font-size:15px; color:#8c1d40;">🔍 Find &amp; Replace</h3>
       <button onclick="closeFindReplace()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
     </div>
-    <div style="display:flex; flex-direction:column; gap:10px;">
+    <div style="display:flex; flex-direction:column; gap:10px; min-height:0;">
       <label style="font-size:11px; color:#666; font-weight:600; display:block;">Find
         <input type="text" id="fr-find" style="display:block; width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; margin-top:3px;" oninput="updateFindReplaceCount()" onkeydown="if(event.key==='Enter'&&event.shiftKey===false&&(event.metaKey||event.ctrlKey)) performReplaceAll()">
       </label>
-      <label style="font-size:11px; color:#666; font-weight:600; display:block;">Replace with
+      <label style="font-size:11px; color:#666; font-weight:600; display:block;">Replace with <span style="font-weight:400; color:#999;">(optional — leave blank to find only)</span>
         <input type="text" id="fr-replace" style="display:block; width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; margin-top:3px;">
       </label>
       <label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#555; cursor:pointer;">
         <input type="checkbox" id="fr-case" onchange="updateFindReplaceCount()"> Match case
       </label>
       <div id="fr-status" style="font-size:12px; color:#666; min-height:18px;"></div>
+      <div id="fr-results" style="overflow-y:auto; max-height:40vh; border:1px solid #f0ede5; border-radius:6px; display:none;"></div>
       <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:6px;">
         <button onclick="closeFindReplace()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
         <button onclick="performReplaceAll()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Replace All</button>
       </div>
-      <div style="font-size:10px; color:#999; border-top:1px solid #f0ede5; padding-top:8px; margin-top:4px;">Searches form fields, module topics &amp; objectives, CLOs/ELOs, assignments, materials, and rich-text content. Replacements cannot be undone — consider downloading the worksheet first.</div>
+      <div style="font-size:10px; color:#999; border-top:1px solid #f0ede5; padding-top:8px; margin-top:4px;">Searches form fields, module topics &amp; objectives, CLOs/ELOs, assignments, materials, and rich-text content. Click a result to jump to that location. Replacements cannot be undone — consider downloading the worksheet first.</div>
     </div>
   </div>
 </div>
@@ -13922,17 +13923,28 @@ ${clone.innerHTML}
     if (typeof _doSaveAllFields === 'function') _doSaveAllFields();
   }
 
-  // Build targets to search/replace. Each target has: read() → text, write(text), label.
+  // Build targets to search/replace. Each target carries `view`/`selector`
+  // so the find-only UI can jump to it on click.
   function frBuildTargets() {
     var targets = [];
     var formData = loadField('formData') || {};
+    function _viewForFormFieldId(id) {
+      if (id.indexOf('ci-') === 0) return 'course-info';
+      if (id.indexOf('mat-textbook-') === 0) return 'materials';
+      if (id.indexOf('ctx-') === 0) return 'additional';
+      if (id.indexOf('syl-') === 0) return 'syllabus';
+      if (id.indexOf('course-overview') === 0) return 'course-info';
+      return null;
+    }
     Object.keys(formData).forEach(function(id) {
       if (typeof formData[id] !== 'string') return;
       targets.push({
         kind: 'form',
         label: 'Field: ' + id,
         read: function() { return formData[id] || ''; },
-        write: function(t) { formData[id] = t; }
+        write: function(t) { formData[id] = t; },
+        view: _viewForFormFieldId(id),
+        selector: '#' + CSS.escape(id),
       });
     });
     // moduleOverviewData topic + mlos
@@ -13940,7 +13952,14 @@ ${clone.innerHTML}
     Object.keys(mods).forEach(function(k) {
       var m = mods[k] || {};
       if (typeof m.topic === 'string') {
-        targets.push({ kind: 'mod', label: 'Module ' + k + ' topic', read: function() { return m.topic || ''; }, write: function(t) { m.topic = t; } });
+        targets.push({
+          kind: 'mod', label: 'Module ' + k + ' topic',
+          read: function() { return m.topic || ''; },
+          write: function(t) { m.topic = t; },
+          view: 'module-overview',
+          selector: '#mod-title-display-' + k,
+          modNum: parseInt(k, 10),
+        });
       }
       if (Array.isArray(m.mlos)) {
         m.mlos.forEach(function(_, idx) {
@@ -13948,7 +13967,10 @@ ${clone.innerHTML}
             kind: 'mlo',
             label: 'Module ' + k + ' MLO ' + (idx + 1),
             read: function() { return m.mlos[idx] || ''; },
-            write: function(t) { m.mlos[idx] = t; }
+            write: function(t) { m.mlos[idx] = t; },
+            view: 'module-overview',
+            selector: '.obj-entry[data-mod="' + k + '"][data-mlo-idx="' + idx + '"] textarea',
+            modNum: parseInt(k, 10),
           });
         });
       }
@@ -13956,11 +13978,23 @@ ${clone.innerHTML}
     // CLOs / ELOs (from course bucket)
     var clos = loadField('clos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.clos : null) || [];
     clos.forEach(function(_, idx) {
-      targets.push({ kind: 'clo', label: 'CLO ' + (idx + 1), read: function() { return clos[idx] || ''; }, write: function(t) { clos[idx] = t; } });
+      targets.push({
+        kind: 'clo', label: 'CLO ' + (idx + 1),
+        read: function() { return clos[idx] || ''; },
+        write: function(t) { clos[idx] = t; },
+        view: 'objectives',
+        selector: '#clo-' + idx,
+      });
     });
     var elos = loadField('flatElos') || (typeof activeCourse !== 'undefined' && activeCourse ? activeCourse.flatElos : null) || [];
     elos.forEach(function(_, idx) {
-      targets.push({ kind: 'elo', label: 'ELO ' + (idx + 1), read: function() { return elos[idx] || ''; }, write: function(t) { elos[idx] = t; } });
+      targets.push({
+        kind: 'elo', label: 'ELO ' + (idx + 1),
+        read: function() { return elos[idx] || ''; },
+        write: function(t) { elos[idx] = t; },
+        view: 'objectives',
+        selector: '#elo-' + idx,
+      });
     });
     // courseActivities
     var acts = loadField('courseActivities') || {};
@@ -13972,7 +14006,10 @@ ${clone.innerHTML}
               kind: 'act-' + field,
               label: 'Module ' + k + ' activity ' + (idx + 1) + ' ' + field,
               read: function() { return a[field] || ''; },
-              write: function(t) { a[field] = t; }
+              write: function(t) { a[field] = t; },
+              view: 'assignments-overview',
+              selector: '[data-activity-id="' + a.id + '"][data-field="' + field + '"]',
+              modNum: parseInt(k, 10),
             });
           }
         });
@@ -13982,7 +14019,10 @@ ${clone.innerHTML}
             label: 'Module ' + k + ' activity ' + (idx + 1) + ' rich text',
             read: function() { return a.richText || ''; },
             write: function(t) { a.richText = t; },
-            rich: true
+            rich: true,
+            view: 'assignments-overview',
+            selector: '[data-activity-id="' + a.id + '"]',
+            modNum: parseInt(k, 10),
           });
         }
       });
@@ -13997,7 +14037,10 @@ ${clone.innerHTML}
               kind: 'mat-' + field,
               label: 'Module ' + k + ' material ' + (idx + 1) + ' ' + field,
               read: function() { return mat[field] || ''; },
-              write: function(t) { mat[field] = t; }
+              write: function(t) { mat[field] = t; },
+              view: 'materials-overview',
+              selector: '[data-material-id="' + mat.id + '"][data-field="' + field + '"]',
+              modNum: parseInt(k, 10),
             });
           }
         });
@@ -14007,7 +14050,10 @@ ${clone.innerHTML}
             label: 'Module ' + k + ' material ' + (idx + 1) + ' rich text',
             read: function() { return mat.richText || ''; },
             write: function(t) { mat.richText = t; },
-            rich: true
+            rich: true,
+            view: 'materials-overview',
+            selector: '[data-material-id="' + mat.id + '"]',
+            modNum: parseInt(k, 10),
           });
         }
       });
@@ -14079,25 +14125,126 @@ ${clone.innerHTML}
     return total;
   }
 
+  // Cache the latest result set keyed by index so the click handler can
+  // resolve back to the right target without re-scanning.
+  window._frLastHits = [];
+
   function updateFindReplaceCount() {
     var findInput = document.getElementById('fr-find');
     var caseInput = document.getElementById('fr-case');
     var status = document.getElementById('fr-status');
+    var results = document.getElementById('fr-results');
     if (!findInput || !status) return;
     var q = findInput.value;
-    if (!q) { status.textContent = ''; return; }
+    if (!q) { status.textContent = ''; if (results) { results.style.display = 'none'; results.innerHTML = ''; } window._frLastHits = []; return; }
     frFlushPendingSaves();
     var caseSensitive = !!(caseInput && caseInput.checked);
     var bundle = frBuildTargets();
-    var total = 0, locations = 0;
+    var hits = [];
     bundle.targets.forEach(function(t) {
       var text = t.read();
       var n = t.rich ? frCountInRichText(text, q, caseSensitive) : frCountInText(text, q, caseSensitive);
-      if (n > 0) { total += n; locations += 1; }
+      if (n > 0) hits.push({ target: t, count: n, snippet: _frSnippet(text, q, caseSensitive, t.rich) });
     });
-    status.textContent = total === 0 ? 'No matches.' : total + ' match' + (total === 1 ? '' : 'es') + ' across ' + locations + ' location' + (locations === 1 ? '' : 's') + '.';
+    var total = hits.reduce(function(a, h) { return a + h.count; }, 0);
+    status.textContent = total === 0 ? 'No matches.' : total + ' match' + (total === 1 ? '' : 'es') + ' across ' + hits.length + ' location' + (hits.length === 1 ? '' : 's') + '. Click any result to jump to it.';
     status.style.color = total === 0 ? '#999' : '#2e7d32';
+
+    if (!results) return;
+    if (hits.length === 0) {
+      results.style.display = 'none';
+      results.innerHTML = '';
+      window._frLastHits = [];
+      return;
+    }
+    window._frLastHits = hits;
+    var html = '';
+    hits.forEach(function(h, idx) {
+      var labelEsc = String(h.target.label || '').replace(/</g, '&lt;');
+      var snippetEsc = String(h.snippet || '').replace(/</g, '&lt;');
+      // Bold the matched portion in the snippet for quick visual scanning.
+      try {
+        var re = new RegExp(frEscapeRegex(q), caseSensitive ? 'g' : 'gi');
+        snippetEsc = snippetEsc.replace(re, function(m) { return '<mark style="background:#fff59d; padding:0 2px;">' + m + '</mark>'; });
+      } catch(e) {}
+      html += '<div class="fr-result-row" onclick="frJumpToResult(' + idx + ')" style="padding:8px 12px; border-bottom:1px solid #f5f3ee; cursor:pointer; font-size:12px; line-height:1.4;">'
+        + '<div style="color:#8c1d40; font-weight:600;">' + labelEsc + (h.count > 1 ? ' <span style="color:#999; font-weight:400;">(' + h.count + ' matches)</span>' : '') + '</div>'
+        + '<div style="color:#444; margin-top:2px;">' + snippetEsc + '</div>'
+        + '</div>';
+    });
+    results.innerHTML = html;
+    results.style.display = 'block';
   }
+
+  // Build a short snippet of text around the first match, ~30 chars on each
+  // side, so the user can disambiguate which "Module 3 activity 2 name" the
+  // search matched without clicking through.
+  function _frSnippet(text, q, caseSensitive, rich) {
+    var src = rich ? (function() {
+      var d = document.createElement('div'); d.innerHTML = text || ''; return d.textContent || d.innerText || '';
+    })() : (text || '');
+    var idx = caseSensitive ? src.indexOf(q) : src.toLowerCase().indexOf(q.toLowerCase());
+    if (idx === -1) return src.slice(0, 80) + (src.length > 80 ? '…' : '');
+    var start = Math.max(0, idx - 30);
+    var end = Math.min(src.length, idx + q.length + 30);
+    return (start > 0 ? '…' : '') + src.slice(start, end) + (end < src.length ? '…' : '');
+  }
+
+  // Navigate to a hit + scroll its field into view + flash + select the match.
+  // Called from the result row's onclick.
+  window.frJumpToResult = function(idx) {
+    var hit = (window._frLastHits || [])[idx];
+    if (!hit) return;
+    var t = hit.target;
+    closeFindReplace();
+    function _doScrollAndFlash() {
+      var el = null;
+      try { if (t.selector) el = document.querySelector(t.selector); } catch(e) {}
+      if (!el) return;
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Yellow flash so the user can spot the field even on a long page.
+      var orig = el.style.boxShadow;
+      el.style.transition = 'box-shadow 0.4s';
+      el.style.boxShadow = '0 0 0 3px #fff59d';
+      setTimeout(function() { el.style.boxShadow = orig || ''; }, 1800);
+      // For plain text inputs/textareas, select the matched text so the user
+      // sees exactly where the hit is. Rich-text editors aren't supported.
+      if ((el.tagName === 'INPUT' && el.type !== 'checkbox') || el.tagName === 'TEXTAREA') {
+        try {
+          var caseSensitive = !!(document.getElementById('fr-case') || {}).checked;
+          var qval = (document.getElementById('fr-find') || {}).value || '';
+          var raw = el.value || '';
+          var pos = caseSensitive ? raw.indexOf(qval) : raw.toLowerCase().indexOf(qval.toLowerCase());
+          if (pos !== -1) {
+            el.focus();
+            el.setSelectionRange(pos, pos + qval.length);
+          } else {
+            el.focus();
+          }
+        } catch(e) {}
+      }
+    }
+    if (t.view && typeof showView === 'function') {
+      showView(t.view);
+    }
+    // Expand the relevant module accordion if applicable, since
+    // assignments/materials/module-overview cards collapse by default.
+    if (t.modNum != null) {
+      setTimeout(function() {
+        var card = document.querySelector('.card[data-mod-num="' + t.modNum + '"], .card[data-overview-module="' + t.modNum + '"]');
+        if (card) {
+          var body = card.querySelector('.card-body');
+          if (body && body.classList.contains('collapsed')) {
+            body.classList.remove('collapsed');
+            var toggle = card.querySelector('.card-toggle');
+            if (toggle) toggle.classList.add('open');
+          }
+        }
+      }, 50);
+    }
+    // Wait for view-switch + accordion open before scrolling.
+    setTimeout(_doScrollAndFlash, 250);
+  };
 
   function performReplaceAll() {
     var findInput = document.getElementById('fr-find');
