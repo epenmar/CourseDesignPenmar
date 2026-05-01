@@ -214,19 +214,24 @@ function parseNote(detail: { id: string; title: string; created_at?: string; upd
     else if (FACULTY_PREFIX.test(naked)) who = 'faculty';
     return { text, done, who };
   });
+  // Mirror of scripts/sync-granola.mjs's summary extraction. See that file
+  // for the rationale; key change: only fall through to firstPara when the
+  // 'Regular AI Notes' heading actually exists, and skip dashboard-rendered
+  // sections (action items, decisions, relationship) when scanning for the
+  // first non-empty section.
   let summarySource = pickSection(sections, ['executive summary', 'overview', 'summary']);
-  if (!summarySource) {
+  if (!summarySource && /###\s*#?\s*Regular AI Notes/i.test(body)) {
     const firstPara = body.replace(/###\s*Regular AI Notes\s*:?/i, '')
       .split(/\n###\s/)[0]
       .split('\n')
       .map(s => s.trim())
-      .filter(s => s && !s.startsWith('#') && !/^[-*]\s/.test(s))
+      .filter(s => s && !s.startsWith('#') && !/^[-*]\s/.test(s) && !/\[[ xX]\]/.test(s))
       .join(' ');
     summarySource = firstPara;
   }
   if (!summarySource) {
-    const skip = /^#?\s*(regular ai notes|obsidian tags)/i;
-    const firstKey = Object.keys(sections).find(k => !skip.test(k) && sections[k].trim());
+    const skip = /^#?\s*(regular ai notes|obsidian tags|action items|next steps|follow-up actions|follow-ups|decisions|key decisions|decisions made|relationship building|relationship|rapport|tidbits|about the faculty)\b/i;
+    const firstKey = Object.keys(sections).find(k => !skip.test(k) && sections[k].trim() && !/^\s*-?\s*\[[ xX]\]/.test(sections[k]));
     if (firstKey) {
       const sentences = bulletsOf(sections[firstKey])
         .slice(0, 4)

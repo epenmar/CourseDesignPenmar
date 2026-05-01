@@ -272,27 +272,35 @@ function parseNote(detail) {
     return { text, done, who };
   });
 
-  // Summary: first 2 sentences of the highest-signal section. If there's no
-  // dedicated Summary/Overview section, fall back to (a) any free text between
-  // "Regular AI Notes:" and the first H3, then (b) the first H3's body.
+  // Summary extraction. Three fallbacks, in order:
+  //   1. A dedicated Summary / Overview / Executive Summary section.
+  //   2. Free prose between a "Regular AI Notes:" heading and the first H3 —
+  //      only valid when that heading actually exists. Older Granola
+  //      templates included it; newer ones go straight from Obsidian Tags
+  //      into Action Items, in which case this fallback was scooping up the
+  //      project-checkbox block as the "summary".
+  //   3. The first non-skip section's bullets converted to prose. Skips
+  //      sections that have their own dedicated dashboard slot (action
+  //      items, decisions, relationship building) so the summary surfaces
+  //      genuinely new information.
   let summarySource = pickSection(sections, ['executive summary', 'overview', 'summary']);
-  if (!summarySource) {
+  if (!summarySource && /###\s*#?\s*Regular AI Notes/i.test(body)) {
     const firstPara = body.replace(/###\s*Regular AI Notes\s*:?/i, '')
       .split(/\n###\s/)[0]
       .split('\n')
       .map(s => s.trim())
-      .filter(s => s && !s.startsWith('#') && !/^[-*]\s/.test(s))
+      .filter(s => s && !s.startsWith('#') && !/^[-*]\s/.test(s) && !/\[[ xX]\]/.test(s))
       .join(' ');
     summarySource = firstPara;
   }
   if (!summarySource) {
-    // Use the first H3 section with real content, converting its bullets into prose.
-    // Skip template headings ("regular ai notes", "obsidian tags") and empty sections.
-    const skip = /^#?\s*(regular ai notes|obsidian tags)/i;
-    const firstKey = Object.keys(sections).find(k => !skip.test(k) && sections[k].trim());
+    // Skip both template headings and the sections that already render in
+    // their own UI elsewhere (action items, decisions, relationship
+    // building). Summary should be net-new content — usually the first
+    // module recap or a general discussion section.
+    const skip = /^#?\s*(regular ai notes|obsidian tags|action items|next steps|follow-up actions|follow-ups|decisions|key decisions|decisions made|relationship building|relationship|rapport|tidbits|about the faculty)\b/i;
+    const firstKey = Object.keys(sections).find(k => !skip.test(k) && sections[k].trim() && !/^\s*-?\s*\[[ xX]\]/.test(sections[k]));
     if (firstKey) {
-      // Keep up to 4 bullets so the sidebar shows the real meat of the
-      // meeting instead of a single truncated sentence.
       const sentences = bulletsOf(sections[firstKey])
         .slice(0, 4)
         .map(t => t.replace(/\*\*/g, '').replace(/\s+/g, ' '))
