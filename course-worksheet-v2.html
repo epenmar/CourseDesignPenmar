@@ -8968,6 +8968,14 @@
       var parent = body.closest('.activity-block, .material-block, .material-item') || body.parentElement;
       btn = parent ? parent.querySelector('.overview-act-expand') : null;
     }
+    if (!btn && body.parentElement && body.parentElement.previousElementSibling) {
+      // Materials overview: body lives in .overview-content-body, which is a
+      // SIBLING of .material-item (not nested inside). closest() can't reach
+      // it via ancestors. Walk up one level and look at the prior sibling
+      // for the toggle button.
+      var prev = body.parentElement.previousElementSibling;
+      if (prev && prev.querySelector) btn = prev.querySelector('.overview-act-expand');
+    }
     if (!btn) return;
     btn.classList.toggle('has-content', _contentIsPresent(body));
   }
