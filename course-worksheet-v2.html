@@ -268,6 +268,8 @@
   .act-tool-btn { width: 28px; height: 28px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; color: #888; transition: all 0.15s; }
   .act-tool-btn:hover { background: #f5f5f0; color: #444; }
   .act-tool-btn.btn-delete:hover { background: #fde8e8; color: #c62828; border-color: #c62828; }
+  .btn-tiny-x { border: none; background: none; color: #ccc; cursor: pointer; font-size: 16px; padding: 0 4px; line-height: 1; flex-shrink: 0; }
+  .btn-tiny-x:hover { color: #c62828; }
   .overview-bulk-toolbar { display: none; align-items: center; gap: 12px; margin-bottom: 8px; padding: 8px 12px; background: #fff3e0; border: 1px solid #ffcc80; border-radius: 6px; }
   .overview-bulk-toolbar.visible { display: flex; }
   .overview-bulk-toolbar .bulk-btn { width: auto; height: auto; min-width: 0; white-space: nowrap; padding: 6px 14px; font-size: 13px; border-radius: 6px; cursor: pointer; flex-shrink: 0; display: inline-flex; align-items: center; justify-content: center; }
@@ -6404,8 +6406,10 @@
     var driveHref = activeCourse.driveFolder || '#';
     var activeType = act.contentType || 'assignment';
 
+    // Content toggle button now lives inline in the activity row (rendered
+    // by renderAssignmentsOverview). This function only renders the body
+    // that the button toggles.
     var html = '<div class="overview-act-content">';
-    html += '<button class="overview-act-expand" onclick="var body=this.nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Hide content\':\'▸ Content\'; refreshContentIndicator(\'' + id + '\');">▸ Content</button>';
     html += '<div class="overview-content-body">';
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
@@ -6557,14 +6561,15 @@
           var act = acts[i];
           html += '<div class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
-          html += '<div style="display:grid; grid-template-columns:24px 2fr 3fr 80px 100px 28px; gap:8px; align-items:center; padding:4px 0;">';
+          html += '<div style="display:grid; grid-template-columns:24px 2fr 3fr 80px 100px auto 20px; gap:8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           // Objectives picker (interactive)
           html += buildObjPickerHtml('ov-' + act.id, act.objectives, m);
           html += '<textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Activity name..." style="resize:none; overflow:hidden; min-height:22px; line-height:1.3; white-space:pre-wrap;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.name) + '</textarea>';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '<textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; min-height:20px; resize:none; overflow:hidden; font-size:11px; line-height:1.3;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.due) + '</textarea>';
-          html += '<button class="act-tool-btn btn-delete" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button>';
+          html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.activity-block\').querySelector(\'.overview-content-body\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\'; refreshContentIndicator(\'ov-' + act.id + '\');">▸ Content</button>';
+          html += '<button class="btn-tiny-x" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button>';
           html += '</div>';
           // Inline content expansion
           html += buildOverviewContentHtml(act, m);
@@ -6603,7 +6608,7 @@
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:16px; resize:none; overflow:hidden; font-size:10px; line-height:1.3; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
-          thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
+          thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (acts.length === 0) {
@@ -6688,7 +6693,7 @@
           html += '<textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" placeholder="Material title..." style="flex:1; min-width:120px; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;" oninput="syncOverviewMaterial(this); autoGrowTextarea(this)">' + escapeHtml(mat.title) + '</textarea>';
           html += '<label style="display:flex; align-items:center; gap:4px; font-size:11px; color:#888; flex-shrink:0; cursor:pointer;" title="Mark as optional reading/material"><input type="checkbox" data-managed="true" data-field="optional" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)"' + (mat.optional ? ' checked' : '') + ' style="cursor:pointer;"> Optional</label>';
           html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.material-item\').nextElementSibling; body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\';">▸ Content</button>';
-          html += '<button class="act-tool-btn btn-delete" title="Delete material" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="flex-shrink:0;">✕</button>';
+          html += '<button class="btn-tiny-x" title="Delete material" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')">×</button>';
           html += '</div>';
           // Row 2: objectives + notes
           html += '<div style="display:flex; gap:8px; align-items:start; margin-top:6px; padding-left:28px; flex-wrap:wrap;">';
@@ -6743,7 +6748,7 @@
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
-          thtml += '<td><button class="act-tool-btn btn-delete" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')" style="font-size:12px;">✕</button></td>';
+          thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (mats.length === 0) {
