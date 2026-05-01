@@ -8949,8 +8949,11 @@
       ? body.previousElementSibling.querySelector('.overview-act-expand')
       : null;
     if (!btn) {
-      // Fallback: scan the parent activity-block for the button.
-      var parent = body.closest('.activity-block, .material-block') || body.parentElement;
+      // Fallback: scan the parent activity/material container for the button.
+      // Both .material-item (card view) and .material-block (table-row view)
+      // count — earlier we only checked the latter, so material indicators
+      // never turned green.
+      var parent = body.closest('.activity-block, .material-block, .material-item') || body.parentElement;
       btn = parent ? parent.querySelector('.overview-act-expand') : null;
     }
     if (!btn) return;
