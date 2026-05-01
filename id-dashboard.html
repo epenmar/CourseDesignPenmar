@@ -4561,6 +4561,10 @@
     loadWorksheetSessions();
     // Pull live Jira status + children + worklog sync state
     loadJiraStatus(courseId);
+    // Pull fresh Granola meetings from Supabase. Without this, the panel
+    // shows whatever loadMeetingsFromSupabase fetched at page load, which
+    // can be hours stale by the time a user opens a side panel.
+    if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
   }
 
   function closeDetail() {
