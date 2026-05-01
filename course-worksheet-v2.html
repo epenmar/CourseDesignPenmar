@@ -8896,25 +8896,65 @@
     if (!holder) return;
     holder.innerHTML = _buildMaterialLinkPickerHtml(prefix);
   }
-  function refreshAllMaterialUsageBadges() {
-    document.querySelectorAll('[data-material-id]').forEach(function(el) {
-      var matId = el.getAttribute('data-material-id');
-      var count = _getActivitiesLinkedToMaterial(matId).length;
-      var badge = el.querySelector('.mat-usage-badge');
-      if (count > 0) {
-        if (!badge) {
-          badge = document.createElement('span');
-          badge.className = 'mat-usage-badge';
-          badge.style.cssText = 'display:inline-block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:1px 7px; font-size:10px; font-weight:600; margin-left:6px; white-space:nowrap;';
-          var insertTarget = el.querySelector('.act-drag-handle');
-          if (insertTarget && insertTarget.nextSibling) insertTarget.parentNode.insertBefore(badge, insertTarget.nextSibling);
-          else el.prepend(badge);
-        }
-        badge.textContent = '🔗 ' + count;
-        badge.title = 'Used in ' + count + ' assignment' + (count === 1 ? '' : 's');
-      } else if (badge) {
-        badge.remove();
+  function _frInsertBadge(el, badge) {
+    var insertTarget = el.querySelector('.act-drag-handle');
+    if (insertTarget && insertTarget.nextSibling) insertTarget.parentNode.insertBefore(badge, insertTarget.nextSibling);
+    else el.prepend(badge);
+  }
+  function _setLinkBadge(el, count, tooltip) {
+    var badge = el.querySelector('.mat-usage-badge');
+    if (count > 0) {
+      if (!badge) {
+        badge = document.createElement('span');
+        badge.className = 'mat-usage-badge';
+        badge.style.cssText = 'display:inline-block; background:#e8f5e9; color:#2e7d32; border:1px solid #a5d6a7; border-radius:10px; padding:1px 7px; font-size:10px; font-weight:600; margin-left:6px; white-space:nowrap; cursor:help;';
+        _frInsertBadge(el, badge);
       }
+      badge.textContent = '🔗 ' + count;
+      badge.title = tooltip;
+    } else if (badge) {
+      badge.remove();
+    }
+  }
+  function refreshAllMaterialUsageBadges() {
+    // Material rows: hover shows the names of the assignments linked to this material.
+    var seenMatRows = {};
+    document.querySelectorAll('[data-material-id]').forEach(function(el) {
+      // Each material can appear multiple times in the DOM (card view, table
+      // row, etc.). Only attach the badge to a top-level container, not to
+      // the inner inputs that share the same data-material-id attribute.
+      var matId = el.getAttribute('data-material-id');
+      if (!matId) return;
+      // Walk to a likely outer container if el is a leaf input/select.
+      var container = el.matches('.material-item, .material-block, tr') ? el : el.closest('.material-item, .material-block, tr') || el;
+      if (seenMatRows[matId + ':' + container.tagName]) return;
+      seenMatRows[matId + ':' + container.tagName] = true;
+      var rows = _getActivitiesLinkedToMaterial(matId);
+      var count = rows.length;
+      var tooltip = count === 0
+        ? ''
+        : 'Linked from ' + count + ' assignment' + (count === 1 ? '' : 's') + ':\n' +
+          rows.map(function(r) { return '• Module ' + r.modNum + ' — ' + (r.act.name || '(untitled)'); }).join('\n');
+      _setLinkBadge(container, count, tooltip);
+    });
+    // Activity rows: hover shows the names of the materials it's linked to.
+    var seenActRows = {};
+    document.querySelectorAll('[data-activity-id]').forEach(function(el) {
+      var actId = el.getAttribute('data-activity-id');
+      if (!actId) return;
+      var container = el.matches('.activity-block, tr') ? el : el.closest('.activity-block, tr') || el;
+      if (seenActRows[actId + ':' + container.tagName]) return;
+      seenActRows[actId + ':' + container.tagName] = true;
+      // Look up the activity's linkedMaterialIds.
+      var info = _itemForContentPrefix(actId) || _itemForContentPrefix('ov-' + actId);
+      if (!info || info.kind !== 'activity') return;
+      var linked = _getLinkedMaterialsForActivity(info.item);
+      var count = linked.length;
+      var tooltip = count === 0
+        ? ''
+        : 'Linked to ' + count + ' material' + (count === 1 ? '' : 's') + ':\n' +
+          linked.map(function(r) { return '• Module ' + r.modNum + ' — ' + (r.mat.title || r.mat.type || '(untitled)'); }).join('\n');
+      _setLinkBadge(container, count, tooltip);
     });
   }
   window._renderActivityLinkedMaterials = _renderActivityLinkedMaterials;
