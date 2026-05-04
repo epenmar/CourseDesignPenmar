@@ -10232,10 +10232,41 @@
       el.style.cssText = 'color:#cccccc; font-style:italic;';
     });
 
+    // Drive's HTML→Docs converter drops border-bottom on headings, so the
+    // ASU-yellow underline you see in the preview vanishes once it's a
+    // Google Doc. Insert a yellow-shaded table cell right after each h2 —
+    // table cell shading carries through reliably (the bgcolor attribute
+    // is honored even when the inline style isn't).
+    clone.querySelectorAll('h2').forEach(function(h2) {
+      // Drop the inline border so we don't end up with a double line in
+      // local-download Word renders, where border-bottom DOES carry.
+      try {
+        var s = h2.style.cssText || '';
+        h2.style.cssText = s.replace(/border-bottom:[^;]+;?/i, '').replace(/padding-bottom:[^;]+;?/i, '');
+      } catch(e) {}
+      var rule = document.createElement('table');
+      rule.setAttribute('cellspacing', '0');
+      rule.setAttribute('cellpadding', '0');
+      rule.setAttribute('border', '0');
+      rule.style.cssText = 'width:100%; border-collapse:collapse; margin:0 0 12px 0; height:2px;';
+      var tr = document.createElement('tr');
+      var td = document.createElement('td');
+      td.setAttribute('bgcolor', '#ffc627');
+      td.style.cssText = 'background-color:#ffc627; background:#ffc627; height:2px; line-height:2px; padding:0; border:0; mso-line-height-rule:exactly;';
+      td.innerHTML = '&nbsp;';
+      tr.appendChild(td);
+      rule.appendChild(tr);
+      h2.parentNode.insertBefore(rule, h2.nextSibling);
+    });
+
     const html = `<!DOCTYPE html>
 <html><head><meta charset="UTF-8">
 <title>${activeCourse.fullTitle} — Course Development Worksheet</title>
-</head><body style="font-family:Calibri,Arial,sans-serif; max-width:800px; margin:40px auto; padding:20px; color:#333333; line-height:1.6;">
+<style>
+@page { margin: 0.5in; }
+body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.6; margin: 0.5in; padding: 0; }
+</style>
+</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.6; margin:0.5in; padding:0;">
 ${clone.innerHTML}
 </body></html>`;
 
