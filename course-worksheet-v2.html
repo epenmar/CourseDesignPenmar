@@ -2136,6 +2136,23 @@
     return /\bmidterm\b/.test(name) || /\bfinal\b/.test(name) || /\bcomprehensive\b/.test(name);
   }
 
+  // Module-level MLO lookup with fallback to localStorage moduleOverviewData.
+  // Hoisted so both buildObjPickerHtml and toggleAllCourseObjectives use the
+  // same logic — earlier toggleAllCourseObjectives short-circuited on empty
+  // mod.mlos arrays (truthy in JS) and never reached the saved data, so the
+  // shortcut only saw modules whose in-memory mlos was non-empty.
+  function _mlosForModule(targetMod) {
+    var startN = activeCourse.moduleStartZero ? 0 : 1;
+    var mod = (activeCourse.modules || [])[targetMod - startN];
+    var inMemory = mod && mod.mlos && mod.mlos.length ? mod.mlos : null;
+    if (!inMemory) {
+      var savedMods = loadField('moduleOverviewData') || {};
+      var savedMlos = savedMods[targetMod] && savedMods[targetMod].mlos;
+      if (savedMlos && savedMlos.length) inMemory = savedMlos;
+    }
+    return inMemory || [];
+  }
+
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
     const _startN = activeCourse.moduleStartZero ? 0 : 1;
     const selected = selectedObjectives || [];
@@ -2144,16 +2161,7 @@
     // Build the option list. Course-wide picks aggregate every module's MLOs;
     // module-scoped picks only show the activity's own module.
     let optionsHtml = '';
-    function _mlosFromModule(targetMod) {
-      var mod = (activeCourse.modules || [])[targetMod - _startN];
-      var inMemory = mod && mod.mlos ? mod.mlos : null;
-      if (!inMemory || inMemory.length === 0) {
-        var savedMods = loadField('moduleOverviewData') || {};
-        var savedMlos = savedMods[targetMod] && savedMods[targetMod].mlos;
-        if (savedMlos && savedMlos.length) inMemory = savedMlos;
-      }
-      return inMemory || [];
-    }
+    function _mlosFromModule(targetMod) { return _mlosForModule(targetMod); }
 
     if (courseWide) {
       // Iterate every module that exists in either the modules array or the
@@ -7311,7 +7319,13 @@
     const options = dd ? dd.querySelectorAll('.obj-option') : [];
     let known = [];
     options.forEach(opt => {
-      const id = opt.querySelector('strong').textContent;
+      // Skip the "Select all course objectives" shortcut row — it has no
+      // <strong> with an MLO id, so dereferencing its textContent threw and
+      // killed the whole toggle handler (which is why deleting via × stopped
+      // working on midterm/final pickers).
+      var strong = opt.querySelector('strong');
+      if (!strong) return;
+      const id = strong.textContent;
       const isSelected = opt.classList.contains('selected');
       const shouldSelect = (id === objId) ? !isSelected : isSelected;
       if (shouldSelect) known.push(id);
@@ -7404,8 +7418,12 @@
     var allModNums = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
     var courseMloIds = [];
     allModNums.forEach(function(mNum) {
-      var mod = (activeCourse.modules || [])[mNum - startN];
-      var mlos = (mod && mod.mlos) || (savedMods[mNum] && savedMods[mNum].mlos) || [];
+      // Use the module-scoped helper so we hit the savedMods fallback when
+      // activeCourse.modules has empty mlos arrays — the previous inline
+      // OR-chain returned [] on empty arrays (truthy in JS) and never tried
+      // the saved data, so only modules whose in-memory mlos was non-empty
+      // contributed (typically just the most-recently-rendered module).
+      var mlos = _mlosForModule(mNum);
       for (var j = 0; j < mlos.length; j++) {
         if (mlos[j] && mlos[j].trim()) courseMloIds.push(mNum + '.' + (j + 1));
       }
