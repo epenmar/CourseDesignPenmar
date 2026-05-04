@@ -609,7 +609,8 @@
           <div class="resource-card" data-rc-id="multi-actions">
             <div class="rc-header"><span>🛠</span><span class="rc-title">Bulk operations</span></div>
             <div class="rc-links">
-              <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal();">📋 Generate Canvas Shell Request CSV</a>
+              <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal('dev');">📋 Generate Dev Canvas Shell CSV</a>
+              <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal('live');">🎓 Generate Live Canvas Shell CSV</a>
             </div>
           </div>
         </div>
@@ -621,10 +622,10 @@
   <div id="canvas-shell-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:300; align-items:flex-start; justify-content:center; padding-top:80px; font-family:Inter,sans-serif;" onclick="if(event.target===this) closeCanvasShellModal();">
     <div style="background:#fff; border-radius:12px; padding:22px 26px; max-width:560px; width:92%; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">
       <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
-        <h3 style="margin:0; font-size:16px; color:#8c1d40;">📋 Generate Canvas Shell Request</h3>
+        <h3 id="canvas-shell-title" style="margin:0; font-size:16px; color:#8c1d40;">📋 Generate Canvas Shell Request</h3>
         <button onclick="closeCanvasShellModal()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
       </div>
-      <div style="font-size:12px; color:#666; margin-bottom:12px;">Select the sessions to include. The CSV will list one row per active course in those sessions, formatted for the Canvas Shell Request form.</div>
+      <div id="canvas-shell-help" style="font-size:12px; color:#666; margin-bottom:12px;"></div>
       <div id="canvas-shell-sessions" style="overflow-y:auto; max-height:50vh; border:1px solid #f0ede5; border-radius:6px; padding:8px 10px; margin-bottom:12px;"></div>
       <div id="canvas-shell-status" style="font-size:11px; color:#888; margin-bottom:6px; min-height:14px;"></div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
@@ -1558,23 +1559,47 @@
   // Pre-built form for the Canvas Shell Request — pick any number of
   // sessions, get back a CSV with one row per active course in those
   // sessions, formatted to match the columns the QA team's intake expects.
-  function _normalizeSessionForCsv(session) {
-    if (!session) return '';
+  // _sessionParts splits any saved session string into season/year/letter so
+  // the two CSV variants (dev vs live) can re-format independently.
+  function _sessionParts(session) {
+    if (!session) return null;
     var s = String(session).trim();
-    // Convert "Fall A '26", "Spring B '27" → "Fall 2026", "Spring 2027"
-    var m = s.match(/^(Spring|Summer|Fall|Winter)\s+[A-C]?\s*'?(\d{2,4})/i);
-    if (m) {
-      var season = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
-      var yr = m[2];
-      if (yr.length === 2) yr = '20' + yr;
-      return season + ' ' + yr;
-    }
-    // ISO date string like 2026-08-20 — try to map to a label
     if (/^\d{4}-\d{2}-\d{2}$/.test(s) && typeof airtableDateToSessionLabel === 'function') {
       var label = airtableDateToSessionLabel(s);
-      if (label) return _normalizeSessionForCsv(label);
+      if (label) s = label;
     }
-    return s;
+    var m = s.match(/^(Spring|Summer|Fall|Winter)\s+([A-C])?\s*'?(\d{2,4})/i);
+    if (!m) return null;
+    var season = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+    var letter = (m[2] || '').toUpperCase();
+    var yr = m[3];
+    if (yr.length === 2) yr = '20' + yr;
+    return { season: season, letter: letter, year: yr };
+  }
+  // Display label for the session checklist — keeps the letter so the user
+  // can disambiguate Fall A vs Fall B when both have courses.
+  function _sessionDisplayLabel(session) {
+    var p = _sessionParts(session);
+    if (!p) return String(session || '').trim() || '—';
+    return p.season + ' ' + p.year + (p.letter ? ' — Session ' + p.letter : '');
+  }
+  function _sessionDisplayKey(session) { return _sessionDisplayLabel(session); }
+  // Dev CSV: session collapses to "Spring 2026" (no letter).
+  function _devSessionLabel(session) {
+    var p = _sessionParts(session);
+    if (!p) return '';
+    return p.season + ' ' + p.year;
+  }
+  // Live CSV: session uses "2016 Fall - A" (display) and "2016FallA" (compact).
+  function _liveSessionDisplay(session) {
+    var p = _sessionParts(session);
+    if (!p) return '';
+    return p.year + ' ' + p.season + (p.letter ? ' - ' + p.letter : '');
+  }
+  function _liveSessionCompact(session) {
+    var p = _sessionParts(session);
+    if (!p) return '';
+    return p.year + p.season + p.letter;
   }
 
   function _csvEscape(v) {
@@ -1601,20 +1626,40 @@
     } catch(e) { return ''; }
   }
 
-  window.openCanvasShellModal = function() {
+  // Username segment of the faculty's email — Canvas uses this as the
+  // instructor identifier in the shell request CSV.
+  function _facultyUsernameForCourse(c) {
+    if (!c) return '';
+    var email = String(c.email || '').trim();
+    if (!email) return '';
+    return email.split('@')[0];
+  }
+
+  // Currently-open mode for the modal: 'dev' or 'live'. Stored on the modal
+  // itself so the Generate button can branch correctly.
+  window.openCanvasShellModal = function(mode) {
+    mode = mode === 'live' ? 'live' : 'dev';
     var modal = document.getElementById('canvas-shell-modal');
     var listEl = document.getElementById('canvas-shell-sessions');
     var statusEl = document.getElementById('canvas-shell-status');
+    var titleEl = document.getElementById('canvas-shell-title');
+    var helpEl = document.getElementById('canvas-shell-help');
     if (!modal || !listEl) return;
-    // Group active courses by their normalized session label.
+    modal.dataset.mode = mode;
+    if (titleEl) titleEl.textContent = mode === 'live'
+      ? '🎓 Generate Live Canvas Shell Request'
+      : '📋 Generate Dev Canvas Shell Request';
+    if (helpEl) helpEl.textContent = mode === 'live'
+      ? 'Select the sessions to include. The CSV produces one live-shell row per active course, including the faculty member as instructor and the SLN from the worksheet.'
+      : 'Select the sessions to include. The CSV produces one DEV-shell row per active course (no SLN, ID-only as instructor).';
     var inactiveMap = getInactiveCourses();
     var bySession = {};
     Object.keys(courseData).forEach(function(id) {
       if (inactiveMap[id]) return;
       var c = courseData[id];
-      var label = _normalizeSessionForCsv(c.session);
-      if (!label || label === '—') return;
-      (bySession[label] = bySession[label] || []).push({ id: id, code: c.code, name: c.courseName });
+      var key = _sessionDisplayKey(c.session);
+      if (!key || key === '—') return;
+      (bySession[key] = bySession[key] || []).push({ id: id, code: c.code });
     });
     var labels = Object.keys(bySession).sort();
     if (!labels.length) {
@@ -1639,6 +1684,8 @@
   };
 
   window.generateCanvasShellCsv = function() {
+    var modal = document.getElementById('canvas-shell-modal');
+    var mode = (modal && modal.dataset.mode === 'live') ? 'live' : 'dev';
     var statusEl = document.getElementById('canvas-shell-status');
     var checks = document.querySelectorAll('#canvas-shell-sessions input.canvas-shell-session:checked');
     if (!checks.length) {
@@ -1649,30 +1696,52 @@
     checks.forEach(function(cb) { selectedSessions[cb.value] = true; });
     var inactiveMap = getInactiveCourses();
     var rows = [];
-    var instructor = _idUsername();
+    var idUser = _idUsername();
     Object.keys(courseData).forEach(function(id) {
       if (inactiveMap[id]) return;
       var c = courseData[id];
-      var label = _normalizeSessionForCsv(c.session);
-      if (!selectedSessions[label]) return;
+      var key = _sessionDisplayKey(c.session);
+      if (!selectedSessions[key]) return;
       var code = (c.code || '').trim();
-      // The CSV uses two slightly different postfix formats per the
-      // example sheet — spaces in CodePostfix, dashes in SisIdPostfix.
-      var codePostfix = 'DEV ' + code + ' - ' + label;
-      var sisIdPostfix = 'DEV-' + code + '- ' + label.replace(/\s+/g, '-');
-      var sln = _slnForCourse(id);
-      rows.push([
-        'Dev',           // CourseType
-        code,            // CustomCourseName
-        codePostfix,     // CustomCourseCodePostfix
-        sisIdPostfix,    // CustomCourseSisIdPostfix
-        sln,             // PrimarySLN
-        '',              // AdditionalSLI
-        '',              // CustomSync
-        '',              // CopyCourseI
-        instructor,      // Instructors
-        ''               // TAs
-      ]);
+      if (mode === 'live') {
+        var compact = _liveSessionCompact(c.session);   // "2016FallA"
+        var spaced = _liveSessionDisplay(c.session);    // "2016 Fall - A"
+        var codeNoSpace = code.replace(/\s+/g, '');
+        var courseName = code + (c.courseName ? ': ' + c.courseName : '') + (spaced ? ' (' + spaced + ')' : '');
+        var codePostfix = compact + '-' + codeNoSpace;
+        var sisIdPostfix = compact + '-' + codeNoSpace;
+        var faculty = _facultyUsernameForCourse(c);
+        var instructors = faculty ? (idUser + ',' + faculty) : idUser;
+        rows.push([
+          'live',                  // CourseType
+          courseName,              // CustomCourseName
+          codePostfix,             // CustomCourseCodePostfix
+          sisIdPostfix,            // CustomCourseSisIdPostfix
+          _slnForCourse(id),       // PrimarySLN
+          '',                      // AdditionalSLI
+          '',                      // CustomSync
+          '',                      // CopyCourseI
+          instructors,             // Instructors (ID + faculty)
+          ''                       // TAs
+        ]);
+      } else {
+        // Dev shells: blank SLN, ID-only as instructor.
+        var devLabel = _devSessionLabel(c.session);     // "Spring 2026"
+        var devCodePostfix = 'DEV ' + code + ' - ' + devLabel;
+        var devSisIdPostfix = 'DEV-' + code + '- ' + devLabel.replace(/\s+/g, '-');
+        rows.push([
+          'Dev',                   // CourseType
+          code,                    // CustomCourseName
+          devCodePostfix,          // CustomCourseCodePostfix
+          devSisIdPostfix,         // CustomCourseSisIdPostfix
+          '',                      // PrimarySLN — blank for dev
+          '',                      // AdditionalSLI
+          '',                      // CustomSync
+          '',                      // CopyCourseI
+          idUser,                  // Instructors — ID only
+          ''                       // TAs
+        ]);
+      }
     });
     if (!rows.length) {
       if (statusEl) { statusEl.textContent = 'No active courses found in the selected sessions.'; statusEl.style.color = '#c62828'; }
@@ -1684,14 +1753,17 @@
       rows.map(function(r) { return r.map(_csvEscape).join(','); }).join('\n') + '\n';
 
     var stamp = new Date().toISOString().slice(0, 10);
-    var name = 'Canvas Shell Request ' + stamp + '.csv';
+    var name = (mode === 'live' ? 'Live' : 'Dev') + ' Canvas Shell Request ' + stamp + '.csv';
     var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
     a.href = url; a.download = name;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    if (statusEl) { statusEl.textContent = '✓ Downloaded ' + name + ' — ' + rows.length + ' course' + (rows.length === 1 ? '' : 's'); statusEl.style.color = '#2e7d32'; }
+    if (statusEl) { statusEl.textContent = '✓ Downloaded ' + name + ' — ' + rows.length + ' course' + (rows.length === 1 ? '' : 's') + '. Opening Canvas Enrollment Services…'; statusEl.style.color = '#2e7d32'; }
+    // Open the Canvas Enrollment Services site so the user can submit the
+    // CSV without an extra click. Pop-up blockers may still gate this.
+    try { window.open('https://ces.apps.asu.edu/', '_blank', 'noopener'); } catch(e) {}
   };
 
   // Push the current inactive map to Supabase immediately so the next
