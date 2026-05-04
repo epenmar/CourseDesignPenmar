@@ -4590,15 +4590,24 @@
     if (dashPct) dashPct.textContent = pct + '%';
     if (dashMods) dashMods.innerHTML = modulesStarted + ' <span style="font-size:16px; font-weight:400; color:#666;">of ' + modCount + '</span>';
 
+    // Helper for the empty-field tooltip — turns a kebab-cased field id like
+    // "ci-section-lines" into "Section Lines".
+    function _badgeFieldLabel(id) {
+      var stripped = String(id || '').replace(/^[a-z]+-/i, '');
+      return stripped.split('-').map(function(w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join(' ');
+    }
+
     // Update sidebar Course Info badge
     var infoBadge = document.getElementById('sidebar-info-badge');
     if (infoBadge) {
       // Count course info fields that have actual user-entered content
       var infoFilled = 0;
       var infoTotal = 0;
+      var infoMissing = [];
       courseInfoFields.forEach(function(f) {
         infoTotal++;
         if (f.value && f.value.trim()) infoFilled++;
+        else if (f.id) infoMissing.push(_badgeFieldLabel(f.id));
       });
       // Check manual completion button
       var courseInfoBtn = document.getElementById('btn-complete-course-info');
@@ -4607,12 +4616,15 @@
       if (manuallyComplete || (infoTotal > 0 && infoFilled === infoTotal)) {
         infoBadge.className = 'badge badge-done';
         infoBadge.textContent = '✓';
+        infoBadge.title = manuallyComplete ? 'Marked complete.' : 'All Course Info fields filled in.';
       } else if (infoFilled > 0) {
         infoBadge.className = 'badge badge-partial';
         infoBadge.textContent = infoFilled + '/' + infoTotal;
+        infoBadge.title = 'Still empty: ' + infoMissing.slice(0, 8).join(', ') + (infoMissing.length > 8 ? '…' : '');
       } else {
         infoBadge.className = 'badge badge-empty';
         infoBadge.textContent = '—';
+        infoBadge.title = 'No Course Info fields filled in yet.';
       }
     }
 
@@ -4623,9 +4635,11 @@
       if (objCount > 0) {
         objBadge.className = 'badge badge-done';
         objBadge.textContent = objCount + '/' + objCount;
+        objBadge.title = realClos.length + ' CLO' + (realClos.length === 1 ? '' : 's') + ', ' + realElos.length + ' ELO' + (realElos.length === 1 ? '' : 's') + ' defined.';
       } else {
         objBadge.className = 'badge badge-empty';
         objBadge.textContent = '—';
+        objBadge.title = 'No course-level objectives yet — add CLOs and ELOs.';
       }
     }
 
@@ -4634,17 +4648,21 @@
     if (textbookBadge) {
       var tbFilled = 0;
       var tbTotal = 0;
+      var tbMissing = [];
       var tbFields = document.querySelectorAll('#view-materials .field-input');
       tbFields.forEach(function(f) {
         tbTotal++;
         if ((f.value && f.value.trim()) || (f.textContent && f.textContent.trim())) tbFilled++;
+        else if (f.id) tbMissing.push(_badgeFieldLabel(f.id));
       });
       if (tbTotal > 0 && tbFilled > 0) {
         textbookBadge.className = 'badge badge-done';
         textbookBadge.textContent = '✓';
+        textbookBadge.title = tbFilled + ' textbook entry filled.';
       } else {
         textbookBadge.className = 'badge badge-empty';
         textbookBadge.textContent = '—';
+        textbookBadge.title = 'No textbooks listed.';
       }
     }
 
@@ -4653,20 +4671,25 @@
     if (contextBadge) {
       var ctxFilled = 0;
       var ctxTotal = 0;
+      var ctxMissing = [];
       var ctxFields = document.querySelectorAll('#view-additional .field-input, #view-additional textarea');
       ctxFields.forEach(function(f) {
         ctxTotal++;
         if ((f.value && f.value.trim()) || (f.textContent && f.textContent.trim())) ctxFilled++;
+        else if (f.id) ctxMissing.push(_badgeFieldLabel(f.id));
       });
       if (ctxTotal > 0 && ctxFilled === ctxTotal) {
         contextBadge.className = 'badge badge-done';
         contextBadge.textContent = '✓';
+        contextBadge.title = 'All Course Context questions answered.';
       } else if (ctxFilled > 0) {
         contextBadge.className = 'badge badge-partial';
         contextBadge.textContent = ctxFilled + '/' + ctxTotal;
+        contextBadge.title = 'Still empty: ' + ctxMissing.slice(0, 8).join(', ') + (ctxMissing.length > 8 ? '…' : '');
       } else {
         contextBadge.className = 'badge badge-empty';
         contextBadge.textContent = '—';
+        contextBadge.title = 'No Course Context questions answered yet.';
       }
     }
 
@@ -4675,15 +4698,39 @@
     if (modBadge) {
       var displayScore = Math.round(moduleScore * 10) / 10; // one decimal
       if (displayScore === Math.floor(displayScore)) displayScore = Math.floor(displayScore); // drop .0
+      // Build tooltip listing exactly what each module is missing.
+      var modIssues = [];
+      for (var mIdx = 1; mIdx <= modCount; mIdx++) {
+        var modData2 = savedModOverview[mIdx] || {};
+        var mlosArr = modData2.mlos || [];
+        var nonEmpty = mlosArr.filter(function(s) { return s && s.trim(); });
+        if (nonEmpty.length === 0) {
+          modIssues.push('Module ' + mIdx + ' (no MLOs)');
+          continue;
+        }
+        var untagged = [];
+        for (var mli = 0; mli < mlosArr.length; mli++) {
+          if (!mlosArr[mli] || !mlosArr[mli].trim()) continue;
+          var mloId2 = mIdx + '.' + (mli + 1);
+          var tagged = Object.keys(alignment).some(function(eloKey) {
+            return alignment[eloKey] && alignment[eloKey].indexOf(mloId2) !== -1;
+          });
+          if (!tagged) untagged.push(mloId2);
+        }
+        if (untagged.length) modIssues.push('Module ' + mIdx + ' (untagged: ' + untagged.join(', ') + ')');
+      }
       if (moduleScore >= modCount && modCount > 0) {
         modBadge.className = 'badge badge-done';
         modBadge.textContent = displayScore + '/' + modCount;
+        modBadge.title = 'All modules have MLOs tagged with ELOs.';
       } else if (moduleScore > 0) {
         modBadge.className = 'badge badge-partial';
         modBadge.textContent = displayScore + '/' + modCount;
+        modBadge.title = modIssues.length ? modIssues.slice(0, 8).join('\n') + (modIssues.length > 8 ? '\n…' : '') : '';
       } else {
         modBadge.className = 'badge badge-empty';
         modBadge.textContent = '—';
+        modBadge.title = 'No module MLOs defined yet.';
       }
     }
 
@@ -4753,14 +4800,17 @@
       if (mappingApproved) {
         mappingBadge.className = 'badge badge-done';
         mappingBadge.textContent = '✓';
+        mappingBadge.title = 'Course Mapping approved by faculty.';
       } else {
         var eloMlo = activeCourse.eloMloAlignment;
         if (eloMlo && Object.keys(eloMlo).length > 0) {
           mappingBadge.className = 'badge badge-progress';
           mappingBadge.textContent = '…';
+          mappingBadge.title = 'In progress — awaiting faculty approval.';
         } else {
           mappingBadge.className = 'badge badge-empty';
           mappingBadge.textContent = '—';
+          mappingBadge.title = 'No CLO-ELO alignment matrix yet.';
         }
       }
     }
@@ -4769,10 +4819,11 @@
     var sidebarModListEl = document.getElementById('sidebar-module-list');
     if (sidebarModListEl) {
       var modNavItems = sidebarModListEl.querySelectorAll('.nav-item');
+      var navStartN = activeCourse.moduleStartZero ? 0 : 1;
       for (var mbi = 0; mbi < modNavItems.length; mbi++) {
         var modNavBadge = modNavItems[mbi].querySelector('.badge');
         if (!modNavBadge) continue;
-        var modNum = mbi + 1;
+        var modNum = mbi + navStartN;
         var modNavData = savedModOverview[modNum] || {};
         var modNavMlos = modNavData.mlos || [];
         var modHasMlos = modNavMlos.length > 0 && modNavMlos.some(function(m) { return m && m.trim(); });
@@ -4781,12 +4832,15 @@
         if (modHasMlos && modHasActs) {
           modNavBadge.className = 'badge badge-done';
           modNavBadge.textContent = '✓';
+          modNavBadge.title = 'Module ' + modNum + ' has MLOs and named activities.';
         } else if (modHasMlos || modHasActs) {
           modNavBadge.className = 'badge badge-partial';
           modNavBadge.textContent = '1/2';
+          modNavBadge.title = 'Module ' + modNum + ' is missing ' + (modHasMlos ? 'named activities.' : 'MLOs.');
         } else {
           modNavBadge.className = 'badge badge-empty';
           modNavBadge.textContent = '—';
+          modNavBadge.title = 'Module ' + modNum + ' has no MLOs or named activities yet.';
         }
       }
     }
@@ -12776,12 +12830,15 @@ ${clone.innerHTML}
     if (checked === total && total > 0) {
       badge.className = 'badge badge-done';
       badge.textContent = '✓';
+      badge.title = 'All ' + total + ' syllabus checklist items complete.';
     } else if (checked > 0) {
       badge.className = 'badge badge-partial';
       badge.textContent = checked + '/' + total;
+      badge.title = (total - checked) + ' syllabus checklist item' + (total - checked === 1 ? '' : 's') + ' still unchecked.';
     } else {
       badge.className = 'badge badge-empty';
       badge.textContent = '—';
+      badge.title = total > 0 ? total + ' syllabus checklist items pending.' : 'No syllabus checklist for this program yet.';
     }
   }
 
