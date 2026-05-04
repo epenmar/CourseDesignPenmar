@@ -2164,6 +2164,23 @@
       for (let i = 0; i < modCount; i++) modSet[i + _startN] = true;
       Object.keys(savedMods).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
       const allModNums = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+      // Collect every course MLO id up front so the "Select all" shortcut
+      // can fire one click → every objective added.
+      var courseMloIds = [];
+      allModNums.forEach(function(mNum) {
+        var mlos = _mlosFromModule(mNum);
+        for (var j = 0; j < mlos.length; j++) {
+          if (mlos[j] && mlos[j].trim()) courseMloIds.push(mNum + '.' + (j + 1));
+        }
+      });
+      var allSelected = courseMloIds.length > 0 && courseMloIds.every(function(id) { return selected.indexOf(id) !== -1; });
+      // Quick-action row at the top of the dropdown — applies to midterm /
+      // final / comprehensive assessments where the user almost always
+      // wants every course MLO at once.
+      optionsHtml += '<div class="obj-option" style="border-bottom:1px solid #f0ede5; background:#fff8e1;" onclick="toggleAllCourseObjectives(\'' + activityId + '\')">' +
+        '<span class="obj-check">' + (allSelected ? '✓' : '') + '</span> ' +
+        '<span style="font-weight:600; color:#8c1d40;">' + (allSelected ? 'Clear all objectives' : 'Select all course objectives') +
+        ' <span style="color:#999; font-weight:400; font-size:11px;">(' + courseMloIds.length + ')</span></span></div>';
       allModNums.forEach(function(mNum) {
         var mlos = _mlosFromModule(mNum);
         if (!mlos.length) return;
@@ -7366,6 +7383,84 @@
       }
     }
   }
+
+  // Bulk add/remove every course MLO on a midterm/final/comprehensive
+  // activity. Toggles based on whether all course MLOs are already
+  // selected — second click clears, third re-selects, etc.
+  window.toggleAllCourseObjectives = function(pickerId) {
+    var picker = document.querySelector('.obj-picker[data-picker="' + pickerId + '"]');
+    if (!picker) return;
+    var dd = picker.querySelector('.obj-dropdown');
+    var wasOpen = dd && dd.classList.contains('show');
+    var prevScrollTop = dd ? dd.scrollTop : 0;
+
+    // Gather every course MLO id from the in-memory + saved data.
+    var startN = activeCourse.moduleStartZero ? 0 : 1;
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    var modSet = {};
+    for (var i = 0; i < modCount; i++) modSet[i + startN] = true;
+    Object.keys(savedMods).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
+    var allModNums = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    var courseMloIds = [];
+    allModNums.forEach(function(mNum) {
+      var mod = (activeCourse.modules || [])[mNum - startN];
+      var mlos = (mod && mod.mlos) || (savedMods[mNum] && savedMods[mNum].mlos) || [];
+      for (var j = 0; j < mlos.length; j++) {
+        if (mlos[j] && mlos[j].trim()) courseMloIds.push(mNum + '.' + (j + 1));
+      }
+    });
+
+    // Find owner activity/material via the same DOM walk as toggleObj.
+    var owner = null;
+    var block = picker.closest('.activity-block');
+    if (block) {
+      var rawActId = block.getAttribute('data-activity-id');
+      var modNum = parseInt(block.getAttribute('data-module-num'));
+      if (rawActId && modNum && courseActivities[modNum]) {
+        var act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
+        if (act) owner = { type: 'activity', modNum: modNum, item: act };
+      }
+    }
+    if (!owner) {
+      var matRow = picker.closest('[data-material-id]');
+      if (matRow) {
+        var rawMatId = matRow.getAttribute('data-material-id');
+        var modNum2 = parseInt(matRow.getAttribute('data-module-num'));
+        if (rawMatId && modNum2 && courseMaterials[modNum2]) {
+          var mat = courseMaterials[modNum2].find(function(m) { return m.id === rawMatId; });
+          if (mat) owner = { type: 'material', modNum: modNum2, item: mat };
+        }
+      }
+    }
+    if (!owner) return;
+
+    var existing = Array.isArray(owner.item.objectives) ? owner.item.objectives : [];
+    var allSelected = courseMloIds.length > 0 && courseMloIds.every(function(id) { return existing.indexOf(id) !== -1; });
+    var nextSelected;
+    if (allSelected) {
+      // Clear: drop all course MLOs, keep any non-MLO references.
+      nextSelected = existing.filter(function(id) { return courseMloIds.indexOf(id) === -1; });
+    } else {
+      // Select all: union with current selection so non-MLO references stay.
+      nextSelected = existing.slice();
+      courseMloIds.forEach(function(id) { if (nextSelected.indexOf(id) === -1) nextSelected.push(id); });
+    }
+    owner.item.objectives = nextSelected;
+    saveActivityData();
+    if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate(owner.type, owner.modNum, owner.item);
+
+    picker.outerHTML = buildObjPickerHtml(pickerId, nextSelected, owner.modNum);
+    if (wasOpen) {
+      var newDd = document.getElementById('obj-dropdown-' + pickerId);
+      if (newDd) {
+        newDd.classList.add('show');
+        if (prevScrollTop) newDd.scrollTop = prevScrollTop;
+        var newDisplay = newDd.previousElementSibling;
+        if (newDisplay) newDisplay.classList.add('open');
+      }
+    }
+  };
 
   function removeObj(pickerId, objId) {
     toggleObj(pickerId, objId);
