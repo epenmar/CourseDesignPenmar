@@ -630,7 +630,7 @@
       <div id="canvas-shell-status" style="font-size:11px; color:#888; margin-bottom:6px; min-height:14px;"></div>
       <div style="display:flex; gap:8px; justify-content:flex-end;">
         <button onclick="closeCanvasShellModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
-        <button onclick="generateCanvasShellCsv()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Generate CSV</button>
+        <button id="canvas-shell-primary-btn" onclick="generateCanvasShellCsv()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Generate CSV</button>
       </div>
     </div>
   </div>
@@ -1656,6 +1656,14 @@
     var helpEl = document.getElementById('canvas-shell-help');
     if (!modal || !listEl) return;
     modal.dataset.mode = mode;
+    modal.dataset.phase = 'pick';
+    // Reset the primary button (it gets repurposed to "Save URLs" after a
+    // CSV download — make sure each fresh open starts in Generate mode).
+    var primaryBtn = document.getElementById('canvas-shell-primary-btn');
+    if (primaryBtn) {
+      primaryBtn.textContent = 'Generate CSV';
+      primaryBtn.onclick = function() { generateCanvasShellCsv(); };
+    }
     if (titleEl) titleEl.textContent = mode === 'live'
       ? '🎓 Generate Live Canvas Shell Request'
       : '📋 Generate Dev Canvas Shell Request';
@@ -1716,8 +1724,102 @@
 
   window.closeCanvasShellModal = function() {
     var modal = document.getElementById('canvas-shell-modal');
-    if (modal) modal.style.display = 'none';
+    if (!modal) return;
+    // Confirm before discarding the paste-back screen if any URLs were typed.
+    if (modal.dataset.phase === 'paste') {
+      var typed = false;
+      modal.querySelectorAll('.shell-url-input').forEach(function(inp) {
+        if ((inp.value || '').trim()) typed = true;
+      });
+      if (typed && !confirm('Discard the URLs you pasted? They won\'t be saved.')) return;
+    }
+    modal.style.display = 'none';
+    modal.dataset.phase = '';
+    delete modal.dataset.pasteRows;
   };
+
+  // After the CSV downloads, swap the modal into "paste-back" mode: one row
+  // per course that went into the CSV, code + name pre-filled, blank URL
+  // input. On Save we write each URL into course_overrides[id].canvasDev/Live
+  // (the same slot Edit Course writes to), so the URL becomes the canonical
+  // value and survives the next cloud pull.
+  function _showShellUrlPasteUI(rows, mode) {
+    var modal = document.getElementById('canvas-shell-modal');
+    if (!modal) return;
+    modal.dataset.phase = 'paste';
+    modal.dataset.pasteMode = mode;
+    var titleEl = document.getElementById('canvas-shell-title');
+    var helpEl = document.getElementById('canvas-shell-help');
+    var listEl = document.getElementById('canvas-shell-sessions');
+    var statusEl = document.getElementById('canvas-shell-status');
+    var footerBtn = document.getElementById('canvas-shell-primary-btn');
+    var modeLabel = mode === 'live' ? 'Live' : 'Dev';
+    var fieldLabel = mode === 'live' ? 'Canvas Live Shell URL' : 'Canvas Dev Shell URL';
+    if (titleEl) titleEl.textContent = '🔗 Paste back ' + modeLabel + ' Canvas URLs';
+    if (helpEl) helpEl.innerHTML = 'CSV downloaded. After CES creates the shells, paste each one\'s URL below — Save will store it in the matching course\'s ' + (mode === 'live' ? '<em>Canvas Live Shell URL</em>' : '<em>Canvas Dev Shell URL</em>') + ' field.';
+    if (statusEl) { statusEl.textContent = ''; statusEl.style.color = ''; }
+    if (listEl) {
+      listEl.innerHTML = rows.map(function(r, i) {
+        var codeEsc = String(r.code || '').replace(/</g, '&lt;');
+        var nameEsc = String(r.name || '').replace(/</g, '&lt;');
+        return '<div class="shell-url-row" data-course-id="' + r.id + '" style="padding:8px 4px; border-bottom:1px solid #f5f3ee;">'
+          + '<div style="font-size:12px; color:#8c1d40; font-weight:600;">' + codeEsc + ' <span style="color:#888; font-weight:400;">' + nameEsc + '</span></div>'
+          + '<input type="url" class="shell-url-input" placeholder="https://canvas.asu.edu/courses/..." style="width:100%; margin-top:4px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:12px; font-family:Inter,sans-serif;" />'
+          + '</div>';
+      }).join('');
+    }
+    if (footerBtn) {
+      footerBtn.textContent = 'Save URLs';
+      footerBtn.onclick = function() { _saveShellUrls(); };
+    }
+  }
+
+  function _saveShellUrls() {
+    var modal = document.getElementById('canvas-shell-modal');
+    if (!modal) return;
+    var mode = modal.dataset.pasteMode === 'live' ? 'live' : 'dev';
+    var statusEl = document.getElementById('canvas-shell-status');
+    var rows = modal.querySelectorAll('.shell-url-row');
+    var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+    var saved = 0;
+    rows.forEach(function(row) {
+      var courseId = row.getAttribute('data-course-id');
+      var input = row.querySelector('.shell-url-input');
+      var url = (input && input.value || '').trim();
+      if (!url || !courseId || !courseData[courseId]) return;
+      var c = courseData[courseId];
+      if (mode === 'live') c.canvasLiveUrl = url;
+      else c.canvasDevUrl = url;
+      // Merge overrides so previously-saved fields aren't blown away.
+      var prev = overrides[courseId] || {};
+      if (mode === 'live') prev.canvasLiveUrl = url;
+      else prev.canvasDevUrl = url;
+      overrides[courseId] = prev;
+      saved++;
+    });
+    localStorage.setItem('course_overrides', JSON.stringify(overrides));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: 'key' })
+        .then(function(r) { if (r && r.error) console.warn('[shell-urls] cloud sync failed:', r.error.message); });
+    }
+    if (statusEl) {
+      if (saved === 0) {
+        statusEl.textContent = 'No URLs entered yet — paste at least one before saving.';
+        statusEl.style.color = '#c62828';
+        return;
+      }
+      statusEl.textContent = '✓ Saved ' + saved + ' URL' + (saved === 1 ? '' : 's') + '. Closing.';
+      statusEl.style.color = '#2e7d32';
+    }
+    if (typeof renderTable === 'function') renderTable();
+    var ov = document.getElementById('detail-overlay');
+    if (ov && ov._currentId && typeof renderDetail === 'function') renderDetail(ov._currentId);
+    setTimeout(function() {
+      modal.style.display = 'none';
+      modal.dataset.phase = '';
+    }, 800);
+  }
 
   window.generateCanvasShellCsv = function() {
     var modal = document.getElementById('canvas-shell-modal');
@@ -1732,6 +1834,7 @@
     checks.forEach(function(cb) { selectedSessions[cb.value] = true; });
     var inactiveMap = getInactiveCourses();
     var rows = [];
+    var pasteRows = []; // {id, code, name} per course exported — drives the URL paste-back UI
     var idUser = _idUsername();
     Object.keys(courseData).forEach(function(id) {
       if (inactiveMap[id]) return;
@@ -1739,6 +1842,7 @@
       var key = _sessionDisplayKey(c.session);
       if (!selectedSessions[key]) return;
       var code = (c.code || '').trim();
+      pasteRows.push({ id: id, code: code, name: c.courseName || '' });
       if (mode === 'live') {
         var compact = _liveSessionCompact(c.session);   // "2016FallA"
         var spaced = _liveSessionDisplay(c.session);    // "2016 Fall - A"
@@ -1803,6 +1907,10 @@
     // Open the Canvas Enrollment Services site so the user can submit the
     // CSV without an extra click. Pop-up blockers may still gate this.
     try { window.open('https://ces.apps.asu.edu/', '_blank', 'noopener'); } catch(e) {}
+    // Sort paste rows alphabetically by code so they match the CSV order
+    // the user sees. Then swap the modal into the URL paste-back screen.
+    pasteRows.sort(function(a, b) { return (a.code || '').localeCompare(b.code || ''); });
+    setTimeout(function() { _showShellUrlPasteUI(pasteRows, mode); }, 350);
   };
 
   // Push the current inactive map to Supabase immediately so the next
