@@ -1652,6 +1652,18 @@
     if (helpEl) helpEl.textContent = mode === 'live'
       ? 'Select the sessions to include. The CSV produces one live-shell row per active course, including the faculty member as instructor and the SLN from the worksheet.'
       : 'Select the sessions to include. The CSV produces one DEV-shell row per active course (no SLN, ID-only as instructor).';
+    // Approximate launch month for each ASU session so we can sort the
+    // picker chronologically. Spring sessions launch in Jan, Summer in May,
+    // Fall in Aug. The A/B/C letters represent successive 7.5-week (or
+    // similar) blocks within a term — A first, B second, C last.
+    function _sessionSortKey(session) {
+      var p = _sessionParts(session);
+      if (!p) return 999999999;
+      var seasonMonth = { Spring: 1, Summer: 5, Fall: 8, Winter: 12 }[p.season] || 0;
+      var letterOffset = { A: 0, B: 1, C: 2 }[p.letter] || 0;
+      return parseInt(p.year, 10) * 12 + seasonMonth + letterOffset * 0.1;
+    }
+
     var inactiveMap = getInactiveCourses();
     var bySession = {};
     Object.keys(courseData).forEach(function(id) {
@@ -1659,17 +1671,31 @@
       var c = courseData[id];
       var key = _sessionDisplayKey(c.session);
       if (!key || key === '—') return;
-      (bySession[key] = bySession[key] || []).push({ id: id, code: c.code });
+      var entry = bySession[key] || (bySession[key] = { courses: [], sortKey: _sessionSortKey(c.session) });
+      entry.courses.push({ id: id, code: c.code });
     });
-    var labels = Object.keys(bySession).sort();
+    var labels = Object.keys(bySession).sort(function(a, b) {
+      return (bySession[a].sortKey - bySession[b].sortKey) || a.localeCompare(b);
+    });
+    // Default check the soonest upcoming session — the one with the lowest
+    // sort key whose date is in the future, falling back to the very first
+    // entry if nothing is upcoming.
+    var nowKey = (function() {
+      var d = new Date();
+      return d.getFullYear() * 12 + (d.getMonth() + 1);
+    })();
+    var defaultLabel = labels.find(function(l) { return bySession[l].sortKey >= nowKey - 1; }) || labels[0];
+
     if (!labels.length) {
       listEl.innerHTML = '<div style="font-size:12px; color:#999; font-style:italic; padding:8px;">No active courses with sessions assigned. Set the session on a course first.</div>';
     } else {
       listEl.innerHTML = labels.map(function(label) {
-        var courses = bySession[label];
+        var entry = bySession[label];
+        var courses = entry.courses;
         var examples = courses.slice(0, 4).map(function(c) { return c.code; }).join(', ') + (courses.length > 4 ? ', …' : '');
+        var checked = label === defaultLabel ? ' checked' : '';
         return '<label style="display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid #f5f3ee; cursor:pointer; font-size:13px;">'
-          + '<input type="checkbox" class="canvas-shell-session" value="' + String(label).replace(/"/g, '&quot;') + '" checked style="margin-top:3px;" />'
+          + '<input type="checkbox" class="canvas-shell-session" value="' + String(label).replace(/"/g, '&quot;') + '"' + checked + ' style="margin-top:3px;" />'
           + '<span style="flex:1;"><strong>' + label.replace(/</g, '&lt;') + '</strong> <span style="color:#999; font-size:11px;">(' + courses.length + ' course' + (courses.length === 1 ? '' : 's') + ': ' + examples.replace(/</g, '&lt;') + ')</span></span>'
           + '</label>';
       }).join('');
