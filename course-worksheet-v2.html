@@ -10097,11 +10097,17 @@
 ${clone.innerHTML}
 </body></html>`;
 
-    const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+    // Send HTML and let Drive convert to a native Google Doc on upload —
+    // the previous .doc-renamed-HTML approach made Drive show "No preview
+    // available" because Drive treats it as opaque Word data. Local
+    // download still uses .doc with the same blob since Word reads HTML
+    // happily when the file extension hints at it.
+    const htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    const docBlob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
     const courseCode = (activeCourse.code || 'course').trim();
     const today = _todayYmd();
-    const filename = (courseCode + ' - Development Worksheet ' + today).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
-    return { blob: blob, filename: filename };
+    const baseName = (courseCode + ' - Development Worksheet ' + today).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    return { blob: docBlob, htmlBlob: htmlBlob, filename: baseName + '.doc', driveName: baseName };
   }
 
   // ISO date stamp for filenames so successive exports don't overwrite each
@@ -11545,9 +11551,10 @@ ${clone.innerHTML}
       proposalHtml +
       '</body></html>';
 
-    var blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
-    var filename = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
-    return { blob: blob, filename: filename };
+    var docBlob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
+    var htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' });
+    var baseName = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    return { blob: docBlob, htmlBlob: htmlBlob, filename: baseName + '.doc', driveName: baseName };
   }
 
   function downloadCourseParserDoc() {
@@ -11571,7 +11578,7 @@ ${clone.innerHTML}
     var btn = document.getElementById('cp-drive-btn');
     var origText = btn ? btn.textContent : null;
     if (btn) { btn.textContent = '⏳ Uploading…'; btn.disabled = true; }
-    window.GDrive.uploadBlob(driveUrl, doc.filename, doc.blob, 'application/vnd.ms-word').then(function(res) {
+    window.GDrive.uploadBlob(driveUrl, doc.driveName || doc.filename, doc.htmlBlob || doc.blob, 'text/html', null, 'application/vnd.google-apps.document').then(function(res) {
       var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
       var actualParents = res.parents || [];
       if (actualParents.indexOf(expectedFolderId) === -1) {
@@ -11606,11 +11613,13 @@ ${clone.innerHTML}
       return;
     }
 
-    // Upload directly into the course's Drive folder.
+    // Upload directly into the course's Drive folder. Send the HTML blob
+    // and ask Drive to convert it to a native Google Doc — Drive renders
+    // a real previewable/editable doc instead of an opaque .doc blob.
     const btn = document.querySelector('button[onclick="exportToGoogleDrive()"]');
     const origText = btn ? btn.textContent : null;
     if (btn) { btn.textContent = '⏳ Uploading to Drive…'; btn.disabled = true; }
-    window.GDrive.uploadBlob(driveUrl, exp.filename, exp.blob, 'application/vnd.ms-word').then(function(res) {
+    window.GDrive.uploadBlob(driveUrl, exp.driveName || exp.filename, exp.htmlBlob || exp.blob, 'text/html', null, 'application/vnd.google-apps.document').then(function(res) {
       console.log('[Drive] worksheet uploaded', res);
       var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
       var actualParents = res.parents || [];

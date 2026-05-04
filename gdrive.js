@@ -63,10 +63,16 @@
     });
   }
 
-  function _uploadToFolderId(folderId, name, blob, mimeType, onProgress) {
+  function _uploadToFolderId(folderId, name, blob, mimeType, onProgress, convertTo) {
     return getAccessToken().then(function(token) {
       var metadata = { name: name, parents: [folderId] };
-      if (mimeType) metadata.mimeType = mimeType;
+      // convertTo lets the caller ask Drive to convert the upload to a
+      // native Workspace type. e.g. uploading HTML with
+      // convertTo='application/vnd.google-apps.document' lands a real
+      // Google Doc that Drive can preview/edit, instead of an opaque
+      // .doc blob that triggers "No preview available".
+      if (convertTo) metadata.mimeType = convertTo;
+      else if (mimeType) metadata.mimeType = mimeType;
       var form = new FormData();
       form.append('metadata', new Blob([JSON.stringify(metadata)], { type: 'application/json' }));
       form.append('file', blob);
@@ -97,12 +103,12 @@
     });
   }
 
-  function uploadBlob(folderUrl, name, blob, mimeType, onProgress) {
+  function uploadBlob(folderUrl, name, blob, mimeType, onProgress, convertTo) {
     var folderId = folderIdFromUrl(folderUrl);
     if (!folderId) {
       return Promise.reject(new Error('No Drive folder configured for this course. Set the Google Drive Folder URL in Course Info.'));
     }
-    return _uploadToFolderId(folderId, name, blob, mimeType, onProgress);
+    return _uploadToFolderId(folderId, name, blob, mimeType, onProgress, convertTo);
   }
 
   // Find a child folder named `name` under `parentId`, or create it. Returns
