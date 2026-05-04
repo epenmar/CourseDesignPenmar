@@ -7359,7 +7359,11 @@
     // based on current state; other prior selections stay unless they match a deselected option.
     let selected = known.slice();
     if (owner && Array.isArray(owner.item.objectives)) {
-      const optionIds = Array.from(options).map(o => o.querySelector('strong').textContent);
+      // Same as the iteration above: skip the "Select all" shortcut row,
+      // which has no <strong> id and threw when we tried to read textContent.
+      const optionIds = Array.from(options)
+        .map(o => { var s = o.querySelector('strong'); return s ? s.textContent : null; })
+        .filter(Boolean);
       const optionSet = new Set(optionIds);
       owner.item.objectives.forEach(id => {
         if (id === objId) return; // handled by toggle logic
