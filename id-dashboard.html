@@ -1556,6 +1556,77 @@
     try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
   }
 
+  // ===== FACULTY DIRECTORY =====
+  // Implicit, learns-from-saves: every time a course's email or ASURite is
+  // saved (Edit Course modal), the instructor's name is upserted into a
+  // dashboard_state-backed map. Future courses for the same instructor
+  // pre-fill their empty email/ASURite fields automatically. The user can
+  // always overwrite per course; the directory only fills when the slot is
+  // empty. Keyed by lowercased + whitespace-collapsed name so "Habte
+  // Tadesse" and "habte  tadesse " resolve to the same entry.
+  function _facultyKey(name) { return String(name || '').toLowerCase().replace(/\s+/g, ' ').trim(); }
+  function getFacultyDirectory() {
+    try { return JSON.parse(localStorage.getItem('faculty_directory') || '{}'); } catch(e) { return {}; }
+  }
+  function saveFacultyDirectory(map) {
+    localStorage.setItem('faculty_directory', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'faculty_directory', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r && r.error) console.warn('[faculty_directory] cloud sync failed:', r.error.message); });
+    }
+  }
+  // Update the directory entry for `name` with whichever fields are non-empty.
+  // Empty fields don't blank out an existing value — that lets a partial save
+  // (e.g., adding email but leaving ASURite blank) preserve prior ASURite.
+  function upsertFaculty(name, fields) {
+    var key = _facultyKey(name);
+    if (!key) return;
+    var dir = getFacultyDirectory();
+    var prev = dir[key] || {};
+    var next = {
+      name: name || prev.name || '',
+      email: (fields && fields.email) || prev.email || '',
+      asurite: (fields && fields.asurite) || prev.asurite || '',
+      updatedAt: Date.now()
+    };
+    // Only write if something changed materially.
+    if (next.email === prev.email && next.asurite === prev.asurite && next.name === prev.name) return;
+    dir[key] = next;
+    saveFacultyDirectory(dir);
+  }
+  function lookupFaculty(name) {
+    var key = _facultyKey(name);
+    if (!key) return null;
+    var dir = getFacultyDirectory();
+    if (dir[key]) return dir[key];
+    // Fallback: derive from existing courseData + worksheet buckets so the
+    // directory works retroactively for instructors already taught — no need
+    // to wait for an explicit Edit Course save before the next course gets
+    // pre-filled. Prefer the most-complete entry (both email and asurite).
+    var fallback = null;
+    try {
+      var ids = Object.keys(courseData || {});
+      for (var i = 0; i < ids.length; i++) {
+        var c = courseData[ids[i]];
+        if (!c || !c.instructor) continue;
+        if (_facultyKey(c.instructor) !== key) continue;
+        var entry = { name: c.instructor, email: c.email || '', asurite: '' };
+        try {
+          var ws = JSON.parse(localStorage.getItem('worksheet_' + ids[i]) || '{}');
+          entry.asurite = (ws.formData && ws.formData['ci-instructor-asurite']) || '';
+        } catch(e) {}
+        var betterEmail = !fallback || (!fallback.email && entry.email);
+        var betterAsurite = !fallback || (!fallback.asurite && entry.asurite);
+        if (!fallback || betterEmail || betterAsurite) fallback = entry;
+        if (fallback && fallback.email && fallback.asurite) break;
+      }
+    } catch(e) {}
+    return fallback;
+  }
+  // Expose so the worksheet can read from the same localStorage key.
+  window.lookupFaculty = lookupFaculty;
+
   // ===== MULTI-COURSE ACTIONS: CANVAS SHELL REQUEST =====
   // Pre-built form for the Canvas Shell Request — pick any number of
   // sessions, get back a CSV with one row per active course in those
@@ -5799,12 +5870,16 @@
     document.getElementById('edit-code').value = c.code || '';
     document.getElementById('edit-name').value = c.courseName || '';
     document.getElementById('edit-instructor').value = c.instructor || '';
-    document.getElementById('edit-email').value = c.email || '';
-    // Pre-fill ASURite from the per-course worksheet bucket (the same place
-    // the worksheet's Course Info card writes to) so the modal stays in sync.
+    // Pre-fill empty email + ASURite from the faculty directory if we've
+    // saved this instructor's contact info on a prior course. The user can
+    // still overwrite the suggestion before saving.
+    var dirEntry = lookupFaculty(c.instructor);
+    var emailVal = c.email || (dirEntry && dirEntry.email) || '';
+    document.getElementById('edit-email').value = emailVal;
     try {
       var wsAtOpen = JSON.parse(localStorage.getItem('worksheet_' + editCourseId) || '{}');
       var existingAsurite = (wsAtOpen.formData && wsAtOpen.formData['ci-instructor-asurite']) || '';
+      if (!existingAsurite && dirEntry && dirEntry.asurite) existingAsurite = dirEntry.asurite;
       document.getElementById('edit-instructor-asurite').value = existingAsurite;
     } catch(e) { document.getElementById('edit-instructor-asurite').value = ''; }
     document.getElementById('edit-session').value = c.session || '';
@@ -5925,6 +6000,13 @@
           .then(function(r) { if (r && r.error) console.warn('[asurite] cloud sync failed:', r.error.message); });
       }
     } catch(e) { console.warn('[asurite] save failed:', e); }
+
+    // Stash the instructor's contact info in the faculty directory so the
+    // next course taught by this same instructor pre-fills email + ASURite
+    // automatically. Only writes when at least one field is non-empty.
+    if (instructor && (email || instructorAsurite)) {
+      try { upsertFaculty(instructor, { email: email, asurite: instructorAsurite }); } catch(e) {}
+    }
 
     renderTable();
     closeEditCourse();

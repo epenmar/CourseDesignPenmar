@@ -5593,6 +5593,37 @@
       const key = el.id || ('chk_' + idx);
       if (key in allData) el.checked = allData[key];
     });
+    // Faculty directory auto-fill: if the course's instructor matches an
+    // entry the dashboard saved on a prior course, pre-fill empty email +
+    // ASURite slots. Cached in localStorage by the dashboard, so this works
+    // offline as long as the user has visited the dashboard at least once
+    // since the entry was created. Doesn't overwrite anything the user has
+    // already typed for this course.
+    try {
+      var dir = JSON.parse(localStorage.getItem('faculty_directory') || '{}');
+      var instr = String((activeCourse && activeCourse.instructor) || allData['ci-instructor'] || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      if (instr && dir[instr]) {
+        var entry = dir[instr];
+        var emailEl = document.getElementById('ci-email');
+        if (emailEl && !emailEl.value && entry.email) {
+          emailEl.value = entry.email;
+          if (typeof saveField === 'function') {
+            var fd = loadField('formData') || {};
+            fd['ci-email'] = entry.email;
+            saveField('formData', fd);
+          }
+        }
+        var asuriteEl = document.getElementById('ci-instructor-asurite');
+        if (asuriteEl && !asuriteEl.value && entry.asurite) {
+          asuriteEl.value = entry.asurite;
+          if (typeof saveField === 'function') {
+            var fd2 = loadField('formData') || {};
+            fd2['ci-instructor-asurite'] = entry.asurite;
+            saveField('formData', fd2);
+          }
+        }
+      }
+    } catch(e) {}
   }
 
   function showSaveIndicator() {
