@@ -7356,7 +7356,7 @@
     if (block) {
       const rawActId = block.getAttribute('data-activity-id');
       const modNum = parseInt(block.getAttribute('data-module-num'));
-      if (rawActId && modNum && courseActivities[modNum]) {
+      if (rawActId && !isNaN(modNum) && courseActivities[modNum]) {
         const act = courseActivities[modNum].find(a => a.id === rawActId);
         if (act) owner = { type: 'activity', modNum, item: act };
       }
@@ -7366,7 +7366,7 @@
       if (matRow) {
         const rawMatId = matRow.getAttribute('data-material-id');
         const modNum = parseInt(matRow.getAttribute('data-module-num'));
-        if (rawMatId && modNum && courseMaterials[modNum]) {
+        if (rawMatId && !isNaN(modNum) && courseMaterials[modNum]) {
           const mat = courseMaterials[modNum].find(m => m.id === rawMatId);
           if (mat) owner = { type: 'material', modNum, item: mat };
         }
@@ -7458,7 +7458,7 @@
     if (block) {
       var rawActId = block.getAttribute('data-activity-id');
       var modNum = parseInt(block.getAttribute('data-module-num'));
-      if (rawActId && modNum && courseActivities[modNum]) {
+      if (rawActId && !isNaN(modNum) && courseActivities[modNum]) {
         var act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
         if (act) owner = { type: 'activity', modNum: modNum, item: act };
       }
@@ -7468,7 +7468,7 @@
       if (matRow) {
         var rawMatId = matRow.getAttribute('data-material-id');
         var modNum2 = parseInt(matRow.getAttribute('data-module-num'));
-        if (rawMatId && modNum2 && courseMaterials[modNum2]) {
+        if (rawMatId && !isNaN(modNum2) && courseMaterials[modNum2]) {
           var mat = courseMaterials[modNum2].find(function(m) { return m.id === rawMatId; });
           if (mat) owner = { type: 'material', modNum: modNum2, item: mat };
         }
@@ -8067,7 +8067,7 @@
     if (actBlock) {
       var actId = actBlock.getAttribute('data-activity-id');
       var modNum = parseInt(actBlock.getAttribute('data-module-num'));
-      if (actId && modNum && courseActivities[modNum]) {
+      if (actId && !isNaN(modNum) && courseActivities[modNum]) {
         var act = courseActivities[modNum].find(function(a) { return a.id === actId; });
         if (act) { act.contentType = type; saveActivityData(); }
       }
