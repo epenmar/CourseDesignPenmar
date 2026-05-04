@@ -843,6 +843,7 @@
       <div class="edit-field"><label>Course Name</label><input type="text" id="edit-name" placeholder="e.g. AI Technologies"></div>
       <div class="edit-field"><label>Instructor Name</label><input type="text" id="edit-instructor" placeholder="e.g. John Smith"></div>
       <div class="edit-field"><label>Instructor Email</label><input type="text" id="edit-email" placeholder="e.g. john.smith@asu.edu"></div>
+      <div class="edit-field"><label>Instructor ASURite <span style="color:#999; font-weight:400;">(used for Live Canvas Shell requests; not displayed elsewhere)</span></label><input type="text" id="edit-instructor-asurite" placeholder="e.g. jsmith2"></div>
       <div class="edit-field"><label>Session</label><input type="text" id="edit-session" placeholder="e.g. Spring B '27"></div>
       <div class="edit-field"><label>Program</label><input type="text" id="edit-program" placeholder="e.g. Bio Data Science MS"></div>
       <div class="edit-field"><label>College</label><input type="text" id="edit-college" placeholder="e.g. New College"></div>
@@ -5691,6 +5692,13 @@
     document.getElementById('edit-name').value = c.courseName || '';
     document.getElementById('edit-instructor').value = c.instructor || '';
     document.getElementById('edit-email').value = c.email || '';
+    // Pre-fill ASURite from the per-course worksheet bucket (the same place
+    // the worksheet's Course Info card writes to) so the modal stays in sync.
+    try {
+      var wsAtOpen = JSON.parse(localStorage.getItem('worksheet_' + editCourseId) || '{}');
+      var existingAsurite = (wsAtOpen.formData && wsAtOpen.formData['ci-instructor-asurite']) || '';
+      document.getElementById('edit-instructor-asurite').value = existingAsurite;
+    } catch(e) { document.getElementById('edit-instructor-asurite').value = ''; }
     document.getElementById('edit-session').value = c.session || '';
     document.getElementById('edit-program').value = c.program || '';
     document.getElementById('edit-college').value = c.college || '';
@@ -5721,6 +5729,7 @@
     var name = document.getElementById('edit-name').value.trim();
     var instructor = document.getElementById('edit-instructor').value.trim();
     var email = document.getElementById('edit-email').value.trim();
+    var instructorAsurite = document.getElementById('edit-instructor-asurite').value.trim();
     var session = document.getElementById('edit-session').value.trim();
     var program = document.getElementById('edit-program').value.trim();
     var college = document.getElementById('edit-college').value.trim();
@@ -5789,6 +5798,25 @@
     setCourseAirtableUrl(editCourseId, airtableUrl);
     // Jira Epic key lives in its own dashboard_state key
     setCourseJiraEpic(editCourseId, jiraEpic);
+
+    // Persist the Instructor ASURite into the per-course worksheet bucket
+    // (formData['ci-instructor-asurite']) — same location the worksheet's
+    // Course Info field writes to. Pushes to Supabase via the worksheets
+    // table so the next worksheet load sees the change.
+    try {
+      var wsKey = 'worksheet_' + editCourseId;
+      var wsBucket = JSON.parse(localStorage.getItem(wsKey) || '{}');
+      if (!wsBucket.formData) wsBucket.formData = {};
+      wsBucket.formData['ci-instructor-asurite'] = instructorAsurite;
+      if (!wsBucket.__modifiedAt) wsBucket.__modifiedAt = {};
+      wsBucket.__modifiedAt.formData = Date.now();
+      localStorage.setItem(wsKey, JSON.stringify(wsBucket));
+      if (window._sbClient) {
+        window._sbClient.from('worksheets')
+          .upsert({ course_id: editCourseId, data: wsBucket }, { onConflict: 'course_id' })
+          .then(function(r) { if (r && r.error) console.warn('[asurite] cloud sync failed:', r.error.message); });
+      }
+    } catch(e) { console.warn('[asurite] save failed:', e); }
 
     renderTable();
     closeEditCourse();
