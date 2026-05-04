@@ -7346,6 +7346,11 @@
       }
     }
 
+    // Capture current scroll position so we can restore it after the
+    // outerHTML rebuild — without this, the dropdown jumps back to the
+    // top every time the user picks an objective from a long list.
+    const prevScrollTop = dd ? dd.scrollTop : 0;
+
     // Regenerate the full picker HTML to guarantee clean DOM structure
     const modForRender = owner ? owner.modNum : parseInt(picker.closest('[data-module-num]')?.getAttribute('data-module-num') || '0');
     picker.outerHTML = buildObjPickerHtml(pickerId, selected, modForRender);
@@ -7355,6 +7360,7 @@
       const newDd = document.getElementById('obj-dropdown-' + pickerId);
       if (newDd) {
         newDd.classList.add('show');
+        if (prevScrollTop) newDd.scrollTop = prevScrollTop;
         const newDisplay = newDd.previousElementSibling;
         if (newDisplay) newDisplay.classList.add('open');
       }
