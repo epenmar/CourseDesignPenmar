@@ -8454,6 +8454,7 @@
     if (courseCode) parts.push(courseCode);
     if (moduleNum) parts.push('Module ' + moduleNum);
     parts.push(activityName || (title ? title.textContent : 'Template'));
+    parts.push(_todayYmd());
     // Replace filesystem-unfriendly chars with spaces, collapse multiples
     var filename = parts.join(' - ').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.txt';
     var blob = new Blob([content], { type: 'text/plain' });
@@ -10044,8 +10045,16 @@ ${clone.innerHTML}
 
     const blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
     const courseCode = (activeCourse.code || 'course').trim();
-    const filename = (courseCode + ' - Development Worksheet').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
+    const today = _todayYmd();
+    const filename = (courseCode + ' - Development Worksheet ' + today).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
     return { blob: blob, filename: filename };
+  }
+
+  // ISO date stamp for filenames so successive exports don't overwrite each
+  // other in Drive and a glance at the file list shows when each was made.
+  function _todayYmd() {
+    var d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
   }
 
   function downloadDocument() {
@@ -10164,7 +10173,7 @@ ${clone.innerHTML}
 
   function _briefBaseFilename() {
     var code = (activeCourse && activeCourse.code) || 'course';
-    return (code + ' - Course Brief').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    return (code + ' - Course Brief ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
   }
 
   function downloadCourseBriefJson() {
@@ -11483,7 +11492,7 @@ ${clone.innerHTML}
       '</body></html>';
 
     var blob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
-    var filename = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal').replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
+    var filename = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim() + '.doc';
     return { blob: blob, filename: filename };
   }
 
