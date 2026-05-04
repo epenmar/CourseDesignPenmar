@@ -13405,6 +13405,10 @@ ${clone.innerHTML}
       } else if (currentCommentSection) {
         await loadComments(currentCommentSection);
       }
+      // Refresh field + section highlight classes so the resolved comment's
+      // yellow underlines/borders disappear immediately. loadComments only
+      // updates commentCache; the indicator function reads cache → DOM.
+      if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
     } catch(e) { console.error('Failed to resolve comment:', e); }
   }
 
@@ -13433,6 +13437,9 @@ ${clone.innerHTML}
       } else if (currentCommentSection) {
         await loadComments(currentCommentSection);
       }
+      // Same reason as resolveComment: refresh field + section highlights
+      // so the deleted comment's yellow indicators clear without a reload.
+      if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
     } catch(e) { console.error('Failed to delete comment:', e); }
   }
 
