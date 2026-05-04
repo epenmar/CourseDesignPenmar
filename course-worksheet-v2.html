@@ -4691,19 +4691,29 @@
     var assignBadge = document.getElementById('sidebar-assign-badge');
     if (assignBadge) {
       var modsWithActs = 0;
-      for (var ai = 1; ai <= modCount; ai++) {
-        var acts = courseActivities[ai];
-        if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) modsWithActs++;
+      var modsMissingActs = [];
+      var startN_a = activeCourse.moduleStartZero ? 0 : 1;
+      for (var ai = 0; ai < modCount; ai++) {
+        var modN = ai + startN_a;
+        var acts = courseActivities[modN];
+        var has = acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); });
+        if (has) modsWithActs++;
+        else modsMissingActs.push(modN);
       }
       if (modsWithActs === modCount && modCount > 0) {
         assignBadge.className = 'badge badge-done';
         assignBadge.textContent = modsWithActs + '/' + modCount;
+        assignBadge.title = 'All modules have at least one named activity.';
       } else if (modsWithActs > 0) {
         assignBadge.className = 'badge badge-partial';
         assignBadge.textContent = modsWithActs + '/' + modCount;
+        assignBadge.title = modsMissingActs.length === 1
+          ? 'Module ' + modsMissingActs[0] + ' has no named activity yet.'
+          : 'Missing named activities in: Module ' + modsMissingActs.join(', Module ');
       } else {
         assignBadge.className = 'badge badge-empty';
         assignBadge.textContent = '—';
+        assignBadge.title = 'No activities named yet.';
       }
     }
 
@@ -4711,16 +4721,25 @@
     var matsBadge = document.getElementById('sidebar-mats-badge');
     if (matsBadge) {
       var modsWithMats = 0;
-      for (var mi = 1; mi <= modCount; mi++) {
-        var mats = courseMaterials[mi];
-        if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) modsWithMats++;
+      var modsMissingMats = [];
+      var startN_m = activeCourse.moduleStartZero ? 0 : 1;
+      for (var mi = 0; mi < modCount; mi++) {
+        var modN_m = mi + startN_m;
+        var mats = courseMaterials[modN_m];
+        var hasm = mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); });
+        if (hasm) modsWithMats++;
+        else modsMissingMats.push(modN_m);
       }
       if (modsWithMats === modCount && modCount > 0) {
         matsBadge.className = 'badge badge-done';
         matsBadge.textContent = modsWithMats + '/' + modCount;
+        matsBadge.title = 'All modules have at least one titled material.';
       } else if (modsWithMats > 0) {
         matsBadge.className = 'badge badge-partial';
         matsBadge.textContent = modsWithMats + '/' + modCount;
+        matsBadge.title = modsMissingMats.length === 1
+          ? 'Module ' + modsMissingMats[0] + ' has no titled material yet.'
+          : 'Missing titled materials in: Module ' + modsMissingMats.join(', Module ');
       } else {
         matsBadge.className = 'badge badge-empty';
         matsBadge.textContent = '—';
