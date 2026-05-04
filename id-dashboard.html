@@ -2551,6 +2551,12 @@
         renderSummary();
         renderUpcoming();
         renderTable();
+        // Local sync's meetings come from dashboard-data.js, which can be
+        // stale. Re-pull from Supabase so the (multi-machine, current)
+        // mirror wins for any course it covers. Without this, backgrounding
+        // the tab and coming back could revert the side panel from Apr 23
+        // to Apr 6 (or whatever was last serialized to dashboard-data.js).
+        if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
       })
       .catch(function() {
         // Server not running — reload dashboard-data.js from disk with cache-bust
@@ -2578,6 +2584,9 @@
             renderSummary();
             renderUpcoming();
             renderTable();
+            // Same reason as the success path — Supabase is the canonical
+            // source for meetings, so let it win over disk-cached data.
+            if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
           }
         };
         document.head.appendChild(s);
