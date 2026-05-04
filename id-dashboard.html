@@ -1786,7 +1786,7 @@
       return;
     }
     rows.sort(function(a, b) { return a[1].localeCompare(b[1]); });
-    var header = ['CourseType','CustomCourseName','CustomCourseCodePostfix','CustomCourseSisIdPostfix','PrimarySLN','AdditionalSLNs','CustomSyncDate','CopyCourseI','Instructors','TAs'];
+    var header = ['CourseType','CustomCourseName','CustomCourseCodePostfix','CustomCourseSisIdPostfix','PrimarySLN','AdditionalSLNs','CustomSyncDate','CopyCourseID','Instructors','TAs'];
     var csv = header.join(',') + '\n' +
       rows.map(function(r) { return r.map(_csvEscape).join(','); }).join('\n') + '\n';
 
