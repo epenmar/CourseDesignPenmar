@@ -530,6 +530,9 @@
         <button class="resource-accordion" onclick="var b=document.getElementById('faculty-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
           🎓 Faculty Resources <span class="ra-arrow">▾</span>
         </button>
+        <button class="resource-accordion" onclick="var b=document.getElementById('multi-action-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+          🛠 Multi-course Actions <span class="ra-arrow">▾</span>
+        </button>
       </div>
       <div class="resource-body" id="uni-resource-body">
         <div class="resource-section" style="margin-top:4px;">
@@ -600,6 +603,33 @@
             <button class="rc-add-btn" onclick="showAddLinkForm('faculty-training')">+ Add Link</button>
           </div>
         </div>
+      </div>
+      <div class="resource-body" id="multi-action-body">
+        <div class="resource-section" style="margin-top:4px;">
+          <div class="resource-card" data-rc-id="multi-actions">
+            <div class="rc-header"><span>🛠</span><span class="rc-title">Bulk operations</span></div>
+            <div class="rc-links">
+              <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal();">📋 Generate Canvas Shell Request CSV</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- CANVAS SHELL REQUEST MODAL -->
+  <div id="canvas-shell-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:300; align-items:flex-start; justify-content:center; padding-top:80px; font-family:Inter,sans-serif;" onclick="if(event.target===this) closeCanvasShellModal();">
+    <div style="background:#fff; border-radius:12px; padding:22px 26px; max-width:560px; width:92%; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <h3 style="margin:0; font-size:16px; color:#8c1d40;">📋 Generate Canvas Shell Request</h3>
+        <button onclick="closeCanvasShellModal()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
+      </div>
+      <div style="font-size:12px; color:#666; margin-bottom:12px;">Select the sessions to include. The CSV will list one row per active course in those sessions, formatted for the Canvas Shell Request form.</div>
+      <div id="canvas-shell-sessions" style="overflow-y:auto; max-height:50vh; border:1px solid #f0ede5; border-radius:6px; padding:8px 10px; margin-bottom:12px;"></div>
+      <div id="canvas-shell-status" style="font-size:11px; color:#888; margin-bottom:6px; min-height:14px;"></div>
+      <div style="display:flex; gap:8px; justify-content:flex-end;">
+        <button onclick="closeCanvasShellModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
+        <button onclick="generateCanvasShellCsv()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Generate CSV</button>
       </div>
     </div>
   </div>
@@ -1523,6 +1553,146 @@
   function getInactiveCourses() {
     try { return JSON.parse(localStorage.getItem('inactive_courses') || '{}'); } catch(e) { return {}; }
   }
+
+  // ===== MULTI-COURSE ACTIONS: CANVAS SHELL REQUEST =====
+  // Pre-built form for the Canvas Shell Request — pick any number of
+  // sessions, get back a CSV with one row per active course in those
+  // sessions, formatted to match the columns the QA team's intake expects.
+  function _normalizeSessionForCsv(session) {
+    if (!session) return '';
+    var s = String(session).trim();
+    // Convert "Fall A '26", "Spring B '27" → "Fall 2026", "Spring 2027"
+    var m = s.match(/^(Spring|Summer|Fall|Winter)\s+[A-C]?\s*'?(\d{2,4})/i);
+    if (m) {
+      var season = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+      var yr = m[2];
+      if (yr.length === 2) yr = '20' + yr;
+      return season + ' ' + yr;
+    }
+    // ISO date string like 2026-08-20 — try to map to a label
+    if (/^\d{4}-\d{2}-\d{2}$/.test(s) && typeof airtableDateToSessionLabel === 'function') {
+      var label = airtableDateToSessionLabel(s);
+      if (label) return _normalizeSessionForCsv(label);
+    }
+    return s;
+  }
+
+  function _csvEscape(v) {
+    var s = String(v == null ? '' : v);
+    if (s.indexOf(',') !== -1 || s.indexOf('"') !== -1 || s.indexOf('\n') !== -1) {
+      return '"' + s.replace(/"/g, '""') + '"';
+    }
+    return s;
+  }
+
+  function _idUsername() {
+    try {
+      var prof = (typeof getProfile === 'function') ? getProfile() : null;
+      if (prof && prof.email) return String(prof.email).split('@')[0];
+    } catch(e) {}
+    return 'epenmar';
+  }
+
+  // Pull SLN from the per-course worksheet bucket (formData.ci-section-lines).
+  function _slnForCourse(courseId) {
+    try {
+      var ws = JSON.parse(localStorage.getItem('worksheet_' + courseId) || '{}');
+      return (ws.formData && ws.formData['ci-section-lines']) || '';
+    } catch(e) { return ''; }
+  }
+
+  window.openCanvasShellModal = function() {
+    var modal = document.getElementById('canvas-shell-modal');
+    var listEl = document.getElementById('canvas-shell-sessions');
+    var statusEl = document.getElementById('canvas-shell-status');
+    if (!modal || !listEl) return;
+    // Group active courses by their normalized session label.
+    var inactiveMap = getInactiveCourses();
+    var bySession = {};
+    Object.keys(courseData).forEach(function(id) {
+      if (inactiveMap[id]) return;
+      var c = courseData[id];
+      var label = _normalizeSessionForCsv(c.session);
+      if (!label || label === '—') return;
+      (bySession[label] = bySession[label] || []).push({ id: id, code: c.code, name: c.courseName });
+    });
+    var labels = Object.keys(bySession).sort();
+    if (!labels.length) {
+      listEl.innerHTML = '<div style="font-size:12px; color:#999; font-style:italic; padding:8px;">No active courses with sessions assigned. Set the session on a course first.</div>';
+    } else {
+      listEl.innerHTML = labels.map(function(label) {
+        var courses = bySession[label];
+        var examples = courses.slice(0, 4).map(function(c) { return c.code; }).join(', ') + (courses.length > 4 ? ', …' : '');
+        return '<label style="display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-bottom:1px solid #f5f3ee; cursor:pointer; font-size:13px;">'
+          + '<input type="checkbox" class="canvas-shell-session" value="' + String(label).replace(/"/g, '&quot;') + '" checked style="margin-top:3px;" />'
+          + '<span style="flex:1;"><strong>' + label.replace(/</g, '&lt;') + '</strong> <span style="color:#999; font-size:11px;">(' + courses.length + ' course' + (courses.length === 1 ? '' : 's') + ': ' + examples.replace(/</g, '&lt;') + ')</span></span>'
+          + '</label>';
+      }).join('');
+    }
+    statusEl.textContent = '';
+    modal.style.display = 'flex';
+  };
+
+  window.closeCanvasShellModal = function() {
+    var modal = document.getElementById('canvas-shell-modal');
+    if (modal) modal.style.display = 'none';
+  };
+
+  window.generateCanvasShellCsv = function() {
+    var statusEl = document.getElementById('canvas-shell-status');
+    var checks = document.querySelectorAll('#canvas-shell-sessions input.canvas-shell-session:checked');
+    if (!checks.length) {
+      if (statusEl) { statusEl.textContent = 'Pick at least one session.'; statusEl.style.color = '#c62828'; }
+      return;
+    }
+    var selectedSessions = {};
+    checks.forEach(function(cb) { selectedSessions[cb.value] = true; });
+    var inactiveMap = getInactiveCourses();
+    var rows = [];
+    var instructor = _idUsername();
+    Object.keys(courseData).forEach(function(id) {
+      if (inactiveMap[id]) return;
+      var c = courseData[id];
+      var label = _normalizeSessionForCsv(c.session);
+      if (!selectedSessions[label]) return;
+      var code = (c.code || '').trim();
+      // The CSV uses two slightly different postfix formats per the
+      // example sheet — spaces in CodePostfix, dashes in SisIdPostfix.
+      var codePostfix = 'DEV ' + code + ' - ' + label;
+      var sisIdPostfix = 'DEV-' + code + '- ' + label.replace(/\s+/g, '-');
+      var sln = _slnForCourse(id);
+      rows.push([
+        'Dev',           // CourseType
+        code,            // CustomCourseName
+        codePostfix,     // CustomCourseCodePostfix
+        sisIdPostfix,    // CustomCourseSisIdPostfix
+        sln,             // PrimarySLN
+        '',              // AdditionalSLI
+        '',              // CustomSync
+        '',              // CopyCourseI
+        instructor,      // Instructors
+        ''               // TAs
+      ]);
+    });
+    if (!rows.length) {
+      if (statusEl) { statusEl.textContent = 'No active courses found in the selected sessions.'; statusEl.style.color = '#c62828'; }
+      return;
+    }
+    rows.sort(function(a, b) { return a[1].localeCompare(b[1]); });
+    var header = ['CourseType','CustomCourseName','CustomCourseCodePostfix','CustomCourseSisIdPostfix','PrimarySLN','AdditionalSLI','CustomSync','CopyCourseI','Instructors','TAs'];
+    var csv = header.join(',') + '\n' +
+      rows.map(function(r) { return r.map(_csvEscape).join(','); }).join('\n') + '\n';
+
+    var stamp = new Date().toISOString().slice(0, 10);
+    var name = 'Canvas Shell Request ' + stamp + '.csv';
+    var blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    if (statusEl) { statusEl.textContent = '✓ Downloaded ' + name + ' — ' + rows.length + ' course' + (rows.length === 1 ? '' : 's'); statusEl.style.color = '#2e7d32'; }
+  };
 
   // Push the current inactive map to Supabase immediately so the next
   // cloud pull doesn't overwrite our toggle with the stale cloud copy
