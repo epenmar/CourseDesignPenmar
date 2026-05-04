@@ -10269,18 +10269,21 @@
     // Clone preview and apply inline styles so Google Docs preserves formatting
     const clone = preview.cloneNode(true);
 
-    // Inline style maps for elements Google Docs/Word can render
+    // Inline style maps for elements Google Docs/Word can render. Cell
+    // padding tightened (8/12 → 4/8) and <p> top/bottom margin reduced
+    // because Docs renders cell paddings + paragraph margins additively
+    // and the previous values made every table row read as too tall.
     const styleMap = {
       'h1': 'font-family:Calibri,Arial,sans-serif; font-size:24px; color:#8c1d40; margin:0 0 4px 0; line-height:1.3;',
-      'h2': 'font-family:Calibri,Arial,sans-serif; font-size:18px; color:#8c1d40; margin:28px 0 12px 0; padding-bottom:6px; border-bottom:2px solid #ffc627;',
-      'h3': 'font-family:Calibri,Arial,sans-serif; font-size:15px; margin:20px 0 8px 0;',
-      'p':  'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.6; margin:4px 0 8px 0; color:#333;',
-      'li': 'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.7; margin-bottom:4px; color:#333;',
-      'ol': 'padding-left:24px; margin:8px 0 12px 0;',
-      'ul': 'padding-left:24px; margin:8px 0 12px 0;',
-      'table': 'width:100%; border-collapse:collapse; margin:12px 0; font-size:13px; font-family:Calibri,Arial,sans-serif;',
-      'th': 'background-color:#f5f5f0; text-align:left; padding:8px 12px; font-weight:bold; border:1px solid #cccccc; font-size:13px; font-family:Calibri,Arial,sans-serif;',
-      'td': 'padding:8px 12px; border:1px solid #cccccc; vertical-align:top; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'h2': 'font-family:Calibri,Arial,sans-serif; font-size:18px; color:#8c1d40; margin:20px 0 6px 0;',
+      'h3': 'font-family:Calibri,Arial,sans-serif; font-size:15px; margin:16px 0 6px 0;',
+      'p':  'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.45; margin:2px 0 4px 0; color:#333;',
+      'li': 'font-family:Calibri,Arial,sans-serif; font-size:14px; line-height:1.5; margin-bottom:2px; color:#333;',
+      'ol': 'padding-left:24px; margin:6px 0 8px 0;',
+      'ul': 'padding-left:24px; margin:6px 0 8px 0;',
+      'table': 'width:100%; border-collapse:collapse; margin:8px 0; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'th': 'background-color:#f5f5f0; text-align:left; padding:4px 8px; font-weight:bold; border:1px solid #cccccc; font-size:13px; font-family:Calibri,Arial,sans-serif;',
+      'td': 'padding:4px 8px; border:1px solid #cccccc; vertical-align:top; font-size:13px; font-family:Calibri,Arial,sans-serif; line-height:1.4;',
       'a': 'color:#1a0dab; text-decoration:underline;'
     };
 
@@ -10300,30 +10303,23 @@
       el.style.cssText = 'color:#cccccc; font-style:italic;';
     });
 
-    // Drive's HTML→Docs converter drops border-bottom on headings, so the
-    // ASU-yellow underline you see in the preview vanishes once it's a
-    // Google Doc. Insert a yellow-shaded table cell right after each h2 —
-    // table cell shading carries through reliably (the bgcolor attribute
-    // is honored even when the inline style isn't).
+    // Drive's HTML→Docs converter drops border-bottom on headings. Use an
+    // <hr> with a yellow background-color — Docs renders it as a thin
+    // horizontal line and preserves the inline color reasonably well.
+    // Earlier we used a 1-cell yellow-shaded table, but Docs ignored the
+    // height:2px and rendered the cell at the font's line height,
+    // creating a tall yellow strip plus blowing up table spacing across
+    // the whole document.
     clone.querySelectorAll('h2').forEach(function(h2) {
-      // Drop the inline border so we don't end up with a double line in
-      // local-download Word renders, where border-bottom DOES carry.
       try {
         var s = h2.style.cssText || '';
         h2.style.cssText = s.replace(/border-bottom:[^;]+;?/i, '').replace(/padding-bottom:[^;]+;?/i, '');
       } catch(e) {}
-      var rule = document.createElement('table');
-      rule.setAttribute('cellspacing', '0');
-      rule.setAttribute('cellpadding', '0');
-      rule.setAttribute('border', '0');
-      rule.style.cssText = 'width:100%; border-collapse:collapse; margin:0 0 12px 0; height:2px;';
-      var tr = document.createElement('tr');
-      var td = document.createElement('td');
-      td.setAttribute('bgcolor', '#ffc627');
-      td.style.cssText = 'background-color:#ffc627; background:#ffc627; height:2px; line-height:2px; padding:0; border:0; mso-line-height-rule:exactly;';
-      td.innerHTML = '&nbsp;';
-      tr.appendChild(td);
-      rule.appendChild(tr);
+      var rule = document.createElement('hr');
+      rule.style.cssText = 'border: 0; height: 2px; background-color: #ffc627; background: #ffc627; color: #ffc627; margin: 0 0 8px 0;';
+      rule.setAttribute('color', '#ffc627');
+      rule.setAttribute('size', '2');
+      rule.setAttribute('noshade', 'noshade');
       h2.parentNode.insertBefore(rule, h2.nextSibling);
     });
 
@@ -10332,9 +10328,11 @@
 <title>${activeCourse.fullTitle} — Course Development Worksheet</title>
 <style>
 @page { margin: 0.5in; }
-body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.6; margin: 0.5in; padding: 0; }
+body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.4; margin: 0.5in; padding: 0; }
+table p, td p, th p { margin: 0 0 2px 0 !important; line-height: 1.35 !important; }
+table { margin: 8px 0 !important; }
 </style>
-</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.6; margin:0.5in; padding:0;">
+</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.4; margin:0.5in; padding:0;">
 ${clone.innerHTML}
 </body></html>`;
 
