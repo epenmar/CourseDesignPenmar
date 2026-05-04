@@ -1846,7 +1846,8 @@
       alignment: JSON.parse(JSON.stringify(activeCourse.cloEloAlignment || [])),
       moduleOverviewData: loadField('moduleOverviewData') || null,
       timelineDates: loadField('timelineDates') || null,
-      milestoneManualComplete: loadField('milestoneManualComplete') || null
+      milestoneManualComplete: loadField('milestoneManualComplete') || null,
+      assignmentWeights: loadField('assignmentWeights') || null
     };
   }
 
@@ -1917,6 +1918,11 @@
     }
     if (state.milestoneManualComplete !== undefined) {
       saveField('milestoneManualComplete', state.milestoneManualComplete || {});
+    }
+    // Restore assignment weighting categories if captured.
+    if (state.assignmentWeights !== undefined) {
+      saveField('assignmentWeights', state.assignmentWeights || []);
+      if (typeof renderWeightRows === 'function') renderWeightRows();
     }
     // Persist
     saveActivityData();
@@ -4413,6 +4419,7 @@
   }
 
   function addWeightRow() {
+    if (typeof captureUndoState === 'function') captureUndoState('add weighting category');
     var weights = loadField('assignmentWeights') || [];
     weights.push({ category: '', weight: '' });
     saveField('assignmentWeights', weights);
@@ -4420,6 +4427,7 @@
   }
 
   function removeWeightRow(idx) {
+    if (typeof captureUndoState === 'function') captureUndoState('remove weighting category');
     var weights = loadField('assignmentWeights') || [];
     weights.splice(idx, 1);
     saveField('assignmentWeights', weights);
@@ -5270,9 +5278,15 @@
   // collaborators — into field-level last-write-wins, so two people editing
   // different sections don't stomp each other.
   function mergeAndPushWorksheet() {
-    var local = JSON.parse(localStorage.getItem(storageKey) || '{}');
     window._sbClient.from('worksheets').select('data').eq('course_id', courseId).maybeSingle()
       .then(function(r) {
+        // Re-read local AFTER the cloud fetch returns so user edits made
+        // during the few-hundred-ms fetch round-trip aren't clobbered by
+        // the merge write. Previously local was snapshotted before the
+        // fetch, so e.g. deleting a weighting category right after typing
+        // could overwrite the typed-in row's data with the old snapshot
+        // value when the merged blob landed back in localStorage.
+        var local = JSON.parse(localStorage.getItem(storageKey) || '{}');
         var cloud = (r && r.data && r.data.data) || {};
         var merged = mergeWorksheetBlobs(local, cloud);
         localStorage.setItem(storageKey, JSON.stringify(merged));
