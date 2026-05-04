@@ -6284,7 +6284,7 @@
     if (!block) return;
     const actId = block.getAttribute('data-activity-id');
     const modNum = parseInt(block.getAttribute('data-module-num'));
-    if (!actId || !modNum || !courseActivities[modNum]) return;
+    if (!actId || isNaN(modNum) || !courseActivities[modNum]) return;
     const act = courseActivities[modNum].find(function(a) { return a.id === actId; });
     if (!act) return;
     const field = target.getAttribute('data-field');
@@ -6299,7 +6299,7 @@
     if (!block) return;
     const matId = block.getAttribute('data-material-id');
     const modNum = parseInt(block.getAttribute('data-module-num'));
-    if (!matId || !modNum || !courseMaterials[modNum]) return;
+    if (!matId || isNaN(modNum) || !courseMaterials[modNum]) return;
     const mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
     if (!mat) return;
     const field = target.getAttribute('data-field');
@@ -6921,7 +6921,7 @@
     var actId = el.getAttribute('data-activity-id');
     var modNum = parseInt(el.getAttribute('data-module-num'));
     var field = el.getAttribute('data-field');
-    if (!actId || !modNum || !courseActivities[modNum]) return;
+    if (!actId || isNaN(modNum) || !courseActivities[modNum]) return;
     var act = courseActivities[modNum].find(function(a) { return a.id === actId; });
     if (!act) return;
     if (field === 'name') act.name = el.value;
@@ -6935,7 +6935,7 @@
     var matId = el.getAttribute('data-material-id');
     var modNum = parseInt(el.getAttribute('data-module-num'));
     var field = el.getAttribute('data-field');
-    if (!matId || !modNum || !courseMaterials[modNum]) return;
+    if (!matId || isNaN(modNum) || !courseMaterials[modNum]) return;
     var mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
     if (!mat) return;
     if (field === 'title') mat.title = el.value;
@@ -7781,7 +7781,7 @@
     checked.forEach(function(cb) {
       var actId = cb.getAttribute('data-activity-id');
       var modNum = parseInt(cb.getAttribute('data-module-num'));
-      if (!actId || !modNum || !courseActivities[modNum]) return;
+      if (!actId || isNaN(modNum) || !courseActivities[modNum]) return;
       courseActivities[modNum] = courseActivities[modNum].filter(function(a) { return a.id !== actId; });
       (deletedByMod[modNum] = deletedByMod[modNum] || []).push(actId);
     });
@@ -7804,7 +7804,7 @@
     checked.forEach(function(cb) {
       var matId = cb.getAttribute('data-material-id');
       var modNum = parseInt(cb.getAttribute('data-module-num'));
-      if (!matId || !modNum || !courseMaterials[modNum]) return;
+      if (!matId || isNaN(modNum) || !courseMaterials[modNum]) return;
       courseMaterials[modNum] = courseMaterials[modNum].filter(function(m) { return m.id !== matId; });
       (deletedMatsByMod[modNum] = deletedMatsByMod[modNum] || []).push(matId);
     });
