@@ -2108,21 +2108,84 @@
   }
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
+  // Cross-module picker for midterms / finals. Activities whose name matches
+  // these keywords assess the whole course, not a single module — so the
+  // picker should expose every MLO instead of just the activity's home
+  // module. Materials don't trigger this (their names rarely fit the
+  // pattern, and their objectives are tied to the specific reading anyway).
+  function _activityNameForPicker(activityId) {
+    if (!activityId) return '';
+    var rawId = String(activityId).replace(/^(ov-|tv-|mt-|ovm-)/, '');
+    var collections = [courseActivities || {}, courseMaterials || {}];
+    for (var c = 0; c < collections.length; c++) {
+      var coll = collections[c];
+      var keys = Object.keys(coll);
+      for (var i = 0; i < keys.length; i++) {
+        var arr = coll[keys[i]] || [];
+        for (var j = 0; j < arr.length; j++) {
+          if (arr[j] && arr[j].id === rawId) return String(arr[j].name || arr[j].title || '');
+        }
+      }
+    }
+    return '';
+  }
+
+  function _isCourseWideAssessment(activityId) {
+    var name = _activityNameForPicker(activityId).toLowerCase();
+    if (!name) return false;
+    return /\bmidterm\b/.test(name) || /\bfinal\b/.test(name) || /\bcomprehensive\b/.test(name);
+  }
+
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
     const _startN = activeCourse.moduleStartZero ? 0 : 1;
-    const mod = (activeCourse.modules || [])[moduleNum - _startN];
-    // Fall back to localStorage moduleOverviewData when the in-memory modules
-    // array doesn't have an entry for this module number — happens when
-    // moduleStartZero is toggled on and the array length no longer covers the
-    // full displayed range, which left the last module's picker empty.
-    var inMemoryMlos = mod && mod.mlos ? mod.mlos : null;
-    if (!inMemoryMlos || inMemoryMlos.length === 0) {
-      var savedMods = loadField('moduleOverviewData') || {};
-      var savedMlos = savedMods[moduleNum] && savedMods[moduleNum].mlos;
-      if (savedMlos && savedMlos.length) inMemoryMlos = savedMlos;
-    }
-    const mlos = inMemoryMlos || [];
     const selected = selectedObjectives || [];
+    const courseWide = _isCourseWideAssessment(activityId);
+
+    // Build the option list. Course-wide picks aggregate every module's MLOs;
+    // module-scoped picks only show the activity's own module.
+    let optionsHtml = '';
+    function _mlosFromModule(targetMod) {
+      var mod = (activeCourse.modules || [])[targetMod - _startN];
+      var inMemory = mod && mod.mlos ? mod.mlos : null;
+      if (!inMemory || inMemory.length === 0) {
+        var savedMods = loadField('moduleOverviewData') || {};
+        var savedMlos = savedMods[targetMod] && savedMods[targetMod].mlos;
+        if (savedMlos && savedMlos.length) inMemory = savedMlos;
+      }
+      return inMemory || [];
+    }
+
+    if (courseWide) {
+      // Iterate every module that exists in either the modules array or the
+      // moduleOverviewData store, in numeric order.
+      const savedMods = loadField('moduleOverviewData') || {};
+      const modSet = {};
+      const modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+      for (let i = 0; i < modCount; i++) modSet[i + _startN] = true;
+      Object.keys(savedMods).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
+      const allModNums = Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+      allModNums.forEach(function(mNum) {
+        var mlos = _mlosFromModule(mNum);
+        if (!mlos.length) return;
+        optionsHtml += '<div class="obj-group-label" style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; padding:6px 10px 2px;">Module ' + mNum + '</div>';
+        for (let j = 0; j < mlos.length; j++) {
+          const mloId = mNum + '.' + (j + 1);
+          const isSelected = selected.indexOf(mloId) !== -1;
+          optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObj(\'' + activityId + '\',\'' + mloId + '\')">' +
+            '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
+            '<span><strong>' + mloId + '</strong> ' + escapeHtml(mlos[j]) + '</span></div>';
+        }
+      });
+    } else {
+      const mlos = _mlosFromModule(moduleNum);
+      for (let j = 0; j < mlos.length; j++) {
+        const mloId = moduleNum + '.' + (j + 1);
+        const isSelected = selected.indexOf(mloId) !== -1;
+        optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObj(\'' + activityId + '\',\'' + mloId + '\')">' +
+          '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
+          '<span><strong>' + mloId + '</strong> ' + escapeHtml(mlos[j]) + '</span></div>';
+      }
+    }
 
     let chipsHtml = '';
     if (selected.length === 0) {
@@ -2135,16 +2198,7 @@
       }).join('');
     }
 
-    let optionsHtml = '';
-    for (let j = 0; j < mlos.length; j++) {
-      const mloId = moduleNum + '.' + (j + 1);
-      const isSelected = selected.indexOf(mloId) !== -1;
-      optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObj(\'' + activityId + '\',\'' + mloId + '\')">' +
-        '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
-        '<span><strong>' + mloId + '</strong> ' + escapeHtml(mlos[j]) + '</span></div>';
-    }
-
-    return '<div class="obj-picker" data-picker="' + activityId + '">' +
+    return '<div class="obj-picker" data-picker="' + activityId + '"' + (courseWide ? ' data-course-wide="1"' : '') + '>' +
       '<div class="obj-picker-display" onclick="toggleObjDropdown(\'' + activityId + '\')">' + chipsHtml + '</div>' +
       '<div class="obj-dropdown" id="obj-dropdown-' + activityId + '">' + optionsHtml + '</div>' +
       '</div>';
