@@ -1610,10 +1610,14 @@
     return s;
   }
 
+  // The Canvas Shell intake expects ASURites, not full email-username
+  // strings. ASURites usually differ from the email left-half (e.g.
+  // elisa.penmar@asu.edu but ASURite epenmar). Read from id_profile.asurite
+  // first; fall back to the hardcoded default.
   function _idUsername() {
     try {
       var prof = (typeof getProfile === 'function') ? getProfile() : null;
-      if (prof && prof.email) return String(prof.email).split('@')[0];
+      if (prof && prof.asurite) return String(prof.asurite).trim();
     } catch(e) {}
     return 'epenmar';
   }
@@ -1626,13 +1630,18 @@
     } catch(e) { return ''; }
   }
 
-  // Username segment of the faculty's email — Canvas uses this as the
-  // instructor identifier in the shell request CSV.
-  function _facultyUsernameForCourse(c) {
-    if (!c) return '';
-    var email = String(c.email || '').trim();
-    if (!email) return '';
-    return email.split('@')[0];
+  // Pull the faculty's ASURite from the per-course worksheet's
+  // ci-instructor-asurite field. The value isn't surfaced anywhere
+  // user-facing — it lives on the Course Info card so the ID can record
+  // it for live-shell submissions where Canvas needs the ASURite, not the
+  // email-username (those usually differ).
+  function _facultyAsuriteForCourse(courseId) {
+    try {
+      var ws = JSON.parse(localStorage.getItem('worksheet_' + courseId) || '{}');
+      var v = ws.formData && ws.formData['ci-instructor-asurite'];
+      if (v) return String(v).trim();
+    } catch(e) {}
+    return '';
   }
 
   // Currently-open mode for the modal: 'dev' or 'live'. Stored on the modal
@@ -1736,8 +1745,11 @@
         var courseName = code + (c.courseName ? ': ' + c.courseName : '') + (spaced ? ' (' + spaced + ')' : '');
         var codePostfix = compact + '-' + codeNoSpace;
         var sisIdPostfix = compact + '-' + codeNoSpace;
-        var faculty = _facultyUsernameForCourse(c);
-        var instructors = faculty ? (idUser + ',' + faculty) : idUser;
+        // Live shells: ID + faculty ASURite, colon-separated per the QA
+        // team's CSV spec. Falls back to ID alone if the worksheet hasn't
+        // recorded the faculty's ASURite yet.
+        var faculty = _facultyAsuriteForCourse(id);
+        var instructors = faculty ? (idUser + ':' + faculty) : idUser;
         rows.push([
           'live',                  // CourseType
           courseName,              // CustomCourseName
@@ -5792,6 +5804,7 @@
   var defaultProfile = {
     name: 'Elisa Penmar',
     email: 'elisa.penmar@asu.edu',
+    asurite: 'epenmar',
     booking: 'https://outlook.office.com/bookwithme/user/cea5ad6a70a64d58a3160c11440affa7%40asu.edu?anonymous&ismsaljsauthenabled',
     sig: 'Elisa'
   };
