@@ -895,6 +895,22 @@
     return n >= 75 ? '#2e7d32' : (n > 0 ? '#e65100' : '#999');
   }
 
+  // Tooltip text for the college acronym in the courses table. Acronyms used
+  // by ASU Online (CHS / SHST / STPH / NCIAS) — added so a hover on the
+  // table cell spells out the full unit name without taking column width.
+  var _COLLEGE_FULL_NAMES = {
+    'CHS':   'College of Health Solutions',
+    'SHST':  'School of Health Systems Transformation',
+    'STPH':  'School of Technology for Public Health',
+    'NCIAS': 'New College of Interdisciplinary Arts and Sciences',
+    'NC':    'New College of Interdisciplinary Arts and Sciences'
+  };
+  function _collegeFullName(acronym) {
+    if (!acronym) return '';
+    var key = String(acronym).trim().toUpperCase();
+    return _COLLEGE_FULL_NAMES[key] || acronym;
+  }
+
   // Derive status purely from completion percentage. We used to respect a
   // manual override in course_overrides, but that left courses at 61%
   // progress stuck on "Not Started" because an old override value kept
@@ -2039,7 +2055,7 @@
         <td data-col-key="code"><div class="course-cell"><span class="course-code">${c.code}</span><span class="course-title" style="max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${c.courseName}</span>${(courseCommentCounts[id] && courseCommentCounts[id].newCount > 0) ? `<span class="comment-notif" title="${courseCommentCounts[id].newCount} new instructor comment${courseCommentCounts[id].newCount > 1 ? 's' : ''}">💬 ${courseCommentCounts[id].newCount}</span>` : ''}</div></td>
         <td data-col-key="instructor"><div class="instructor-cell"><div class="avatar" style="background:${c.avatarColor};">${c.initials}</div> ${c.instructor}</div></td>
         <td data-col-key="program" style="font-size:12px;">${c.program || '—'}</td>
-        <td data-col-key="college" style="font-size:12px;">${c.college || '—'}</td>
+        <td data-col-key="college" style="font-size:12px;" title="${_collegeFullName(c.college)}">${c.college || '—'}</td>
         <td data-col-key="session">${/^\d{4}-\d{2}-\d{2}$/.test(c.session || '') ? airtableDateToSessionLabel(c.session) : (c.session || '—')}</td>
         <td data-col-key="progress" class="progress-cell">
           <div class="progress-bar-outer"><div class="progress-bar-fill ${c.fillClass}" style="width:${c.progress}%"></div></div>
