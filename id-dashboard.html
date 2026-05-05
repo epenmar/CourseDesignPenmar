@@ -52,20 +52,20 @@
   .page { max-width: 1400px; margin: 0 auto; padding: 16px 24px 60px; }
 
   /* ===== SUMMARY + RESOURCES ROW ===== */
-  .dashboard-top { display: grid; grid-template-columns: auto 1fr; gap: 16px; margin-bottom: 14px; align-items: start; }
-  .summary-row { display: flex; gap: 8px; }
+  .dashboard-top { display: block; margin-bottom: 14px; }
+  .summary-row { display: none; }
   .summary-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 14px; min-width: 90px; }
   .summary-card .label { font-size: 10px; color: #888; font-weight: 500; margin-bottom: 1px; }
   .summary-card .value { font-size: 20px; font-weight: 700; }
   .summary-card .sub { display: none; }
   .resource-section { display: flex; gap: 8px; flex-wrap: wrap; align-items: start; }
   .resource-section h3 { display: none; }
-  .resource-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 10px; flex: 1; min-width: 180px; }
-  .resource-card .rc-header { display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
-  .resource-card .rc-header span:first-child { font-size: 13px; }
-  .resource-card .rc-title { font-size: 11px; font-weight: 600; color: #8c1d40; }
-  .resource-card .rc-links { display: flex; flex-wrap: wrap; gap: 3px; }
-  .resource-card .rc-link { font-size: 10px; color: #666; text-decoration: none; padding: 2px 6px; background: #f5f5f0; border-radius: 3px; border: 1px solid #e8e5dd; }
+  .resource-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 14px 16px; flex: 1; min-width: 220px; }
+  .resource-card .rc-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+  .resource-card .rc-header span:first-child { font-size: 18px; }
+  .resource-card .rc-title { font-size: 14px; font-weight: 600; color: #8c1d40; }
+  .resource-card .rc-links { display: flex; flex-wrap: wrap; gap: 6px; }
+  .resource-card .rc-link { font-size: 13px; color: #444; text-decoration: none; padding: 6px 12px; background: #f8f7f2; border-radius: 6px; border: 1px solid #e8e5dd; transition: all 0.15s; }
   .resource-card .rc-link:hover { background: #fdf2f4; border-color: #8c1d40; color: #8c1d40; }
   .value-green { color: #2e7d32; }
   .value-orange { color: #e65100; }
@@ -392,9 +392,9 @@
   .col-toggle-menu input[type="checkbox"] { accent-color: #8c1d40; }
 
   /* ===== RESOURCE ACCORDION ===== */
-  .resource-accordion { cursor: pointer; display: flex; align-items: center; gap: 6px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 6px 12px; font-size: 11px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; }
-  .resource-accordion:hover { background: #fdf2f4; }
-  .resource-accordion .ra-arrow { transition: transform 0.2s; font-size: 10px; }
+  .resource-accordion { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 11px 18px; font-size: 14px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; transition: all 0.15s; }
+  .resource-accordion:hover { background: #fdf2f4; border-color: #8c1d40; }
+  .resource-accordion .ra-arrow { transition: transform 0.2s; font-size: 12px; }
   .resource-accordion .ra-arrow.open { transform: rotate(180deg); }
   .resource-body { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
   .resource-body.open { max-height: 400px; }
@@ -516,10 +516,9 @@
 
 <div class="page">
 
-  <!-- SUMMARY + RESOURCES -->
+  <!-- RESOURCES -->
   <div class="dashboard-top">
-    <div class="summary-row" id="summary-row"></div>
-    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:4px;">
+    <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px;">
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
         <button class="resource-accordion" onclick="var b=document.getElementById('uni-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
           🏛 University Resources <span class="ra-arrow">▾</span>
@@ -554,31 +553,34 @@
       <div class="resource-body" id="college-resource-body">
         <div class="resource-section" style="margin-top:4px;">
           <div class="resource-card" data-rc-id="new-college">
-            <div class="rc-header"><span>🏫</span><span class="rc-title">New College</span></div>
+            <div class="rc-header"><span>🏫</span><span class="rc-title">New College (NCIAS)</span></div>
             <div class="rc-links" id="rc-links-new-college">
               <a class="rc-link" href="https://newcollege.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
               <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
+              <a class="rc-link" href="contacts-directory.html#ncias" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('new-college')">+ Add Link</button>
           </div>
           <div class="resource-card" data-rc-id="tph">
-            <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health</span></div>
+            <div class="rc-header"><span>🔬</span><span class="rc-title">Tech for Public Health (STPH)</span></div>
             <div class="rc-links" id="rc-links-tph">
               <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
+              <a class="rc-link" href="contacts-directory.html#stph" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('tph')">+ Add Link</button>
           </div>
           <div class="resource-card" data-rc-id="chs">
-            <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions</span></div>
+            <div class="rc-header"><span>🏥</span><span class="rc-title">College of Health Solutions (CHS)</span></div>
             <div class="rc-links" id="rc-links-chs">
               <a class="rc-link" href="https://chs.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
+              <a class="rc-link" href="contacts-directory.html#chs" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('chs')">+ Add Link</button>
           </div>
@@ -1160,12 +1162,18 @@
       if (counts[key] !== undefined) counts[key]++;
     });
     const attn = counts['at-risk'] + counts['not-started'];
-    document.getElementById('attention-badge').textContent = attn + ' need attention';
-    document.getElementById('summary-row').innerHTML = `
-      <div class="summary-card"><div class="label">Active Courses</div><div class="value value-maroon">${counts.total}</div><div class="sub">across your portfolio</div></div>
-      <div class="summary-card"><div class="label">On Track</div><div class="value value-green">${counts['on-track']}</div><div class="sub">meeting timeline milestones</div></div>
-      <div class="summary-card"><div class="label">At Risk</div><div class="value value-orange">${counts['at-risk']}</div><div class="sub">behind by 1–2 milestones</div></div>
-      <div class="summary-card"><div class="label">Not Started</div><div class="value value-red">${counts['not-started']}</div><div class="sub">development not yet begun</div></div>`;
+    var badge = document.getElementById('attention-badge');
+    if (badge) badge.textContent = attn + ' need attention';
+    // Summary cards row was removed in favor of more prominent resource
+    // accordions; only update the row if a host element still exists.
+    var row = document.getElementById('summary-row');
+    if (row) {
+      row.innerHTML = `
+        <div class="summary-card"><div class="label">Active Courses</div><div class="value value-maroon">${counts.total}</div><div class="sub">across your portfolio</div></div>
+        <div class="summary-card"><div class="label">On Track</div><div class="value value-green">${counts['on-track']}</div><div class="sub">meeting timeline milestones</div></div>
+        <div class="summary-card"><div class="label">At Risk</div><div class="value value-orange">${counts['at-risk']}</div><div class="sub">behind by 1–2 milestones</div></div>
+        <div class="summary-card"><div class="label">Not Started</div><div class="value value-red">${counts['not-started']}</div><div class="sub">development not yet begun</div></div>`;
+    }
   }
 
   // ===== RENDER UPCOMING DEADLINES =====

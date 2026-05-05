@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Contacts Directory</title>
+<style>
+  body { font-family: 'Inter', system-ui, sans-serif; color: #2a2a2a; max-width: 980px; margin: 32px auto; padding: 0 24px; line-height: 1.55; }
+  h1 { color: #8c1d40; font-size: 28px; margin: 0 0 6px; }
+  .lede { color: #666; font-size: 14px; margin-bottom: 24px; }
+  .school-nav { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 28px; padding: 12px 14px; background: #fdf2f4; border: 1px solid #f0d9e0; border-radius: 8px; }
+  .school-nav a { padding: 6px 12px; background: #fff; color: #8c1d40; text-decoration: none; border-radius: 6px; border: 1px solid #e0ddd5; font-size: 13px; font-weight: 600; }
+  .school-nav a:hover { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+  section.school { margin-bottom: 36px; padding-top: 12px; border-top: 2px solid #ffc627; }
+  section.school h2 { color: #8c1d40; font-size: 22px; margin: 0 0 4px; }
+  section.school .subline { color: #666; font-size: 13px; margin-bottom: 14px; font-style: italic; }
+  h3 { font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: #888; margin: 22px 0 8px; }
+  .contact-list { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 760px) {
+    .contact-list { grid-template-columns: 1fr 1fr; }
+  }
+  .contact-card { background: #fff; border: 1px solid #e8e5dd; border-radius: 8px; padding: 12px 14px; }
+  .contact-card .name { font-weight: 600; font-size: 15px; color: #2a2a2a; margin-bottom: 2px; }
+  .contact-card .role { color: #8c1d40; font-size: 12px; font-weight: 500; margin-bottom: 6px; }
+  .contact-card .reach { font-size: 13px; color: #444; }
+  .info-table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+  .info-table td { padding: 6px 10px; border: 1px solid #eeece6; vertical-align: top; }
+  .info-table td:first-child { background: #fafaf7; font-weight: 600; width: 30%; color: #555; }
+  .todo { margin-top: 8px; padding: 12px 14px; background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px; font-size: 13px; }
+  .todo h4 { margin: 0 0 6px; color: #8a6d3b; font-size: 12px; text-transform: uppercase; }
+  .todo ul { margin: 0; padding-left: 18px; }
+  .todo li { margin-bottom: 4px; }
+  .meta { font-size: 12px; color: #888; margin-top: 28px; padding-top: 14px; border-top: 1px solid #eeece6; }
+</style>
+</head>
+<body>
+
+<h1>Contacts Directory</h1>
+<p class="lede">A reference directory of people across the three schools in Elisa's portfolio, compiled from Granola meeting notes and Obsidian records. Organized by school with roles, affiliations, and reasons to reach out.</p>
+
+<nav class="school-nav">
+  <a href="#chs">CHS — College of Health Solutions</a>
+  <a href="#stph">STPH — School of Technology for Public Health</a>
+  <a href="#ncias">NCIAS — New College</a>
+</nav>
+
+<section class="school" id="chs">
+  <h2>CHS — College of Health Solutions</h2>
+  <p class="subline">School of Health Systems Transformation</p>
+
+  <h3>College-Level Leadership &amp; Operations</h3>
+  <div class="contact-list">
+    <div class="contact-card">
+      <div class="name">Kate Brown</div>
+      <div class="role">Executive Director, Academic Success &amp; Innovation</div>
+      <div class="reach">College-wide curriculum compliance, accreditation, program reviews, assessment coordination. Your primary leadership contact for CHS operations.</div>
+    </div>
+    <div class="contact-card">
+      <div class="name">Becky Scott</div>
+      <div class="role">Curriculum Manager / Assessment Delegate</div>
+      <div class="reach">New program setup, course development coordination, assignment artifacts, program mapping, accreditation assessment alignment.</div>
+    </div>
+    <div class="contact-card">
+      <div class="name">Mandy Judah</div>
+      <div class="role">Project Coordinator</div>
+      <div class="reach">MLU recording, faculty compensation questions, development timeline milestones. Sends introductions to IDs at the 8-month mark of course development.</div>
+    </div>
+  </div>
+
+  <h3>CHS Instructional Support Team</h3>
+  <div class="contact-list">
+    <div class="contact-card">
+      <div class="name">Matt Ruf</div>
+      <div class="role">Assistant Director, Instructional Support Team</div>
+      <div class="reach">CHS course overlap coordination, faculty support alignment, shared course ownership questions. Fully remote (Wisconsin). Communicate via Slack — he proactively checks in before faculty contact to prevent duplicate work. 6–7 years at CHS; K-12 background.</div>
+    </div>
+    <div class="contact-card">
+      <div class="name">Mike Irwin <span style="color:#999; font-weight:400; font-size:12px;">(Michael Erwin)</span></div>
+      <div class="role">CHS Instructional Support, Campus Lead (Mercado)</div>
+      <div class="reach">Studio operations, syllabus review for CHS-specific requirements (MLOs), CHS Canvas template guidance. Oversees the downtown Mercado campus portion of the team.</div>
+    </div>
+    <div class="contact-card">
+      <div class="name">Rachel <span style="color:#999; font-weight:400; font-size:12px;">(Graphic Designer)</span></div>
+      <div class="role">Graphic Designer / Accessibility &amp; Technology Expert</div>
+      <div class="reach">Accessibility remediation on legacy Storyline files, graphic design support for CHS courses, technology questions. 25–30 years design experience; currently updating 5–10 year old Storyline files for accessibility compliance.</div>
+    </div>
+  </div>
+</section>
+
+<section class="school" id="stph">
+  <h2>STPH — School of Technology for Public Health</h2>
+  <p class="subline">STPH operates as a separate college, not under the CHS umbrella, which creates course ownership complexity (e.g., POP 644, TPH 101). Quarterly check-ins are separate from CHS meetings. Sarah Hoyt is your primary point of contact.</p>
+
+  <h3>Leadership</h3>
+  <div class="contact-list">
+    <div class="contact-card">
+      <div class="name">Sarah Hoyt</div>
+      <div class="role">Director of Academic Success, STPH</div>
+      <div class="reach">Your primary STPH contact. In role since January 2026; former CHS ID since 2018; K-12 teacher background (shared with you). Manages CEPH accreditation alignment — self-study due November 2026. Three review touchpoints: (1) objectives stage, (2) completed worksheet, (3) final shell. Prefers Slack over email; open to impromptu Zoom calls. "No news is good news" on objective reviews. Handles faculty contracting decisions. Has a 6+ year partnership with Tamara — relationship is warm.</div>
+    </div>
+    <div class="contact-card">
+      <div class="name">Mark Adams</div>
+      <div class="role">Education Dean, STPH</div>
+      <div class="reach">Program requirements oversight; can intervene with unresponsive faculty alongside Sarah. Aware of the ID assignment transition; expects to be looped in via quarterly meetings.</div>
+    </div>
+  </div>
+
+  <h3>Program Operations</h3>
+  <div class="contact-list">
+    <div class="contact-card">
+      <div class="name">Zena Baza</div>
+      <div class="role">Public Health Technology Director</div>
+      <div class="reach">Manages community placement component for practicum courses (TPH 593, TPH 580, TPH 585). Students must address 5 CEPH competencies with an AI component and a current public health problem solution. Reach out if practicum courses come into scope.</div>
+    </div>
+  </div>
+</section>
+
+<section class="school" id="ncias">
+  <h2>NCIAS — New College of Interdisciplinary Arts and Sciences</h2>
+  <p class="subline">Your relationship with New College is in early stages as part of the transition from Tamara. No specific leadership or faculty contacts have appeared in your meeting notes yet.</p>
+
+  <h3>What's Known</h3>
+  <table class="info-table">
+    <tr><td>Program</td><td>Biological Data Science (MS) — the primary program under your portfolio from this college.</td></tr>
+    <tr><td>Meeting Structure</td><td>New College leadership attends both operations and ID quarterly meetings (unlike some other colleges).</td></tr>
+    <tr><td>PM Coverage</td><td>No Program Manager attendance at meetings due to logistical complexity.</td></tr>
+    <tr><td>Quarterly Check-ins</td><td>Tamara planned to loop you into the existing quarterly check-in meetings with New College.</td></tr>
+  </table>
+
+  <div class="todo">
+    <h4>To do — build this section</h4>
+    <ul>
+      <li>Get looped into quarterly check-in meetings with New College (from Tamara).</li>
+      <li>Identify key leadership and faculty contacts.</li>
+      <li>Establish communication channel preferences.</li>
+      <li>Understand Biological Data Science program development status and needs.</li>
+    </ul>
+  </div>
+</section>
+
+<p class="meta">Compiled from Granola meeting notes and Obsidian records. Last updated 2026-05-05. Static for now — a future update will pull live from a Supabase contacts table populated by Granola sync.</p>
+
+</body>
+</html>
