@@ -2658,17 +2658,28 @@
     var info = _itemForContentPrefix(actId);
     if (!info || info.kind !== 'activity') return;
     var rows = [];
+    var bodyHasContent = false;
     grid.querySelectorAll('thead tr, tbody tr').forEach(function(tr) {
       var row = [];
+      var inBody = tr.parentElement && tr.parentElement.tagName === 'TBODY';
       tr.querySelectorAll('th[contenteditable], td[contenteditable]').forEach(function(c) {
-        row.push((c.textContent || '').trim());
+        var v = (c.textContent || '').trim();
+        row.push(v);
+        if (inBody && v) bodyHasContent = true;
       });
       if (row.length) rows.push(row);
     });
-    var text = _stringifyRubricRows(rows);
     if (!info.item.templateData) info.item.templateData = {};
     if (!info.item.templateData[tplType]) info.item.templateData[tplType] = {};
-    info.item.templateData[tplType]['Rubric'] = text;
+    // If only the default header exists with no body content, treat the
+    // rubric as still empty rather than persisting the header text. This
+    // prevents a stray cell-click-then-blur from flipping the activity's
+    // green ✓ Content indicator on for an actually-empty rubric.
+    if (!bodyHasContent) {
+      info.item.templateData[tplType]['Rubric'] = '';
+    } else {
+      info.item.templateData[tplType]['Rubric'] = _stringifyRubricRows(rows);
+    }
     if (typeof saveActivityData === 'function') saveActivityData();
   }
   window._onRubricCellInput = function(cell) {
@@ -2760,10 +2771,10 @@
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
           '<div class="content-attach-tabs">' +
-            '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
-            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
-            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
-            '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>' +
+            '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
+            '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
+            '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
+            '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>' +
           '</div>' +
           '<div class="content-attach-body" id="' + id + '-upload">' +
             '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">' +
@@ -2867,10 +2878,10 @@
       '<div class="content-attach overview-content-body" id="mat-attach-' + id + '" style="margin-top:4px;">' +
       '<div class="content-attach-inner open" style="display:block;">' +
         '<div class="content-attach-tabs">' +
-          '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
-          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
-          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Text Entry</button>' +
-          '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>' +
+          '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
+          '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
+          '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Text Entry</button>' +
+          '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>' +
         '</div>' +
         '<div class="content-attach-body" id="' + id + '-upload">' +
           '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
@@ -7127,10 +7138,10 @@
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
     html += '<div class="content-attach-tabs">';
-    html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
-    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
-    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
-    html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>';
+    html += '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
+    html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
+    html += '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
+    html += '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>';
     html += '</div>';
     // Upload tab
     html += '<div class="content-attach-body" id="' + id + '-upload">';
@@ -7453,10 +7464,10 @@
           html += '<div class="content-attach" id="attach-' + ovMatId + '" style="margin-top:0;">';
           html += '<div class="content-attach-inner open" style="display:block;">';
           html += '<div class="content-attach-tabs">';
-          html += '<button class="content-attach-tab active" onclick="switchAttachTab(\'' + ovMatId + '\',\'upload\',this)">📁 Upload</button>';
-          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'link\',this)">🔗 Link</button>';
-          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'template\',this)">📝 Text Entry</button>';
-          html += '<button class="content-attach-tab" onclick="switchAttachTab(\'' + ovMatId + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>';
+          html += '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + ovMatId + '\',\'upload\',this)">📁 Upload</button>';
+          html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + ovMatId + '\',\'link\',this)">🔗 Link</button>';
+          html += '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + ovMatId + '\',\'template\',this)">📝 Text Entry</button>';
+          html += '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + ovMatId + '\',\'linked\',this)" title="Link to existing assignments in this course">🔗 Assignments</button>';
           html += '</div>';
           html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
           html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + ovMatId + '\')" ondragleave="handleFileDragLeave(event,\'' + ovMatId + '\')" ondrop="handleFileDrop(event,\'' + ovMatId + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
@@ -8668,11 +8679,10 @@
       if (!info || !info.item || !info.item.lastContentTab) return;
       var tab = info.item.lastContentTab;
       if (tab === 'upload') return; // already the default; nothing to do
-      var tabBtn = null;
-      body.querySelectorAll('.content-attach-tab').forEach(function(t) {
-        var oc = t.getAttribute('onclick') || '';
-        if (oc.indexOf("'" + tab + "'") !== -1) tabBtn = t;
-      });
+      // Match the tab button by data-tab-key — robust against any
+      // onclick-string changes and against the substring-collision
+      // between 'link' and 'linked' that the previous matcher had.
+      var tabBtn = body.querySelector('.content-attach-tab[data-tab-key="' + tab + '"]');
       if (!tabBtn) return;
       // Manually replicate switchAttachTab's DOM swap without re-saving
       // (the tab is already saved — calling switchAttachTab here would
@@ -11030,6 +11040,18 @@
       for (var t in item.templateData) {
         var tpl = item.templateData[t] || {};
         for (var s in tpl) {
+          // Rubric is pipe-separated table text. The rubric grid renders a
+          // default header ("Criteria | Yes | No") even when empty, and a
+          // stray cell click + blur can persist that header to
+          // templateData. So a rubric counts as content only when it has
+          // at least one BODY row — not just the header.
+          if (s === 'Rubric') {
+            var rubricRows = String(tpl[s] || '').split(/\r?\n/).filter(function(r) {
+              return r.trim() && r.indexOf('|') !== -1;
+            });
+            if (rubricRows.length >= 2) return true;
+            continue;
+          }
           if (_stripToVisibleText(tpl[s]).length > 0) return true;
         }
       }
