@@ -2570,10 +2570,13 @@
   // human-friendly 4-level so empty grids feel ready to fill in.
   function _defaultRubricHeader(act) {
     var pref = act && act.aiFillPrefs && act.aiFillPrefs.rubric;
+    // Binary-style rubrics encode the point value directly in the
+    // success column ("Yes" cell = points, "No" cell = "0"), so the
+    // default header has no separate Points column for those styles.
     var presets = {
-      'binary':     ['Criteria', 'Yes', 'No', 'Points'],
-      'complete':   ['Criteria', 'Complete', 'Incomplete', 'Points'],
-      'masteryNot': ['Criteria', 'Mastery', 'Not Yet', 'Points'],
+      'binary':     ['Criteria', 'Yes', 'No'],
+      'complete':   ['Criteria', 'Complete', 'Incomplete'],
+      'masteryNot': ['Criteria', 'Mastery', 'Not Yet'],
       'three':      ['Criteria', 'Strong', 'Adequate', 'Developing', 'Points'],
       'four':       ['Criteria', 'Excellent', 'Proficient', 'Developing', 'Beginning', 'Points']
     };
@@ -9459,6 +9462,18 @@
 
   // Map a rubric-style picker value to a level-column header (the part
   // after "Criteria | ").
+  // Title-case a short label the instructor typed: capitalize the first
+  // letter of each significant word; keep small connectors (a, an, the,
+  // and, or, but, of, to, in, on, at, for) lowercase unless first.
+  function _titleCaseLabel(s) {
+    if (!s) return '';
+    var SMALL = { a:1, an:1, the:1, and:1, or:1, but:1, for:1, on:1, in:1, at:1, to:1, of:1, by:1, vs:1 };
+    return String(s).toLowerCase().split(/\s+/).map(function(w, i) {
+      if (i > 0 && SMALL[w]) return w;
+      return w.charAt(0).toUpperCase() + w.slice(1);
+    }).join(' ');
+  }
+
   function _aiFillRubricLevelHeader(style, customLevels) {
     var presets = {
       'binary':     'Yes | No',
@@ -9661,7 +9676,11 @@
     if (fieldsToFill.indexOf('Rubric') !== -1) {
       var rPref = (prefs && prefs.rubric) || {};
       var levelHeader = _aiFillRubricLevelHeader(rPref.style, rPref.levels);
-      var criteriaList = String(rPref.criteria || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+      // Title-case the instructor's labels before they reach the prompt
+      // so "main themes" → "Main Themes", "agree or disagree" →
+      // "Agree or Disagree". Connectors stay lowercase.
+      var rawCriteria = String(rPref.criteria || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+      var criteriaList = rawCriteria.map(_titleCaseLabel);
       var rowsPref = parseInt(rPref.rows, 10);
 
       // Decide whether to include a "Category" column to the LEFT of
@@ -9673,27 +9692,55 @@
         return c.split(/\s+/).length <= 6 && !/\.\s+\S/.test(c);
       });
 
+      // Detect binary-style rubrics: the Yes/No column structure means
+      // we can short-circuit the descriptor cells and put numeric points
+      // directly in the success column.
+      var styleKey = rPref.style || '';
+      var isBinaryStyle = (
+        styleKey === 'binary' ||
+        styleKey === 'complete' ||
+        styleKey === 'masteryNot' ||
+        /^(Yes\s*\|\s*No|Complete\s*\|\s*Incomplete|Mastery\s*\|\s*Not Yet)$/i.test(levelHeader || '')
+      );
+
       // Total points for distribution across rows.
       var ptsRaw = (act && act.points != null) ? String(act.points).trim() : '';
       var totalPoints = parseFloat(ptsRaw);
       var hasPoints = !isNaN(totalPoints) && totalPoints > 0;
 
+      // Resolve the success / fail column names from the level header so
+      // every prompt instruction can refer to them by name.
+      var levelParts = (levelHeader || 'Yes | No').split('|').map(function(s) { return s.trim(); });
+      var successCol = levelParts[0] || 'Yes';
+      var failCol = levelParts[1] || 'No';
+
       prompt += '\n## Rubric design (instructor-selected — authoritative)\n';
       prompt += 'The Rubric field MUST be a pipe-separated table as a single string with \\n between rows.\n';
 
-      if (useCategory) {
+      // Header row + per-column meaning.
+      if (isBinaryStyle && useCategory) {
+        prompt += '- Header row (use exactly): "Category | Criteria | ' + successCol + ' | ' + failCol + '"\n';
+        prompt += '- DO NOT include a "Points" column — the "' + successCol + '" column carries the point value directly.\n';
+        prompt += '- Category column: the instructor labels in Title Case, taken verbatim from the list below.\n';
+        prompt += '- Criteria column: ONE single-sentence description of the requirement (≤ 22 words, no row numbers, no "Annotation N" prefix).\n';
+      } else if (isBinaryStyle) {
+        prompt += '- Header row (use exactly): "Criteria | ' + successCol + ' | ' + failCol + '"\n';
+        prompt += '- DO NOT include a "Points" column — the "' + successCol + '" column carries the point value directly.\n';
+        prompt += '- Criteria column: ONE single-sentence description of the requirement (≤ 25 words, no "Annotation N" prefix).\n';
+      } else if (useCategory) {
         prompt += '- Header row (use exactly): "Category | Criteria | ' + (levelHeader || 'Excellent | Proficient | Developing | Beginning') + ' | Points"\n';
-        prompt += '- Category column: the short label the instructor named for that row, taken VERBATIM from the list below — do not paraphrase, do not add prefixes like "Annotation 1:".\n';
-        prompt += '- Criteria column: a SINGLE-SENTENCE observable description of what the student must do in that category to meet the requirement (≤ 25 words, no row numbers, no "Annotation N" prefix).\n';
+        prompt += '- Category column: the instructor labels in Title Case, taken verbatim from the list below.\n';
+        prompt += '- Criteria column: a single-sentence description of the requirement (≤ 25 words).\n';
       } else if (levelHeader) {
         prompt += '- Header row (use exactly): "Criteria | ' + levelHeader + ' | Points"\n';
-        prompt += '- Criteria column: a single-sentence observable description (≤ 25 words, no "Annotation N" prefix).\n';
+        prompt += '- Criteria column: a single-sentence description of the requirement (≤ 25 words).\n';
       } else {
         prompt += '- Header row: "Criteria | Excellent | Proficient | Developing | Beginning | Points" (or use the level structure the instructor specified in the meeting notes).\n';
       }
 
+      // Body row count + label list.
       if (criteriaList.length > 0) {
-        prompt += '- Number of body rows: exactly ' + criteriaList.length + '. Use these instructor-supplied labels in order:\n';
+        prompt += '- Number of body rows: exactly ' + criteriaList.length + '. Use these labels in order, EXACTLY as written:\n';
         criteriaList.forEach(function(c, i) { prompt += '  ' + (i + 1) + '. ' + c + '\n'; });
       } else if (rowsPref >= 1) {
         prompt += '- Number of body rows: exactly ' + rowsPref + '. Pull the row labels from the meeting notes (or from the requirements the instructor stated).\n';
@@ -9701,30 +9748,33 @@
         prompt += '- Number of body rows: pull from the meeting notes (count of explicit requirements). If silent, use 3-5 rows.\n';
       }
 
-      // Level-cell semantics — be explicit so the model doesn't swap
-      // "Yes"/"No" content the way it has been in past generations.
-      prompt += '\nLevel-cell semantics (CRITICAL — do not swap these columns):\n';
-      var styleKey = rPref.style || '';
-      if (styleKey === 'binary' || /\bYes\b\s*\|\s*No\b/i.test(levelHeader || '')) {
-        prompt += '- The "Yes" cell describes substantively what success looks like for this row (one sentence, observable, ≤ 20 words).\n';
-        prompt += '- The "No" cell reads exactly "Did not meet criteria." for every row — no other text.\n';
-      } else if (styleKey === 'complete' || /Complete\s*\|\s*Incomplete/i.test(levelHeader || '')) {
-        prompt += '- The "Complete" cell describes what success looks like for this row (one sentence, observable).\n';
-        prompt += '- The "Incomplete" cell reads exactly "Not complete." — no other text.\n';
-      } else if (styleKey === 'masteryNot' || /Mastery\s*\|\s*Not Yet/i.test(levelHeader || '')) {
-        prompt += '- The "Mastery" cell describes what mastery looks like (one sentence, observable).\n';
-        prompt += '- The "Not Yet" cell reads exactly "Not yet demonstrated." — no other text.\n';
+      // Reusability — the rubric should describe transferable skills, not
+      // this specific module\'s topic. So a single rubric written for an
+      // assignment can be copied to every comparable assignment in the
+      // course (every weekly Annotated Reading, every Applied Assignment)
+      // without manual rewriting.
+      prompt += '\n**Reusability requirement** — Criteria must describe TRANSFERABLE skills assessable across any comparable assignment in this course. Do NOT name the specific topic of this module\'s reading. For example, if Module 1 is on epidemiology, do NOT write "epidemiological fundamentals" or "study-design concept" — write "a key concept from the reading" or "the central claim". The same rubric should apply unchanged to Module 2\'s reading, Module 3\'s reading, etc.\n';
+
+      // Cell semantics by rubric style.
+      if (isBinaryStyle) {
+        prompt += '\nCell content for binary rubrics (CRITICAL):\n';
+        if (hasPoints) {
+          prompt += '- "' + successCol + '" cells: the numeric point value for that row only — no descriptive text. Distribute the assignment total of ' + totalPoints + ' across rows; equal split when uniform, with the last row absorbing any rounding remainder so the column sums exactly to ' + totalPoints + '.\n';
+        } else {
+          prompt += '- "' + successCol + '" cells: the literal text "TBD" for every row (the instructor has not set the assignment\'s point total yet).\n';
+        }
+        prompt += '- "' + failCol + '" cells: the literal text "0" for every row — nothing else.\n';
+        prompt += '- Do not write descriptive sentences in either of these columns; the description belongs in Criteria.\n';
       } else {
+        prompt += '\nLevel-cell semantics:\n';
         prompt += '- Each level cell describes the student work at that performance band, in one short sentence.\n';
         prompt += '- The lowest-performance band may read "Did not meet criteria." or similar.\n';
-      }
-
-      // Points distribution.
-      prompt += '\nPoints column:\n';
-      if (hasPoints) {
-        prompt += '- Total points for this assignment: ' + totalPoints + '. Distribute across rows so the column sums to ' + totalPoints + '. If the rubric has ' + (criteriaList.length || rowsPref || 'N') + ' rows of equal weight, divide evenly (round to 1 decimal if needed; the last row absorbs any remainder so the sum is exact).\n';
-      } else {
-        prompt += '- The instructor has not yet set a points total for this assignment. Leave each Points cell as the literal text "TBD" so the instructor can fill in the distribution after they set the assignment\'s point value.\n';
+        prompt += '\nPoints column:\n';
+        if (hasPoints) {
+          prompt += '- Total points for this assignment: ' + totalPoints + '. Distribute across rows so the column sums to ' + totalPoints + '. Equal split when uniform; the last row absorbs any rounding remainder so the sum is exact.\n';
+        } else {
+          prompt += '- The instructor has not yet set a points total. Leave each Points cell as the literal text "TBD".\n';
+        }
       }
     }
     prompt += '\n## Adherence rules (override defaults)\n';
