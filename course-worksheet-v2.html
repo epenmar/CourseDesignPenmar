@@ -1659,6 +1659,31 @@
   </div>
 </div>
 
+<!-- ===== APPLY TEMPLATE TO OTHER ACTIVITIES MODAL =====
+     Copy selected template fields (Instructions, Rubric, etc.) from the
+     activity the user is currently working on into one or more sibling
+     activities. Used after the user has reviewed and edited the AI-Filled
+     content for one assignment and wants to propagate the same shape to
+     others (e.g., every weekly Annotated Reading inherits the same
+     Instructions and Rubric structure). -->
+<div id="apply-tpl-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:280; align-items:flex-start; justify-content:center; padding-top:32px;" onclick="if(event.target===this) closeApplyTemplateModal();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:760px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">📋 Copy template — <span id="apply-tpl-title">…</span></div>
+        <div id="apply-tpl-subtitle" style="font-size:12px; color:#888; margin-top:2px;">…</div>
+      </div>
+      <button onclick="closeApplyTemplateModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="apply-tpl-body" style="overflow-y:auto; min-height:160px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
+      <div id="apply-tpl-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
+      <button onclick="closeApplyTemplateModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
+      <button id="apply-tpl-go-btn" onclick="runApplyTemplate()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">📋 Copy to selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TABLE-VIEW CONTENT POPUP =====
      Reuses the card-view content body (Upload / Link / Template / Linked tabs)
      by transplanting the existing .overview-act-content (or .overview-content-body
@@ -2487,6 +2512,7 @@
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
+                '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -2503,6 +2529,7 @@
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
+                '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -6810,6 +6837,7 @@
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
+    html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -6824,6 +6852,7 @@
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
+    html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -9443,6 +9472,161 @@
     if (typeof saveActivityData === 'function') saveActivityData();
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
+
+  // ===== APPLY TEMPLATE TO OTHER ACTIVITIES =====
+  // Once a user has reviewed/edited an assignment's template fields they
+  // often want the same Instructions + Rubric on every sibling assignment
+  // of the same kind (e.g., every weekly Annotated Reading). This modal
+  // lets them pick which fields to copy and which targets receive them.
+  var _applyTplState = null; // { sourceActId, tplType }
+
+  window.openApplyTemplateModal = function(sourceActId, tplType) {
+    var info = _itemForContentPrefix(sourceActId);
+    if (!info || info.kind !== 'activity') return;
+    var src = info.item;
+    var srcTplData = (src.templateData && src.templateData[tplType]) || {};
+
+    // Filterable list of all OTHER activities of the same template type
+    // (assignment-to-assignment, discussion-to-discussion). We compare
+    // contentType so a discussion-typed activity isn't proposed as a
+    // target for an assignment template.
+    var sections = AI_FILL_TEMPLATE_SECTIONS[tplType] || [];
+    var allActs = [];
+    Object.keys(courseActivities || {}).forEach(function(modKey) {
+      var modNum = parseInt(modKey, 10);
+      (courseActivities[modKey] || []).forEach(function(a) {
+        if (a.id === sourceActId) return;
+        var aType = a.contentType || 'assignment';
+        if (aType !== tplType) return;
+        allActs.push({ act: a, modNum: modNum });
+      });
+    });
+    allActs.sort(function(a, b) { return a.modNum - b.modNum; });
+
+    _applyTplState = { sourceActId: sourceActId, tplType: tplType, targets: allActs, sections: sections };
+
+    document.getElementById('apply-tpl-title').textContent = (src.name || '').trim() || '(Untitled activity)';
+    document.getElementById('apply-tpl-subtitle').textContent =
+      tplType.charAt(0).toUpperCase() + tplType.slice(1) + ' template · Module ' + info.modNum + ' · ' + allActs.length + ' candidate target' + (allActs.length === 1 ? '' : 's');
+    document.getElementById('apply-tpl-status').textContent = '';
+    document.getElementById('apply-tpl-go-btn').disabled = false;
+
+    var html = '';
+
+    // Field selector — only fields with content in source can be copied;
+    // the others are dimmed.
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Fields to copy</div>';
+    html += '<div class="aif-section-hint">Only fields with content in the source are listed. Instructions and Rubric default to checked.</div>';
+    var hasAnyField = false;
+    sections.forEach(function(sec) {
+      var v = srcTplData[sec.key];
+      var has = v && _stripToVisibleText(v).length > 0;
+      if (!has) return;
+      hasAnyField = true;
+      var defaultOn = (sec.key === 'Instructions' || sec.key === 'Rubric');
+      html += '<label class="aif-row"><input type="checkbox" class="atm-field" data-section="' + escapeHtml(sec.key) + '"' + (defaultOn ? ' checked' : '') + '>'
+        + '<span><strong>' + escapeHtml(sec.key) + '</strong></span></label>';
+    });
+    if (!hasAnyField) {
+      html += '<div class="aif-empty">This activity\'s template has no filled fields yet — fill in Instructions / Rubric first, then come back to copy them.</div>';
+    }
+    html += '</div>';
+
+    // Target selector — grouped by module.
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Apply to</div>';
+    if (allActs.length === 0) {
+      html += '<div class="aif-empty">No other ' + tplType + ' activities in this course to copy into.</div>';
+    } else {
+      html += '<div class="aif-quick"><a onclick="_atmSelectAll(true)">Select all</a><a onclick="_atmSelectAll(false)">Clear</a></div>';
+      html += '<div class="aif-context-list">';
+      var prevModNum = null;
+      allActs.forEach(function(row, idx) {
+        if (row.modNum !== prevModNum) {
+          if (prevModNum !== null) html += '<div style="height:6px;"></div>';
+          html += '<div class="aif-meta" style="font-weight:600; color:#666; padding:4px 6px 2px;">Module ' + row.modNum + '</div>';
+          prevModNum = row.modNum;
+        }
+        var nm = (row.act.name || '').trim() || '(untitled activity)';
+        html += '<label class="aif-row"><input type="checkbox" class="atm-target" data-target-idx="' + idx + '">'
+          + '<span><strong>' + escapeHtml(nm) + '</strong></span></label>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+
+    document.getElementById('apply-tpl-body').innerHTML = html;
+    document.getElementById('apply-tpl-overlay').style.display = 'flex';
+  };
+  window._atmSelectAll = function(on) {
+    document.querySelectorAll('#apply-tpl-body .atm-target').forEach(function(cb) { cb.checked = !!on; });
+  };
+  window.closeApplyTemplateModal = function() {
+    document.getElementById('apply-tpl-overlay').style.display = 'none';
+    _applyTplState = null;
+  };
+  window.runApplyTemplate = function() {
+    var s = _applyTplState;
+    if (!s) return;
+    var info = _itemForContentPrefix(s.sourceActId);
+    if (!info) return;
+    var src = info.item;
+
+    var fields = Array.from(document.querySelectorAll('#apply-tpl-body .atm-field:checked'))
+      .map(function(cb) { return cb.getAttribute('data-section'); });
+    var targetIdxs = Array.from(document.querySelectorAll('#apply-tpl-body .atm-target:checked'))
+      .map(function(cb) { return parseInt(cb.getAttribute('data-target-idx'), 10); });
+
+    if (fields.length === 0) {
+      document.getElementById('apply-tpl-status').textContent = 'Pick at least one field.';
+      return;
+    }
+    if (targetIdxs.length === 0) {
+      document.getElementById('apply-tpl-status').textContent = 'Pick at least one target activity.';
+      return;
+    }
+
+    var srcTplData = (src.templateData && src.templateData[s.tplType]) || {};
+    var copyRubricPrefs = fields.indexOf('Rubric') !== -1;
+
+    var copiedCount = 0;
+    targetIdxs.forEach(function(i) {
+      var t = s.targets[i];
+      if (!t || !t.act) return;
+      if (!t.act.templateData) t.act.templateData = {};
+      if (!t.act.templateData[s.tplType]) t.act.templateData[s.tplType] = {};
+      fields.forEach(function(k) {
+        var v = srcTplData[k];
+        if (v === undefined || v === null) return;
+        t.act.templateData[s.tplType][k] = v;
+        // Push the new value into any live Quill editor bound to this target.
+        var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + t.act.id + '"][data-tpl-type="' + s.tplType + '"][data-section="' + k + '"]';
+        document.querySelectorAll(sel).forEach(function(el) {
+          if (el._quill) {
+            try { el._quill.clipboard.dangerouslyPasteHTML(0, v, 'silent'); }
+            catch (e) { el._quill.root.innerHTML = v; }
+          } else {
+            el.setAttribute('data-initial', v);
+          }
+        });
+      });
+      // Carry the rubric design preferences (level structure, row count,
+      // criteria text) so a target's later AI-Fill or manual rubric edit
+      // starts from the same shape.
+      if (copyRubricPrefs && src.aiFillPrefs && src.aiFillPrefs.rubric) {
+        if (!t.act.aiFillPrefs) t.act.aiFillPrefs = {};
+        t.act.aiFillPrefs.rubric = JSON.parse(JSON.stringify(src.aiFillPrefs.rubric));
+      }
+      copiedCount++;
+    });
+
+    if (typeof saveActivityData === 'function') saveActivityData();
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+
+    document.getElementById('apply-tpl-status').textContent = '✓ Copied ' + fields.length + ' field' + (fields.length === 1 ? '' : 's') + ' to ' + copiedCount + ' activit' + (copiedCount === 1 ? 'y' : 'ies') + '.';
+    setTimeout(closeApplyTemplateModal, 900);
+  };
 
   // ===== EXPORT TEMPLATE TO GOOGLE DRIVE =====
   // After a successful upload, replace the clicked button with
