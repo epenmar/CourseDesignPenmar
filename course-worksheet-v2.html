@@ -429,17 +429,20 @@
   }
   .mat-usage-badge:hover .mub-tip { display: block; }
 
-  /* Content chip in table view — opens the content popup. */
+  /* Content chip in table view — opens the content popup. Default state
+     ("no attached content yet") uses ASU maroon so empty rows nudge faculty
+     toward filling them in; .has-content flips to green once files/links
+     are attached. */
   .content-chip {
     display: inline-flex; align-items: center; gap: 4px;
-    background: #f5f5f0; border: 1px dashed #c0bcb0; color: #888;
+    background: #fff; border: 1px solid #8c1d40; color: #8c1d40;
     border-radius: 12px; padding: 2px 10px; font-size: 11px;
-    font-weight: 500; font-family: 'Inter', sans-serif;
+    font-weight: 600; font-family: 'Inter', sans-serif;
     cursor: pointer; white-space: nowrap; transition: all 0.15s;
   }
-  .content-chip:hover { background: #fff; border-color: #8c1d40; color: #8c1d40; }
+  .content-chip:hover { background: #fdf2f4; }
   .content-chip.has-content {
-    background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; font-weight: 600;
+    background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32;
   }
   .content-chip.has-content:hover { background: #d3ebd5; }
 
@@ -9478,11 +9481,6 @@
   window.refreshContentIndicator = refreshContentIndicator;
 
   // ===== TABLE-VIEW CONTENT CHIPS + POPUP =====
-  // Pure data-model check: does this activity/material have any attached
-  // content? Used to drive the green "✓ Content" chip in table view, where
-  // there's no DOM body to scan (the body lives in the hidden card view).
-  // Cross-link relationships (linkedMaterialIds / activities-linked-to-mat)
-  // are NOT counted here — they have their own 🔗 badge next to the title.
   function _stripToVisibleText(s) {
     if (!s) return '';
     // Strip HTML tags, decode named whitespace entities, collapse all
@@ -9494,19 +9492,15 @@
       .replace(/&(nbsp|#160|#8203|zwnj|zwj);/gi, '')
       .replace(/[\s ​‌‍﻿]/g, '');
   }
-  function _hasAnyAttachedContent(item, kind) {
+  function _hasAnyAttachedContent(item) {
+    // Strict interpretation of "attached content": only an uploaded file or
+    // an explicit external link counts. Template/rich-text bodies and
+    // cross-links don't, because (a) Quill's idle markup is fragile to
+    // detect as truly empty, and (b) cross-links already get their own
+    // 🔗 badge in the row.
     if (!item) return false;
     if (Array.isArray(item.attachedFiles) && item.attachedFiles.length > 0) return true;
     if (Array.isArray(item.links) && item.links.length > 0) return true;
-    if (item.richText && _stripToVisibleText(item.richText).length > 0) return true;
-    if (kind === 'activity' && item.templateData) {
-      for (var t in item.templateData) {
-        var tpl = item.templateData[t] || {};
-        for (var s in tpl) {
-          if (_stripToVisibleText(tpl[s]).length > 0) return true;
-        }
-      }
-    }
     return false;
   }
 
