@@ -457,6 +457,25 @@
   #content-popup-body .overview-content-body { margin-left: 0; margin-top: 0; }
   #content-popup-body .overview-content-body { display: block; }
 
+  /* Rubric grid — replaces the Quill-rendered pipe-text wall with an
+     editable table. Source-of-truth in the data model is still pipe text
+     (Canvas Curate-compatible), but cells are individually editable here. */
+  .rubric-grid { border: 1px solid #e0ddd5; border-radius: 6px; overflow-x: auto; background: #fff; }
+  .rubric-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.4; font-family: 'Inter', sans-serif; }
+  .rubric-table th, .rubric-table td { border: 1px solid #e8e5dd; padding: 6px 10px; vertical-align: top; min-width: 90px; }
+  .rubric-table th { background: #fafaf7; color: #555; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  .rubric-table th[contenteditable]:focus,
+  .rubric-table td[contenteditable]:focus { outline: 2px solid #ffc627; outline-offset: -2px; background: #fffde6; }
+  .rubric-table th[contenteditable]:empty::before,
+  .rubric-table td[contenteditable]:empty::before { content: attr(data-placeholder); color: #bbb; }
+  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { background: transparent; border: none; padding: 0 6px; text-align: center; min-width: 0; }
+  .rubric-row-del { display: none; border: none; background: none; color: #ccc; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 4px; }
+  .rubric-table tbody tr:hover .rubric-row-del { display: inline-block; }
+  .rubric-row-del:hover { color: #c62828; }
+  .rubric-grid-actions { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-top: 1px solid #f0ede5; background: #fafaf7; }
+  .rubric-grid-hint { font-size: 11px; color: #999; font-style: italic; }
+  .rubric-cell-dirty { background: #fffde6; }
+
   /* Primary "✨ AI Fill Template" CTA — visually distinguished from the
      scoped secondary actions (Generate Rubric, Export to Drive). */
   .btn-add-row.btn-ai-fill {
@@ -2447,6 +2466,179 @@
       ' style="' + minH + '"></div>';
   }
 
+  // ===== RUBRIC GRID =====
+  // The Rubric is stored in templateData as pipe-separated rows ('|' between
+  // cells, '\n' between rows) — that's the canonical Canvas-Curate-friendly
+  // shape and it's what the AI Fill output speaks. The Quill editor renders
+  // pipe text as a wall of pipes, which is unreadable. This grid component
+  // parses the pipe text on render and emits an editable <table>; cell
+  // edits re-serialize back to pipes and persist on the activity.
+  function _parseRubricPipes(text) {
+    if (!text) return [];
+    // Tolerate input arriving as plain pipe text, HTML <table>, or
+    // pipe text wrapped in <p>/<pre>. Coerce all to "rows of cells".
+    var clean = String(text)
+      .replace(/<\/tr\s*>/gi, '\n')         // each table row → newline
+      .replace(/<\/(?:td|th)\s*>/gi, '|')   // each cell close → pipe
+      .replace(/<br\s*\/?>/gi, '\n')        // explicit breaks → newlines
+      .replace(/<[^>]+>/g, '')              // strip remaining tags
+      .replace(/&nbsp;/gi, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>');
+    var rows = clean.split(/\r?\n/).map(function(line) {
+      return line.split('|').map(function(c) { return c.trim(); });
+    }).filter(function(row) { return row.some(function(c) { return c.length > 0; }); });
+    if (rows.length === 0) return [];
+    // Pad short rows to the width of the widest so the table renders
+    // squarely.
+    var width = rows.reduce(function(w, r) { return Math.max(w, r.length); }, 0);
+    rows.forEach(function(r) { while (r.length < width) r.push(''); });
+    return rows;
+  }
+  function _stringifyRubricRows(rows) {
+    if (!Array.isArray(rows) || rows.length === 0) return '';
+    return rows.map(function(r) {
+      return r.map(function(c) { return String(c || '').replace(/\|/g, '/'); }).join(' | ');
+    }).join('\n');
+  }
+  // Default header used when there's no rubric content yet AND no design
+  // preferences saved on the activity. We bias toward the more
+  // human-friendly 4-level so empty grids feel ready to fill in.
+  function _defaultRubricHeader(act) {
+    var pref = act && act.aiFillPrefs && act.aiFillPrefs.rubric;
+    var presets = {
+      'binary':     ['Criteria', 'Yes', 'No', 'Points'],
+      'complete':   ['Criteria', 'Complete', 'Incomplete', 'Points'],
+      'masteryNot': ['Criteria', 'Mastery', 'Not Yet', 'Points'],
+      'three':      ['Criteria', 'Strong', 'Adequate', 'Developing', 'Points'],
+      'four':       ['Criteria', 'Excellent', 'Proficient', 'Developing', 'Beginning', 'Points']
+    };
+    if (pref) {
+      if (pref.style === 'custom' && pref.levels) {
+        var customLevels = String(pref.levels).split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+        if (customLevels.length) return ['Criteria'].concat(customLevels).concat(['Points']);
+      }
+      if (presets[pref.style]) return presets[pref.style];
+    }
+    return presets.four;
+  }
+  function _buildRubricGridHtml(act, tplType) {
+    var raw = (act.templateData && act.templateData[tplType] && act.templateData[tplType]['Rubric']) || '';
+    var rows = _parseRubricPipes(raw);
+    if (rows.length === 0) {
+      rows = [_defaultRubricHeader(act)];
+    }
+    var html = '<div class="rubric-grid" data-rubric-act="' + escapeHtml(act.id) + '" data-rubric-tpl="' + escapeHtml(tplType) + '">';
+    html += '<table class="rubric-table"><thead><tr>';
+    var header = rows[0];
+    header.forEach(function(cell, ci) {
+      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)">' + escapeHtml(cell) + '</th>';
+    });
+    html += '<th class="rubric-actions" style="width:30px;"></th>';
+    html += '</tr></thead><tbody>';
+    for (var ri = 1; ri < rows.length; ri++) {
+      html += '<tr>';
+      rows[ri].forEach(function(cell, ci) {
+        html += '<td contenteditable="true" data-rubric-r="' + ri + '" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)">' + escapeHtml(cell) + '</td>';
+      });
+      html += '<td class="rubric-actions"><button class="rubric-row-del" title="Delete row" onclick="_removeRubricRow(this)">×</button></td>';
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    html += '<div class="rubric-grid-actions">';
+    html += '<button class="btn-add-row" onclick="_addRubricRow(this)">+ Add row</button>';
+    html += '<span class="rubric-grid-hint">Edit cells in place. Stored as pipe-separated text for Canvas Curate compatibility.</span>';
+    html += '</div></div>';
+    return html;
+  }
+  // Re-serialize the entire grid into pipe text and persist it on the
+  // activity. Called from cell input/blur handlers and from the
+  // add/remove-row helpers below.
+  function _persistRubricGrid(grid) {
+    if (!grid) return;
+    var actId = grid.getAttribute('data-rubric-act');
+    var tplType = grid.getAttribute('data-rubric-tpl');
+    if (!actId || !tplType) return;
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var rows = [];
+    grid.querySelectorAll('thead tr, tbody tr').forEach(function(tr) {
+      var row = [];
+      tr.querySelectorAll('th[contenteditable], td[contenteditable]').forEach(function(c) {
+        row.push((c.textContent || '').trim());
+      });
+      if (row.length) rows.push(row);
+    });
+    var text = _stringifyRubricRows(rows);
+    if (!info.item.templateData) info.item.templateData = {};
+    if (!info.item.templateData[tplType]) info.item.templateData[tplType] = {};
+    info.item.templateData[tplType]['Rubric'] = text;
+    if (typeof saveActivityData === 'function') saveActivityData();
+  }
+  window._onRubricCellInput = function(cell) {
+    // Persist on every keystroke is overkill — debounce to blur.
+    cell.classList.add('rubric-cell-dirty');
+  };
+  window._onRubricCellBlur = function(cell) {
+    var grid = cell.closest('.rubric-grid');
+    if (!grid) return;
+    _persistRubricGrid(grid);
+    cell.classList.remove('rubric-cell-dirty');
+  };
+  window._addRubricRow = function(btn) {
+    var grid = btn.closest('.rubric-grid');
+    if (!grid) return;
+    var headerRow = grid.querySelector('thead tr');
+    if (!headerRow) return;
+    var headerCells = headerRow.querySelectorAll('th[contenteditable]');
+    var newRow = document.createElement('tr');
+    var ri = grid.querySelectorAll('tbody tr').length + 1;
+    headerCells.forEach(function(_, ci) {
+      var td = document.createElement('td');
+      td.contentEditable = 'true';
+      td.setAttribute('data-rubric-r', ri);
+      td.setAttribute('data-rubric-c', ci);
+      td.setAttribute('oninput', '_onRubricCellInput(this)');
+      td.setAttribute('onblur', '_onRubricCellBlur(this)');
+      newRow.appendChild(td);
+    });
+    var actionTd = document.createElement('td');
+    actionTd.className = 'rubric-actions';
+    actionTd.innerHTML = '<button class="rubric-row-del" title="Delete row" onclick="_removeRubricRow(this)">×</button>';
+    newRow.appendChild(actionTd);
+    grid.querySelector('tbody').appendChild(newRow);
+    var firstCell = newRow.querySelector('td[contenteditable]');
+    if (firstCell) firstCell.focus();
+    _persistRubricGrid(grid);
+  };
+  window._removeRubricRow = function(btn) {
+    var tr = btn.closest('tr');
+    var grid = btn.closest('.rubric-grid');
+    if (tr && tr.parentElement && tr.parentElement.tagName === 'TBODY') {
+      tr.parentElement.removeChild(tr);
+      _persistRubricGrid(grid);
+    }
+  };
+  // After AI Fill writes a rubric pipe-string, find every rubric grid
+  // bound to that act+tplType and re-render its rows from the new text.
+  // (Quill-based rich editors update via dangerouslyPasteHTML; the grid
+  // doesn't speak HTML, so it has its own re-render path.)
+  function _refreshRubricGridsForActivity(actId, tplType) {
+    var info = _itemForContentPrefix(actId);
+    if (!info) return;
+    var sel = '.rubric-grid[data-rubric-act="' + actId + '"][data-rubric-tpl="' + tplType + '"]';
+    document.querySelectorAll(sel).forEach(function(grid) {
+      var fresh = _buildRubricGridHtml(info.item, tplType);
+      // Replace just the inner contents of the grid div, not the wrapper.
+      var tmp = document.createElement('div');
+      tmp.innerHTML = fresh;
+      var inner = tmp.firstElementChild;
+      if (inner) grid.innerHTML = inner.innerHTML;
+    });
+  }
+  window._refreshRubricGridsForActivity = _refreshRubricGridsForActivity;
+
   // ===== ACTIVITY BLOCK HTML GENERATOR =====
   function buildActivityBlockHtml(act, moduleNum) {
     const id = act.id;
@@ -2509,7 +2701,7 @@
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
@@ -2526,7 +2718,7 @@
               '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific assignment targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
@@ -6834,7 +7026,7 @@
     html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
@@ -6849,7 +7041,7 @@
     // for a separate textarea here.
     html += '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
@@ -9447,24 +9639,28 @@
     if (!act.templateData) act.templateData = {};
     if (!act.templateData[tplType]) act.templateData[tplType] = {};
     Object.keys(parsed).forEach(function(sectionKey) {
-      var html = parsed[sectionKey];
-      act.templateData[tplType][sectionKey] = html;
-      // Find every Quill rich editor bound to this (act, tplType, section)
-      // — there may be one in the module-detail view AND one in the
-      // overview content body. Update both.
+      var content = parsed[sectionKey];
+      act.templateData[tplType][sectionKey] = content;
+      // Rubric is rendered by an editable HTML grid (not Quill). Re-render
+      // the grid in place so the user sees the new rows immediately.
+      if (sectionKey === 'Rubric') {
+        if (typeof _refreshRubricGridsForActivity === 'function') {
+          _refreshRubricGridsForActivity(act.id, tplType);
+        }
+        return;
+      }
+      // Other fields use Quill — find every editor bound to this
+      // (act, tplType, section) and update its content.
       var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + act.id + '"][data-tpl-type="' + tplType + '"][data-section="' + sectionKey + '"]';
       document.querySelectorAll(sel).forEach(function(el) {
         if (el._quill) {
-          try { el._quill.clipboard.dangerouslyPasteHTML(0, html, 'silent'); }
-          catch (e) { el._quill.root.innerHTML = html; }
+          try { el._quill.clipboard.dangerouslyPasteHTML(0, content, 'silent'); }
+          catch (e) { el._quill.root.innerHTML = content; }
         } else {
-          // Quill not yet initialized — set the initial attribute so the
-          // next render picks it up.
-          el.setAttribute('data-initial', html);
+          el.setAttribute('data-initial', content);
         }
-        // If this section lives inside a collapsible <details> wrapper
-        // (e.g. "Activity Learning Objective"), auto-open it so the
-        // instructor can immediately see what AI wrote.
+        // Auto-open any collapsible wrapper (e.g., Activity Learning
+        // Objective) so newly written content is immediately visible.
         var details = el.closest('details.template-collapsible');
         if (details) details.open = true;
       });
@@ -9600,7 +9796,13 @@
         var v = srcTplData[k];
         if (v === undefined || v === null) return;
         t.act.templateData[s.tplType][k] = v;
-        // Push the new value into any live Quill editor bound to this target.
+        if (k === 'Rubric') {
+          if (typeof _refreshRubricGridsForActivity === 'function') {
+            _refreshRubricGridsForActivity(t.act.id, s.tplType);
+          }
+          return;
+        }
+        // Other fields — push into any live Quill editor bound to this target.
         var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + t.act.id + '"][data-tpl-type="' + s.tplType + '"][data-section="' + k + '"]';
         document.querySelectorAll(sel).forEach(function(el) {
           if (el._quill) {
@@ -9660,8 +9862,21 @@
       var richEl = section.querySelector('.rich-editor');
       var textarea = section.querySelector('textarea');
       var input = section.querySelector('input');
+      var rubricGrid = section.querySelector('.rubric-grid');
       if (label) content += label.textContent.toUpperCase() + '\n';
-      if (richEl && richEl._quill) {
+      if (rubricGrid) {
+        // Re-serialize the live grid so any unsaved cell edits are
+        // captured. Pipe-separated form ships straight to Canvas Curate.
+        var rows = [];
+        rubricGrid.querySelectorAll('thead tr, tbody tr').forEach(function(tr) {
+          var row = [];
+          tr.querySelectorAll('th[contenteditable], td[contenteditable]').forEach(function(c) {
+            row.push((c.textContent || '').trim());
+          });
+          if (row.length) rows.push(row);
+        });
+        if (rows.length) content += _stringifyRubricRows(rows) + '\n';
+      } else if (richEl && richEl._quill) {
         var txt = richEl._quill.getText().trim();
         if (txt) content += txt + '\n';
       } else if (richEl && window.RichEditor) {
