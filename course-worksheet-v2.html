@@ -263,7 +263,12 @@
   .material-item.drag-insert-above { border-top: 3px solid #8c1d40; margin-top: -1px; }
   .material-item.drag-insert-below { border-bottom: 3px solid #8c1d40; margin-bottom: -1px; }
   .card-header.drag-over { background: #fef9f0; box-shadow: inset 0 0 0 2px #ffc627; border-radius: 8px; }
-  .activity-block-toolbar { display: none; position: absolute; top: 8px; right: 8px; gap: 4px; z-index: 2; }
+  /* Float the hover toolbar above the row so its move/delete buttons
+     don't sit on top of the inline "▸ Content" button at the row's
+     right edge. The chip background + shadow makes it read as a
+     contextual menu rather than free-floating buttons. */
+  .activity-block { position: relative; }
+  .activity-block-toolbar { display: none; position: absolute; top: -16px; right: 8px; gap: 4px; z-index: 5; padding: 3px 5px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 2px 6px rgba(0,0,0,0.08); }
   .activity-block:hover .activity-block-toolbar { display: flex; }
   .act-tool-btn { width: 28px; height: 28px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; cursor: pointer; font-size: 13px; display: flex; align-items: center; justify-content: center; color: #888; transition: all 0.15s; }
   .act-tool-btn:hover { background: #f5f5f0; color: #444; }
@@ -499,6 +504,15 @@
   .template-preview h4 { font-size: 13px; font-weight: 600; color: #8c1d40; margin-bottom: 8px; }
   .template-preview .template-section { margin-bottom: 10px; }
   .template-preview .template-section-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  /* Collapsible template section (for optional fields like Activity
+     Learning Objective). Default closed; instructors who don't use the
+     field never see the body. */
+  .template-preview details.template-collapsible { margin-bottom: 10px; }
+  .template-preview details.template-collapsible > summary { cursor: pointer; padding: 6px 10px; background: #fafaf7; border: 1px dashed #d6d2c5; border-radius: 6px; list-style: none; }
+  .template-preview details.template-collapsible > summary::-webkit-details-marker { display: none; }
+  .template-preview details.template-collapsible > summary::before { content: '▸'; display: inline-block; width: 14px; color: #999; transition: transform 0.15s; }
+  .template-preview details.template-collapsible[open] > summary::before { transform: rotate(90deg); }
+  .template-preview details.template-collapsible[open] > summary { background: #fff; border-style: solid; }
   .template-preview textarea { width: 100%; min-height: 60px; padding: 8px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; overflow: hidden; white-space: pre-wrap; word-wrap: break-word; overflow-wrap: break-word; }
   .template-preview textarea:focus { outline: none; border-color: #8c1d40; }
   .template-type-selector { display: flex; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -2411,7 +2425,7 @@
             '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
               '<h4>Discussion Template</h4>' +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— What this specific discussion targets</span> <button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'discussion\')">✨ Generate with AI</button></div>' + buildTplTextarea(id, 'discussion', 'Activity Objective', 'By the end of this discussion, students will be able to...') + '</div>' +
+              '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific discussion targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'discussion\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'discussion', 'Activity Objective', 'By the end of this discussion, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
@@ -2424,8 +2438,10 @@
             '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
               '<h4>Assignment Template</h4>' +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div>' + buildTplTextarea(id, 'assignment', 'MLOs', 'List the MLOs this assignment addresses...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— What this specific assignment targets</span> <button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button></div>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div>' +
+              // MLO listing intentionally omitted — covered by the objective
+              // tag chips in the activity row, so a separate textarea is just
+              // duplicate work for the instructor.
+              '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific assignment targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
@@ -6743,7 +6759,8 @@
     html += '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">';
     html += '<h4>Assignment Template</h4>';
     html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Module Learning Objectives</div>' + buildTplTextarea(act.id, 'assignment', 'MLOs', 'List the MLOs this assignment addresses...') + '</div>';
+    // MLO listing covered by the activity row's objective chips — no need
+    // for a separate textarea here.
     html += '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
@@ -14430,6 +14447,16 @@ ${clone.innerHTML}
         try {
           const container = document.querySelector(anchor.containerSelector);
           if (!container) return;
+
+          // <input> / <textarea> / <select>: text lives in .value, not in
+          // child text nodes, so the <mark>-wrap path below can't anchor.
+          // Apply the field-level yellow indicator and skip the walk.
+          // Module overview module-title inputs are the typical case.
+          if (container.tagName === 'INPUT' || container.tagName === 'TEXTAREA' || container.tagName === 'SELECT') {
+            container.classList.add('has-field-comment');
+            container.setAttribute('data-comment-id', comment.id);
+            return;
+          }
 
           const fullText = container.textContent || '';
           const searchText = anchor.highlightText || comment.highlight_text;
