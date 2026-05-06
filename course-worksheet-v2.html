@@ -497,10 +497,39 @@
 
   /* ===== AI FILL / APPLY TEMPLATE / COPY FROM modal styling =====
      All three modals share the same vocabulary of section blocks, row
-     labels, and quick-action links — one styling block, three hosts. */
-  #ai-fill-body .aif-section, #apply-tpl-body .aif-section, #copy-from-body .aif-section { margin-bottom: 14px; }
-  #ai-fill-body .aif-section-title, #apply-tpl-body .aif-section-title, #copy-from-body .aif-section-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
-  #ai-fill-body .aif-section-hint, #apply-tpl-body .aif-section-hint, #copy-from-body .aif-section-hint { font-size: 11px; color: #999; margin-top: -2px; margin-bottom: 8px; }
+     labels, and quick-action links — one styling block, three hosts.
+     Each section is rendered as a distinct card with a subtle border +
+     soft background so adjacent sections don't visually run together. */
+  #ai-fill-body .aif-section, #apply-tpl-body .aif-section, #copy-from-body .aif-section {
+    margin-bottom: 12px; padding: 12px 14px;
+    background: #fafaf7; border: 1px solid #ece9df; border-radius: 8px;
+  }
+  #ai-fill-body .aif-section-title, #apply-tpl-body .aif-section-title, #copy-from-body .aif-section-title {
+    font-size: 11px; font-weight: 700; color: #8c1d40;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    padding-bottom: 6px; margin-bottom: 10px;
+    border-bottom: 1px solid #ece9df;
+  }
+  #ai-fill-body .aif-section-hint, #apply-tpl-body .aif-section-hint, #copy-from-body .aif-section-hint { font-size: 11px; color: #999; font-style: italic; margin-top: -4px; margin-bottom: 8px; }
+  /* Static-context list inside "Always included as context" */
+  #ai-fill-body .aif-section-body, #apply-tpl-body .aif-section-body, #copy-from-body .aif-section-body {
+    font-size: 12px; color: #555; line-height: 1.7;
+  }
+  /* Generic field block (label above input). aif-field-row puts two of
+     them side-by-side on the same line. */
+  #ai-fill-body .aif-field, #apply-tpl-body .aif-field, #copy-from-body .aif-field { display: block; }
+  #ai-fill-body .aif-field-label, #apply-tpl-body .aif-field-label, #copy-from-body .aif-field-label {
+    font-size: 11px; font-weight: 600; color: #555;
+    margin-bottom: 4px;
+  }
+  #ai-fill-body .aif-field-row, #apply-tpl-body .aif-field-row, #copy-from-body .aif-field-row {
+    display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+  }
+  /* Small grey italic hint shown beneath an input — replaces the older
+     inline "leave blank = AI infers..." text-grey hack. */
+  #ai-fill-body .aif-hint, #apply-tpl-body .aif-hint, #copy-from-body .aif-hint {
+    font-size: 11px; color: #999; font-style: italic; margin-top: 6px;
+  }
   #ai-fill-body label.aif-row, #apply-tpl-body label.aif-row, #copy-from-body label.aif-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.4; }
   #ai-fill-body label.aif-row:hover, #apply-tpl-body label.aif-row:hover, #copy-from-body label.aif-row:hover { background: #fafaf7; }
   #ai-fill-body label.aif-row input[type="checkbox"], #apply-tpl-body label.aif-row input[type="checkbox"], #copy-from-body label.aif-row input[type="checkbox"],
@@ -9302,23 +9331,11 @@
 
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Always included as context</div>';
-    html += '<div class="aif-section-hint" style="font-style:normal;">'
+    html += '<div class="aif-section-body">'
       + '• Course: <strong>' + escapeHtml(activeCourse.code || courseId) + '</strong><br>'
       + '• Module ' + modNum + (modTopic ? ': <strong>' + escapeHtml(modTopic) + '</strong>' : '') + '<br>'
       + '• Module Learning Objectives + Course Learning Objectives'
       + '</div>';
-    // Inline points input — generating a rubric without a total is
-    // fragile (the AI can't distribute), so let the instructor set it
-    // here without leaving the modal.
-    html += '<div style="margin-top:8px; padding:8px 10px; background:' + (hasActPts ? '#f5fbf5' : '#fff8e1') + '; border:1px solid ' + (hasActPts ? '#c5e1c5' : '#ffe082') + '; border-radius:6px; font-size:12px; line-height:1.5;">';
-    html += '<label style="display:flex; align-items:center; gap:8px;">'
-      + '<span><strong>Assignment points total</strong> <span style="color:#888;">— rubric rows distribute from this</span></span>'
-      + '<input type="number" id="aif-act-points" min="0" step="0.5" value="' + escapeHtml(hasActPts ? String(actPtsNum) : '') + '" placeholder="e.g., 10" style="width:80px; padding:4px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:13px;">'
-      + '</label>';
-    if (!hasActPts) {
-      html += '<div style="margin-top:4px; color:#8a6d3b;">If left blank, rubric Points cells will fill with the placeholder "TBD".</div>';
-    }
-    html += '</div>';
     html += '</div>';
 
     // Tool / platform — explicit selection beats letting Claude infer from
@@ -9329,7 +9346,6 @@
     var tools = ['Harmonize', 'Yellowdig', 'Perusall', 'Hypothes.is', 'Flipgrid', 'Padlet', 'Kaltura'];
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Tool / platform</div>';
-    html += '<div class="aif-section-hint">Pick the LMS tool students will use. Instructions get written for that tool\'s actual UI flow (annotate vs. post vs. record).</div>';
     html += '<select id="aif-tool" class="aif-select" onchange="_aifOnToolChange()">';
     html += '<option value=""' + (!toolPref ? ' selected' : '') + '>None / generic</option>';
     tools.forEach(function(t) {
@@ -9338,6 +9354,7 @@
     html += '<option value="other"' + (toolPref === 'other' ? ' selected' : '') + '>Other (specify)…</option>';
     html += '</select>';
     html += '<input type="text" id="aif-tool-custom" placeholder="Tool name (e.g., Mindgrasp, NameCoach)" value="' + escapeHtml(toolCustom) + '" style="' + (toolPref === 'other' ? '' : 'display:none;') + ' margin-top:6px; width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit;">';
+    html += '<div class="aif-hint">Pick the LMS tool students will use. Instructions get written for that tool\'s actual UI flow (annotate vs. post vs. record).</div>';
     html += '</div>';
 
     // Rubric design controls — only shown when Rubric is a section in
@@ -9352,9 +9369,8 @@
       var rCriteria = rPref.criteria || '';
       html += '<div class="aif-section">';
       html += '<div class="aif-section-title">Rubric design</div>';
-      html += '<div class="aif-section-hint">Sets the level structure and row count. The AI fills in criteria text using the activity + meeting context.</div>';
-      html += '<label class="aif-meta" style="display:block; margin-top:4px;">Level structure</label>';
-      html += '<select id="aif-rubric-style" class="aif-select" onchange="_aifOnRubricStyleChange()">';
+
+      // Level structure + criteria row count on one line.
       var styles = [
         ['auto',       'Auto (use meeting notes; default to 4-level)'],
         ['binary',     'Yes / No (binary)'],
@@ -9364,18 +9380,40 @@
         ['four',       '4-level (Excellent / Proficient / Developing / Beginning)'],
         ['custom',     'Custom level names…']
       ];
+      html += '<div class="aif-field-row">';
+      html += '<label class="aif-field" style="flex:1; min-width:240px;">'
+        + '<div class="aif-field-label">Level structure</div>'
+        + '<select id="aif-rubric-style" class="aif-select" onchange="_aifOnRubricStyleChange()">';
       styles.forEach(function(p) {
         html += '<option value="' + p[0] + '"' + (rStyle === p[0] ? ' selected' : '') + '>' + p[1] + '</option>';
       });
-      html += '</select>';
-      html += '<input type="text" id="aif-rubric-levels" placeholder="Level names, comma-separated (e.g., Strong, Adequate, Beginning)" value="' + escapeHtml(rLevels) + '" style="' + (rStyle === 'custom' ? '' : 'display:none;') + ' margin-top:6px; width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit;">';
-      html += '<div style="display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap;">';
-      html += '<label class="aif-meta">Number of criteria rows: '
-        + '<input type="number" id="aif-rubric-rows" min="1" max="10" value="' + escapeHtml(String(rRows)) + '" placeholder="auto" style="width:70px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:4px; font-size:13px; margin-left:4px;"></label>';
-      html += '<span class="aif-meta" style="font-style:italic;">leave blank = AI infers from meeting notes</span>';
+      html += '</select></label>';
+      html += '<label class="aif-field" style="flex-shrink:0;">'
+        + '<div class="aif-field-label">Criteria rows</div>'
+        + '<input type="number" id="aif-rubric-rows" min="1" max="10" value="' + escapeHtml(String(rRows)) + '" placeholder="auto" style="width:90px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">'
+        + '</label>';
       html += '</div>';
-      html += '<label class="aif-meta" style="display:block; margin-top:8px;">Criteria text (one per line, optional — overrides AI inference)</label>';
+      html += '<div class="aif-hint">Leave criteria rows blank to let the AI infer from meeting notes.</div>';
+
+      // Custom level names input (revealed when Custom is picked).
+      html += '<input type="text" id="aif-rubric-levels" placeholder="Level names, comma-separated (e.g., Strong, Adequate, Beginning)" value="' + escapeHtml(rLevels) + '" style="' + (rStyle === 'custom' ? '' : 'display:none;') + ' margin-top:8px; width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit;">';
+
+      // Criteria text textarea.
+      html += '<div class="aif-field" style="margin-top:10px;">';
+      html += '<div class="aif-field-label">Criteria text</div>';
       html += '<textarea id="aif-rubric-criteria" rows="3" placeholder="e.g.&#10;Identifies main themes&#10;Agrees / disagrees with rationale&#10;Poses substantive questions" style="width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;">' + escapeHtml(rCriteria) + '</textarea>';
+      html += '<div class="aif-hint">One per line, optional. Overrides the AI\'s inference when set.</div>';
+      html += '</div>';
+
+      // Assignment points total — moved here from "Always included as
+      // context" because it's only relevant when generating a rubric
+      // (the AI distributes the total across rubric rows).
+      html += '<div class="aif-field" style="margin-top:10px;">';
+      html += '<div class="aif-field-label">Assignment points total</div>';
+      html += '<input type="number" id="aif-act-points" min="0" step="0.5" value="' + escapeHtml(hasActPts ? String(actPtsNum) : '') + '" placeholder="e.g., 10" style="width:120px; padding:6px 10px; border:1px solid ' + (hasActPts ? '#c5e1c5' : '#ffe082') + '; border-radius:6px; font-size:13px; background:' + (hasActPts ? '#f5fbf5' : '#fff8e1') + ';">';
+      html += '<div class="aif-hint">Rubric rows distribute from this total. If left blank, Points cells fill with the placeholder "TBD".</div>';
+      html += '</div>';
+
       html += '</div>';
     }
 
