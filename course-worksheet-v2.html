@@ -3681,6 +3681,48 @@
 
   // ===== ALIGNMENT AUDIT =====
 
+  // Click-to-sort handler for the traceability table's ELO / MLO
+  // headers. Sorts by the row's data-elo-key / data-mlo-key, parsing
+  // the numeric portion so "MLO 2.10" sorts after "MLO 2.2" instead of
+  // before it. Toggles asc / desc on repeated clicks.
+  window._sortTraceTable = function(col) {
+    var table = document.getElementById('trace-table');
+    if (!table) return;
+    var tbody = table.tBodies[0];
+    if (!tbody) return;
+    var ths = table.querySelectorAll('thead th[data-sort-col]');
+    var clickedTh = null;
+    ths.forEach(function(th) { if (th.getAttribute('data-sort-col') === col) clickedTh = th; });
+    if (!clickedTh) return;
+    var currentDir = clickedTh.getAttribute('data-sort-dir') || '';
+    var newDir = currentDir === 'asc' ? 'desc' : 'asc';
+    ths.forEach(function(th) {
+      th.removeAttribute('data-sort-dir');
+      var arrow = th.querySelector('.trace-sort-arrow');
+      if (arrow) arrow.textContent = '';
+    });
+    clickedTh.setAttribute('data-sort-dir', newDir);
+    var arrowEl = clickedTh.querySelector('.trace-sort-arrow');
+    if (arrowEl) arrowEl.textContent = newDir === 'asc' ? '▲' : '▼';
+
+    var keyAttr = col === 'elo' ? 'data-elo-key' : 'data-mlo-key';
+    var rows = Array.from(tbody.querySelectorAll('tr'));
+    function _numericKey(s) {
+      // "ELO 3" -> [3, 0]; "MLO 2.10" -> [2, 10]
+      var m = String(s || '').match(/(\d+)(?:\.(\d+))?/);
+      if (!m) return [Infinity, Infinity];
+      return [parseInt(m[1], 10) || 0, parseInt(m[2] || '0', 10)];
+    }
+    rows.sort(function(a, b) {
+      var ak = _numericKey(a.getAttribute(keyAttr));
+      var bk = _numericKey(b.getAttribute(keyAttr));
+      var d = ak[0] - bk[0];
+      if (d === 0) d = ak[1] - bk[1];
+      return newDir === 'asc' ? d : -d;
+    });
+    rows.forEach(function(r) { tbody.appendChild(r); });
+  };
+
   function runAlignmentAudit() {
     var container = document.getElementById('alignment-audit-report');
     if (!container) return;
@@ -3728,10 +3770,19 @@
     // Build traceability data
     var traceRows = [];
 
+    // Set of MLO ids that actually exist in the course objectives — used
+    // to skip stale alignment entries that point at MLOs the user has
+    // since deleted (otherwise the audit reports phantom "MLO 2.7 has
+    // no activity" issues for objectives that don't exist).
+    var realMloIds = {};
+    allMlos.forEach(function(mlo) { realMloIds[mlo.id] = true; });
+
     elos.forEach(function(elo, eloIdx) {
-      var linkedMlos = eloMloAlignment[eloIdx + ''] || [];
+      var rawLinked = eloMloAlignment[eloIdx + ''] || [];
+      // Only count alignment entries that point at MLOs that still exist.
+      var linkedMlos = rawLinked.filter(function(id) { return realMloIds[id]; });
       if (linkedMlos.length === 0) {
-        issues.push({ severity: 'critical', type: 'Phantom ELO', message: 'ELO ' + (eloIdx+1) + ' has no MLOs mapped to it', detail: elo });
+        issues.push({ severity: 'critical', type: 'ELO not addressed', message: 'ELO ' + (eloIdx+1) + ' has no MLOs mapped to it', detail: elo });
       } else {
         stats.elosCovered++;
       }
@@ -3750,7 +3801,7 @@
         });
 
         if (activities.length === 0) {
-          issues.push({ severity: 'major', type: 'Phantom MLO', message: 'MLO ' + mloId + ' has no activity addressing it', detail: mloText });
+          issues.push({ severity: 'major', type: 'MLO not addressed', message: 'MLO ' + mloId + ' has no activity addressing it', detail: mloText });
         } else {
           assessedMloIds[mloId] = true;
         }
@@ -3761,32 +3812,21 @@
     // Check for orphan MLOs (MLOs not linked to any ELO)
     var linkedMloIds = {};
     Object.keys(eloMloAlignment).forEach(function(k) {
-      (eloMloAlignment[k] || []).forEach(function(id) { linkedMloIds[id] = true; });
+      (eloMloAlignment[k] || []).forEach(function(id) {
+        if (realMloIds[id]) linkedMloIds[id] = true;
+      });
     });
     allMlos.forEach(function(mlo) {
       if (linkedMloIds[mlo.id]) stats.mlosLinked++;
       else {
-        issues.push({ severity: 'major', type: 'Orphan MLO', message: 'MLO ' + mlo.id + ' is not linked to any ELO', detail: mlo.text });
+        issues.push({ severity: 'major', type: 'MLO not linked to ELO', message: 'MLO ' + mlo.id + ' is not linked to any ELO', detail: mlo.text });
       }
     });
 
-    // Check for untagged activities
-    for (var m = 1; m <= modCount; m++) {
-      var acts = courseActivities[m] || [];
-      acts.forEach(function(act) {
-        if (!act.objectives || act.objectives.length === 0) {
-          issues.push({ severity: 'minor', type: 'Stealth Assessment', message: 'Activity "' + (act.name || 'Unnamed') + '" (Module ' + m + ') is not tagged to any MLO', detail: '' });
-        }
-      });
-    }
-
-    // Check for MLOs with only one activity (Single-Shot Skill)
-    allMlos.forEach(function(mlo) {
-      var acts = mloActivityMap[mlo.id] || [];
-      if (acts.length === 1 && linkedMloIds[mlo.id]) {
-        issues.push({ severity: 'minor', type: 'Single-Shot Skill', message: 'MLO ' + mlo.id + ' is only addressed by one activity', detail: mlo.text });
-      }
-    });
+    // (Stealth Assessment and Single-Shot Skill checks intentionally
+    // removed — per instructional designer feedback, neither is a real
+    // issue. The audit reports only ELOs / MLOs that are not addressed
+    // at all.)
 
     // Render the report
     var html = '';
@@ -3841,13 +3881,15 @@
       html += '<div style="padding:16px; background:#f0faf0; border-radius:8px; text-align:center; color:#2d7d46; font-size:13px; font-weight:500;">✅ No alignment issues found. All objectives are properly traced to activities.</div>';
     }
 
-    // Traceability table
+    // Traceability table — ELO and MLO column headers are click-to-sort.
+    // Sort key uses _eloMloSortKey to compare like "ELO 1" / "MLO 2.3"
+    // numerically rather than as strings.
     if (traceRows.length > 0) {
       html += '<h4 style="font-size:13px; margin:20px 0 8px; font-weight:600;">Traceability Table</h4>';
-      html += '<div style="overflow-x:auto;"><table style="border-collapse:collapse; font-size:12px; width:100%;">';
+      html += '<div style="overflow-x:auto;"><table id="trace-table" style="border-collapse:collapse; font-size:12px; width:100%;">';
       html += '<thead><tr>';
-      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap;">ELO</th>';
-      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap;">MLO</th>';
+      html += '<th data-sort-col="elo" onclick="_sortTraceTable(\'elo\')" style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap; cursor:pointer; user-select:none;">ELO <span class="trace-sort-arrow">▲</span></th>';
+      html += '<th data-sort-col="mlo" onclick="_sortTraceTable(\'mlo\')" style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap; cursor:pointer; user-select:none;">MLO <span class="trace-sort-arrow"></span></th>';
       html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">MLO Text</th>';
       html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">Activities</th>';
       html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:center;">Status</th>';
@@ -3857,7 +3899,7 @@
         var statusColor = row.activities.length > 0 ? '#2d7d46' : '#c0392b';
         var statusIcon = row.activities.length > 0 ? '✅' : '❌';
         var statusText = row.activities.length > 0 ? row.activities.length + ' activit' + (row.activities.length === 1 ? 'y' : 'ies') : 'No activities';
-        html += '<tr>';
+        html += '<tr data-elo-key="' + escapeHtml(row.elo) + '" data-mlo-key="' + escapeHtml(row.mlo) + '">';
         html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; font-weight:600; color:#8c1d40; white-space:nowrap;">' + row.elo + '</td>';
         html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; white-space:nowrap;">' + row.mlo + '</td>';
         html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; color:#555; max-width:250px;">' + escapeHtml(row.mloText.substring(0, 80)) + (row.mloText.length > 80 ? '…' : '') + '</td>';
