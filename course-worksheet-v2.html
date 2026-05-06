@@ -457,6 +457,18 @@
   #content-popup-body .overview-content-body { margin-left: 0; margin-top: 0; }
   #content-popup-body .overview-content-body { display: block; }
 
+  /* Per-section "Copy from…" inline button next to the section label.
+     Visually subordinate to the section label so it doesn't fight the
+     primary content. */
+  .section-copy-from-btn {
+    display: inline-flex; align-items: center; gap: 3px;
+    margin-left: 8px; padding: 1px 8px;
+    background: #fff; border: 1px solid #e0ddd5; border-radius: 10px;
+    color: #888; font-size: 10px; font-weight: 500; font-family: 'Inter', sans-serif;
+    text-transform: none; letter-spacing: 0; cursor: pointer; transition: all 0.15s;
+  }
+  .section-copy-from-btn:hover { background: #fdf2f4; border-color: #8c1d40; color: #8c1d40; }
+
   /* Rubric grid — replaces the Quill-rendered pipe-text wall with an
      editable table. Source-of-truth in the data model is still pipe text
      (Canvas Curate-compatible), but cells are individually editable here. */
@@ -1703,6 +1715,29 @@
   </div>
 </div>
 
+<!-- ===== COPY ONE FIELD FROM ANOTHER ACTIVITY =====
+     Inverse of the apply-template modal: rather than pushing the source's
+     fields to many targets, this lets the user pull a single field
+     (Instructions, Rubric, etc.) FROM any other activity that has content
+     in that field. Triggered from a per-section "📋 Copy from…" button. -->
+<div id="copy-from-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:280; align-items:flex-start; justify-content:center; padding-top:32px;" onclick="if(event.target===this) closeCopyFromModal();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:680px; width:94%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">📋 Copy <span id="copy-from-field">…</span> from another activity</div>
+        <div id="copy-from-subtitle" style="font-size:12px; color:#888; margin-top:2px;">…</div>
+      </div>
+      <button onclick="closeCopyFromModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="copy-from-body" style="overflow-y:auto; min-height:160px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
+      <div id="copy-from-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
+      <button onclick="closeCopyFromModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
+      <button id="copy-from-go-btn" onclick="runCopyFromField()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">📋 Copy here</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TABLE-VIEW CONTENT POPUP =====
      Reuses the card-view content body (Upload / Link / Template / Linked tabs)
      by transplanting the existing .overview-act-content (or .overview-content-body
@@ -2473,6 +2508,14 @@
   // pipe text as a wall of pipes, which is unreadable. This grid component
   // parses the pipe text on render and emits an editable <table>; cell
   // edits re-serialize back to pipes and persist on the activity.
+  // Small inline button rendered next to a section label that opens the
+  // "Copy <field> from another activity" modal. Lets the user pull a
+  // single field from a sibling without going through the bigger
+  // apply-template modal first.
+  function _sectionCopyFromBtnHtml(actId, tplType, sectionKey) {
+    return ' <button class="section-copy-from-btn" type="button" title="Copy ' + escapeHtml(sectionKey) + ' from another activity" onclick="openCopyFromFieldModal(\'' + escapeHtml(actId) + '\',\'' + escapeHtml(tplType) + '\',\'' + escapeHtml(sectionKey) + '\')">📋 Copy from…</button>';
+  }
+
   function _parseRubricPipes(text) {
     if (!text) return [];
     // Tolerate input arriving as plain pipe text, HTML <table>, or
@@ -2701,11 +2744,10 @@
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
-                '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
@@ -2716,13 +2758,12 @@
               // tag chips in the activity row, so a separate textarea is just
               // duplicate work for the instructor.
               '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific assignment targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div></details>' +
-              '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
-                '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
             '</div>' +
@@ -7026,11 +7067,10 @@
     html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
-    html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     // Assignment template
@@ -7039,13 +7079,12 @@
     html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>';
     // MLO listing covered by the activity row's objective chips — no need
     // for a separate textarea here.
-    html += '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
-    html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     // Quiz template (will be modernized in task 18)
@@ -9828,6 +9867,122 @@
 
     document.getElementById('apply-tpl-status').textContent = '✓ Copied ' + fields.length + ' field' + (fields.length === 1 ? '' : 's') + ' to ' + copiedCount + ' activit' + (copiedCount === 1 ? 'y' : 'ies') + '.';
     setTimeout(closeApplyTemplateModal, 900);
+  };
+
+  // ===== COPY ONE FIELD FROM ANOTHER ACTIVITY =====
+  // Lets the user pull a single template field (Instructions, Rubric…)
+  // from any other activity that has content in that field. Triggered
+  // from per-section "📋 Copy from…" buttons inside the template body.
+  var _copyFromState = null; // { destActId, tplType, sectionKey, candidates }
+
+  window.openCopyFromFieldModal = function(destActId, tplType, sectionKey) {
+    var info = _itemForContentPrefix(destActId);
+    if (!info || info.kind !== 'activity') return;
+
+    // Candidates: every other activity of the same template type that has
+    // non-empty content in this section. Sorted by module then position.
+    var candidates = [];
+    Object.keys(courseActivities || {}).forEach(function(modKey) {
+      var modNum = parseInt(modKey, 10);
+      (courseActivities[modKey] || []).forEach(function(a) {
+        if (a.id === destActId) return;
+        var aType = a.contentType || 'assignment';
+        if (aType !== tplType) return;
+        var v = a.templateData && a.templateData[tplType] && a.templateData[tplType][sectionKey];
+        if (!v || _stripToVisibleText(v).length === 0) return;
+        candidates.push({ act: a, modNum: modNum, value: v });
+      });
+    });
+    candidates.sort(function(a, b) { return a.modNum - b.modNum; });
+
+    _copyFromState = { destActId: destActId, tplType: tplType, sectionKey: sectionKey, candidates: candidates };
+
+    document.getElementById('copy-from-field').textContent = sectionKey;
+    document.getElementById('copy-from-subtitle').textContent =
+      'Will overwrite the current ' + sectionKey + ' on "' + ((info.item.name || '').trim() || 'this activity') + '".';
+    document.getElementById('copy-from-status').textContent = '';
+    document.getElementById('copy-from-go-btn').disabled = false;
+
+    var html = '';
+    if (candidates.length === 0) {
+      html += '<div class="aif-empty">No other ' + tplType + ' activities in this course have content in their ' + sectionKey + ' field yet.</div>';
+    } else {
+      html += '<div class="aif-section-hint">Pick the source. The selected activity\'s ' + sectionKey + ' will replace the current one.</div>';
+      html += '<div class="aif-context-list">';
+      var prevModNum = null;
+      candidates.forEach(function(row, idx) {
+        if (row.modNum !== prevModNum) {
+          if (prevModNum !== null) html += '<div style="height:6px;"></div>';
+          html += '<div class="aif-meta" style="font-weight:600; color:#666; padding:4px 6px 2px;">Module ' + row.modNum + '</div>';
+          prevModNum = row.modNum;
+        }
+        var nm = (row.act.name || '').trim() || '(untitled activity)';
+        var preview = String(row.value || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        if (preview.length > 160) preview = preview.slice(0, 160) + '…';
+        html += '<label class="aif-row" title="' + escapeHtml(preview) + '">'
+          + '<input type="radio" name="copy-from-src" class="cff-src" data-cand-idx="' + idx + '"' + (idx === 0 ? ' checked' : '') + ' style="margin-top:5px;">'
+          + '<span><strong>' + escapeHtml(nm) + '</strong>'
+          + (preview ? '<div class="aif-meta">' + escapeHtml(preview) + '</div>' : '')
+          + '</span></label>';
+      });
+      html += '</div>';
+    }
+    document.getElementById('copy-from-body').innerHTML = html;
+    document.getElementById('copy-from-overlay').style.display = 'flex';
+  };
+
+  window.closeCopyFromModal = function() {
+    document.getElementById('copy-from-overlay').style.display = 'none';
+    _copyFromState = null;
+  };
+
+  window.runCopyFromField = function() {
+    var s = _copyFromState;
+    if (!s) return;
+    var picked = document.querySelector('#copy-from-body .cff-src:checked');
+    if (!picked) {
+      document.getElementById('copy-from-status').textContent = 'Pick a source activity.';
+      return;
+    }
+    var idx = parseInt(picked.getAttribute('data-cand-idx'), 10);
+    var src = s.candidates[idx];
+    if (!src) return;
+    var info = _itemForContentPrefix(s.destActId);
+    if (!info || info.kind !== 'activity') return;
+    var dest = info.item;
+
+    if (!dest.templateData) dest.templateData = {};
+    if (!dest.templateData[s.tplType]) dest.templateData[s.tplType] = {};
+    dest.templateData[s.tplType][s.sectionKey] = src.value;
+
+    // Rubric also rides along the source's rubric design preferences so a
+    // future AI Fill on the destination starts from the same shape.
+    if (s.sectionKey === 'Rubric' && src.act.aiFillPrefs && src.act.aiFillPrefs.rubric) {
+      if (!dest.aiFillPrefs) dest.aiFillPrefs = {};
+      dest.aiFillPrefs.rubric = JSON.parse(JSON.stringify(src.act.aiFillPrefs.rubric));
+    }
+
+    if (s.sectionKey === 'Rubric') {
+      if (typeof _refreshRubricGridsForActivity === 'function') {
+        _refreshRubricGridsForActivity(dest.id, s.tplType);
+      }
+    } else {
+      var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + dest.id + '"][data-tpl-type="' + s.tplType + '"][data-section="' + s.sectionKey + '"]';
+      document.querySelectorAll(sel).forEach(function(el) {
+        if (el._quill) {
+          try { el._quill.clipboard.dangerouslyPasteHTML(0, src.value, 'silent'); }
+          catch (e) { el._quill.root.innerHTML = src.value; }
+        } else {
+          el.setAttribute('data-initial', src.value);
+        }
+      });
+    }
+
+    if (typeof saveActivityData === 'function') saveActivityData();
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+
+    document.getElementById('copy-from-status').textContent = '✓ Copied from "' + ((src.act.name || '').trim() || 'untitled') + '".';
+    setTimeout(closeCopyFromModal, 900);
   };
 
   // ===== EXPORT TEMPLATE TO GOOGLE DRIVE =====
