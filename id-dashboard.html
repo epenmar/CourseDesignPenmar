@@ -4994,6 +4994,22 @@
     // Course readiness body
     const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nAll the best,\n${getProfile().sig}`;
 
+    // Meeting no-show body — pulls the day-of-week + time from the next
+    // calendar meeting on file so the "we are meeting right now" reference
+    // is concrete. Falls back to a generic phrasing if no meeting is set.
+    const noShowBody = (function() {
+      let dayTimePhrase = 'right now';
+      const nm = c.nextMeeting;
+      if (nm && nm.date) {
+        const d = new Date(nm.date + 'T00:00:00');
+        if (!isNaN(d.getTime())) {
+          const day = d.toLocaleDateString('en-US', { weekday: 'long' });
+          dayTimePhrase = day + (nm.time ? ', ' + nm.time : '');
+        }
+      }
+      return `Hi ${name},\n\nHope things are going well!\n\nI wanted to touch base on ${courseLabel}. I have on my calendar that we are meeting right now (${dayTimePhrase}).\n\nIf we need to reschedule, please let me know and I'd be happy to choose a different time that works better for you.\n\nLooking forward to hearing from you.\n\nAll the best,\n${getProfile().sig}`;
+    })();
+
     const makeMailto = (subj, body) => {
       return `mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(subj)}&body=${encodeURIComponent(body)}`;
     };
@@ -5020,6 +5036,9 @@
         </a>
         <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📊</span><div><div>Course Readiness Update</div><div class="em-desc">Status and progress summary</div></div>
+        </a>
+        <a href="${makeMailto('Meeting No Show — ' + courseLabel, noShowBody)}" onclick="this.parentElement.classList.remove('open');">
+          <span class="em-icon">⏰</span><div><div>Meeting No Show</div><div class="em-desc">Polite check-in when faculty missed today's meeting</div></div>
         </a>
         <a href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(courseLabel + ' — ')}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">✉️</span><div><div>Blank Email</div><div class="em-desc">Start from scratch</div></div>
