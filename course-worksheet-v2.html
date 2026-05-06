@@ -484,6 +484,8 @@
   #ai-fill-body .aif-quick { display: flex; gap: 6px; margin-bottom: 6px; font-size: 11px; }
   #ai-fill-body .aif-quick a { color: #8c1d40; text-decoration: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
   #ai-fill-body .aif-quick a:hover { background: #fdf2f4; }
+  #ai-fill-body .aif-select { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; background: #fff; }
+  #ai-fill-body .aif-select:focus { outline: none; border-color: #8c1d40; }
 
   /* ===== CLO ALIGNMENT PICKER ===== */
   .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -8821,21 +8823,25 @@
   // automatically. "Activity Objective" is intentionally listed last
   // because it lives behind a collapsible <details> — instructors who
   // want it can opt in.
+  // Hints are intentionally non-prescriptive — they describe what the
+  // section IS, not what shape it must take. Format / structure / count
+  // decisions come from the meeting notes and the user-supplied
+  // "Specific guidance" textarea, both of which sit at higher priority.
   var AI_FILL_TEMPLATE_SECTIONS = {
     assignment: [
-      { key: 'Overview',           hint: 'Why this assignment exists, what students produce, how it ties to the module.' },
-      { key: 'Instructions',       hint: 'Step-by-step actions students should follow, written in second person.' },
-      { key: 'Materials',          hint: 'Concrete list of readings, tools, links, or resources students need.' },
-      { key: 'Rubric',             hint: 'Pipe-separated table: Criteria | Excellent | Proficient | Developing | Beginning | Points. 3-5 rows.' },
-      { key: 'Activity Objective', hint: 'One sentence beginning "By the end of this assignment, students will be able to…" with a Bloom\'s verb.' }
+      { key: 'Overview',           hint: 'Brief framing of why this assignment exists and what students produce.' },
+      { key: 'Instructions',       hint: 'What students do, written in second person. Use the tool, quantity, and required elements the instructor specified.' },
+      { key: 'Materials',          hint: 'Readings, tools, links, and resources students need — including any tools the instructor named.' },
+      { key: 'Rubric',             hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
+      { key: 'Activity Objective', hint: 'One sentence: "By the end of this assignment, students will be able to…" with a Bloom\'s verb.' }
     ],
     discussion: [
-      { key: 'Overview',                  hint: 'Why this discussion matters and what students will explore.' },
-      { key: 'Discussion Prompt',         hint: 'The central question or task for students to respond to.' },
-      { key: 'Peer Reply Requirements',   hint: 'Quantity + quality expectations for replies (e.g., reply to two classmates with substantive engagement).' },
-      { key: 'Materials',                 hint: 'Readings, videos, or links students should reference.' },
-      { key: 'Rubric',                    hint: 'Pipe-separated table: Criteria | Excellent | Proficient | Developing | Beginning | Points. 3-5 rows.' },
-      { key: 'Activity Objective',        hint: 'One sentence beginning "By the end of this discussion, students will be able to…" with a Bloom\'s verb.' }
+      { key: 'Overview',                  hint: 'Brief framing of why this discussion matters.' },
+      { key: 'Discussion Prompt',         hint: 'The central question or task students respond to.' },
+      { key: 'Peer Reply Requirements',   hint: 'Reply expectations as the instructor stated them (count, quality, scope).' },
+      { key: 'Materials',                 hint: 'Readings, videos, links, and tools students should reference.' },
+      { key: 'Rubric',                    hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
+      { key: 'Activity Objective',        hint: 'One sentence: "By the end of this discussion, students will be able to…" with a Bloom\'s verb.' }
     ]
   };
 
@@ -8973,6 +8979,64 @@
       + '</div>';
     html += '</div>';
 
+    // Tool / platform — explicit selection beats letting Claude infer from
+    // free-text meeting notes. The chosen tool's instruction conventions
+    // (annotate vs post vs record etc.) are baked in as a prompt block.
+    var toolPref = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
+    var toolCustom = (act.aiFillPrefs && act.aiFillPrefs.toolCustom) || '';
+    var tools = ['Harmonize', 'Yellowdig', 'Perusall', 'Hypothes.is', 'Flipgrid', 'Padlet', 'Kaltura'];
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Tool / platform</div>';
+    html += '<div class="aif-section-hint">Pick the LMS tool students will use. Instructions get written for that tool\'s actual UI flow (annotate vs. post vs. record).</div>';
+    html += '<select id="aif-tool" class="aif-select" onchange="_aifOnToolChange()">';
+    html += '<option value=""' + (!toolPref ? ' selected' : '') + '>None / generic</option>';
+    tools.forEach(function(t) {
+      html += '<option value="' + escapeHtml(t) + '"' + (toolPref === t ? ' selected' : '') + '>' + escapeHtml(t) + '</option>';
+    });
+    html += '<option value="other"' + (toolPref === 'other' ? ' selected' : '') + '>Other (specify)…</option>';
+    html += '</select>';
+    html += '<input type="text" id="aif-tool-custom" placeholder="Tool name (e.g., Mindgrasp, NameCoach)" value="' + escapeHtml(toolCustom) + '" style="' + (toolPref === 'other' ? '' : 'display:none;') + ' margin-top:6px; width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit;">';
+    html += '</div>';
+
+    // Rubric design controls — only shown when Rubric is a section in
+    // this template type. The model gets these as hard constraints
+    // BEFORE the JSON schema, so they override the schema's default.
+    var hasRubric = sections.some(function(s) { return s.key === 'Rubric'; });
+    if (hasRubric) {
+      var rPref = (act.aiFillPrefs && act.aiFillPrefs.rubric) || {};
+      var rStyle = rPref.style || 'auto';
+      var rRows = rPref.rows || '';
+      var rLevels = rPref.levels || '';
+      var rCriteria = rPref.criteria || '';
+      html += '<div class="aif-section">';
+      html += '<div class="aif-section-title">Rubric design</div>';
+      html += '<div class="aif-section-hint">Sets the level structure and row count. The AI fills in criteria text using the activity + meeting context.</div>';
+      html += '<label class="aif-meta" style="display:block; margin-top:4px;">Level structure</label>';
+      html += '<select id="aif-rubric-style" class="aif-select" onchange="_aifOnRubricStyleChange()">';
+      var styles = [
+        ['auto',       'Auto (use meeting notes; default to 4-level)'],
+        ['binary',     'Yes / No (binary)'],
+        ['complete',   'Complete / Incomplete'],
+        ['masteryNot', 'Mastery / Not Yet'],
+        ['three',      '3-level (Strong / Adequate / Developing)'],
+        ['four',       '4-level (Excellent / Proficient / Developing / Beginning)'],
+        ['custom',     'Custom level names…']
+      ];
+      styles.forEach(function(p) {
+        html += '<option value="' + p[0] + '"' + (rStyle === p[0] ? ' selected' : '') + '>' + p[1] + '</option>';
+      });
+      html += '</select>';
+      html += '<input type="text" id="aif-rubric-levels" placeholder="Level names, comma-separated (e.g., Strong, Adequate, Beginning)" value="' + escapeHtml(rLevels) + '" style="' + (rStyle === 'custom' ? '' : 'display:none;') + ' margin-top:6px; width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit;">';
+      html += '<div style="display:flex; gap:10px; align-items:center; margin-top:8px; flex-wrap:wrap;">';
+      html += '<label class="aif-meta">Number of criteria rows: '
+        + '<input type="number" id="aif-rubric-rows" min="1" max="10" value="' + escapeHtml(String(rRows)) + '" placeholder="auto" style="width:70px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:4px; font-size:13px; margin-left:4px;"></label>';
+      html += '<span class="aif-meta" style="font-style:italic;">leave blank = AI infers from meeting notes</span>';
+      html += '</div>';
+      html += '<label class="aif-meta" style="display:block; margin-top:8px;">Criteria text (one per line, optional — overrides AI inference)</label>';
+      html += '<textarea id="aif-rubric-criteria" rows="3" placeholder="e.g.&#10;Identifies main themes&#10;Agrees / disagrees with rationale&#10;Poses substantive questions" style="width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;">' + escapeHtml(rCriteria) + '</textarea>';
+      html += '</div>';
+    }
+
     // Linked materials — pre-checked when the activity has any.
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Linked materials (' + linkedMaterials.length + ')</div>';
@@ -9038,6 +9102,80 @@
     document.querySelectorAll('#ai-fill-body ' + sel).forEach(function(cb) { cb.checked = !!on; });
   };
 
+  // Show / hide the "Other (specify)" tool name input.
+  window._aifOnToolChange = function() {
+    var sel = document.getElementById('aif-tool');
+    var custom = document.getElementById('aif-tool-custom');
+    if (sel && custom) custom.style.display = (sel.value === 'other') ? '' : 'none';
+  };
+  // Show / hide the "Custom level names" input.
+  window._aifOnRubricStyleChange = function() {
+    var sel = document.getElementById('aif-rubric-style');
+    var custom = document.getElementById('aif-rubric-levels');
+    if (sel && custom) custom.style.display = (sel.value === 'custom') ? '' : 'none';
+  };
+
+  // Read modal selections into a plain object. Persisted on the activity
+  // so re-opening the modal restores the same picks.
+  function _aiFillReadPrefs() {
+    var toolEl = document.getElementById('aif-tool');
+    var toolCustomEl = document.getElementById('aif-tool-custom');
+    var rStyleEl = document.getElementById('aif-rubric-style');
+    var rRowsEl = document.getElementById('aif-rubric-rows');
+    var rLevelsEl = document.getElementById('aif-rubric-levels');
+    var rCriteriaEl = document.getElementById('aif-rubric-criteria');
+    return {
+      tool: toolEl ? toolEl.value : '',
+      toolCustom: toolCustomEl ? (toolCustomEl.value || '').trim() : '',
+      rubric: {
+        style: rStyleEl ? rStyleEl.value : 'auto',
+        rows: rRowsEl ? (rRowsEl.value || '').trim() : '',
+        levels: rLevelsEl ? (rLevelsEl.value || '').trim() : '',
+        criteria: rCriteriaEl ? (rCriteriaEl.value || '').trim() : ''
+      }
+    };
+  }
+  function _aiFillResolveTool(prefs) {
+    if (!prefs) return '';
+    if (prefs.tool === 'other') return prefs.toolCustom || '';
+    return prefs.tool || '';
+  }
+
+  // Built-in instruction conventions for the most common LMS tools.
+  // The model gets one of these blocks verbatim when a tool is selected,
+  // so it doesn't write "post a discussion thread" for an annotation
+  // tool or vice versa.
+  function _aiFillToolInstructions(tool) {
+    if (!tool) return '';
+    var lib = {
+      'Harmonize': 'Harmonize is a social-annotation + discussion platform inside Canvas. Students click the assignment from the module, the reading opens inside Harmonize, and they highlight passages and add annotations on those passages. Peers can reply to annotations, but a peer-reply is not required unless the instructor specified one. Instructions MUST: (a) reference opening the reading via the Canvas → Harmonize link, (b) describe highlighting passages and adding annotations, (c) NOT describe submitting a file, posting a discussion thread, or uploading anything outside Harmonize.',
+      'Yellowdig': 'Yellowdig is a community-discussion board with a points-based engagement model. Students create top-level posts called "Pins" and respond via "Comments". Engagement points come from posting, commenting, and earning reactions; weekly points cap. Instructions MUST: (a) reference navigating to the Yellowdig board from Canvas, (b) describe creating a Pin (top-level) vs. a Comment (reply), (c) NOT describe Yellowdig as a typical Canvas discussion forum.',
+      'Perusall': 'Perusall is a social-annotation platform similar to Harmonize. Students open the reading in Perusall (PDFs, web pages, or videos), highlight passages, and add annotations and questions. Peers can respond to annotations. Instructions MUST: (a) reference opening the reading in Perusall via the Canvas link, (b) describe highlighting + annotating + responding to peers\' annotations, (c) NOT describe submitting a file or posting in a discussion forum.',
+      'Hypothes.is': 'Hypothes.is is a web-annotation tool that overlays annotations on a web page or PDF. Students activate the Hypothes.is sidebar, select text on the page, and add public or group-restricted annotations. Instructions MUST: (a) reference activating Hypothes.is, (b) describe selecting text and adding annotations, (c) NOT describe submitting a file or posting elsewhere.',
+      'Flipgrid': 'Flipgrid (Microsoft Flip) is a video-discussion platform. Students record short videos in response to a prompt; peers can record video replies. Instructions MUST: (a) reference recording a video response within the time limit, (b) describe replying to peers via video (when peer reply is required), (c) NOT describe text posts or file submissions.',
+      'Padlet': 'Padlet is a collaborative visual board. Students post text, images, links, audio, or video to a shared board; peers can comment on each other\'s posts. Instructions MUST: (a) reference navigating to the Padlet board from Canvas, (b) describe adding a post (with media as needed), (c) describe commenting on classmates\' posts when peer engagement is required.',
+      'Kaltura': 'Kaltura is a video hosting + capture platform integrated into Canvas. Students record (Kaltura Capture or Kaltura Express) or upload a video; the video appears in My Media and can be embedded in an assignment submission. Instructions MUST: (a) reference recording or uploading via Kaltura, (b) describe embedding the video into the assignment submission via the Canvas Kaltura tool.'
+    };
+    return lib[tool] || ('This assignment uses ' + tool + '. Write instructions specific to that tool\'s actual UI flow if you know it; otherwise write generic instructions and reference the tool by name.');
+  }
+
+  // Map a rubric-style picker value to a level-column header (the part
+  // after "Criteria | ").
+  function _aiFillRubricLevelHeader(style, customLevels) {
+    var presets = {
+      'binary':     'Yes | No',
+      'complete':   'Complete | Incomplete',
+      'masteryNot': 'Mastery | Not Yet',
+      'three':      'Strong | Adequate | Developing',
+      'four':       'Excellent | Proficient | Developing | Beginning'
+    };
+    if (style === 'custom') {
+      var parts = String(customLevels || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
+      return parts.join(' | ');
+    }
+    return presets[style] || '';
+  }
+
   window.closeAiFillModal = function() {
     document.getElementById('ai-fill-overlay').style.display = 'none';
     _aiFillState = null;
@@ -9062,7 +9200,13 @@
     var meetingIdxToInclude = Array.from(document.querySelectorAll('#ai-fill-body .aif-meeting:checked'))
       .map(function(cb) { return parseInt(cb.getAttribute('data-meeting-idx'), 10); });
 
-    var prompt = _buildAiFillPrompt(act, s.modNum, s.tplType, s.sections, fieldsToFill, matIdsToInclude, meetingIdxToInclude);
+    // Read tool / rubric prefs and persist on the activity so reopening
+    // the modal restores the same picks.
+    var prefs = _aiFillReadPrefs();
+    act.aiFillPrefs = prefs;
+    if (typeof saveActivityData === 'function') saveActivityData();
+
+    var prompt = _buildAiFillPrompt(act, s.modNum, s.tplType, s.sections, fieldsToFill, matIdsToInclude, meetingIdxToInclude, prefs);
 
     var goBtn = document.getElementById('ai-fill-go-btn');
     goBtn.disabled = true;
@@ -9092,7 +9236,8 @@
       + '(<ul>/<ol>/<li>), bold (<strong>), and italic (<em>) — but no script, style, or external assets.';
   }
 
-  function _buildAiFillPrompt(act, modNum, tplType, sections, fieldsToFill, matIds, meetingIdxList) {
+  function _buildAiFillPrompt(act, modNum, tplType, sections, fieldsToFill, matIds, meetingIdxList, prefs) {
+    prefs = prefs || {};
     var fieldKeyMap = {}; sections.forEach(function(s) { fieldKeyMap[s.key] = s.hint; });
     var savedMods = loadField('moduleOverviewData') || {};
     var modTopic = (savedMods[modNum] && savedMods[modNum].topic) || '';
@@ -9123,6 +9268,15 @@
     if (mloTexts.length > 0) {
       prompt += '- Module Learning Objectives that this ' + tplType + ' must align to:\n';
       mloTexts.forEach(function(t) { prompt += '  • ' + t + '\n'; });
+    }
+
+    // Tool / platform — explicit pick from the modal. Authoritative.
+    var pickedTool = _aiFillResolveTool(prefs);
+    if (pickedTool) {
+      prompt += '\n## Tool / platform (instructor-selected — authoritative)\n';
+      prompt += 'This ' + tplType + ' uses **' + pickedTool + '**.\n';
+      var toolGuide = _aiFillToolInstructions(pickedTool);
+      if (toolGuide) prompt += toolGuide + '\n';
     }
 
     // Linked materials — pull title/type/links/notes/richText for each.
@@ -9193,12 +9347,27 @@
     });
     prompt += '}\n';
     if (fieldsToFill.indexOf('Rubric') !== -1) {
-      prompt += '\nFor the Rubric field, the value MUST be a pipe-separated table on a single string '
-        + '(use \\n between rows). FIRST priority: if the meeting notes specify a rubric structure '
-        + '(e.g., yes/no, complete/incomplete, mastery/not yet, pass/fail, or specific level names), '
-        + 'use exactly that structure with the criteria the instructor specified. '
-        + 'ONLY if the meeting notes are silent on rubric format, default to a 4-level rubric with '
-        + 'the header "Criteria | Excellent | Proficient | Developing | Beginning | Points" and 3-5 rows.\n';
+      var rPref = (prefs && prefs.rubric) || {};
+      var levelHeader = _aiFillRubricLevelHeader(rPref.style, rPref.levels);
+      var criteriaList = String(rPref.criteria || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
+      var rowsPref = parseInt(rPref.rows, 10);
+      prompt += '\n## Rubric design (instructor-selected — authoritative)\n';
+      prompt += 'The Rubric field MUST be a pipe-separated table as a single string with \\n between rows.\n';
+      if (levelHeader) {
+        prompt += '- Level columns (exact, in order): ' + levelHeader + '\n';
+        prompt += '- Header row: "Criteria | ' + levelHeader + ' | Points"\n';
+      } else {
+        prompt += '- Level structure: pull from the meeting notes. If the notes specify yes/no, complete/incomplete, mastery/not yet, pass/fail, or any specific level names, use exactly those. If the notes are silent, default to "Criteria | Excellent | Proficient | Developing | Beginning | Points".\n';
+      }
+      if (criteriaList.length > 0) {
+        prompt += '- Number of criteria rows: exactly ' + criteriaList.length + ', and each row\'s Criteria text MUST be the instructor-supplied wording below (one row per line, in order):\n';
+        criteriaList.forEach(function(c, i) { prompt += '  ' + (i + 1) + '. ' + c + '\n'; });
+      } else if (rowsPref >= 1) {
+        prompt += '- Number of criteria rows: exactly ' + rowsPref + '. Pull the row labels from the meeting notes (or from the requirements the instructor stated).\n';
+      } else {
+        prompt += '- Number of criteria rows: pull from the meeting notes (count of explicit requirements the instructor listed). If silent, use 3-5 rows.\n';
+      }
+      prompt += '- Cell content: write specific, observable descriptors keyed to the level columns. For yes/no or binary structures, the cell content describes what "yes" looks like; the "no" column reads "Did not meet" or similar.\n';
     }
     prompt += '\n## Adherence rules (override defaults)\n';
     prompt += '1. When the meeting notes name a specific tool (e.g., Harmonize, Yellowdig, Flipgrid, Perusall), '
