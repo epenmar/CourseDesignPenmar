@@ -9483,24 +9483,41 @@
   // ===== TABLE-VIEW CONTENT CHIPS + POPUP =====
   function _stripToVisibleText(s) {
     if (!s) return '';
-    // Strip HTML tags, decode named whitespace entities, collapse all
-    // whitespace (incl. zero-width / non-breaking) to nothing. The result
-    // contains only printable, non-whitespace characters — empty when the
-    // Quill editor is at its idle "<p><br></p>" state.
+    // Strip HTML tags + every form of empty / zero-width / non-breaking
+    // whitespace (entities AND raw codepoints) so an idle Quill editor
+    // (which renders as "<p><br></p>") returns ''. Anything that survives
+    // is real, user-typed text.
     return String(s)
       .replace(/<[^>]+>/g, '')
-      .replace(/&(nbsp|#160|#8203|zwnj|zwj);/gi, '')
-      .replace(/[\s ​‌‍﻿]/g, '');
+      .replace(/&nbsp;/gi, '')
+      .replace(/&#160;/g, '')
+      .replace(/&#8203;/g, '')
+      .replace(/&zwnj;/gi, '')
+      .replace(/&zwj;/gi, '')
+      .replace(/\u00A0/g, '')
+      .replace(/\u200B/g, '')
+      .replace(/\u200C/g, '')
+      .replace(/\u200D/g, '')
+      .replace(/\uFEFF/g, '')
+      .replace(/\s+/g, '');
   }
-  function _hasAnyAttachedContent(item) {
-    // Strict interpretation of "attached content": only an uploaded file or
-    // an explicit external link counts. Template/rich-text bodies and
-    // cross-links don't, because (a) Quill's idle markup is fragile to
-    // detect as truly empty, and (b) cross-links already get their own
-    // 🔗 badge in the row.
+  function _hasAnyAttachedContent(item, kind) {
+    // Counts: uploaded files, saved external links, non-empty rich-text /
+    // template bodies. Does NOT count cross-link relationships
+    // (linkedMaterialIds / activities-linked-to-this-material) — those
+    // already have their own 🔗 badge in the row.
     if (!item) return false;
     if (Array.isArray(item.attachedFiles) && item.attachedFiles.length > 0) return true;
     if (Array.isArray(item.links) && item.links.length > 0) return true;
+    if (item.richText && _stripToVisibleText(item.richText).length > 0) return true;
+    if (kind === 'activity' && item.templateData) {
+      for (var t in item.templateData) {
+        var tpl = item.templateData[t] || {};
+        for (var s in tpl) {
+          if (_stripToVisibleText(tpl[s]).length > 0) return true;
+        }
+      }
+    }
     return false;
   }
 
