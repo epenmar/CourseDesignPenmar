@@ -5037,7 +5037,7 @@
         <a href="${makeMailto('Course Readiness Update — ' + courseLabel, readinessBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📊</span><div><div>Course Readiness Update</div><div class="em-desc">Status and progress summary</div></div>
         </a>
-        <a href="${makeMailto('Meeting No Show — ' + courseLabel, noShowBody)}" onclick="this.parentElement.classList.remove('open');">
+        <a href="${makeMailto(courseLabel + ' — Meeting Reschedule?', noShowBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">⏰</span><div><div>Meeting No Show</div><div class="em-desc">Polite check-in when faculty missed today's meeting</div></div>
         </a>
         <a href="mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(courseLabel + ' — ')}" onclick="this.parentElement.classList.remove('open');">
