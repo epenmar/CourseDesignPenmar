@@ -8576,7 +8576,48 @@
       if (info && info.kind === 'activity') _renderActivityLinkedMaterials(prefix);
       else if (info && info.kind === 'material') _renderMaterialLinkedAssignments(prefix);
     }
+    // Remember the user's last-active tab on the activity/material so
+    // re-rendering (or reopening the body) restores the same view
+    // instead of always snapping back to Upload.
+    var infoForSave = _itemForContentPrefix(prefix);
+    if (infoForSave && infoForSave.item) {
+      infoForSave.item.lastContentTab = tab;
+      if (typeof saveActivityData === 'function') saveActivityData();
+    }
   }
+
+  // Restore the last-active content-attach tab for every body currently
+  // in the DOM, based on the saved item.lastContentTab. Called after
+  // overview / module-detail renders so the user lands back on the tab
+  // they were last using (e.g., Template) instead of Upload.
+  function _restoreLastContentTabs() {
+    document.querySelectorAll('[id^="attach-"], [id^="mat-attach-"]').forEach(function(body) {
+      var prefix = body.id.replace(/^(mat-)?attach-/, '');
+      var info = _itemForContentPrefix(prefix);
+      if (!info || !info.item || !info.item.lastContentTab) return;
+      var tab = info.item.lastContentTab;
+      if (tab === 'upload') return; // already the default; nothing to do
+      var tabBtn = null;
+      body.querySelectorAll('.content-attach-tab').forEach(function(t) {
+        var oc = t.getAttribute('onclick') || '';
+        if (oc.indexOf("'" + tab + "'") !== -1) tabBtn = t;
+      });
+      if (!tabBtn) return;
+      // Manually replicate switchAttachTab's DOM swap without re-saving
+      // (the tab is already saved — calling switchAttachTab here would
+      // create a saveActivityData feedback loop on every render).
+      body.querySelectorAll('.content-attach-tab').forEach(function(t) { t.classList.remove('active'); });
+      tabBtn.classList.add('active');
+      body.querySelectorAll('.content-attach-body').forEach(function(b) { b.classList.add('hidden'); });
+      var target = document.getElementById(prefix + '-' + tab);
+      if (target) target.classList.remove('hidden');
+      if (tab === 'linked') {
+        if (info.kind === 'activity') _renderActivityLinkedMaterials(prefix);
+        else if (info.kind === 'material') _renderMaterialLinkedAssignments(prefix);
+      }
+    });
+  }
+  window._restoreLastContentTabs = _restoreLastContentTabs;
 
   function switchTemplate(prefix, type, btn) {
     btn.parentElement.querySelectorAll('.template-type-btn').forEach(t => t.classList.remove('active'));
@@ -10795,32 +10836,16 @@
   // Toggles the .has-content class on the matching ▸ Content toggle button
   // so the user can see at a glance which activities still need content.
   function _contentIsPresent(bodyEl) {
-    if (!bodyEl) return false;
-    if (bodyEl.querySelector('.attached-file')) return true;
-    var inputs = bodyEl.querySelectorAll('input[type="text"]');
-    for (var i = 0; i < inputs.length; i++) { if ((inputs[i].value || '').trim()) return true; }
-    var textareas = bodyEl.querySelectorAll('textarea');
-    for (var j = 0; j < textareas.length; j++) { if ((textareas[j].value || '').trim()) return true; }
-    // Quill rich-editor renders into .ql-editor; check for non-empty content.
-    var qls = bodyEl.querySelectorAll('.ql-editor');
-    for (var k = 0; k < qls.length; k++) {
-      var t = (qls[k].textContent || '').trim();
-      if (t) return true;
-    }
-    // Linked materials/assignments via the cross-link picker also count.
-    // Also check the data model directly for attachedFiles + links so the
-    // indicator is correct even before _render* paints rows into the DOM.
-    if (bodyEl.id) {
-      var prefix = bodyEl.id.replace(/^(mat-)?attach-/, '');
-      var info = _itemForContentPrefix(prefix);
-      if (info) {
-        if (Array.isArray(info.item.attachedFiles) && info.item.attachedFiles.length > 0) return true;
-        if (Array.isArray(info.item.links) && info.item.links.length > 0) return true;
-        if (info.kind === 'activity' && Array.isArray(info.item.linkedMaterialIds) && info.item.linkedMaterialIds.length > 0) return true;
-        if (info.kind === 'material' && _getActivitiesLinkedToMaterial(info.item.id).length > 0) return true;
-      }
-    }
-    return false;
+    // Drive the card-view ▸ Content button off the same data-model check
+    // the table-view chip uses, so the two surfaces never disagree. The
+    // earlier DOM-walking version picked up false positives from
+    // structural elements (rubric grid header cells, Quill placeholder
+    // markup, etc.) and turned every activity green even when empty.
+    if (!bodyEl || !bodyEl.id) return false;
+    var prefix = bodyEl.id.replace(/^(mat-)?attach-/, '');
+    var info = _itemForContentPrefix(prefix);
+    if (!info) return false;
+    return _hasAnyAttachedContent(info.item, info.kind);
   }
 
   // Toggle a Content section open/closed and immediately refresh the green
@@ -10886,6 +10911,7 @@
     });
     if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
     if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
+    if (typeof _restoreLastContentTabs === 'function') _restoreLastContentTabs();
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
   window.refreshContentIndicator = refreshContentIndicator;
