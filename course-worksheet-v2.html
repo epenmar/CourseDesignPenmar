@@ -495,14 +495,17 @@
   }
   .btn-add-row.btn-ai-fill:hover { background: #701632; border-color: #701632; }
 
-  /* ===== AI FILL MODAL ===== */
-  #ai-fill-body .aif-section { margin-bottom: 14px; }
-  #ai-fill-body .aif-section-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
-  #ai-fill-body .aif-section-hint { font-size: 11px; color: #999; margin-top: -2px; margin-bottom: 8px; }
-  #ai-fill-body label.aif-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.4; }
-  #ai-fill-body label.aif-row:hover { background: #fafaf7; }
-  #ai-fill-body label.aif-row input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; accent-color: #8c1d40; }
-  #ai-fill-body label.aif-row .aif-meta { color: #888; font-size: 11px; }
+  /* ===== AI FILL / APPLY TEMPLATE / COPY FROM modal styling =====
+     All three modals share the same vocabulary of section blocks, row
+     labels, and quick-action links — one styling block, three hosts. */
+  #ai-fill-body .aif-section, #apply-tpl-body .aif-section, #copy-from-body .aif-section { margin-bottom: 14px; }
+  #ai-fill-body .aif-section-title, #apply-tpl-body .aif-section-title, #copy-from-body .aif-section-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  #ai-fill-body .aif-section-hint, #apply-tpl-body .aif-section-hint, #copy-from-body .aif-section-hint { font-size: 11px; color: #999; margin-top: -2px; margin-bottom: 8px; }
+  #ai-fill-body label.aif-row, #apply-tpl-body label.aif-row, #copy-from-body label.aif-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.4; }
+  #ai-fill-body label.aif-row:hover, #apply-tpl-body label.aif-row:hover, #copy-from-body label.aif-row:hover { background: #fafaf7; }
+  #ai-fill-body label.aif-row input[type="checkbox"], #apply-tpl-body label.aif-row input[type="checkbox"], #copy-from-body label.aif-row input[type="checkbox"],
+  #ai-fill-body label.aif-row input[type="radio"], #apply-tpl-body label.aif-row input[type="radio"], #copy-from-body label.aif-row input[type="radio"] { margin-top: 3px; flex-shrink: 0; accent-color: #8c1d40; }
+  #ai-fill-body label.aif-row .aif-meta, #apply-tpl-body label.aif-row .aif-meta, #copy-from-body label.aif-row .aif-meta { color: #888; font-size: 11px; }
   #ai-fill-body .aif-preserved {
     display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px;
     background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
@@ -510,13 +513,30 @@
   }
   #ai-fill-body .aif-preserved-label { font-weight: 600; flex-shrink: 0; }
   #ai-fill-body .aif-preserved-text { color: #5a4a00; max-height: 60px; overflow: hidden; text-overflow: ellipsis; }
-  #ai-fill-body .aif-context-list { max-height: 240px; overflow-y: auto; border: 1px solid #e8e5dd; border-radius: 6px; padding: 4px; background: #fff; }
-  #ai-fill-body .aif-empty { font-size: 12px; color: #999; font-style: italic; padding: 6px 4px; }
-  #ai-fill-body .aif-quick { display: flex; gap: 6px; margin-bottom: 6px; font-size: 11px; }
-  #ai-fill-body .aif-quick a { color: #8c1d40; text-decoration: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
-  #ai-fill-body .aif-quick a:hover { background: #fdf2f4; }
+  #ai-fill-body .aif-context-list, #apply-tpl-body .aif-context-list, #copy-from-body .aif-context-list { max-height: 280px; overflow-y: auto; border: 1px solid #e8e5dd; border-radius: 6px; padding: 4px; background: #fff; display: flex; flex-direction: column; gap: 1px; }
+  #ai-fill-body .aif-empty, #apply-tpl-body .aif-empty, #copy-from-body .aif-empty { font-size: 12px; color: #999; font-style: italic; padding: 6px 4px; }
+  #ai-fill-body .aif-quick, #apply-tpl-body .aif-quick, #copy-from-body .aif-quick { display: flex; gap: 6px; margin-bottom: 8px; font-size: 11px; }
+  #ai-fill-body .aif-quick a, #apply-tpl-body .aif-quick a, #copy-from-body .aif-quick a,
+  #ai-fill-body .aif-quick button, #apply-tpl-body .aif-quick button, #copy-from-body .aif-quick button {
+    color: #8c1d40; background: #fff; text-decoration: none; cursor: pointer;
+    padding: 3px 10px; border: 1px solid #f0d9e0; border-radius: 4px;
+    font-size: 11px; font-weight: 600; font-family: 'Inter', sans-serif;
+  }
+  #ai-fill-body .aif-quick a:hover, #apply-tpl-body .aif-quick a:hover, #copy-from-body .aif-quick a:hover,
+  #ai-fill-body .aif-quick button:hover, #apply-tpl-body .aif-quick button:hover, #copy-from-body .aif-quick button:hover { background: #fdf2f4; border-color: #8c1d40; }
   #ai-fill-body .aif-select { width: 100%; padding: 6px 10px; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 13px; font-family: 'Inter', sans-serif; background: #fff; }
   #ai-fill-body .aif-select:focus { outline: none; border-color: #8c1d40; }
+  /* Apply-template + Copy-from modals: per-module sub-header inside the
+     scrolling activity list. Pads down + sticky-top so the user can
+     orient as they scroll a long course. */
+  #apply-tpl-body .atm-mod-header, #copy-from-body .atm-mod-header {
+    position: sticky; top: 0; z-index: 1;
+    margin: 8px 0 2px; padding: 6px 8px;
+    background: #fdf2f4; border-radius: 4px;
+    font-size: 11px; font-weight: 700; color: #8c1d40;
+    text-transform: uppercase; letter-spacing: 0.04em;
+  }
+  #apply-tpl-body .atm-mod-header:first-child, #copy-from-body .atm-mod-header:first-child { margin-top: 0; }
 
   /* ===== CLO ALIGNMENT PICKER ===== */
   .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
@@ -1710,7 +1730,7 @@
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
       <div id="apply-tpl-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
       <button onclick="closeApplyTemplateModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
-      <button id="apply-tpl-go-btn" onclick="runApplyTemplate()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">📋 Copy to selected</button>
+      <button id="apply-tpl-go-btn" onclick="runApplyTemplate()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Copy to selected</button>
     </div>
   </div>
 </div>
@@ -1733,7 +1753,7 @@
     <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
       <div id="copy-from-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
       <button onclick="closeCopyFromModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
-      <button id="copy-from-go-btn" onclick="runCopyFromField()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">📋 Copy here</button>
+      <button id="copy-from-go-btn" onclick="runCopyFromField()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Copy here</button>
     </div>
   </div>
 </div>
@@ -9211,7 +9231,7 @@
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Fields to generate</div>';
     html += '<div class="aif-section-hint">Filled fields are unchecked by default — they\'re preserved and used as input to the AI.</div>';
-    html += '<div class="aif-quick"><a onclick="_aifSelectAll(\'field\', true)">Select all</a><a onclick="_aifSelectAll(\'field\', false)">Clear</a></div>';
+    html += '<div class="aif-quick"><button type="button" onclick="_aifSelectAll(\'field\', true)">Select all</button><button type="button" onclick="_aifSelectAll(\'field\', false)">Clear</button></div>';
     sections.forEach(function(sec) {
       var hasContent = _aiFillSectionHasContent(act, tplType, sec.key);
       var checked = hasContent ? '' : 'checked';
@@ -9346,7 +9366,7 @@
     } else {
       var activityKeywords = _aiFillActivityKeywords(act);
       html += '<div class="aif-section-hint">Most recent first. Auto-checked: meetings that name-drop this activity, plus the latest one.</div>';
-      html += '<div class="aif-quick"><a onclick="_aifSelectAll(\'meeting\', true)">Select all</a><a onclick="_aifSelectAll(\'meeting\', false)">Clear none</a></div>';
+      html += '<div class="aif-quick"><button type="button" onclick="_aifSelectAll(\'meeting\', true)">Select all</button><button type="button" onclick="_aifSelectAll(\'meeting\', false)">Clear all</button></div>';
       html += '<div class="aif-context-list">';
       meetings.forEach(function(m, idx) {
         var title = (m.title || '(untitled meeting)').trim();
@@ -9846,24 +9866,24 @@
     }
     html += '</div>';
 
-    // Target selector — grouped by module.
+    // Target selector — grouped by module with a sub-header per module
+    // and clear vertical separation between activities.
     html += '<div class="aif-section">';
-    html += '<div class="aif-section-title">Apply to</div>';
+    html += '<div class="aif-section-title">Apply to <span style="text-transform:none; font-weight:400; color:#999;">(' + allActs.length + ' candidate' + (allActs.length === 1 ? '' : 's') + ')</span></div>';
     if (allActs.length === 0) {
       html += '<div class="aif-empty">No other ' + tplType + ' activities in this course to copy into.</div>';
     } else {
-      html += '<div class="aif-quick"><a onclick="_atmSelectAll(true)">Select all</a><a onclick="_atmSelectAll(false)">Clear</a></div>';
+      html += '<div class="aif-quick"><button type="button" onclick="_atmSelectAll(true)">Select all</button><button type="button" onclick="_atmSelectAll(false)">Clear</button></div>';
       html += '<div class="aif-context-list">';
       var prevModNum = null;
       allActs.forEach(function(row, idx) {
         if (row.modNum !== prevModNum) {
-          if (prevModNum !== null) html += '<div style="height:6px;"></div>';
-          html += '<div class="aif-meta" style="font-weight:600; color:#666; padding:4px 6px 2px;">Module ' + row.modNum + '</div>';
+          html += '<div class="atm-mod-header">Module ' + row.modNum + '</div>';
           prevModNum = row.modNum;
         }
         var nm = (row.act.name || '').trim() || '(untitled activity)';
         html += '<label class="aif-row"><input type="checkbox" class="atm-target" data-target-idx="' + idx + '">'
-          + '<span><strong>' + escapeHtml(nm) + '</strong></span></label>';
+          + '<span>' + escapeHtml(nm) + '</span></label>';
       });
       html += '</div>';
     }
