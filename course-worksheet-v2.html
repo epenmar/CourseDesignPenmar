@@ -457,6 +457,34 @@
   #content-popup-body .overview-content-body { margin-left: 0; margin-top: 0; }
   #content-popup-body .overview-content-body { display: block; }
 
+  /* Primary "✨ AI Fill Template" CTA — visually distinguished from the
+     scoped secondary actions (Generate Rubric, Export to Drive). */
+  .btn-add-row.btn-ai-fill {
+    background: #8c1d40; color: #fff; border: 1px solid #8c1d40; font-weight: 600;
+  }
+  .btn-add-row.btn-ai-fill:hover { background: #701632; border-color: #701632; }
+
+  /* ===== AI FILL MODAL ===== */
+  #ai-fill-body .aif-section { margin-bottom: 14px; }
+  #ai-fill-body .aif-section-title { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
+  #ai-fill-body .aif-section-hint { font-size: 11px; color: #999; margin-top: -2px; margin-bottom: 8px; }
+  #ai-fill-body label.aif-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border-radius: 6px; cursor: pointer; font-size: 13px; line-height: 1.4; }
+  #ai-fill-body label.aif-row:hover { background: #fafaf7; }
+  #ai-fill-body label.aif-row input[type="checkbox"] { margin-top: 3px; flex-shrink: 0; accent-color: #8c1d40; }
+  #ai-fill-body label.aif-row .aif-meta { color: #888; font-size: 11px; }
+  #ai-fill-body .aif-preserved {
+    display: flex; align-items: flex-start; gap: 8px; padding: 6px 10px;
+    background: #fff8e1; border: 1px solid #ffe082; border-radius: 6px;
+    font-size: 12px; color: #6d5a00; margin-bottom: 4px;
+  }
+  #ai-fill-body .aif-preserved-label { font-weight: 600; flex-shrink: 0; }
+  #ai-fill-body .aif-preserved-text { color: #5a4a00; max-height: 60px; overflow: hidden; text-overflow: ellipsis; }
+  #ai-fill-body .aif-context-list { max-height: 240px; overflow-y: auto; border: 1px solid #e8e5dd; border-radius: 6px; padding: 4px; background: #fff; }
+  #ai-fill-body .aif-empty { font-size: 12px; color: #999; font-style: italic; padding: 6px 4px; }
+  #ai-fill-body .aif-quick { display: flex; gap: 6px; margin-bottom: 6px; font-size: 11px; }
+  #ai-fill-body .aif-quick a { color: #8c1d40; text-decoration: none; cursor: pointer; padding: 2px 6px; border-radius: 4px; }
+  #ai-fill-body .aif-quick a:hover { background: #fdf2f4; }
+
   /* ===== CLO ALIGNMENT PICKER ===== */
   .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .clo-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #e0ddd5; background: #fff; color: #999; user-select: none; }
@@ -1604,6 +1632,31 @@
   </div>
 </div>
 
+<!-- ===== AI FILL TEMPLATE MODAL =====
+     One unified modal for "fill this assignment / discussion template
+     with AI". Fields already filled by the instructor (e.g. an Applied
+     Assignment overview) are unchecked + shown as preserved-as-input;
+     fields that are blank are checked by default. Context defaults: any
+     linked materials are auto-checked; the most recent ~10 Granola
+     meetings tied to this course are listed for the user to opt in. -->
+<div id="ai-fill-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:280; align-items:flex-start; justify-content:center; padding-top:32px;" onclick="if(event.target===this) closeAiFillModal();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:760px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">✨ AI Fill — <span id="ai-fill-title">…</span></div>
+        <div id="ai-fill-subtitle" style="font-size:12px; color:#888; margin-top:2px;">…</div>
+      </div>
+      <button onclick="closeAiFillModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="ai-fill-body" style="overflow-y:auto; min-height:160px;"></div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
+      <div id="ai-fill-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
+      <button onclick="closeAiFillModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
+      <button id="ai-fill-go-btn" onclick="runAiFill()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">✨ Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== TABLE-VIEW CONTENT POPUP =====
      Reuses the card-view content body (Upload / Link / Template / Linked tabs)
      by transplanting the existing .overview-act-content (or .overview-content-body
@@ -2430,7 +2483,8 @@
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
-              '<div style="margin-top:8px; display:flex; gap:8px;">' +
+              '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
+                '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -2445,7 +2499,8 @@
               '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>' +
-              '<div style="margin-top:8px; display:flex; gap:8px;">' +
+              '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
+                '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -6751,7 +6806,8 @@
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'discussion', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
-    html += '<div style="margin-top:8px; display:flex; gap:8px;">';
+    html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
+    html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -6764,7 +6820,8 @@
     html += '<div class="template-section"><div class="template-section-label">Instructions</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria</div>' + buildTplTextarea(act.id, 'assignment', 'Rubric', 'Criteria | Points | Description...', 'min-height:80px;') + '</div>';
-    html += '<div style="margin-top:8px; display:flex; gap:8px;">';
+    html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
+    html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="generateRubricAI(this, \'' + act.id + '\',' + moduleNum + ')">✨ Generate Rubric with AI</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -8755,6 +8812,410 @@
       btn.disabled = false;
       btn.textContent = origText;
     }
+  }
+
+  // ===== AI FILL TEMPLATE =====
+  // Schema for each template variant: which sections exist (in display
+  // order) and a one-line description used to guide the AI. When you add
+  // a new template type, add an entry here and the modal picks it up
+  // automatically. "Activity Objective" is intentionally listed last
+  // because it lives behind a collapsible <details> — instructors who
+  // want it can opt in.
+  var AI_FILL_TEMPLATE_SECTIONS = {
+    assignment: [
+      { key: 'Overview',           hint: 'Why this assignment exists, what students produce, how it ties to the module.' },
+      { key: 'Instructions',       hint: 'Step-by-step actions students should follow, written in second person.' },
+      { key: 'Materials',          hint: 'Concrete list of readings, tools, links, or resources students need.' },
+      { key: 'Rubric',             hint: 'Pipe-separated table: Criteria | Excellent | Proficient | Developing | Beginning | Points. 3-5 rows.' },
+      { key: 'Activity Objective', hint: 'One sentence beginning "By the end of this assignment, students will be able to…" with a Bloom\'s verb.' }
+    ],
+    discussion: [
+      { key: 'Overview',                  hint: 'Why this discussion matters and what students will explore.' },
+      { key: 'Discussion Prompt',         hint: 'The central question or task for students to respond to.' },
+      { key: 'Peer Reply Requirements',   hint: 'Quantity + quality expectations for replies (e.g., reply to two classmates with substantive engagement).' },
+      { key: 'Materials',                 hint: 'Readings, videos, or links students should reference.' },
+      { key: 'Rubric',                    hint: 'Pipe-separated table: Criteria | Excellent | Proficient | Developing | Beginning | Points. 3-5 rows.' },
+      { key: 'Activity Objective',        hint: 'One sentence beginning "By the end of this discussion, students will be able to…" with a Bloom\'s verb.' }
+    ]
+  };
+
+  var _aiFillState = null; // { actId, modNum, tplType, meetings, materials, existingFields }
+
+  // Pure data-model "is this section non-empty?" check, mirroring the
+  // logic the table-view content chip uses but specialized to template
+  // sections — strips Quill's idle markup.
+  function _aiFillSectionHasContent(item, tplType, sectionKey) {
+    if (!item || !item.templateData) return false;
+    var v = (item.templateData[tplType] || {})[sectionKey];
+    if (!v) return false;
+    return _stripToVisibleText(v).length > 0;
+  }
+
+  // Pull the most-recent N meetings tied to this course out of Supabase.
+  // Reuses the same `meetings` table the dashboard syncs into via
+  // granola-sync. Returns [] on any failure — AI fill still works,
+  // it just won't have transcript context.
+  async function _fetchCourseMeetingsForAi(limit) {
+    if (!window._sbClient) return [];
+    try {
+      var r = await window._sbClient
+        .from('meetings')
+        .select('granola_id, meeting_date, title, summary, decisions, action_items')
+        .eq('course_id', courseId)
+        .order('meeting_date', { ascending: false })
+        .limit(limit || 10);
+      return (r && r.data) || [];
+    } catch (e) {
+      console.warn('[ai-fill] meetings fetch failed:', e);
+      return [];
+    }
+  }
+
+  function _aiFillFormatMeetingDate(iso) {
+    if (!iso) return '—';
+    try {
+      var d = new Date(iso);
+      if (isNaN(d.getTime())) return iso;
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    } catch (e) { return iso; }
+  }
+
+  window.openAiFillModal = async function(actId, modNum, tplType) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') {
+      alert('Could not find this activity to AI-fill.');
+      return;
+    }
+    var act = info.item;
+    var sections = AI_FILL_TEMPLATE_SECTIONS[tplType];
+    if (!sections) {
+      alert('AI fill is not yet wired for this template type.');
+      return;
+    }
+
+    var linkedMaterials = (typeof _getLinkedMaterialsForActivity === 'function')
+      ? _getLinkedMaterialsForActivity(act) : [];
+
+    document.getElementById('ai-fill-title').textContent = (act.name || '').trim() || '(Untitled activity)';
+    document.getElementById('ai-fill-subtitle').textContent =
+      tplType.charAt(0).toUpperCase() + tplType.slice(1) + ' template · Module ' + modNum;
+    document.getElementById('ai-fill-status').textContent = 'Loading meeting context…';
+    document.getElementById('ai-fill-go-btn').disabled = false;
+    document.getElementById('ai-fill-overlay').style.display = 'flex';
+
+    // Show modal immediately with a placeholder; meetings fetch happens
+    // async and re-paints when ready so the user isn't waiting on
+    // Supabase before seeing the UI.
+    _renderAiFillBody(act, modNum, tplType, sections, linkedMaterials, null);
+
+    var meetings = await _fetchCourseMeetingsForAi(10);
+    document.getElementById('ai-fill-status').textContent = '';
+    _aiFillState = {
+      actId: actId, modNum: modNum, tplType: tplType,
+      sections: sections, meetings: meetings, linkedMaterials: linkedMaterials
+    };
+    _renderAiFillBody(act, modNum, tplType, sections, linkedMaterials, meetings);
+  };
+
+  function _renderAiFillBody(act, modNum, tplType, sections, linkedMaterials, meetings) {
+    var html = '';
+
+    // Fields to fill — already-filled sections start unchecked + show
+    // their current value in a "preserved as input" pill so the user
+    // knows their work won't be overwritten.
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Fields to generate</div>';
+    html += '<div class="aif-section-hint">Filled fields are unchecked by default — they\'re preserved and used as input to the AI.</div>';
+    html += '<div class="aif-quick"><a onclick="_aifSelectAll(\'field\', true)">Select all</a><a onclick="_aifSelectAll(\'field\', false)">Clear</a></div>';
+    sections.forEach(function(sec) {
+      var hasContent = _aiFillSectionHasContent(act, tplType, sec.key);
+      var checked = hasContent ? '' : 'checked';
+      html += '<label class="aif-row"><input type="checkbox" class="aif-field" data-section="' + escapeHtml(sec.key) + '"' + (checked ? ' checked' : '') + '>'
+        + '<span><strong>' + escapeHtml(sec.key) + '</strong> '
+        + (hasContent ? '<span class="aif-meta">— already filled, opt in to overwrite</span>' : '<span class="aif-meta">— ' + escapeHtml(sec.hint) + '</span>')
+        + '</span></label>';
+    });
+    html += '</div>';
+
+    // Module + course context (auto-included, no toggle).
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modTopic = (savedMods[modNum] && savedMods[modNum].topic) || '';
+    if (!modTopic) {
+      var _startN = activeCourse.moduleStartZero ? 0 : 1;
+      var modCfg = (activeCourse.modules || [])[modNum - _startN];
+      if (modCfg) modTopic = modCfg.title || '';
+    }
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Always included as context</div>';
+    html += '<div class="aif-section-hint" style="font-style:normal;">'
+      + '• Course: <strong>' + escapeHtml(activeCourse.code || courseId) + '</strong><br>'
+      + '• Module ' + modNum + (modTopic ? ': <strong>' + escapeHtml(modTopic) + '</strong>' : '') + '<br>'
+      + '• Module Learning Objectives + Course Learning Objectives'
+      + '</div>';
+    html += '</div>';
+
+    // Linked materials — pre-checked when the activity has any.
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Linked materials (' + linkedMaterials.length + ')</div>';
+    if (linkedMaterials.length === 0) {
+      html += '<div class="aif-empty">No materials are linked to this activity. (Link materials from the activity\'s "🔗 Materials" tab to ground the AI in specific readings.)</div>';
+    } else {
+      html += '<div class="aif-context-list">';
+      linkedMaterials.forEach(function(row, idx) {
+        var title = (row.mat.title || row.mat.type || '(untitled)').trim();
+        var meta = (row.mat.type || 'Material') + ' · Module ' + row.modNum;
+        html += '<label class="aif-row"><input type="checkbox" class="aif-material" data-mat-id="' + escapeHtml(row.mat.id) + '" checked>'
+          + '<span><strong>' + escapeHtml(title) + '</strong><div class="aif-meta">' + escapeHtml(meta) + '</div></span></label>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+
+    // Granola meetings — null = still loading; [] = none on file.
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Granola meeting notes for this course</div>';
+    if (meetings === null) {
+      html += '<div class="aif-empty">Loading recent meetings…</div>';
+    } else if (meetings.length === 0) {
+      html += '<div class="aif-empty">No meetings synced for this course yet. (Meetings sync via the dashboard\'s Granola pipeline.)</div>';
+    } else {
+      html += '<div class="aif-section-hint">Most recent first. Pick the ones where this assignment was specifically discussed.</div>';
+      html += '<div class="aif-quick"><a onclick="_aifSelectAll(\'meeting\', true)">Select all</a><a onclick="_aifSelectAll(\'meeting\', false)">Clear none</a></div>';
+      html += '<div class="aif-context-list">';
+      meetings.forEach(function(m, idx) {
+        var title = (m.title || '(untitled meeting)').trim();
+        var dateStr = _aiFillFormatMeetingDate(m.meeting_date);
+        var summary = (m.summary || '').replace(/\s+/g, ' ').trim();
+        var preview = summary ? (summary.length > 200 ? summary.slice(0, 200) + '…' : summary) : '';
+        html += '<label class="aif-row" title="' + escapeHtml(preview) + '">'
+          + '<input type="checkbox" class="aif-meeting" data-meeting-idx="' + idx + '">'
+          + '<span><strong>' + escapeHtml(dateStr) + '</strong> · ' + escapeHtml(title)
+          + (preview ? '<div class="aif-meta">' + escapeHtml(preview.slice(0, 120) + (preview.length > 120 ? '…' : '')) + '</div>' : '')
+          + '</span></label>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+
+    document.getElementById('ai-fill-body').innerHTML = html;
+  }
+
+  window._aifSelectAll = function(kind, on) {
+    var sel = kind === 'field' ? '.aif-field' : (kind === 'meeting' ? '.aif-meeting' : '.aif-material');
+    document.querySelectorAll('#ai-fill-body ' + sel).forEach(function(cb) { cb.checked = !!on; });
+  };
+
+  window.closeAiFillModal = function() {
+    document.getElementById('ai-fill-overlay').style.display = 'none';
+    _aiFillState = null;
+  };
+
+  window.runAiFill = async function() {
+    var s = _aiFillState;
+    if (!s) return;
+    var info = _itemForContentPrefix(s.actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+
+    var fieldsToFill = Array.from(document.querySelectorAll('#ai-fill-body .aif-field:checked'))
+      .map(function(cb) { return cb.getAttribute('data-section'); });
+    if (fieldsToFill.length === 0) {
+      document.getElementById('ai-fill-status').textContent = 'Pick at least one field.';
+      return;
+    }
+
+    var matIdsToInclude = Array.from(document.querySelectorAll('#ai-fill-body .aif-material:checked'))
+      .map(function(cb) { return cb.getAttribute('data-mat-id'); });
+    var meetingIdxToInclude = Array.from(document.querySelectorAll('#ai-fill-body .aif-meeting:checked'))
+      .map(function(cb) { return parseInt(cb.getAttribute('data-meeting-idx'), 10); });
+
+    var prompt = _buildAiFillPrompt(act, s.modNum, s.tplType, s.sections, fieldsToFill, matIdsToInclude, meetingIdxToInclude);
+
+    var goBtn = document.getElementById('ai-fill-go-btn');
+    goBtn.disabled = true;
+    goBtn.textContent = '⏳ Generating…';
+    document.getElementById('ai-fill-status').textContent = 'Calling Claude (this can take 20-40s)…';
+
+    try {
+      var raw = await callCreateAI(prompt, _aiFillSystemPrompt(), 4096, 120000);
+      var parsed = _aiFillParseResponse(raw, fieldsToFill);
+      _aiFillApply(act, s.tplType, parsed);
+      document.getElementById('ai-fill-status').textContent = '✓ Filled ' + Object.keys(parsed).length + ' field' + (Object.keys(parsed).length === 1 ? '' : 's') + '.';
+      setTimeout(closeAiFillModal, 700);
+    } catch (e) {
+      document.getElementById('ai-fill-status').textContent = '⚠ ' + (e.message || 'Generation failed.');
+      goBtn.disabled = false;
+      goBtn.textContent = '✨ Generate';
+    }
+  };
+
+  function _aiFillSystemPrompt() {
+    return 'You are an expert instructional designer at Arizona State University Online. '
+      + 'You write clear, learner-centered, accessibility-aware course content for Canvas LMS. '
+      + 'When asked to produce assignment or discussion content, you use Bloom\'s taxonomy verbs '
+      + 'and align everything to the supplied Module Learning Objectives. '
+      + 'Output is always valid JSON exactly matching the requested schema, with no surrounding prose. '
+      + 'HTML inside JSON string values is allowed and encouraged for paragraphs (<p>), lists '
+      + '(<ul>/<ol>/<li>), bold (<strong>), and italic (<em>) — but no script, style, or external assets.';
+  }
+
+  function _buildAiFillPrompt(act, modNum, tplType, sections, fieldsToFill, matIds, meetingIdxList) {
+    var fieldKeyMap = {}; sections.forEach(function(s) { fieldKeyMap[s.key] = s.hint; });
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modTopic = (savedMods[modNum] && savedMods[modNum].topic) || '';
+    if (!modTopic) {
+      var _startN = activeCourse.moduleStartZero ? 0 : 1;
+      var modCfg = (activeCourse.modules || [])[modNum - _startN];
+      if (modCfg) modTopic = modCfg.title || '';
+    }
+
+    var actObjectives = act.objectives || [];
+    var mloTexts = actObjectives.map(function(id) {
+      return id + ': ' + (typeof getMloText === 'function' ? getMloText(id) : '');
+    }).filter(function(t) { return t.length > 5; });
+
+    var existingFields = {};
+    sections.forEach(function(sec) {
+      var v = (act.templateData || {})[tplType] || {};
+      if (v[sec.key] && _stripToVisibleText(v[sec.key]).length > 0) {
+        existingFields[sec.key] = String(v[sec.key]).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+      }
+    });
+
+    var prompt = 'You are filling in a Canvas LMS ' + tplType + ' template.\n\n';
+    prompt += '## Course context\n';
+    prompt += '- Course: ' + (activeCourse.code || courseId) + (activeCourse.name ? ' — ' + activeCourse.name : '') + '\n';
+    prompt += '- Module ' + modNum + (modTopic ? ': ' + modTopic : '') + '\n';
+    prompt += '- ' + (tplType === 'discussion' ? 'Discussion' : 'Assignment') + ' name: "' + (act.name || '(untitled)') + '"\n';
+    if (mloTexts.length > 0) {
+      prompt += '- Module Learning Objectives that this ' + tplType + ' must align to:\n';
+      mloTexts.forEach(function(t) { prompt += '  • ' + t + '\n'; });
+    }
+
+    // Linked materials — pull title/type/links/notes/richText for each.
+    var matRows = (_aiFillState ? _aiFillState.linkedMaterials : []) || [];
+    var pickedMats = matRows.filter(function(r) { return matIds.indexOf(r.mat.id) !== -1; });
+    if (pickedMats.length > 0) {
+      prompt += '\n## Linked materials students will use\n';
+      pickedMats.forEach(function(row) {
+        var m = row.mat;
+        prompt += '- ' + (m.title || '(untitled)') + ' (' + (m.type || 'Material') + ', Module ' + row.modNum + ')\n';
+        if (m.links && m.links.length) prompt += '  links: ' + m.links.slice(0, 3).join(', ') + '\n';
+        if (m.notes) prompt += '  notes: ' + String(m.notes).replace(/\s+/g, ' ').trim().slice(0, 280) + '\n';
+        if (m.richText) {
+          var rt = String(m.richText).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+          if (rt) prompt += '  body: ' + rt.slice(0, 400) + '\n';
+        }
+      });
+    }
+
+    // Selected meeting transcripts — keep concise to fit token budget.
+    var meetings = (_aiFillState && _aiFillState.meetings) || [];
+    var pickedMeetings = meetingIdxList.map(function(i) { return meetings[i]; }).filter(Boolean);
+    if (pickedMeetings.length > 0) {
+      prompt += '\n## Granola meeting notes the instructor flagged as relevant\n';
+      pickedMeetings.forEach(function(m) {
+        var dateStr = _aiFillFormatMeetingDate(m.meeting_date);
+        prompt += '\n### ' + dateStr + ' — ' + (m.title || '(untitled meeting)') + '\n';
+        if (m.summary) prompt += 'Summary: ' + String(m.summary).replace(/\s+/g, ' ').trim().slice(0, 600) + '\n';
+        if (Array.isArray(m.decisions) && m.decisions.length) {
+          prompt += 'Decisions: ' + m.decisions.slice(0, 5).join('; ') + '\n';
+        }
+        if (Array.isArray(m.action_items) && m.action_items.length) {
+          var aiTexts = m.action_items.map(function(a) { return typeof a === 'string' ? a : (a && a.text) || ''; }).filter(Boolean).slice(0, 5);
+          if (aiTexts.length) prompt += 'Action items: ' + aiTexts.join('; ') + '\n';
+        }
+      });
+    }
+
+    // Already-filled fields — pass as immutable input, NOT to be regenerated.
+    var preserved = Object.keys(existingFields).filter(function(k) { return fieldsToFill.indexOf(k) === -1; });
+    if (preserved.length > 0) {
+      prompt += '\n## Existing content (DO NOT regenerate — use as input)\n';
+      preserved.forEach(function(k) {
+        prompt += '\n### ' + k + '\n' + existingFields[k] + '\n';
+      });
+    }
+
+    // Output schema.
+    prompt += '\n## Required output\n';
+    prompt += 'Return a single JSON object. Keys MUST exactly match the field names below; values are HTML strings.\n';
+    prompt += 'Do not include any other keys, prose, code fences, or commentary.\n\n';
+    prompt += 'Schema:\n{\n';
+    fieldsToFill.forEach(function(k, i) {
+      prompt += '  "' + k + '": "<HTML body for ' + k + ' — ' + (fieldKeyMap[k] || '') + '>"' + (i < fieldsToFill.length - 1 ? ',' : '') + '\n';
+    });
+    prompt += '}\n';
+    if (fieldsToFill.indexOf('Rubric') !== -1) {
+      prompt += '\nFor the Rubric field specifically, the value MUST be a pipe-separated table on a single string '
+        + '(use \\n between rows): the first row is the header "Criteria | Excellent | Proficient | Developing | Beginning | Points", '
+        + 'followed by 3-5 criterion rows.\n';
+    }
+    prompt += '\nGround every field in the supplied context. Do not invent citations or readings that aren\'t in the linked materials. '
+      + 'If a field would be speculative without enough context, write the best plausible educator-quality content but keep it concrete and operational.';
+
+    return prompt;
+  }
+
+  function _aiFillParseResponse(raw, expectedFields) {
+    var text = String(raw || '').trim();
+    // Strip ```json fences if the model added them despite instructions.
+    text = text.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '').trim();
+    // Sometimes the model returns JSON embedded in prose — extract the
+    // first {...} block.
+    var first = text.indexOf('{');
+    var last = text.lastIndexOf('}');
+    if (first === -1 || last === -1 || last < first) {
+      throw new Error('AI response was not JSON. Got: ' + text.slice(0, 200));
+    }
+    var jsonStr = text.slice(first, last + 1);
+    var parsed;
+    try { parsed = JSON.parse(jsonStr); }
+    catch (e) { throw new Error('Could not parse JSON: ' + e.message); }
+    if (!parsed || typeof parsed !== 'object') {
+      throw new Error('Parsed value was not an object.');
+    }
+    // Keep only the fields we asked for.
+    var out = {};
+    expectedFields.forEach(function(k) {
+      if (parsed[k] !== undefined && parsed[k] !== null) {
+        out[k] = String(parsed[k]);
+      }
+    });
+    return out;
+  }
+
+  // Write each generated field into act.templateData[type][section] AND
+  // refresh the live Quill editor so the user sees content immediately
+  // without re-rendering the whole template.
+  function _aiFillApply(act, tplType, parsed) {
+    if (!act.templateData) act.templateData = {};
+    if (!act.templateData[tplType]) act.templateData[tplType] = {};
+    Object.keys(parsed).forEach(function(sectionKey) {
+      var html = parsed[sectionKey];
+      act.templateData[tplType][sectionKey] = html;
+      // Find every Quill rich editor bound to this (act, tplType, section)
+      // — there may be one in the module-detail view AND one in the
+      // overview content body. Update both.
+      var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + act.id + '"][data-tpl-type="' + tplType + '"][data-section="' + sectionKey + '"]';
+      document.querySelectorAll(sel).forEach(function(el) {
+        if (el._quill) {
+          try { el._quill.clipboard.dangerouslyPasteHTML(0, html, 'silent'); }
+          catch (e) { el._quill.root.innerHTML = html; }
+        } else {
+          // Quill not yet initialized — set the initial attribute so the
+          // next render picks it up.
+          el.setAttribute('data-initial', html);
+        }
+        // If this section lives inside a collapsible <details> wrapper
+        // (e.g. "Activity Learning Objective"), auto-open it so the
+        // instructor can immediately see what AI wrote.
+        var details = el.closest('details.template-collapsible');
+        if (details) details.open = true;
+      });
+    });
+    if (typeof saveActivityData === 'function') saveActivityData();
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
   // ===== EXPORT TEMPLATE TO GOOGLE DRIVE =====
