@@ -8871,6 +8871,25 @@
     }
   }
 
+  // Extract searchable lowercase keywords from an activity name so we can
+  // auto-check meetings whose summary/decisions mention this assignment.
+  // We keep tokens of 4+ letters (drops "of", "the", "and", etc.) and add
+  // the full normalized name so multi-word matches still hit. Stopwords
+  // that creep through are harmless because they're so common across all
+  // meetings — every meeting matches "the" so the match doesn't pre-check
+  // anything.
+  function _aiFillActivityKeywords(act) {
+    if (!act || !act.name) return [];
+    var name = String(act.name).toLowerCase().replace(/[^a-z0-9 ]+/g, ' ').trim();
+    if (!name) return [];
+    var stop = { 'the': 1, 'and': 1, 'for': 1, 'with': 1, 'from': 1, 'into': 1, 'this': 1, 'that': 1, 'when': 1, 'what': 1, 'where': 1, 'their': 1, 'them': 1, 'will': 1, 'about': 1, 'over': 1, 'your': 1, 'have': 1, 'were': 1, 'been': 1, 'they': 1, 'than': 1 };
+    var toks = name.split(/\s+/).filter(function(t) { return t.length >= 4 && !stop[t]; });
+    var seen = {}; var out = [];
+    toks.forEach(function(t) { if (!seen[t]) { seen[t] = 1; out.push(t); } });
+    if (name.length >= 4) out.push(name);
+    return out;
+  }
+
   function _aiFillFormatMeetingDate(iso) {
     if (!iso) return '—';
     try {
@@ -8972,6 +8991,10 @@
     html += '</div>';
 
     // Granola meetings — null = still loading; [] = none on file.
+    // Auto-check meetings that look relevant: (a) anything that name-drops
+    // the activity in title/summary/decisions/actions, and (b) the single
+    // most-recent meeting (since it's almost always the one that holds the
+    // freshest decisions). The user can clear or expand the selection.
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Granola meeting notes for this course</div>';
     if (meetings === null) {
@@ -8979,7 +9002,8 @@
     } else if (meetings.length === 0) {
       html += '<div class="aif-empty">No meetings synced for this course yet. (Meetings sync via the dashboard\'s Granola pipeline.)</div>';
     } else {
-      html += '<div class="aif-section-hint">Most recent first. Pick the ones where this assignment was specifically discussed.</div>';
+      var activityKeywords = _aiFillActivityKeywords(act);
+      html += '<div class="aif-section-hint">Most recent first. Auto-checked: meetings that name-drop this activity, plus the latest one.</div>';
       html += '<div class="aif-quick"><a onclick="_aifSelectAll(\'meeting\', true)">Select all</a><a onclick="_aifSelectAll(\'meeting\', false)">Clear none</a></div>';
       html += '<div class="aif-context-list">';
       meetings.forEach(function(m, idx) {
@@ -8987,9 +9011,18 @@
         var dateStr = _aiFillFormatMeetingDate(m.meeting_date);
         var summary = (m.summary || '').replace(/\s+/g, ' ').trim();
         var preview = summary ? (summary.length > 200 ? summary.slice(0, 200) + '…' : summary) : '';
+        var hayStack = [title, summary,
+          (Array.isArray(m.decisions) ? m.decisions.join(' ') : ''),
+          (Array.isArray(m.action_items) ? m.action_items.map(function(a){return typeof a==='string'?a:(a&&a.text)||'';}).join(' ') : '')
+        ].join(' ').toLowerCase();
+        var mentionsActivity = activityKeywords.some(function(kw) { return hayStack.indexOf(kw) !== -1; });
+        var isMostRecent = idx === 0;
+        var defaultChecked = mentionsActivity || isMostRecent;
+        var hint = mentionsActivity ? '<span class="aif-meta" style="color:#2e7d32; font-weight:600;"> · matches this activity</span>'
+                 : (isMostRecent ? '<span class="aif-meta"> · most recent</span>' : '');
         html += '<label class="aif-row" title="' + escapeHtml(preview) + '">'
-          + '<input type="checkbox" class="aif-meeting" data-meeting-idx="' + idx + '">'
-          + '<span><strong>' + escapeHtml(dateStr) + '</strong> · ' + escapeHtml(title)
+          + '<input type="checkbox" class="aif-meeting" data-meeting-idx="' + idx + '"' + (defaultChecked ? ' checked' : '') + '>'
+          + '<span><strong>' + escapeHtml(dateStr) + '</strong> · ' + escapeHtml(title) + hint
           + (preview ? '<div class="aif-meta">' + escapeHtml(preview.slice(0, 120) + (preview.length > 120 ? '…' : '')) + '</div>' : '')
           + '</span></label>';
       });
@@ -9109,22 +9142,35 @@
       });
     }
 
-    // Selected meeting transcripts — keep concise to fit token budget.
+    // Selected meeting transcripts — be generous with the per-meeting
+    // budget; the model has a large context window and meeting-note
+    // adherence is the whole point of this feature. Earlier limits of
+    // 600 chars / first 5 decisions truncated exactly the kind of
+    // assignment-specific details (rubric format, tool choice, minimum
+    // counts, requirements) we most want to preserve.
     var meetings = (_aiFillState && _aiFillState.meetings) || [];
     var pickedMeetings = meetingIdxList.map(function(i) { return meetings[i]; }).filter(Boolean);
     if (pickedMeetings.length > 0) {
       prompt += '\n## Granola meeting notes the instructor flagged as relevant\n';
+      prompt += '(These notes capture decisions made by the instructor about the assignment. '
+        + 'Treat them as authoritative — if the notes specify a tool, format, count, rubric structure, '
+        + 'or requirement, follow it exactly even when it conflicts with a generic best-practice.)\n';
       pickedMeetings.forEach(function(m) {
         var dateStr = _aiFillFormatMeetingDate(m.meeting_date);
         prompt += '\n### ' + dateStr + ' — ' + (m.title || '(untitled meeting)') + '\n';
-        if (m.summary) prompt += 'Summary: ' + String(m.summary).replace(/\s+/g, ' ').trim().slice(0, 600) + '\n';
+        if (m.summary) prompt += 'Summary: ' + String(m.summary).replace(/\s+/g, ' ').trim().slice(0, 4000) + '\n';
         if (Array.isArray(m.decisions) && m.decisions.length) {
-          prompt += 'Decisions: ' + m.decisions.slice(0, 5).join('; ') + '\n';
+          prompt += 'Decisions:\n';
+          m.decisions.forEach(function(d) { prompt += '  • ' + String(d).replace(/\s+/g, ' ').trim() + '\n'; });
         }
         if (Array.isArray(m.action_items) && m.action_items.length) {
-          var aiTexts = m.action_items.map(function(a) { return typeof a === 'string' ? a : (a && a.text) || ''; }).filter(Boolean).slice(0, 5);
-          if (aiTexts.length) prompt += 'Action items: ' + aiTexts.join('; ') + '\n';
+          var aiTexts = m.action_items.map(function(a) { return typeof a === 'string' ? a : (a && a.text) || ''; }).filter(Boolean);
+          if (aiTexts.length) {
+            prompt += 'Action items:\n';
+            aiTexts.forEach(function(t) { prompt += '  • ' + t + '\n'; });
+          }
         }
+        if (m.follow_up) prompt += 'Follow-up: ' + String(m.follow_up).replace(/\s+/g, ' ').trim().slice(0, 1000) + '\n';
       });
     }
 
@@ -9147,12 +9193,23 @@
     });
     prompt += '}\n';
     if (fieldsToFill.indexOf('Rubric') !== -1) {
-      prompt += '\nFor the Rubric field specifically, the value MUST be a pipe-separated table on a single string '
-        + '(use \\n between rows): the first row is the header "Criteria | Excellent | Proficient | Developing | Beginning | Points", '
-        + 'followed by 3-5 criterion rows.\n';
+      prompt += '\nFor the Rubric field, the value MUST be a pipe-separated table on a single string '
+        + '(use \\n between rows). FIRST priority: if the meeting notes specify a rubric structure '
+        + '(e.g., yes/no, complete/incomplete, mastery/not yet, pass/fail, or specific level names), '
+        + 'use exactly that structure with the criteria the instructor specified. '
+        + 'ONLY if the meeting notes are silent on rubric format, default to a 4-level rubric with '
+        + 'the header "Criteria | Excellent | Proficient | Developing | Beginning | Points" and 3-5 rows.\n';
     }
-    prompt += '\nGround every field in the supplied context. Do not invent citations or readings that aren\'t in the linked materials. '
-      + 'If a field would be speculative without enough context, write the best plausible educator-quality content but keep it concrete and operational.';
+    prompt += '\n## Adherence rules (override defaults)\n';
+    prompt += '1. When the meeting notes name a specific tool (e.g., Harmonize, Yellowdig, Flipgrid, Perusall), '
+      + 'instructions MUST reference that tool by name and not suggest a different one.\n';
+    prompt += '2. When the meeting notes specify a quantity (minimum annotations, word count, number of replies, '
+      + 'number of attempts, number of requirements), instructions and rubric MUST reflect that exact number.\n';
+    prompt += '3. When the meeting notes list explicit requirements for the assignment, every requirement must '
+      + 'appear in Instructions AND in the Rubric.\n';
+    prompt += '4. Do not invent citations or readings that aren\'t in the linked materials.\n';
+    prompt += '5. If a field would be speculative without enough context, write concrete, educator-quality content '
+      + 'grounded in the supplied module learning objectives.\n';
 
     return prompt;
   }
