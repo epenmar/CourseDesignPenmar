@@ -9230,6 +9230,12 @@
       var modCfg = (activeCourse.modules || [])[modNum - _startN];
       if (modCfg) modTopic = modCfg.title || '';
     }
+    // Read the activity's current points value so we can preview it +
+    // warn if a Rubric is being generated without a total to distribute.
+    var actPtsRaw = (act && act.points != null) ? String(act.points).trim() : '';
+    var actPtsNum = parseFloat(actPtsRaw);
+    var hasActPts = !isNaN(actPtsNum) && actPtsNum > 0;
+
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Always included as context</div>';
     html += '<div class="aif-section-hint" style="font-style:normal;">'
@@ -9237,6 +9243,18 @@
       + '• Module ' + modNum + (modTopic ? ': <strong>' + escapeHtml(modTopic) + '</strong>' : '') + '<br>'
       + '• Module Learning Objectives + Course Learning Objectives'
       + '</div>';
+    // Inline points input — generating a rubric without a total is
+    // fragile (the AI can't distribute), so let the instructor set it
+    // here without leaving the modal.
+    html += '<div style="margin-top:8px; padding:8px 10px; background:' + (hasActPts ? '#f5fbf5' : '#fff8e1') + '; border:1px solid ' + (hasActPts ? '#c5e1c5' : '#ffe082') + '; border-radius:6px; font-size:12px; line-height:1.5;">';
+    html += '<label style="display:flex; align-items:center; gap:8px;">'
+      + '<span><strong>Assignment points total</strong> <span style="color:#888;">— rubric rows distribute from this</span></span>'
+      + '<input type="number" id="aif-act-points" min="0" step="0.5" value="' + escapeHtml(hasActPts ? String(actPtsNum) : '') + '" placeholder="e.g., 10" style="width:80px; padding:4px 8px; border:1px solid #e0ddd5; border-radius:4px; font-size:13px;">'
+      + '</label>';
+    if (!hasActPts) {
+      html += '<div style="margin-top:4px; color:#8a6d3b;">If left blank, rubric Points cells will fill with the placeholder "TBD".</div>';
+    }
+    html += '</div>';
     html += '</div>';
 
     // Tool / platform — explicit selection beats letting Claude infer from
@@ -9460,6 +9478,20 @@
     var meetingIdxToInclude = Array.from(document.querySelectorAll('#ai-fill-body .aif-meeting:checked'))
       .map(function(cb) { return parseInt(cb.getAttribute('data-meeting-idx'), 10); });
 
+    // Pick up any points value entered in the modal's points input and
+    // persist it on the activity itself BEFORE building the prompt — so
+    // the prompt's rubric distribution sees the freshly-entered total.
+    // Also push the value into the live activity-row Points input so the
+    // table view stays in sync without a re-render.
+    var ptsInput = document.getElementById('aif-act-points');
+    if (ptsInput) {
+      var ptsVal = (ptsInput.value || '').trim();
+      if (ptsVal !== String(act.points || '').trim()) {
+        act.points = ptsVal;
+        document.querySelectorAll('input.activity-input[data-field="points"][data-activity-id="' + act.id + '"]').forEach(function(el) { el.value = ptsVal; });
+      }
+    }
+
     // Read tool / rubric prefs and persist on the activity so reopening
     // the modal restores the same picks.
     var prefs = _aiFillReadPrefs();
@@ -9611,23 +9643,69 @@
       var levelHeader = _aiFillRubricLevelHeader(rPref.style, rPref.levels);
       var criteriaList = String(rPref.criteria || '').split(/\r?\n/).map(function(s) { return s.trim(); }).filter(Boolean);
       var rowsPref = parseInt(rPref.rows, 10);
+
+      // Decide whether to include a "Category" column to the LEFT of
+      // Criteria. Heuristic: if the instructor gave us short labels
+      // (≤ 6 words, no period mid-string), they likely ARE category
+      // names — so split into Category + Criteria. Long descriptive
+      // sentences stay in Criteria alone.
+      var useCategory = criteriaList.length > 0 && criteriaList.every(function(c) {
+        return c.split(/\s+/).length <= 6 && !/\.\s+\S/.test(c);
+      });
+
+      // Total points for distribution across rows.
+      var ptsRaw = (act && act.points != null) ? String(act.points).trim() : '';
+      var totalPoints = parseFloat(ptsRaw);
+      var hasPoints = !isNaN(totalPoints) && totalPoints > 0;
+
       prompt += '\n## Rubric design (instructor-selected — authoritative)\n';
       prompt += 'The Rubric field MUST be a pipe-separated table as a single string with \\n between rows.\n';
-      if (levelHeader) {
-        prompt += '- Level columns (exact, in order): ' + levelHeader + '\n';
-        prompt += '- Header row: "Criteria | ' + levelHeader + ' | Points"\n';
+
+      if (useCategory) {
+        prompt += '- Header row (use exactly): "Category | Criteria | ' + (levelHeader || 'Excellent | Proficient | Developing | Beginning') + ' | Points"\n';
+        prompt += '- Category column: the short label the instructor named for that row, taken VERBATIM from the list below — do not paraphrase, do not add prefixes like "Annotation 1:".\n';
+        prompt += '- Criteria column: a SINGLE-SENTENCE observable description of what the student must do in that category to meet the requirement (≤ 25 words, no row numbers, no "Annotation N" prefix).\n';
+      } else if (levelHeader) {
+        prompt += '- Header row (use exactly): "Criteria | ' + levelHeader + ' | Points"\n';
+        prompt += '- Criteria column: a single-sentence observable description (≤ 25 words, no "Annotation N" prefix).\n';
       } else {
-        prompt += '- Level structure: pull from the meeting notes. If the notes specify yes/no, complete/incomplete, mastery/not yet, pass/fail, or any specific level names, use exactly those. If the notes are silent, default to "Criteria | Excellent | Proficient | Developing | Beginning | Points".\n';
+        prompt += '- Header row: "Criteria | Excellent | Proficient | Developing | Beginning | Points" (or use the level structure the instructor specified in the meeting notes).\n';
       }
+
       if (criteriaList.length > 0) {
-        prompt += '- Number of criteria rows: exactly ' + criteriaList.length + ', and each row\'s Criteria text MUST be the instructor-supplied wording below (one row per line, in order):\n';
+        prompt += '- Number of body rows: exactly ' + criteriaList.length + '. Use these instructor-supplied labels in order:\n';
         criteriaList.forEach(function(c, i) { prompt += '  ' + (i + 1) + '. ' + c + '\n'; });
       } else if (rowsPref >= 1) {
-        prompt += '- Number of criteria rows: exactly ' + rowsPref + '. Pull the row labels from the meeting notes (or from the requirements the instructor stated).\n';
+        prompt += '- Number of body rows: exactly ' + rowsPref + '. Pull the row labels from the meeting notes (or from the requirements the instructor stated).\n';
       } else {
-        prompt += '- Number of criteria rows: pull from the meeting notes (count of explicit requirements the instructor listed). If silent, use 3-5 rows.\n';
+        prompt += '- Number of body rows: pull from the meeting notes (count of explicit requirements). If silent, use 3-5 rows.\n';
       }
-      prompt += '- Cell content: write specific, observable descriptors keyed to the level columns. For yes/no or binary structures, the cell content describes what "yes" looks like; the "no" column reads "Did not meet" or similar.\n';
+
+      // Level-cell semantics — be explicit so the model doesn't swap
+      // "Yes"/"No" content the way it has been in past generations.
+      prompt += '\nLevel-cell semantics (CRITICAL — do not swap these columns):\n';
+      var styleKey = rPref.style || '';
+      if (styleKey === 'binary' || /\bYes\b\s*\|\s*No\b/i.test(levelHeader || '')) {
+        prompt += '- The "Yes" cell describes substantively what success looks like for this row (one sentence, observable, ≤ 20 words).\n';
+        prompt += '- The "No" cell reads exactly "Did not meet criteria." for every row — no other text.\n';
+      } else if (styleKey === 'complete' || /Complete\s*\|\s*Incomplete/i.test(levelHeader || '')) {
+        prompt += '- The "Complete" cell describes what success looks like for this row (one sentence, observable).\n';
+        prompt += '- The "Incomplete" cell reads exactly "Not complete." — no other text.\n';
+      } else if (styleKey === 'masteryNot' || /Mastery\s*\|\s*Not Yet/i.test(levelHeader || '')) {
+        prompt += '- The "Mastery" cell describes what mastery looks like (one sentence, observable).\n';
+        prompt += '- The "Not Yet" cell reads exactly "Not yet demonstrated." — no other text.\n';
+      } else {
+        prompt += '- Each level cell describes the student work at that performance band, in one short sentence.\n';
+        prompt += '- The lowest-performance band may read "Did not meet criteria." or similar.\n';
+      }
+
+      // Points distribution.
+      prompt += '\nPoints column:\n';
+      if (hasPoints) {
+        prompt += '- Total points for this assignment: ' + totalPoints + '. Distribute across rows so the column sums to ' + totalPoints + '. If the rubric has ' + (criteriaList.length || rowsPref || 'N') + ' rows of equal weight, divide evenly (round to 1 decimal if needed; the last row absorbs any remainder so the sum is exact).\n';
+      } else {
+        prompt += '- The instructor has not yet set a points total for this assignment. Leave each Points cell as the literal text "TBD" so the instructor can fill in the distribution after they set the assignment\'s point value.\n';
+      }
     }
     prompt += '\n## Adherence rules (override defaults)\n';
     prompt += '1. When the meeting notes name a specific tool (e.g., Harmonize, Yellowdig, Flipgrid, Perusall), '
