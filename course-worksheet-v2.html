@@ -412,6 +412,43 @@
   .overview-content-body { display: none; margin-top: 6px; }
   .overview-content-body.open { display: block; }
 
+  /* Custom tooltip on the link-usage badge — replaces native title= so it
+     appears immediately on hover instead of after the browser's ~600ms delay. */
+  .mat-usage-badge { position: relative; }
+  .mat-usage-badge .mub-tip {
+    display: none; position: absolute; left: 50%; bottom: calc(100% + 6px);
+    transform: translateX(-50%); white-space: pre; background: #2a2a2a;
+    color: #fff; font-size: 11px; line-height: 1.4; font-weight: 500;
+    padding: 6px 10px; border-radius: 6px; box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+    z-index: 60; pointer-events: none; max-width: 320px;
+  }
+  .mat-usage-badge .mub-tip::after {
+    content: ''; position: absolute; top: 100%; left: 50%;
+    transform: translateX(-50%); border: 5px solid transparent;
+    border-top-color: #2a2a2a;
+  }
+  .mat-usage-badge:hover .mub-tip { display: block; }
+
+  /* Content chip in table view — opens the content popup. */
+  .content-chip {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #f5f5f0; border: 1px dashed #c0bcb0; color: #888;
+    border-radius: 12px; padding: 2px 10px; font-size: 11px;
+    font-weight: 500; font-family: 'Inter', sans-serif;
+    cursor: pointer; white-space: nowrap; transition: all 0.15s;
+  }
+  .content-chip:hover { background: #fff; border-color: #8c1d40; color: #8c1d40; }
+  .content-chip.has-content {
+    background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32; font-weight: 600;
+  }
+  .content-chip.has-content:hover { background: #d3ebd5; }
+
+  /* Reset card-view margins when the content body is transplanted into the
+     content popup so it fills the dialog naturally. */
+  #content-popup-body .overview-act-content,
+  #content-popup-body .overview-content-body { margin-left: 0; margin-top: 0; }
+  #content-popup-body .overview-content-body { display: block; }
+
   /* ===== CLO ALIGNMENT PICKER ===== */
   .clo-picker { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
   .clo-toggle { display: inline-flex; align-items: center; gap: 5px; padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.15s; border: 1.5px solid #e0ddd5; background: #fff; color: #999; user-select: none; }
@@ -1547,6 +1584,24 @@
       </select>
       <button onclick="saveCommentIdentity()">Save & Continue</button>
     </div>
+  </div>
+</div>
+
+<!-- ===== TABLE-VIEW CONTENT POPUP =====
+     Reuses the card-view content body (Upload / Link / Template / Linked tabs)
+     by transplanting the existing .overview-act-content (or .overview-content-body
+     for materials) into this popup, then moving it back on close. Avoids ID
+     collisions and preserves Quill editor bindings. -->
+<div id="content-popup-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:260; align-items:flex-start; justify-content:center; padding-top:48px;" onclick="if(event.target===this) closeContentPopup();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:820px; width:94%; max-height:85vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div id="content-popup-title" style="font-size:15px; font-weight:600; color:#8c1d40; word-break:break-word;">&nbsp;</div>
+        <div id="content-popup-subtitle" style="font-size:12px; color:#888; margin-top:2px;">&nbsp;</div>
+      </div>
+      <button onclick="closeContentPopup()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="content-popup-body" style="overflow-y:auto; min-height:120px;"></div>
   </div>
 </div>
 
@@ -6715,6 +6770,12 @@
   }
 
   function renderAssignmentsOverview(openModules) {
+    // The content popup transplants .overview-act-content out of the cards
+    // container; if we re-render while it's open, the original parent gets
+    // destroyed and we'd leave the popup body orphaned. Snap it back first.
+    if (typeof _contentPopupState !== 'undefined' && _contentPopupState && _contentPopupState.kind === 'activity') {
+      try { closeContentPopup(); } catch (e) {}
+    }
     var cardsContainer = document.getElementById('assignments-overview-cards');
     var tableContainer = document.getElementById('assignments-overview-table');
     if (!cardsContainer) return;
@@ -6835,7 +6896,7 @@
       thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewActivities()">🗑 Delete selected</button>';
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'assignments\')">Clear</button>';
       thtml += '</div>';
-      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:36px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:60px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:90px;">Content</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
       for (var _ti = 0; _ti < modNumList.length; _ti++) {
         var m = modNumList[_ti];
         var mod = modules[m - _asn] || null;
@@ -6848,15 +6909,16 @@
           thtml += '<td style="font-weight:600; color:#8c1d40;"><span class="act-drag-handle" title="Drag to move" style="cursor:grab; margin-right:4px;">⠿</span>M' + m + '</td>';
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('tv-' + act.id, act.objectives, m) + '</td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea></td>';
+          thtml += '<td style="text-align:center;"><button class="content-chip" data-content-chip="' + act.id + '" data-content-kind="activity" data-content-mod="' + m + '" onclick="openContentPopup(\'' + act.id + '\',\'activity\',' + m + ')">+ Content</button></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; min-height:16px; resize:none; overflow:hidden; font-size:10px; line-height:1.3; text-align:center;">' + escapeHtml(act.due) + '</textarea></td>';
           thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (acts.length === 0) {
-          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No activities</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="6" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
-        thtml += '<tr><td></td><td></td><td colspan="5"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="6"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -6871,6 +6933,9 @@
   }
 
   function renderMaterialsOverview(openModules) {
+    if (typeof _contentPopupState !== 'undefined' && _contentPopupState && _contentPopupState.kind === 'material') {
+      try { closeContentPopup(); } catch (e) {}
+    }
     var cardsContainer = document.getElementById('materials-overview-cards');
     var tableContainer = document.getElementById('materials-overview-table');
     if (!cardsContainer) return;
@@ -6985,7 +7050,7 @@
       thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewMaterials()">🗑 Delete selected</button>';
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'materials\')">Clear</button>';
       thtml += '</div>';
-      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="materials-select-all" onchange="toggleSelectAllOverview(\'materials\', this.checked)" title="Select all" /></th><th style="width:40px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:40px;"></th></tr></thead>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="materials-select-all" onchange="toggleSelectAllOverview(\'materials\', this.checked)" title="Select all" /></th><th style="width:60px;">Mod</th><th style="width:180px;">Objectives</th><th style="width:100px;">Type</th><th>Title</th><th style="width:90px;">Content</th><th style="width:40px;"></th></tr></thead>';
       for (var _tmi = 0; _tmi < matModList.length; _tmi++) {
         var m = matModList[_tmi];
         var mats = courseMaterials[m] || [];
@@ -6998,13 +7063,14 @@
           thtml += '<td style="position:relative;">' + buildObjPickerHtml('mt-' + mat.id, mat.objectives || [], m) + '</td>';
           thtml += '<td><select class="activity-input" data-managed="true" data-field="type" data-material-id="' + mat.id + '" data-module-num="' + m + '" onchange="syncOverviewMaterial(this)" style="border:none; background:transparent; font-size:12px;">' + buildTypeOptions(mat.type) + '</select></td>';
           thtml += '<td><textarea class="activity-input" data-managed="true" data-field="title" data-material-id="' + mat.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewMaterial(this)" style="border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(mat.title) + '</textarea></td>';
+          thtml += '<td style="text-align:center;"><button class="content-chip" data-content-chip="' + mat.id + '" data-content-kind="material" data-content-mod="' + m + '" onclick="openContentPopup(\'' + mat.id + '\',\'material\',' + m + ')">+ Content</button></td>';
           thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewMaterial(\'' + mat.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (mats.length === 0) {
-          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="4" style="color:#999; font-style:italic;">No materials</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="5" style="color:#999; font-style:italic;">No materials</td></tr>';
         }
-        thtml += '<tr><td></td><td></td><td colspan="4"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="5"><button class="btn-add-row" onclick="addMaterialToModule(' + m + ')">+ Add material</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -9222,8 +9288,23 @@
         }
         anchor.appendChild(badge);
       }
-      badge.textContent = '🔗 ' + count;
-      badge.title = tooltip;
+      // Label + tooltip as separate child nodes — using the native title=
+      // attribute incurs the browser's built-in ~600ms hover delay. Render a
+      // hidden .mub-tip span that CSS reveals immediately on :hover.
+      var label = badge.querySelector(':scope > .mub-label');
+      if (!label) {
+        badge.textContent = '';
+        label = document.createElement('span');
+        label.className = 'mub-label';
+        badge.appendChild(label);
+        var tipEl = document.createElement('span');
+        tipEl.className = 'mub-tip';
+        badge.appendChild(tipEl);
+      }
+      label.textContent = '🔗 ' + count;
+      var tipNode = badge.querySelector(':scope > .mub-tip');
+      if (tipNode) tipNode.textContent = tooltip || '';
+      badge.removeAttribute('title');
     } else if (badge) {
       badge.remove();
     }
@@ -9391,9 +9472,150 @@
       }
     });
     if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
+    if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
   window.refreshContentIndicator = refreshContentIndicator;
+
+  // ===== TABLE-VIEW CONTENT CHIPS + POPUP =====
+  // Pure data-model check: does this activity/material have any attached
+  // content? Used to drive the green "✓ Content" chip in table view, where
+  // there's no DOM body to scan (the body lives in the hidden card view).
+  function _hasAnyAttachedContent(item, kind) {
+    if (!item) return false;
+    if (Array.isArray(item.attachedFiles) && item.attachedFiles.length > 0) return true;
+    if (Array.isArray(item.links) && item.links.length > 0) return true;
+    if (item.richText && String(item.richText).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').trim()) return true;
+    if (kind === 'activity') {
+      if (Array.isArray(item.linkedMaterialIds) && item.linkedMaterialIds.length > 0) return true;
+      if (item.templateData) {
+        for (var t in item.templateData) {
+          var tpl = item.templateData[t] || {};
+          for (var s in tpl) {
+            var v = tpl[s];
+            if (v && String(v).replace(/<[^>]+>/g, '').replace(/&nbsp;/g, '').trim()) return true;
+          }
+        }
+      }
+    } else if (kind === 'material') {
+      if (typeof _getActivitiesLinkedToMaterial === 'function' &&
+          _getActivitiesLinkedToMaterial(item.id).length > 0) return true;
+    }
+    return false;
+  }
+
+  function refreshTableContentChips() {
+    document.querySelectorAll('.content-chip[data-content-chip]').forEach(function(chip) {
+      var id = chip.getAttribute('data-content-chip');
+      var kind = chip.getAttribute('data-content-kind') || 'activity';
+      var info = _itemForContentPrefix(id);
+      if (!info) return;
+      var has = _hasAnyAttachedContent(info.item, kind);
+      chip.classList.toggle('has-content', !!has);
+      chip.textContent = has ? '✓ Content' : '+ Content';
+    });
+  }
+  window.refreshTableContentChips = refreshTableContentChips;
+
+  // Popup state: { itemId, kind, bodyEl, originalParent, originalNextSibling, wasOpen }
+  var _contentPopupState = null;
+
+  window.openContentPopup = function(itemId, kind, modNum) {
+    if (_contentPopupState) closeContentPopup();
+    var info = _itemForContentPrefix(itemId);
+    if (!info) return;
+
+    var bodyEl, originalParent, originalNextSibling;
+    if (kind === 'activity') {
+      // The card-view always renders the content body (even when the table
+      // view is the active tab — the cards container is just display:none).
+      // Pluck .overview-act-content out of the card-view's activity-block.
+      var actBlock = document.querySelector('#assignments-overview-cards .activity-block[data-activity-id="' + itemId + '"]');
+      if (!actBlock) return;
+      bodyEl = actBlock.querySelector('.overview-act-content');
+      if (!bodyEl) return;
+      originalParent = bodyEl.parentElement;
+      originalNextSibling = bodyEl.nextSibling;
+    } else {
+      // For materials, .overview-content-body is a SIBLING of .material-item
+      // (not nested inside it).
+      var matItem = document.querySelector('#materials-overview-cards .material-item[data-material-id="' + itemId + '"]');
+      if (!matItem) return;
+      bodyEl = matItem.nextElementSibling;
+      if (!bodyEl || !bodyEl.classList || !bodyEl.classList.contains('overview-content-body')) return;
+      originalParent = bodyEl.parentElement;
+      originalNextSibling = bodyEl.nextSibling;
+    }
+
+    // Force the inner content body open so it's visible in the popup.
+    var innerBody = bodyEl.classList.contains('overview-content-body')
+      ? bodyEl
+      : bodyEl.querySelector('.overview-content-body');
+    var wasOpen = innerBody ? innerBody.classList.contains('open') : true;
+    if (innerBody) innerBody.classList.add('open');
+
+    _contentPopupState = {
+      itemId: itemId, kind: kind, bodyEl: bodyEl,
+      originalParent: originalParent, originalNextSibling: originalNextSibling,
+      innerBody: innerBody, wasOpen: wasOpen,
+    };
+
+    // Title + subtitle
+    var titleStr = '';
+    var subtitleStr = '';
+    if (kind === 'activity') {
+      titleStr = (info.item.name || '').trim() || '(Untitled activity)';
+      subtitleStr = 'Activity · Module ' + info.modNum;
+    } else {
+      titleStr = (info.item.title || '').trim() || (info.item.type || 'Untitled material');
+      subtitleStr = (info.item.type || 'Material') + ' · Module ' + info.modNum;
+    }
+    document.getElementById('content-popup-title').textContent = titleStr;
+    document.getElementById('content-popup-subtitle').textContent = subtitleStr;
+
+    // Transplant
+    var popupContainer = document.getElementById('content-popup-body');
+    popupContainer.appendChild(bodyEl);
+
+    document.getElementById('content-popup-overlay').style.display = 'flex';
+
+    // Repaint internal lists (attached files, saved links, linked picker) so
+    // the popup reflects current data without waiting for the next event.
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+  };
+
+  window.closeContentPopup = function() {
+    var s = _contentPopupState;
+    document.getElementById('content-popup-overlay').style.display = 'none';
+    if (!s) return;
+
+    // Restore the inner body's collapsed state.
+    if (s.innerBody && !s.wasOpen) s.innerBody.classList.remove('open');
+
+    // Move bodyEl back to its original location in the cards view.
+    if (s.originalParent) {
+      if (s.originalNextSibling && s.originalNextSibling.parentElement === s.originalParent) {
+        s.originalParent.insertBefore(s.bodyEl, s.originalNextSibling);
+      } else {
+        s.originalParent.appendChild(s.bodyEl);
+      }
+    }
+
+    _contentPopupState = null;
+
+    // Refresh both card-view indicators and table-view chips so the user
+    // sees any newly-attached content reflected immediately.
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+    refreshTableContentChips();
+  };
+
+  // Close on Escape — convenient when the user has filled in content and
+  // wants out without reaching for the × button or scrolling up to it.
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape' && _contentPopupState) {
+      closeContentPopup();
+    }
+  });
 
   // React to user edits anywhere in a content body (link added, template
   // typed, etc.). Delegated at the document level so we don't need to wire
@@ -9403,12 +9625,14 @@
     if (!body) return;
     var prefix = body.id.replace(/^(mat-)?attach-/, '');
     refreshContentIndicator(prefix);
+    refreshTableContentChips();
   });
   document.addEventListener('change', function(e) {
     var body = e.target && e.target.closest && e.target.closest('[id^="attach-"], [id^="mat-attach-"]');
     if (!body) return;
     var prefix = body.id.replace(/^(mat-)?attach-/, '');
     refreshContentIndicator(prefix);
+    refreshTableContentChips();
   });
 
   // Drag-handle gating. Activity/material rows are rendered with
