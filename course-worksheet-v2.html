@@ -9543,13 +9543,17 @@
     }
     var origText = btn ? btn.textContent : null;
     if (btn) { btn.textContent = '⏳ Uploading…'; btn.disabled = true; }
-    window.GDrive.uploadBlob(activeCourse.driveFolder, filename, blob, 'text/plain').then(function(res) {
+    // Land template exports inside a "Module N" subfolder of the course
+    // Drive folder so all artifacts for one module live together. Mirrors
+    // the same convention used by file uploads via handleFileAttach so a
+    // single subfolder is reused, not duplicated. Falls back to the
+    // course root if we couldn't resolve a module number.
+    var subfolderName = moduleNum ? ('Module ' + moduleNum) : null;
+    var uploader = subfolderName
+      ? window.GDrive.uploadBlobToSubfolder(activeCourse.driveFolder, subfolderName, filename, blob, 'text/plain')
+      : window.GDrive.uploadBlob(activeCourse.driveFolder, filename, blob, 'text/plain');
+    uploader.then(function(res) {
       console.log('[Drive] template uploaded', res);
-      var expectedFolderId = window.GDrive.folderIdFromUrl(activeCourse.driveFolder);
-      var actualParents = res.parents || [];
-      if (actualParents.indexOf(expectedFolderId) === -1) {
-        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
-      }
       if (res.webViewLink) {
         _replaceExportButton(btn, res.webViewLink, function(newBtn) { exportTemplateToGDrive(templateId, newBtn); });
       } else if (btn) {
