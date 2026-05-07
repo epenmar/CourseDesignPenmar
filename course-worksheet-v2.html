@@ -11105,7 +11105,10 @@
     if (Array.isArray(item.links) && item.links.length > 0) {
       reasons.push('Links: ' + item.links.length);
     }
-    if (item.richText && _stripToVisibleText(item.richText).length > 0) {
+    // Only materials surface their richText — for activities, richText
+    // is the deprecated migrated-notes field and isn't displayed in any
+    // authoring UI.
+    if (kind === 'material' && item.richText && _stripToVisibleText(item.richText).length > 0) {
       reasons.push('Notes / rich text: ' + _stripToVisibleText(item.richText).length + ' chars');
     }
     if (kind === 'activity' && item.templateData) {
@@ -11301,14 +11304,16 @@
       .replace(/\s+/g, '');
   }
   function _hasAnyAttachedContent(item, kind) {
-    // Counts: uploaded files, saved external links, non-empty rich-text /
-    // template bodies. Does NOT count cross-link relationships
-    // (linkedMaterialIds / activities-linked-to-this-material) — those
-    // already have their own 🔗 badge in the row.
+    // Counts: uploaded files, saved external links, non-empty template
+    // bodies, and (for materials only) the material's rich-text editor.
+    // Does NOT count cross-link relationships (linkedMaterialIds) — they
+    // have their own 🔗 badge — and does NOT count activity.richText,
+    // which is a legacy field migrated from the old per-activity notes
+    // and is no longer exposed anywhere in the authoring UI.
     if (!item) return false;
     if (Array.isArray(item.attachedFiles) && item.attachedFiles.length > 0) return true;
     if (Array.isArray(item.links) && item.links.length > 0) return true;
-    if (item.richText && _stripToVisibleText(item.richText).length > 0) return true;
+    if (kind === 'material' && item.richText && _stripToVisibleText(item.richText).length > 0) return true;
     if (kind === 'activity' && item.templateData) {
       for (var t in item.templateData) {
         var tpl = item.templateData[t] || {};
