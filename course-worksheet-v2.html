@@ -465,6 +465,21 @@
     text-transform: uppercase; letter-spacing: 0.04em;
     margin-bottom: 6px;
   }
+  /* One assignment-group per row in the alert: the assignment title +
+     module pill on top, the competencies the assignment satisfies
+     stacked below. Sorted by module number, not by competency. */
+  .ceph-group { margin-top: 10px; padding: 8px 10px; background: #fff; border: 1px solid #ffe082; border-radius: 6px; }
+  .ceph-group:first-child { margin-top: 4px; }
+  .ceph-group-head { display: flex; align-items: flex-start; gap: 12px; }
+  .ceph-group-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #2a2a2a; line-height: 1.4; }
+  .ceph-group-mod {
+    flex-shrink: 0; padding: 3px 10px; border-radius: 12px;
+    background: #8c1d40; color: #fff;
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    white-space: nowrap; align-self: flex-start;
+  }
+  .ceph-group-comps { margin-top: 6px; padding-left: 0; }
+  .ceph-group-comps .ceph-alert-row + .ceph-alert-row { border-top: 1px dashed #ffe082; }
   .ceph-alert-row {
     display: flex; align-items: flex-start; gap: 10px;
     padding: 6px 8px; border-radius: 6px;
@@ -7471,31 +7486,52 @@
       + '<span class="ceph-alert-meta">' + escapeHtml(entry.courseLabel) + ' · ' + summary.join(' + ') + ' competencies</span>'
       + '</summary>';
     html += '<div class="ceph-alert-body">';
-    // Group by framework so CEPH and UOEEE land in their own sub-lists.
-    var byFw = { CEPH: [], UOEEE: [] };
-    items.forEach(function(it) { (byFw[it.fw] || (byFw[it.fw] = [])).push(it); });
-    Object.keys(byFw).forEach(function(fw) {
-      var rows = byFw[fw];
-      if (!rows.length) return;
-      var label = (fw === 'CEPH')
-        ? 'CEPH foundational competencies'
-        : 'UOEEE Program Learning Outcomes (MPH PHT)';
-      html += '<div class="ceph-alert-group">';
-      html += '<div class="ceph-alert-group-title">' + label + '</div>';
-      rows.forEach(function(it) {
-        var competencyText = (texts[fw] && texts[fw][it.cId]) || '';
-        var competencyTag = fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
-        var modPart = (it.mod !== undefined && it.mod !== null && it.mod !== '')
-          ? 'Module ' + it.mod + ' — '
-          : '';
+    // Group by (module + assignment title) so an assignment that
+    // satisfies multiple competencies (e.g., TPH 501 Module 8 covers
+    // both CEPH 2 and CEPH 3) collapses into a single visual block
+    // with the competencies stacked underneath. Sort the groups by
+    // module number ascending so the alert reads in module order, not
+    // competency order.
+    var groupBy = function(it) { return String(it.mod == null ? '' : it.mod) + '|' + (it.title || ''); };
+    var groups = {};
+    var groupOrder = [];
+    items.forEach(function(it) {
+      var k = groupBy(it);
+      if (!groups[k]) {
+        groups[k] = { mod: it.mod, title: it.title, items: [] };
+        groupOrder.push(k);
+      }
+      groups[k].items.push(it);
+    });
+    var _modSortKey = function(m) {
+      if (m == null) return Number.MAX_SAFE_INTEGER;
+      var s = String(m);
+      var match = s.match(/(\d+)/);
+      return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
+    };
+    groupOrder.sort(function(a, b) {
+      return _modSortKey(groups[a].mod) - _modSortKey(groups[b].mod);
+    });
+    groupOrder.forEach(function(k) {
+      var g = groups[k];
+      var modLabel = (g.mod == null || g.mod === '') ? 'TBD' : ('Module ' + g.mod);
+      html += '<div class="ceph-group">';
+      html += '<div class="ceph-group-head">';
+      html += '<div class="ceph-group-title">' + escapeHtml(g.title || '(untitled)') + '</div>';
+      html += '<div class="ceph-group-mod">' + escapeHtml(modLabel) + '</div>';
+      html += '</div>';
+      html += '<div class="ceph-group-comps">';
+      g.items.forEach(function(it) {
+        var competencyText = (texts[it.fw] && texts[it.fw][it.cId]) || '';
+        var competencyTag = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
         html += '<div class="ceph-alert-row">';
         html += '<div class="ceph-alert-tag">' + escapeHtml(competencyTag) + '</div>';
         html += '<div class="ceph-alert-rowtext">';
         html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
-        html += '<div class="ceph-alert-assignment">' + escapeHtml(modPart + it.title) + '</div>';
         html += '</div>';
         html += '</div>';
       });
+      html += '</div>';
       html += '</div>';
     });
     html += '</div></details></div>';
