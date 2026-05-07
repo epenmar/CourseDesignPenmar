@@ -11960,15 +11960,14 @@
         html += '</tbody></table>';
       });
 
-      // Traceability table
+      // Traceability — one mini-table per ELO so it's obvious when an
+      // ELO has only one (or zero) MLOs mapped to it. Empty Activities
+      // cells flag un-addressed MLOs without needing a Status column.
       html += '<h3>Alignment Traceability</h3>';
-      html += '<table style="border-collapse:collapse; font-size:11px; width:100%; table-layout:fixed;">';
-      html += '<thead><tr><th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">ELO</th>';
-      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">MLO</th>';
-      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Activities</th>';
-      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Status</th></tr></thead><tbody>';
 
-      // Build MLO → activities map for preview
+      // Build MLO → activities map for preview, and a set of real MLO ids
+      // so we can filter out alignment entries that point at MLOs the
+      // instructor has since deleted.
       var prevMloActMap = {};
       for (var pm = 1; pm <= modCount; pm++) {
         (courseActivities[pm] || []).forEach(function(act) {
@@ -11978,26 +11977,63 @@
           });
         });
       }
+      var prevRealMloIds = {};
+      auditMlos.forEach(function(mlo) { prevRealMloIds[mlo.id] = true; });
 
       auditElos.forEach(function(elo, eloIdx) {
-        var linkedMlos = auditAlignment[eloIdx + ''] || [];
+        var rawLinked = auditAlignment[eloIdx + ''] || [];
+        var linkedMlos = rawLinked.filter(function(id) { return prevRealMloIds[id]; });
+        // Numeric sort within this ELO so MLO 1.10 follows MLO 1.9.
+        linkedMlos.sort(function(a, b) {
+          var ma = String(a).match(/(\d+)(?:\.(\d+))?/);
+          var mb = String(b).match(/(\d+)(?:\.(\d+))?/);
+          var aw = ma ? [parseInt(ma[1], 10) || 0, parseInt(ma[2] || '0', 10)] : [0, 0];
+          var bw = mb ? [parseInt(mb[1], 10) || 0, parseInt(mb[2] || '0', 10)] : [0, 0];
+          return aw[0] - bw[0] || aw[1] - bw[1];
+        });
+
+        var noActCount = linkedMlos.filter(function(mloId) {
+          return !(prevMloActMap[mloId] && prevMloActMap[mloId].length);
+        }).length;
+
+        html += '<div style="margin-top:14px; margin-bottom:4px;">';
+        html += '<div style="font-size:12px; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1)
+          + (elo ? '<span style="color:#666; font-weight:400; margin-left:8px;">' + esc(String(elo).slice(0, 120)) + (String(elo).length > 120 ? '…' : '') + '</span>' : '')
+          + '</div>';
         if (linkedMlos.length === 0) {
-          html += '<tr><td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1) + '</td>';
-          html += '<td colspan="2" style="padding:4px 6px; border:1px solid #ddd; color:#c0392b;">No MLOs mapped</td>';
-          html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; color:#c0392b;">❌</td></tr>';
+          html += '<div style="font-size:11px; color:#c0392b; margin-top:2px;">No MLOs mapped to this ELO</div>';
+          html += '</div>';
+          return;
         }
-        linkedMlos.forEach(function(mloId, j) {
+        html += '<div style="font-size:11px; color:#888; margin-top:2px;">'
+          + linkedMlos.length + ' MLO' + (linkedMlos.length === 1 ? '' : 's') + ' mapped'
+          + (noActCount > 0 ? ' <span style="color:#c0392b; font-weight:600;">· ' + noActCount + ' without activities</span>' : '')
+          + '</div>';
+        html += '</div>';
+
+        html += '<table style="border-collapse:collapse; font-size:11px; width:100%; table-layout:fixed; margin-bottom:8px;">';
+        html += '<thead><tr>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:80px;">MLO</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">MLO Text</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Activities</th>';
+        html += '</tr></thead><tbody>';
+        linkedMlos.forEach(function(mloId) {
           var mloObj = auditMlos.find(function(m) { return m.id === mloId; });
+          var mloText = mloObj ? mloObj.text : '';
           var acts = prevMloActMap[mloId] || [];
-          html += '<tr>';
-          html += '<td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1) + '</td>';
-          html += '<td style="padding:4px 6px; border:1px solid #ddd;">MLO ' + mloId + (mloObj ? ': ' + esc(mloObj.text.substring(0, 60)) + (mloObj.text.length > 60 ? '…' : '') : '') + '</td>';
-          html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (acts.length > 0 ? acts.map(esc).join(', ') : '<span style="color:#c0392b;">None</span>') + '</td>';
-          html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + (acts.length > 0 ? '✅' : '❌') + '</td>';
+          var rowBg = acts.length === 0 ? ' background:#fef0f0;' : '';
+          html += '<tr style="' + rowBg + '">';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40; white-space:nowrap;">MLO ' + esc(mloId) + '</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd; color:#555;">' + esc(mloText.substring(0, 120)) + (mloText.length > 120 ? '…' : '') + '</td>';
+          html += '<td style="padding:4px 6px; border:1px solid #ddd;">'
+            + (acts.length > 0
+                ? acts.map(esc).join(', ')
+                : '<span style="color:#c0392b; font-style:italic;">No activities tagged</span>')
+            + '</td>';
           html += '</tr>';
         });
+        html += '</tbody></table>';
       });
-      html += '</tbody></table>';
       html += '</div>';
     }
 
