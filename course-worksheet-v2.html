@@ -10966,6 +10966,54 @@
     if (!info) return false;
     return _hasAnyAttachedContent(info.item, info.kind);
   }
+  // Returns a plain-text list of WHAT counts as content for an activity /
+  // material. Used as the ▸ Content button's hover tooltip so the user
+  // can see why a row is marked as having content (and identify stale or
+  // unexpectedly-propagated fields they want to clear).
+  function _contentReasons(item, kind) {
+    if (!item) return '';
+    var reasons = [];
+    if (Array.isArray(item.attachedFiles) && item.attachedFiles.length > 0) {
+      reasons.push('Files: ' + item.attachedFiles.length);
+    }
+    if (Array.isArray(item.links) && item.links.length > 0) {
+      reasons.push('Links: ' + item.links.length);
+    }
+    if (item.richText && _stripToVisibleText(item.richText).length > 0) {
+      reasons.push('Notes / rich text: ' + _stripToVisibleText(item.richText).length + ' chars');
+    }
+    if (kind === 'activity' && item.templateData) {
+      for (var t in item.templateData) {
+        var tpl = item.templateData[t] || {};
+        for (var s in tpl) {
+          if (s === 'Rubric') {
+            var rubricRows = String(tpl[s] || '').split(/\r?\n/).filter(function(r) {
+              return r.trim() && r.indexOf('|') !== -1;
+            });
+            if (rubricRows.length >= 2) reasons.push(t + ' rubric: ' + (rubricRows.length - 1) + ' rows');
+            continue;
+          }
+          var len = _stripToVisibleText(tpl[s]).length;
+          if (len > 0) reasons.push(t + '.' + s + ': ' + len + ' chars');
+        }
+      }
+    }
+    return reasons.join('\n');
+  }
+  // Console-runnable helper: dumps every activity's content reasons so
+  // the user can see exactly which fields are populated. Useful when the
+  // green ✓ Content surfaces unexpectedly across many activities.
+  window.diagnoseContent = function() {
+    var rows = [];
+    Object.keys(courseActivities || {}).forEach(function(modKey) {
+      (courseActivities[modKey] || []).forEach(function(a) {
+        var r = _contentReasons(a, 'activity') || '(empty)';
+        rows.push('M' + modKey + '  ' + a.id + '  "' + (a.name || '').slice(0, 40) + '"  →  ' + r.replace(/\n/g, '; '));
+      });
+    });
+    console.log(rows.join('\n'));
+    return rows.length + ' activities. Check the console output above.';
+  };
 
   // Toggle a Content section open/closed and immediately refresh the green
   // indicator so the user sees the right state without waiting for any
@@ -11006,7 +11054,21 @@
       if (prev && prev.querySelector) btn = prev.querySelector('.overview-act-expand');
     }
     if (!btn) return;
-    btn.classList.toggle('has-content', _contentIsPresent(body));
+    var present = _contentIsPresent(body);
+    btn.classList.toggle('has-content', present);
+    // Hover tooltip explains exactly what's making the row count as
+    // having content — files, links, rich-text length, which template
+    // fields are populated, etc. Helps the user spot stale data.
+    if (present) {
+      var info = _itemForContentPrefix(prefix);
+      if (info) {
+        var reasons = _contentReasons(info.item, info.kind);
+        if (reasons) btn.setAttribute('title', reasons);
+        else btn.removeAttribute('title');
+      }
+    } else {
+      btn.removeAttribute('title');
+    }
   }
 
   // Refresh every Content toggle in the current view — called after batch
