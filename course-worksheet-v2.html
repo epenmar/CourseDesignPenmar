@@ -410,12 +410,26 @@
 
   /* Overview activity block with inline content */
   .overview-act-content { margin-top: 4px; margin-left: 24px; }
+  /* Tri-state content indicator:
+     - default      : burgundy, no checkmark — nothing attached or typed yet
+     - .has-content : amber/yellow — something is in this content body
+     - .is-complete : green ✓ — instructor explicitly marked complete */
   .overview-act-expand { font-size: 11px; color: #8c1d40; cursor: pointer; border: none; background: none; font-weight: 500; padding: 2px 0; font-family: 'Inter', sans-serif; }
   .overview-act-expand:hover { text-decoration: underline; }
-  .overview-act-expand.has-content { color: #2e7d32; font-weight: 600; }
-  .overview-act-expand.has-content::before { content: '✓ '; font-weight: 700; }
+  .overview-act-expand.has-content { color: #c4841d; font-weight: 600; }
+  .overview-act-expand.is-complete { color: #2e7d32; font-weight: 600; }
+  .overview-act-expand.is-complete::before { content: '✓ '; font-weight: 700; }
   .overview-content-body { display: none; margin-top: 6px; }
   .overview-content-body.open { display: block; }
+  /* "Mark content complete" checkbox above the tabs in every content body */
+  .content-complete-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; margin-bottom: 6px;
+    background: #fafaf7; border: 1px solid #ece9df; border-radius: 6px;
+    font-size: 12px; color: #555;
+  }
+  .content-complete-bar input[type="checkbox"] { accent-color: #2e7d32; }
+  .content-complete-bar.is-complete { background: #f0faf0; border-color: #c5e1c5; color: #2d7d46; font-weight: 600; }
 
   /* Custom tooltip on the link-usage badge — replaces native title= so it
      appears immediately on hover instead of after the browser's ~600ms delay. */
@@ -434,10 +448,9 @@
   }
   .mat-usage-badge:hover .mub-tip { display: block; }
 
-  /* Content chip in table view — opens the content popup. Default state
-     ("no attached content yet") uses ASU maroon so empty rows nudge faculty
-     toward filling them in; .has-content flips to green once files/links
-     are attached. */
+  /* Content chip in table view — opens the content popup. Tri-state:
+     default = ASU maroon "no content"; .has-content = amber "in progress";
+     .is-complete = green "✓ Content" once instructor marks complete. */
   .content-chip {
     display: inline-flex; align-items: center; gap: 4px;
     background: #fff; border: 1px solid #8c1d40; color: #8c1d40;
@@ -447,9 +460,13 @@
   }
   .content-chip:hover { background: #fdf2f4; }
   .content-chip.has-content {
+    background: #fff8e1; border: 1px solid #ffd966; color: #c4841d;
+  }
+  .content-chip.has-content:hover { background: #fff1c6; }
+  .content-chip.is-complete {
     background: #e8f5e9; border: 1px solid #a5d6a7; color: #2e7d32;
   }
-  .content-chip.has-content:hover { background: #d3ebd5; }
+  .content-chip.is-complete:hover { background: #d3ebd5; }
 
   /* Reset card-view margins when the content body is transplanted into the
      content popup so it fills the dialog naturally. */
@@ -2531,6 +2548,23 @@
     saveActivityData();
   }
 
+  // "Mark content complete" toggle that sits at the top of every
+  // content-attach body. Stores its state on the underlying activity /
+  // material as item.contentComplete so the indicator can render the
+  // tri-state (none / partial / complete).
+  function _buildContentCompleteBarHtml(prefix) {
+    var info = (typeof _itemForContentPrefix === 'function') ? _itemForContentPrefix(prefix) : null;
+    var done = !!(info && info.item && info.item.contentComplete);
+    var hint = done ? 'Reviewed and ready for student-facing use'
+                    : 'Check this once content is reviewed and ready for student-facing use';
+    return '<label class="content-complete-bar' + (done ? ' is-complete' : '') + '">'
+      + '<input type="checkbox" data-content-complete="' + escapeHtml(prefix) + '"'
+      + ' onchange="toggleContentComplete(this, \'' + prefix + '\')"' + (done ? ' checked' : '') + '>'
+      + '<span>Mark content complete</span>'
+      + '<span style="margin-left:auto; font-size:11px; color:#888; font-style:italic;">' + hint + '</span>'
+      + '</label>';
+  }
+
   function buildTplTextarea(actId, tplType, sectionLabel, placeholder, extraStyle) {
     var val = '';
     // Look up value from data model
@@ -2776,6 +2810,7 @@
       '</div>' +
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
+          _buildContentCompleteBarHtml(id) +
           '<div class="content-attach-tabs">' +
             '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
             '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
@@ -2885,6 +2920,7 @@
       '</div>' +
       '<div class="content-attach overview-content-body" id="mat-attach-' + id + '" style="margin-top:4px;">' +
       '<div class="content-attach-inner open" style="display:block;">' +
+        _buildContentCompleteBarHtml(id) +
         '<div class="content-attach-tabs">' +
           '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
           '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
@@ -7145,6 +7181,7 @@
     html += '<div class="overview-content-body">';
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
+    html += _buildContentCompleteBarHtml(id);
     html += '<div class="content-attach-tabs">';
     html += '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
     html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
@@ -7473,6 +7510,7 @@
           html += '<div class="overview-content-body" style="margin-left:24px; margin-bottom:6px;">';
           html += '<div class="content-attach" id="attach-' + ovMatId + '" style="margin-top:0;">';
           html += '<div class="content-attach-inner open" style="display:block;">';
+          html += _buildContentCompleteBarHtml(ovMatId);
           html += '<div class="content-attach-tabs">';
           html += '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + ovMatId + '\',\'upload\',this)">📁 Upload</button>';
           html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + ovMatId + '\',\'link\',this)">🔗 Link</button>';
@@ -10022,6 +10060,9 @@
   function _aiFillApply(act, tplType, parsed) {
     if (!act.templateData) act.templateData = {};
     if (!act.templateData[tplType]) act.templateData[tplType] = {};
+    // New AI-generated content arrived — instructor hasn't reviewed it
+    // yet, so the explicit "complete" flag should drop back to false.
+    act.contentComplete = false;
     Object.keys(parsed).forEach(function(sectionKey) {
       var content = parsed[sectionKey];
       act.templateData[tplType][sectionKey] = content;
@@ -10197,6 +10238,9 @@
           }
         });
       });
+      // Target received new content from another activity — drop its
+      // "complete" flag so the instructor reviews before re-marking.
+      t.act.contentComplete = false;
       // Carry the rubric design preferences (level structure, row count,
       // criteria text) so a target's later AI-Fill or manual rubric edit
       // starts from the same shape.
@@ -10299,6 +10343,9 @@
     if (!dest.templateData) dest.templateData = {};
     if (!dest.templateData[s.tplType]) dest.templateData[s.tplType] = {};
     dest.templateData[s.tplType][s.sectionKey] = src.value;
+    // Destination received new content — drop the "complete" flag so
+    // the instructor reviews before marking it ready again.
+    dest.contentComplete = false;
 
     // Rubric also rides along the source's rubric design preferences so a
     // future AI Fill on the destination starts from the same shape.
@@ -11052,6 +11099,26 @@
     return rows.length + ' activities. Check the console output above.';
   };
 
+  // Mark / unmark an activity or material's content as "complete" — the
+  // explicit instructor signal that flips the tri-state indicator from
+  // amber (in progress) to green (✓ done).
+  window.toggleContentComplete = function(cb, prefix) {
+    var info = _itemForContentPrefix(prefix);
+    if (!info || !info.item) return;
+    info.item.contentComplete = !!cb.checked;
+    if (typeof saveActivityData === 'function') saveActivityData();
+    var bar = cb.closest('.content-complete-bar');
+    if (bar) {
+      bar.classList.toggle('is-complete', !!cb.checked);
+      var hint = bar.querySelector('span:last-child');
+      if (hint) hint.textContent = cb.checked
+        ? 'Reviewed and ready for student-facing use'
+        : 'Check this once content is reviewed and ready for student-facing use';
+    }
+    if (typeof refreshContentIndicator === 'function') refreshContentIndicator(prefix);
+    if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
+  };
+
   // Toggle a Content section open/closed and immediately refresh the green
   // indicator so the user sees the right state without waiting for any
   // input event. Wired to the ▸/▾ Content button across both views.
@@ -11092,17 +11159,17 @@
     }
     if (!btn) return;
     var present = _contentIsPresent(body);
+    var info = _itemForContentPrefix(prefix);
+    var complete = present && info && info.item && info.item.contentComplete;
     btn.classList.toggle('has-content', present);
-    // Hover tooltip explains exactly what's making the row count as
-    // having content — files, links, rich-text length, which template
-    // fields are populated, etc. Helps the user spot stale data.
-    if (present) {
-      var info = _itemForContentPrefix(prefix);
-      if (info) {
-        var reasons = _contentReasons(info.item, info.kind);
-        if (reasons) btn.setAttribute('title', reasons);
-        else btn.removeAttribute('title');
-      }
+    btn.classList.toggle('is-complete', !!complete);
+    // Hover tooltip explains what's making the row count as having
+    // content — files, links, rich-text length, which template fields
+    // are populated, etc. Suffix with the complete-marker state.
+    if (present && info) {
+      var reasons = _contentReasons(info.item, info.kind);
+      var suffix = complete ? '\n\n— Marked complete' : '\n\n— Not yet marked complete';
+      btn.setAttribute('title', (reasons || '') + suffix);
     } else {
       btn.removeAttribute('title');
     }
@@ -11194,8 +11261,10 @@
       var info = _itemForContentPrefix(id);
       if (!info) return;
       var has = _hasAnyAttachedContent(info.item, kind);
+      var done = !!(has && info.item.contentComplete);
       chip.classList.toggle('has-content', !!has);
-      chip.textContent = has ? '✓ Content' : '+ Content';
+      chip.classList.toggle('is-complete', done);
+      chip.textContent = done ? '✓ Content' : (has ? 'Content' : '+ Content');
     });
   }
   window.refreshTableContentChips = refreshTableContentChips;
