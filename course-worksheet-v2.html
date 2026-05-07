@@ -2813,7 +2813,8 @@
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
@@ -2829,7 +2830,8 @@
               '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific assignment targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
@@ -7178,7 +7180,8 @@
     html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
@@ -7192,7 +7195,8 @@
     // for a separate textarea here.
     html += '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
@@ -9240,17 +9244,19 @@
   // "Specific guidance" textarea, both of which sit at higher priority.
   var AI_FILL_TEMPLATE_SECTIONS = {
     assignment: [
-      { key: 'Overview',           hint: 'Brief framing of why this assignment exists and what students produce.' },
-      { key: 'Instructions',       hint: 'What students do, written in second person. Use the tool, quantity, and required elements the instructor specified.' },
-      { key: 'Materials',          hint: 'Readings, tools, links, and resources students need — including any tools the instructor named.' },
-      { key: 'Rubric',             hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
-      { key: 'Activity Objective', hint: 'One sentence: "By the end of this assignment, students will be able to…" with a Bloom\'s verb.' }
+      { key: 'Overview',                hint: 'Conceptual framing only — name the linked material, no tool names, no mechanics, no grading.' },
+      { key: 'Instructions',            hint: 'What students do, written in second person. Use the tool, quantity, and required elements the instructor specified.' },
+      { key: 'Materials',               hint: 'Readings, tools, links, and resources students need — including any tools the instructor named.' },
+      { key: 'How You Will Be Graded',  hint: 'Plain-language summary of grading approach (1-2 sentences) for the Canvas page body. The structured rubric stays separate.' },
+      { key: 'Rubric',                  hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
+      { key: 'Activity Objective',      hint: 'One sentence: "By the end of this assignment, students will be able to…" with a Bloom\'s verb.' }
     ],
     discussion: [
-      { key: 'Overview',                  hint: 'Brief framing of why this discussion matters.' },
+      { key: 'Overview',                  hint: 'Conceptual framing only — no tool names, no mechanics, no grading.' },
       { key: 'Discussion Prompt',         hint: 'The central question or task students respond to.' },
       { key: 'Peer Reply Requirements',   hint: 'Reply expectations as the instructor stated them (count, quality, scope).' },
       { key: 'Materials',                 hint: 'Readings, videos, links, and tools students should reference.' },
+      { key: 'How You Will Be Graded',    hint: 'Plain-language summary of grading approach (1-2 sentences) for the Canvas page body.' },
       { key: 'Rubric',                    hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
       { key: 'Activity Objective',        hint: 'One sentence: "By the end of this discussion, students will be able to…" with a Bloom\'s verb.' }
     ]
@@ -9937,9 +9943,40 @@
         }
       }
     }
+    // Field-specific shape rules so the model writes each field in its
+    // intended register (Overview = conceptual framing, Instructions =
+    // mechanics, How You Will Be Graded = grading summary, etc.).
+    if (fieldsToFill.indexOf('Overview') !== -1) {
+      var linkedTitles = (matRows || []).filter(function(r) {
+        return matIds.indexOf(r.mat.id) !== -1;
+      }).map(function(r) {
+        return (r.mat.title || r.mat.type || '').trim();
+      }).filter(Boolean);
+      prompt += '\n## Overview field rules (CRITICAL)\n';
+      prompt += '- Length: 2-4 sentences. Conceptual framing only.\n';
+      prompt += '- DO name the specific linked material(s) by title and (if available) author when the assignment uses one. Refer to them by what they are, not by file format.\n';
+      if (linkedTitles.length) {
+        prompt += '  • The linked materials selected for this generation: ' + linkedTitles.join('; ') + '\n';
+      }
+      prompt += '- DO frame the assignment in terms of the conceptual goal — what students will explore, understand, or come to know.\n';
+      prompt += '- DO NOT mention any LMS / 3rd-party tool by name (no "Harmonize", "Yellowdig", "Perusall", "Flipgrid", "Padlet", "Kaltura", "Hypothes.is", etc.). The Overview is platform-agnostic prose.\n';
+      prompt += '- DO NOT include mechanics or step-by-step instructions (those belong in Instructions).\n';
+      prompt += '- DO NOT mention grading, points, rubric levels, or "low-stakes" / "high-stakes" framing (that belongs in How You Will Be Graded).\n';
+      prompt += '- DO NOT itemize the assignment\'s requirements (those belong in Instructions and the Rubric).\n';
+      prompt += '\nGood Overview example (annotated reading):\n';
+      prompt += '"In this assignment, you will engage deeply with C.E.A. Winslow\'s foundational 1920 article on public health by annotating key passages directly within the reading. Social annotation allows you to identify and reflect on the themes, functions, and essential services that shaped modern public health practice in the United States. Your annotations will demonstrate your understanding of the core functions of public health and their evolution over time."\n';
+    }
+    if (fieldsToFill.indexOf('How You Will Be Graded') !== -1) {
+      prompt += '\n## "How You Will Be Graded" field rules\n';
+      prompt += '- 1-2 sentences in plain language describing how the assignment is graded — written for the Canvas page body, NOT a duplication of the rubric.\n';
+      prompt += '- Reference the rubric structure in plain English (e.g., "you\'ll be graded against three yes/no criteria — see the rubric below" or "the rubric uses four performance levels").\n';
+      prompt += '- DO NOT replicate the full rubric rows / cells; the structured rubric lives separately and Canvas Curate imports it from there.\n';
+      prompt += '- Mention the assignment\'s point value when set, in passing (e.g., "this assignment is worth 10 points").\n';
+    }
+
     prompt += '\n## Adherence rules (override defaults)\n';
     prompt += '1. When the meeting notes name a specific tool (e.g., Harmonize, Yellowdig, Flipgrid, Perusall), '
-      + 'instructions MUST reference that tool by name and not suggest a different one.\n';
+      + 'Instructions MUST reference that tool by name and not suggest a different one. (The Overview is the only field that should NOT mention tool names.)\n';
     prompt += '2. When the meeting notes specify a quantity (minimum annotations, word count, number of replies, '
       + 'number of attempts, number of requirements), instructions and rubric MUST reflect that exact number.\n';
     prompt += '3. When the meeting notes list explicit requirements for the assignment, every requirement must '
