@@ -12168,22 +12168,28 @@
         }
 
         // Module column dropped — the H3 above the table already shows
-        // "Module N: <topic>". Cells in the Assignments column with
-        // multiple entries render as a <ul> so bullets sit indented
-        // inside the cell instead of a raw <br> stack.
+        // "Module N: <topic>". Multi-entry cells render as styled
+        // paragraphs with a literal "• " bullet character so the bullet
+        // marker inherits the cell's 9pt font size; using <ul>/<li>
+        // inside cells made Word/Docs render bullet markers at the
+        // default list-style size (~11pt) regardless of <li> font-size.
+        const bulletItem = function(text, color) {
+          var clr = color ? ('color:' + color + ';') : '';
+          return '<p style="margin:0 0 2px 0; padding-left:12pt; text-indent:-10pt; font-size:9pt; line-height:1.4;' + clr + '">• ' + text + '</p>';
+        };
         const renderActsCell = function(actsList) {
           if (!actsList || actsList.length === 0) return '<span class="placeholder">—</span>';
           if (actsList.length === 1) return esc(actsList[0].name || 'Unnamed');
-          return '<ul><li>' + actsList.map(function(a) { return esc(a.name || 'Unnamed'); }).join('</li><li>') + '</li></ul>';
+          return actsList.map(function(a) { return bulletItem(esc(a.name || 'Unnamed')); }).join('');
         };
         const renderMaterialsCell = function() {
           if (mats.length === 0) return '<span class="placeholder">No materials</span>';
-          return '<ul>' + mats.map(function(mat) {
-            const matLabel = mat.title || mat.type || 'Resource';
+          return mats.map(function(mat) {
+            var matLabel = mat.title || mat.type || 'Resource';
             // Highlight annotated readings to match the screenshot.
-            const isAnnotated = /annotated/i.test(matLabel) || /annotated/i.test(mat.notes || '');
-            return '<li' + (isAnnotated ? ' style="color:#2d7d46;"' : '') + '>' + esc(matLabel) + '</li>';
-          }).join('') + '</ul>';
+            var isAnnotated = /annotated/i.test(matLabel) || /annotated/i.test(mat.notes || '');
+            return bulletItem(esc(matLabel), isAnnotated ? '#2d7d46' : null);
+          }).join('');
         };
 
         html += '<table><thead><tr>';
@@ -12838,17 +12844,38 @@
       } catch(e) {}
     });
 
+    // NOTE on page margins: HTML's <style>@page</style> rule and the
+    // body margin only affect Word's HTML import — Google Docs uses
+    // its own page-setup defaults (1" all around) and ignores both.
+    // To force 0.5" page margins in Google Docs you'd have to either
+    // (a) generate real .docx XML with <w:pgMar> tags instead of HTML,
+    // or (b) set Page Setup → Margins to 0.5" once after import.
+    // Below we set the body margin to ZERO so any indent the user
+    // sees is solely the (manually-set or default) page margin —
+    // otherwise html-body-margin and gdocs-page-margin compound and
+    // content lands ~1.5" from the left edge instead of 0.5".
+    // mso-page-margin-* extensions tell Word to use 0.5" on import.
     const html = `<!DOCTYPE html>
-<html><head><meta charset="UTF-8">
+<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8">
 <title>${activeCourse.fullTitle} — Course Development Worksheet</title>
 <style>
+@page WorksheetPage {
+  size: 8.5in 11in;
+  margin: 0.5in 0.5in 0.5in 0.5in;
+  mso-page-orientation: portrait;
+  mso-header-margin: 0.5in;
+  mso-footer-margin: 0.5in;
+}
+div.WorksheetSection { page: WorksheetPage; }
 @page { margin: 0.5in; }
-body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.4; margin: 0.5in; padding: 0; }
+body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.4; margin: 0; padding: 0; }
 table p, td p, th p { margin: 0 0 2px 0 !important; line-height: 1.35 !important; }
 table { margin: 8px 0 !important; }
 </style>
-</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.4; margin:0.5in; padding:0;">
+</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.4; margin:0; padding:0;">
+<div class="WorksheetSection">
 ${clone.innerHTML}
+</div>
 </body></html>`;
 
     // Send HTML and let Drive convert to a native Google Doc on upload —
