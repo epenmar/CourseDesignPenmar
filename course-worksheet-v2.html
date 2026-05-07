@@ -3964,42 +3964,75 @@
       html += '<div style="padding:16px; background:#f0faf0; border-radius:8px; text-align:center; color:#2d7d46; font-size:13px; font-weight:500;">✅ No alignment issues found. All objectives are properly traced to activities.</div>';
     }
 
-    // Traceability table — ELO and MLO column headers are click-to-sort.
-    // Sort key uses _eloMloSortKey to compare like "ELO 1" / "MLO 2.3"
-    // numerically rather than as strings.
+    // Traceability — split into one table per ELO so it's obvious at a
+    // glance when an ELO has only one (or zero) MLOs mapped to it. Inside
+    // each ELO's table, an empty "Activities" cell signals an
+    // un-addressed MLO (no need for a separate Status column).
     if (traceRows.length > 0) {
-      html += '<h4 style="font-size:13px; margin:20px 0 8px; font-weight:600;">Traceability Table</h4>';
-      html += '<div style="overflow-x:auto;"><table id="trace-table" style="border-collapse:collapse; font-size:12px; width:100%;">';
-      html += '<thead><tr>';
-      html += '<th data-sort-col="elo" onclick="_sortTraceTable(\'elo\')" style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap; cursor:pointer; user-select:none;">ELO <span class="trace-sort-arrow">▲</span></th>';
-      html += '<th data-sort-col="mlo" onclick="_sortTraceTable(\'mlo\')" style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap; cursor:pointer; user-select:none;">MLO <span class="trace-sort-arrow"></span></th>';
-      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">MLO Text</th>';
-      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">Activities</th>';
-      html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:center;">Status</th>';
-      html += '</tr></thead><tbody>';
-
+      html += '<h4 style="font-size:13px; margin:20px 0 8px; font-weight:600;">Traceability</h4>';
+      // Group rows by ELO label so each ELO renders its own table.
+      var rowsByElo = {};
+      var eloOrder = [];
+      var eloTextByLabel = {};
       traceRows.forEach(function(row) {
-        var statusColor = row.activities.length > 0 ? '#2d7d46' : '#c0392b';
-        var statusIcon = row.activities.length > 0 ? '✅' : '❌';
-        var statusText = row.activities.length > 0 ? row.activities.length + ' activit' + (row.activities.length === 1 ? 'y' : 'ies') : 'No activities';
-        html += '<tr data-elo-key="' + escapeHtml(row.elo) + '" data-mlo-key="' + escapeHtml(row.mlo) + '">';
-        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; font-weight:600; color:#8c1d40; white-space:nowrap;">' + row.elo + '</td>';
-        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; white-space:nowrap;">' + row.mlo + '</td>';
-        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; color:#555; max-width:250px;">' + escapeHtml(row.mloText.substring(0, 80)) + (row.mloText.length > 80 ? '…' : '') + '</td>';
-        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">';
-        if (row.activities.length > 0) {
-          row.activities.forEach(function(a) {
-            html += '<div style="font-size:11px;">' + escapeHtml(a.name) + ' <span style="color:#999;">(M' + a.module + ')</span></div>';
-          });
-        } else {
-          html += '<span style="color:#c0392b; font-size:11px;">—</span>';
+        if (!rowsByElo[row.elo]) {
+          rowsByElo[row.elo] = [];
+          eloOrder.push(row.elo);
+          eloTextByLabel[row.elo] = row.eloText;
         }
-        html += '</td>';
-        html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; text-align:center; color:' + statusColor + '; font-size:11px;">' + statusIcon + ' ' + statusText + '</td>';
-        html += '</tr>';
+        rowsByElo[row.elo].push(row);
       });
-
-      html += '</tbody></table></div>';
+      // Numeric sort so "ELO 10" follows "ELO 9" not "ELO 1".
+      eloOrder.sort(function(a, b) {
+        var na = parseInt(String(a).replace(/\D/g, ''), 10) || 0;
+        var nb = parseInt(String(b).replace(/\D/g, ''), 10) || 0;
+        return na - nb;
+      });
+      eloOrder.forEach(function(eloLabel) {
+        var rows = rowsByElo[eloLabel];
+        var eloText = eloTextByLabel[eloLabel] || '';
+        var noActivityCount = rows.filter(function(r) { return r.activities.length === 0; }).length;
+        html += '<div style="margin-top:18px; margin-bottom:6px;">';
+        html += '<div style="font-size:13px; font-weight:600; color:#8c1d40;">' + escapeHtml(eloLabel)
+          + (eloText ? '<span style="color:#666; font-weight:400; margin-left:8px;">' + escapeHtml(eloText.length > 120 ? eloText.slice(0, 120) + '…' : eloText) + '</span>' : '')
+          + '</div>';
+        html += '<div style="font-size:11px; color:#888; margin-top:2px;">'
+          + rows.length + ' MLO' + (rows.length === 1 ? '' : 's') + ' mapped'
+          + (noActivityCount > 0 ? ' · <span style="color:#c0392b; font-weight:600;">' + noActivityCount + ' without activities</span>' : '')
+          + '</div>';
+        html += '</div>';
+        html += '<div style="overflow-x:auto;"><table style="border-collapse:collapse; font-size:12px; width:100%;">';
+        html += '<thead><tr>';
+        html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left; white-space:nowrap; width:80px;">MLO</th>';
+        html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">MLO Text</th>';
+        html += '<th style="padding:8px; border:1px solid #e0ddd5; background:#f5f5f0; text-align:left;">Activities</th>';
+        html += '</tr></thead><tbody>';
+        // Numeric sort within each table so MLO 1.10 follows MLO 1.9.
+        rows.sort(function(a, b) {
+          var ma = String(a.mlo).match(/(\d+)(?:\.(\d+))?/);
+          var mb = String(b.mlo).match(/(\d+)(?:\.(\d+))?/);
+          var aw = ma ? [parseInt(ma[1], 10) || 0, parseInt(ma[2] || '0', 10)] : [0, 0];
+          var bw = mb ? [parseInt(mb[1], 10) || 0, parseInt(mb[2] || '0', 10)] : [0, 0];
+          return aw[0] - bw[0] || aw[1] - bw[1];
+        });
+        rows.forEach(function(row) {
+          var rowBg = row.activities.length === 0 ? ' background:#fef0f0;' : '';
+          html += '<tr style="' + rowBg + '">';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; font-weight:600; color:#8c1d40; white-space:nowrap;">' + row.mlo + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5; color:#555; max-width:300px;">' + escapeHtml(row.mloText.substring(0, 120)) + (row.mloText.length > 120 ? '…' : '') + '</td>';
+          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">';
+          if (row.activities.length > 0) {
+            row.activities.forEach(function(a) {
+              html += '<div style="font-size:11px;">' + escapeHtml(a.name) + ' <span style="color:#999;">(M' + a.module + ')</span></div>';
+            });
+          } else {
+            html += '<span style="color:#c0392b; font-size:11px; font-style:italic;">No activities tagged</span>';
+          }
+          html += '</td>';
+          html += '</tr>';
+        });
+        html += '</tbody></table></div>';
+      });
     } else if (Object.keys(eloMloAlignment).length === 0 && elos.length > 0 && allMlos.length > 0) {
       html += '<div style="padding:16px; background:#fef9f0; border-radius:8px; text-align:center; color:#c4841d; font-size:13px;">Complete the ELO → MLO alignment matrix above, then run the audit to see your traceability report.</div>';
     }
