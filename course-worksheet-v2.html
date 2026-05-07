@@ -19,6 +19,7 @@
 <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script src="rich-editor.js"></script>
+<script src="ceph-assessment-mapping.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
 <!-- DOMPurify: sanitizes any HTML we inject from AI responses or user-entered content. -->
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
@@ -410,6 +411,58 @@
 
   /* Overview activity block with inline content */
   .overview-act-content { margin-top: 4px; margin-left: 24px; }
+  /* CEPH / UOEEE required-assessment alert banner. Shown only when the
+     active course's id maps to an entry in CEPH_REQUIRED_ASSESSMENTS. */
+  .ceph-alert {
+    margin-bottom: 16px;
+    background: #fff8e1; border: 1px solid #ffe082;
+    border-left: 4px solid #c4841d; border-radius: 8px;
+  }
+  .ceph-alert summary {
+    list-style: none; cursor: pointer;
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; user-select: none;
+  }
+  .ceph-alert summary::-webkit-details-marker { display: none; }
+  .ceph-alert summary::before {
+    content: '▸'; color: #c4841d; font-size: 12px;
+    transition: transform 0.15s; flex-shrink: 0;
+  }
+  .ceph-alert details[open] summary::before { transform: rotate(90deg); }
+  .ceph-alert-icon { font-size: 16px; flex-shrink: 0; }
+  .ceph-alert-title { font-size: 13px; font-weight: 700; color: #6d5a00; }
+  .ceph-alert-meta { font-size: 12px; color: #8a6d3b; margin-left: auto; font-style: italic; }
+  .ceph-alert-body {
+    padding: 6px 14px 14px 14px; border-top: 1px solid #ffe082;
+    background: #fffaf0;
+  }
+  .ceph-alert-group { margin-top: 12px; }
+  .ceph-alert-group:first-child { margin-top: 6px; }
+  .ceph-alert-group-title {
+    font-size: 11px; font-weight: 600; color: #8a6d3b;
+    text-transform: uppercase; letter-spacing: 0.04em;
+    margin-bottom: 6px;
+  }
+  .ceph-alert-row {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 6px 8px; border-radius: 6px;
+  }
+  .ceph-alert-row + .ceph-alert-row { border-top: 1px dashed #ffe082; }
+  .ceph-alert-tag {
+    flex-shrink: 0; min-width: 72px;
+    padding: 2px 8px; border-radius: 10px;
+    background: #fff; border: 1px solid #c4841d;
+    font-size: 10px; font-weight: 700; color: #c4841d;
+    text-align: center; align-self: flex-start; margin-top: 2px;
+  }
+  .ceph-alert-rowtext { flex: 1; min-width: 0; }
+  .ceph-alert-competency {
+    font-size: 12px; color: #555; line-height: 1.45;
+  }
+  .ceph-alert-assignment {
+    font-size: 12px; color: #2a2a2a; font-weight: 600; margin-top: 3px;
+  }
+
   /* Tri-state content indicator:
      - default      : burgundy, no checkmark — nothing attached or typed yet
      - .has-content : amber/yellow — something is in this content body
@@ -1194,6 +1247,10 @@
       <div id="view-assignments-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Assignments Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">All activities and assignments across all modules. Drag between modules to reorganize.</p>
+
+        <!-- CEPH / UOEEE required assessments alert (populated by JS only
+             when the active course's id appears in CEPH_REQUIRED_ASSESSMENTS) -->
+        <div id="ceph-assessment-alert"></div>
 
         <!-- Action Verbs Guide Accordion -->
         <div class="card verb-guide-card" style="margin-bottom:16px; border-color:#c8d8e8; background:#f6f9fc;">
@@ -7321,6 +7378,68 @@
     return html;
   }
 
+  // Render a banner at the top of the Assignments Overview when the
+  // active course is on the STPH MPH CEPH / UOEEE assessment-mapping
+  // list. Hides itself when the course isn't mapped (most courses).
+  // Idempotent — safe to call from any re-render path.
+  function _renderCephAssessmentAlert() {
+    var host = document.getElementById('ceph-assessment-alert');
+    if (!host) return;
+    var map = window.CEPH_REQUIRED_ASSESSMENTS;
+    var texts = window.CEPH_COMPETENCY_TEXTS;
+    if (!map || !texts) { host.innerHTML = ''; return; }
+    // Match by lowercased / whitespace-stripped courseId so "tph 501",
+    // "TPH501", "tph501" all resolve.
+    var key = String(courseId || '').toLowerCase().replace(/\s+/g, '');
+    var entry = map[key];
+    if (!entry) { host.innerHTML = ''; return; }
+    var items = entry.items || [];
+    if (items.length === 0) { host.innerHTML = ''; return; }
+    var cephCount = items.filter(function(i) { return i.fw === 'CEPH'; }).length;
+    var uoeeeCount = items.filter(function(i) { return i.fw === 'UOEEE'; }).length;
+    var summary = [];
+    if (cephCount) summary.push(cephCount + ' CEPH');
+    if (uoeeeCount) summary.push(uoeeeCount + ' UOEEE');
+    var html = '';
+    html += '<div class="ceph-alert">';
+    html += '<details ' + (loadField('cephAlertOpen') !== false ? 'open ' : '') + 'ontoggle="saveField(\'cephAlertOpen\', this.open)">';
+    html += '<summary>'
+      + '<span class="ceph-alert-icon">📋</span>'
+      + '<span class="ceph-alert-title">Required assessments for this course</span>'
+      + '<span class="ceph-alert-meta">' + escapeHtml(entry.courseLabel) + ' · ' + summary.join(' + ') + ' competencies</span>'
+      + '</summary>';
+    html += '<div class="ceph-alert-body">';
+    // Group by framework so CEPH and UOEEE land in their own sub-lists.
+    var byFw = { CEPH: [], UOEEE: [] };
+    items.forEach(function(it) { (byFw[it.fw] || (byFw[it.fw] = [])).push(it); });
+    Object.keys(byFw).forEach(function(fw) {
+      var rows = byFw[fw];
+      if (!rows.length) return;
+      var label = (fw === 'CEPH')
+        ? 'CEPH foundational competencies'
+        : 'UOEEE Program Learning Outcomes (MPH PHT)';
+      html += '<div class="ceph-alert-group">';
+      html += '<div class="ceph-alert-group-title">' + label + '</div>';
+      rows.forEach(function(it) {
+        var competencyText = (texts[fw] && texts[fw][it.cId]) || '';
+        var competencyTag = fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
+        var modPart = (it.mod !== undefined && it.mod !== null && it.mod !== '')
+          ? 'Module ' + it.mod + ' — '
+          : '';
+        html += '<div class="ceph-alert-row">';
+        html += '<div class="ceph-alert-tag">' + escapeHtml(competencyTag) + '</div>';
+        html += '<div class="ceph-alert-rowtext">';
+        html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
+        html += '<div class="ceph-alert-assignment">' + escapeHtml(modPart + it.title) + '</div>';
+        html += '</div>';
+        html += '</div>';
+      });
+      html += '</div>';
+    });
+    html += '</div></details></div>';
+    host.innerHTML = html;
+  }
+
   function renderAssignmentsOverview(openModules) {
     // The content popup transplants .overview-act-content out of the cards
     // container; if we re-render while it's open, the original parent gets
@@ -7328,6 +7447,7 @@
     if (typeof _contentPopupState !== 'undefined' && _contentPopupState && _contentPopupState.kind === 'activity') {
       try { closeContentPopup(); } catch (e) {}
     }
+    _renderCephAssessmentAlert();
     var cardsContainer = document.getElementById('assignments-overview-cards');
     var tableContainer = document.getElementById('assignments-overview-table');
     if (!cardsContainer) return;
