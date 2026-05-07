@@ -346,25 +346,40 @@
       });
     });
 
-    // Column widths: take from first row's <th>/<td> style="width:X%"
-    // attributes if present; otherwise distribute evenly. Each colspan is
-    // proportional, so a cell with colspan=2 owns the next column too.
+    // Column widths: read from first-row <th>/<td> inline styles. We
+    // accept three units and normalize each to a percentage of the
+    // available table width:
+    //   - %   → used as-is
+    //   - px  → converted at 1px = 15 twips (96dpi → 1pt = 1.333px)
+    //   - pt  → converted at 1pt = 20 twips
+    //   - in  → converted at 1in = 1440 twips
+    // Columns without a width hint share the leftover percentage equally.
+    // Without the px branch, e.g. width:80px hints in the alignment-
+    // traceability HTML were silently dropped, leaving every column at
+    // 1/N of the table width — the MLO id column came out way too wide.
+    var totalTwips = availTwips || inToTwips(7.5);
     var colWidths = new Array(maxCols);
     var firstRow = grid[0];
-    var totalPct = 0;
-    var pctSeen = false;
     for (var c = 0; c < maxCols; c++) {
       var item = firstRow[c];
       if (!item || item.kind !== 'cell') continue;
       var w = item.el.style && item.el.style.width;
       var sz = parseSize(w);
-      if (sz && sz.unit === '%') {
-        var per = sz.value / item.colspan;
-        for (var k = 0; k < item.colspan; k++) {
-          colWidths[c + k] = { kind: '%', value: per };
-        }
-        totalPct += sz.value;
-        pctSeen = true;
+      if (!sz) continue;
+      var pct = null;
+      if (sz.unit === '%') {
+        pct = sz.value;
+      } else if (sz.unit === 'px') {
+        pct = (sz.value * 15 / totalTwips) * 100;
+      } else if (sz.unit === 'pt') {
+        pct = (sz.value * 20 / totalTwips) * 100;
+      } else if (sz.unit === 'in') {
+        pct = (sz.value * 1440 / totalTwips) * 100;
+      }
+      if (pct == null) continue;
+      var per = pct / item.colspan;
+      for (var k = 0; k < item.colspan; k++) {
+        colWidths[c + k] = { kind: '%', value: per };
       }
     }
     var assigned = 0, unassigned = 0;
@@ -379,7 +394,6 @@
         if (!colWidths[cd]) colWidths[cd] = { kind: '%', value: per2 || (100 / maxCols) };
       }
     }
-    var totalTwips = availTwips || inToTwips(7.5);
     var colTwips = colWidths.map(function(cw) {
       return Math.max(400, Math.round(totalTwips * (cw.value / 100)));
     });
@@ -738,11 +752,14 @@
           '</w:pPr>' +
         '</w:style>' +
         // Heading1 — page title (centered, 18pt maroon, no indent).
+        // before=240 leaves a clear blank line above the title even when
+        // the page top margin is tight (e.g., when a print engine clips
+        // the first few twips). Mostly cosmetic on the front cover.
         '<w:style w:type="paragraph" w:styleId="Heading1">' +
           '<w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>' +
           '<w:pPr>' +
             '<w:keepNext/>' +
-            '<w:spacing w:after="60" w:before="0" w:line="312" w:lineRule="auto"/>' +
+            '<w:spacing w:after="60" w:before="240" w:line="312" w:lineRule="auto"/>' +
             '<w:ind w:left="0" w:right="0" w:firstLine="0"/>' +
             '<w:jc w:val="center"/>' +
             '<w:outlineLvl w:val="0"/>' +
@@ -754,11 +771,14 @@
           '</w:rPr>' +
         '</w:style>' +
         // Heading2 — section header (13pt maroon bold, flush left).
+        // before=360 (~1.5 lines of 10pt body) gives a clear visual
+        // break before each maroon section heading, matching the
+        // "extra blank line above all maroon text" preference.
         '<w:style w:type="paragraph" w:styleId="Heading2">' +
           '<w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>' +
           '<w:pPr>' +
             '<w:keepNext/>' +
-            '<w:spacing w:after="90" w:before="0"/>' +
+            '<w:spacing w:after="90" w:before="360"/>' +
             '<w:ind w:left="0" w:right="0" w:firstLine="0"/>' +
             '<w:outlineLvl w:val="1"/>' +
           '</w:pPr>' +
@@ -917,12 +937,19 @@
     if (typeof JSZip === 'undefined') {
       return Promise.reject(new Error('JSZip is required for .docx export but was not loaded.'));
     }
-    // Compute available content width from the resolved margins so tables
-    // sized at "100%" fill exactly between margins.
+    // Resolved margins drive (a) the page <w:pgMar> for body-text wrapping
+    // and (b) the table fill width. Body text wraps at the actual right
+    // margin (1.0" by default), but tables intentionally bleed into the
+    // right margin to use the full 0.5"-to-0.5" page area — that's how
+    // the user's hand-edited reference is laid out, and trying to keep
+    // tables within the body-text margin made the assignment column too
+    // narrow for multi-line activity titles.
     var m = (options.margins || {});
     var leftTw  = m.leftTwips  != null ? m.leftTwips  : 720;
     var rightTw = m.rightTwips != null ? m.rightTwips : 1440;
-    var contentTwips = PAGE_W_TWIPS - leftTw - rightTw;
+    // Tables span left margin → 0.5" from the right edge of the page.
+    var tableRightInsetTw = m.tableRightInsetTwips != null ? m.tableRightInsetTwips : 720;
+    var contentTwips = PAGE_W_TWIPS - leftTw - tableRightInsetTw;
     var state = new DocState();
     var ctx = { contentTwips: contentTwips, baseFont: {} };
     var bodyXml = blocksFromContainer(htmlElement, ctx, state);

@@ -12378,11 +12378,15 @@
           + '</div>';
         html += '</div>';
 
+        // Column widths: keep the MLO id column narrow (just enough for
+        // "MLO N.NN") and split the rest 50/50 between MLO Text and
+        // Activities. Percentage units are honored by both the web
+        // preview and docx-export's table extractor.
         html += '<table style="border-collapse:collapse; font-size:11px; width:100%; table-layout:fixed; margin-bottom:8px;">';
         html += '<thead><tr>';
-        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:80px;">MLO</th>';
-        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">MLO Text</th>';
-        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Activities</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:10%;">MLO</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:45%;">MLO Text</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:45%;">Activities</th>';
         html += '</tr></thead><tbody>';
         linkedMlos.forEach(function(mloId) {
           var mloObj = auditMlos.find(function(m) { return m.id === mloId; });
