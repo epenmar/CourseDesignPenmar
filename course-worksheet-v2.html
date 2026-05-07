@@ -20,10 +20,13 @@
 <script src="https://cdn.jsdelivr.net/npm/quill@2.0.2/dist/quill.js"></script>
 <script src="rich-editor.js"></script>
 <script src="ceph-assessment-mapping.js"></script>
+<script src="course-directory.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.9.0/mammoth.browser.min.js"></script>
 <!-- DOMPurify: sanitizes any HTML we inject from AI responses or user-entered content. -->
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="docx-export.js"></script>
 <script>
   if (window.pdfjsLib) {
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -1198,7 +1201,7 @@
               <button onclick="runCourseParserAI()" title="Re-run AI with current input" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">⟳ Re-run</button>
               <button onclick="pushCourseParserToWorksheet()" title="Apply this structure to the Module Overview" style="background:#2e7d32; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">↪ Push to worksheet</button>
               <button id="cp-drive-btn" onclick="saveCourseParserDocToDrive()" title="Upload this proposal to the course's Google Drive folder" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">📁 Save to Drive</button>
-              <button onclick="downloadCourseParserDoc()" style="background:#8c1d40; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">💾 Download .doc</button>
+              <button onclick="downloadCourseParserDoc()" style="background:#8c1d40; color:#fff; border:none; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">💾 Download .docx</button>
               <button onclick="clearCourseParser()" title="Clear all and start over" style="background:#fff; color:#c62828; border:1px solid #c62828; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px;">✕ Clear</button>
             </div>
           </div>
@@ -7425,15 +7428,30 @@
     return html;
   }
 
-  // True when the current courseId belongs to the STPH MPH program
-  // (i.e., it has an entry in CEPH_REQUIRED_ASSESSMENTS). Used to gate
-  // STPH-specific reminders / alerts so they don't show on non-STPH
-  // courses.
+  // True when the current course belongs to the STPH (School of Technology
+  // for Public Health) college. Three signals, any one of which counts:
+  //   1. activeCourse.college === 'STPH'  — explicit metadata
+  //   2. CEPH_REQUIRED_ASSESSMENTS has a mapping for this courseId
+  //      (most TPH 5xx courses; implies STPH membership)
+  //   3. COURSE_PREFIX_DIRECTORY tells us the course's prefix is in STPH
+  //      (catches TPH/STP courses that haven't been mapped to CEPH yet —
+  //      these were missing the MLO reminder + general STPH callouts)
   function _isStphCourse() {
+    if (activeCourse && activeCourse.college === 'STPH') return true;
     var map = window.CEPH_REQUIRED_ASSESSMENTS;
-    if (!map) return false;
-    var key = String(courseId || '').toLowerCase().replace(/\s+/g, '');
-    return Object.prototype.hasOwnProperty.call(map, key);
+    if (map) {
+      var key = String(courseId || '').toLowerCase().replace(/\s+/g, '');
+      if (Object.prototype.hasOwnProperty.call(map, key)) return true;
+    }
+    var prefixMap = window.COURSE_PREFIX_DIRECTORY;
+    if (prefixMap) {
+      var code = String((activeCourse && activeCourse.code) || courseId || '').toUpperCase();
+      var prefixMatch = code.match(/^([A-Z]+)/);
+      var prefix = prefixMatch ? prefixMatch[1] : '';
+      var entry = prefix && prefixMap[prefix];
+      if (entry && entry.collegeShort === 'STPH') return true;
+    }
+    return false;
   }
 
   // STPH MLO authoring reminder, shown at the top of the Module Overview
@@ -12192,11 +12210,16 @@
           }).join('');
         };
 
+        // Column-width percentages match the hand-edited TPH 501.docx
+        // reference (1320 / 3345 / 2715 / 3375 twips → 12 / 31 / 26 / 31 %).
+        // The Assignments column needed an explicit width — without it the
+        // .docx generator was flooring it to ~20% and assignment text
+        // wrapped vertically into a thin column.
         html += '<table><thead><tr>';
-        html += '<th style="width:140px;">Topic(s)</th>';
-        html += '<th style="width:35%;">Module Objectives</th>';
-        html += '<th>Assignments</th>';
-        html += '<th style="width:25%;">Learning Materials</th>';
+        html += '<th style="width:12%;">Topic(s)</th>';
+        html += '<th style="width:31%;">Module Objectives</th>';
+        html += '<th style="width:26%;">Assignments</th>';
+        html += '<th style="width:31%;">Learning Materials</th>';
         html += '</tr></thead><tbody>';
 
         for (let r = 0; r < finalMlos.length; r++) {
@@ -12336,9 +12359,13 @@
           return !(prevMloActMap[mloId] && prevMloActMap[mloId].length);
         }).length;
 
+        // Note the explicit "&nbsp;" between the ELO label and its text:
+        // CSS margin-left on inline spans is dropped on the .docx export
+        // (OOXML runs don't have a margin concept), so without a literal
+        // whitespace character "ELO 1" and the ELO text would collide.
         html += '<div style="margin-top:14px; margin-bottom:4px;">';
         html += '<div style="font-size:12px; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1)
-          + (elo ? '<span style="color:#666; font-weight:400; margin-left:8px;">' + esc(String(elo).slice(0, 120)) + (String(elo).length > 120 ? '…' : '') + '</span>' : '')
+          + (elo ? '&nbsp; <span style="color:#666; font-weight:400;">' + esc(String(elo).slice(0, 120)) + (String(elo).length > 120 ? '…' : '') + '</span>' : '')
           + '</div>';
         if (linkedMlos.length === 0) {
           html += '<div style="font-size:11px; color:#c0392b; margin-top:2px;">No MLOs mapped to this ELO</div>';
@@ -12765,130 +12792,62 @@
   }
 
   // ===== DOCUMENT EXPORT =====
+  // Builds a real .docx package (OOXML) from the live preview pane via
+  // DocxExport. Real .docx is the only reliable way to force 0.5" page
+  // margins in Google Docs on import — both HTML <style>@page</style>
+  // and Word's mso-page-margin-* extensions get stripped by Drive's
+  // HTML→Doc converter, so the previous .doc-renamed-HTML pipeline always
+  // came out at Drive's 1" default. Real <w:pgMar> in document.xml
+  // survives the import and lands at the requested margins.
+  //
+  // Returns a Promise<{ blob, filename, driveName, mimeType }> or null
+  // if the preview isn't rendered yet.
   function _buildDocumentExport() {
     const preview = document.querySelector('.doc-preview');
     if (!preview) return null;
+    if (typeof DocxExport === 'undefined') {
+      alert('DocxExport library failed to load. Try refreshing the page.');
+      return null;
+    }
 
-    // Clone preview and apply inline styles so Google Docs preserves formatting
+    // Clone the preview so DOM tweaks (dropping the H2 underline simulator,
+    // strip-marked highlights, etc.) don't mutate what the user sees on screen.
     const clone = preview.cloneNode(true);
 
-    // Inline style maps tuned for the Word/Google Docs export. Sizes
-    // ported from the instructor's hand-edited TPH 501 doc (May 2026):
-    //   - Page-level 0.5" left margin (set in the export <body>).
-    //   - H1 + subtitle centered, no extra indent.
-    //   - H2 at the page margin (so section headers sit flush left).
-    //   - H3 indented 0.5" from H2 (so "Students will learn" reads as
-    //     a sub-heading of "Course Objectives").
-    //   - Body paragraphs indented 0.5" so they read in the same
-    //     gutter as the H3 subheaders.
-    //   - <ul>/<ol> indented to 1" so bullets sit further IN than the
-    //     H3 they live under — matches the doc's nested indentation.
-    //   - Table cells drop to 9pt so subdivided module tables fit on
-    //     a single page.
-    const styleMap = {
-      'h1': 'font-family:Calibri,Arial,sans-serif; font-size:18pt; color:#8c1d40; margin:0 0 4px 0; line-height:1.3; text-align:center;',
-      'h2': 'font-family:Calibri,Arial,sans-serif; font-size:13pt; color:#8c1d40; margin:18px 0 6px 0;',
-      'h3': 'font-family:Calibri,Arial,sans-serif; font-size:11pt; margin:12px 0 4px 0.5in;',
-      'p':  'font-family:Calibri,Arial,sans-serif; font-size:10pt; line-height:1.45; margin:2px 0 4px 0.5in; color:#333;',
-      'li': 'font-family:Calibri,Arial,sans-serif; font-size:10pt; line-height:1.5; margin-bottom:2px; color:#333;',
-      'ol': 'padding-left:18pt; margin:6px 0 8px 1in;',
-      'ul': 'padding-left:18pt; margin:6px 0 8px 1in;',
-      'table': 'width:100%; border-collapse:collapse; margin:8px 0; font-size:9pt; font-family:Calibri,Arial,sans-serif;',
-      'th': 'background-color:#f5f5f0; text-align:left; padding:4px 6px; font-weight:bold; border:1px solid #cccccc; font-size:9pt; font-family:Calibri,Arial,sans-serif;',
-      'td': 'padding:4px 6px; border:1px solid #cccccc; vertical-align:top; font-size:9pt; font-family:Calibri,Arial,sans-serif; line-height:1.4;',
-      'a': 'color:#1a0dab; text-decoration:underline;'
-    };
-
-    Object.keys(styleMap).forEach(function(tag) {
-      clone.querySelectorAll(tag).forEach(function(el) {
-        el.style.cssText = styleMap[tag] + (el.style.cssText || '');
-      });
-    });
-
-    // Lists nested inside table cells need a tighter style — the
-    // global 1" left margin would push bullets out of the cell. Inside
-    // cells: zero margin, just enough padding-left to host the bullet,
-    // and 9pt to match the cell font.
-    clone.querySelectorAll('td ul, td ol').forEach(function(list) {
-      list.style.cssText = 'margin:0 0 0 0; padding-left:14pt; font-family:Calibri,Arial,sans-serif; font-size:9pt; line-height:1.4;';
-    });
-    clone.querySelectorAll('td li').forEach(function(li) {
-      li.style.cssText = 'font-family:Calibri,Arial,sans-serif; font-size:9pt; line-height:1.4; margin-bottom:2px; color:#333;';
-    });
-
-    // Style .doc-subtitle — centered + smaller to match the title.
-    clone.querySelectorAll('.doc-subtitle').forEach(function(el) {
-      el.style.cssText = 'font-size:10pt; color:#666666; margin-bottom:24px; font-family:Calibri,Arial,sans-serif; text-align:center;';
-    });
-    // Top-of-document instructor / ID / credits paragraphs need their own
-    // override (the styleMap pushes <p> to half-inch indent for body
-    // paragraphs; the headers above the first H2 should match that
-    // indent, which they already do via the styleMap default — nothing
-    // extra to do here, but leaving the comment for future reference).
-
-    // Style .placeholder
-    clone.querySelectorAll('.placeholder').forEach(function(el) {
-      el.style.cssText = 'color:#cccccc; font-style:italic;';
-    });
-
-    // The web preview shows a thin gold underline beneath each H2 via
-    // CSS border-bottom — but exporting that underline doesn't translate
-    // cleanly to Word / Google Docs (the previous workaround inserted an
-    // <hr> after each H2, which Google Docs renders as an over-tall
-    // band). Drop both the border and the <hr> simulator on export so
-    // the document is clean lines of text + tables.
+    // The preview shows a gold underline beneath each H2 via border-bottom.
+    // OOXML support for paragraph borders is fine, but the worksheet looks
+    // cleaner in the exported doc without the band, matching the hand-edited
+    // TPH 501.docx reference.
     clone.querySelectorAll('h2').forEach(function(h2) {
-      try {
-        var s = h2.style.cssText || '';
-        h2.style.cssText = s.replace(/border-bottom:[^;]+;?/i, '').replace(/padding-bottom:[^;]+;?/i, '');
-      } catch(e) {}
+      h2.style.borderBottom = '';
+      h2.style.paddingBottom = '';
     });
 
-    // NOTE on page margins: HTML's <style>@page</style> rule and the
-    // body margin only affect Word's HTML import — Google Docs uses
-    // its own page-setup defaults (1" all around) and ignores both.
-    // To force 0.5" page margins in Google Docs you'd have to either
-    // (a) generate real .docx XML with <w:pgMar> tags instead of HTML,
-    // or (b) set Page Setup → Margins to 0.5" once after import.
-    // Below we set the body margin to ZERO so any indent the user
-    // sees is solely the (manually-set or default) page margin —
-    // otherwise html-body-margin and gdocs-page-margin compound and
-    // content lands ~1.5" from the left edge instead of 0.5".
-    // mso-page-margin-* extensions tell Word to use 0.5" on import.
-    const html = `<!DOCTYPE html>
-<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word"><head><meta charset="UTF-8">
-<title>${activeCourse.fullTitle} — Course Development Worksheet</title>
-<style>
-@page WorksheetPage {
-  size: 8.5in 11in;
-  margin: 0.5in 0.5in 0.5in 0.5in;
-  mso-page-orientation: portrait;
-  mso-header-margin: 0.5in;
-  mso-footer-margin: 0.5in;
-}
-div.WorksheetSection { page: WorksheetPage; }
-@page { margin: 0.5in; }
-body { font-family: Calibri, Arial, sans-serif; color: #333333; line-height: 1.4; margin: 0; padding: 0; }
-table p, td p, th p { margin: 0 0 2px 0 !important; line-height: 1.35 !important; }
-table { margin: 8px 0 !important; }
-</style>
-</head><body style="font-family:Calibri,Arial,sans-serif; color:#333333; line-height:1.4; margin:0; padding:0;">
-<div class="WorksheetSection">
-${clone.innerHTML}
-</div>
-</body></html>`;
+    // Drop the doc-preview wrapper's own padding/box-shadow attributes —
+    // not relevant once we extract its children into OOXML.
 
-    // Send HTML and let Drive convert to a native Google Doc on upload —
-    // the previous .doc-renamed-HTML approach made Drive show "No preview
-    // available" because Drive treats it as opaque Word data. Local
-    // download still uses .doc with the same blob since Word reads HTML
-    // happily when the file extension hints at it.
-    const htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' });
-    const docBlob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
     const courseCode = (activeCourse.code || 'course').trim();
     const today = _todayYmd();
     const baseName = (courseCode + ' - Development Worksheet ' + today).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
-    return { blob: docBlob, htmlBlob: htmlBlob, filename: baseName + '.doc', driveName: baseName };
+
+    return DocxExport.elementToBlob(clone, {
+      // Margins, fonts, and styles are matched to the hand-edited
+      // TPH 501.docx reference inside docx-export.js — no overrides here.
+      title: (activeCourse.fullTitle || courseCode) + ' — Course Development Worksheet',
+      creator: 'Course Worksheet'
+    }).then(function(blob) {
+      // Drive name MUST include the .docx extension or Drive sniffs the
+      // file by name and may still treat it as a generic upload (which
+      // gets converted to Google Doc on first open). Including .docx in
+      // both filename and driveName keeps it as a Word document.
+      console.log('[DocxExport] worksheet built — size:', blob.size, 'bytes, type:', blob.type);
+      return {
+        blob: blob,
+        filename: baseName + '.docx',
+        driveName: baseName + '.docx',
+        mimeType: DocxExport.DOCX_MIME
+      };
+    });
   }
 
   // ISO date stamp for filenames so successive exports don't overwrite each
@@ -12899,16 +12858,25 @@ ${clone.innerHTML}
   }
 
   function downloadDocument() {
-    const exp = _buildDocumentExport();
-    if (!exp) return;
-    const url = URL.createObjectURL(exp.blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = exp.filename;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    const expPromise = _buildDocumentExport();
+    if (!expPromise) return;
+    const btn = document.querySelector('button[onclick="downloadDocument()"]');
+    const origText = btn ? btn.textContent : null;
+    if (btn) { btn.textContent = '⏳ Building .docx…'; btn.disabled = true; }
+    expPromise.then(function(exp) {
+      const url = URL.createObjectURL(exp.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = exp.filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+    }).catch(function(err) {
+      if (btn) { btn.textContent = origText; btn.disabled = false; }
+      alert('Failed to build .docx: ' + (err.message || err));
+    });
   }
 
   // ===== COURSE BRIEF (handoff to build tools) =====
@@ -14337,61 +14305,67 @@ ${clone.innerHTML}
     }
   }
 
-  // Builds the parser-proposal .doc blob + filename. Shared by download and
-  // Drive-upload actions so the two outputs stay in sync.
+  // Builds the parser-proposal .docx blob + filename. Shared by download
+  // and Drive-upload actions so the two outputs stay in sync.
+  // Returns Promise<{ blob, filename, driveName, mimeType }> — same shape as
+  // _buildDocumentExport. Real .docx so Drive's converter respects the
+  // 0.5" page margins on import.
   function _buildCourseParserDoc() {
     var state = loadCourseParserState();
     var proposedEl = document.getElementById('cp-proposed');
     var proposalHtml = proposedEl ? proposedEl.innerHTML : (state.proposalHtml || '');
     if (!proposalHtml.trim()) return null;
+    if (typeof DocxExport === 'undefined') {
+      alert('DocxExport library failed to load. Try refreshing the page.');
+      return null;
+    }
     var rawInput = (state.rawInput || '').replace(/</g, '&lt;').replace(/\n/g, '<br>');
     var courseCode = (activeCourse && activeCourse.code || 'course').trim();
     var courseTitle = (activeCourse && activeCourse.fullTitle || courseCode);
     var targetModules = state.targetModules || 7;
     var sourceWeeks = state.sourceWeeks || 15;
 
-    var styleSheet = [
-      'body { font-family: Calibri, Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; color: #333; line-height: 1.5; }',
-      'h1 { color: #8c1d40; font-size: 24px; margin: 0 0 8px 0; }',
-      'h2 { color: #8c1d40; font-size: 18px; margin: 24px 0 8px 0; padding-bottom: 4px; border-bottom: 2px solid #ffc627; }',
-      'h3 { font-size: 15px; margin: 18px 0 6px 0; }',
-      '.subtitle { color: #666; font-size: 13px; margin-bottom: 20px; }',
-      '.source-block { background: #fafaf8; border: 1px solid #e0ddd5; border-radius: 6px; padding: 12px 16px; font-size: 12px; white-space: pre-wrap; color: #555; margin: 10px 0 20px 0; }',
-      'table { width: 100%; border-collapse: collapse; margin: 10px 0; font-size: 12px; }',
-      'th, td { border: 1px solid #cccccc; padding: 8px 10px; text-align: left; vertical-align: top; }',
-      'th { background: #f5f5f0; font-weight: 600; }',
-      'ul, ol { padding-left: 22px; }',
-      'li { margin-bottom: 4px; }'
-    ].join('\n');
-
-    var html = '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>' + courseCode +
-      ' — ' + sourceWeeks + '-Week to ' + targetModules + '-Module Proposal</title><style>' + styleSheet + '</style></head><body>' +
+    // Assemble a minimal HTML tree the DocxExport walker understands.
+    var holder = document.createElement('div');
+    holder.innerHTML =
       '<h1>' + courseTitle + '</h1>' +
-      '<div class="subtitle">' + sourceWeeks + '-Week Source → ' + targetModules + '-Module Proposal · Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '</div>' +
+      '<p class="doc-subtitle">' + sourceWeeks + '-Week Source → ' + targetModules + '-Module Proposal · Generated ' + new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) + '</p>' +
       '<h2>Original Source (' + sourceWeeks + '-Week)</h2>' +
-      '<div class="source-block">' + rawInput + '</div>' +
-      proposalHtml +
-      '</body></html>';
+      '<p>' + rawInput + '</p>' +
+      proposalHtml;
 
-    var docBlob = new Blob([html], { type: 'application/vnd.ms-word;charset=utf-8' });
-    var htmlBlob = new Blob([html], { type: 'text/html;charset=utf-8' });
     var baseName = (courseCode + ' - ' + sourceWeeks + 'wk to ' + targetModules + 'mod Proposal ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
-    return { blob: docBlob, htmlBlob: htmlBlob, filename: baseName + '.doc', driveName: baseName };
+    return DocxExport.elementToBlob(holder, {
+      title: courseCode + ' — ' + sourceWeeks + '-Week to ' + targetModules + '-Module Proposal',
+      creator: 'Course Worksheet'
+    }).then(function(blob) {
+      console.log('[DocxExport] parser doc built — size:', blob.size, 'bytes, type:', blob.type);
+      return {
+        blob: blob,
+        filename: baseName + '.docx',
+        driveName: baseName + '.docx',
+        mimeType: DocxExport.DOCX_MIME
+      };
+    });
   }
 
   function downloadCourseParserDoc() {
-    var doc = _buildCourseParserDoc();
-    if (!doc) { alert('Nothing to download yet — parse a course first.'); return; }
-    var url = URL.createObjectURL(doc.blob);
-    var a = document.createElement('a');
-    a.href = url; a.download = doc.filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    var docPromise = _buildCourseParserDoc();
+    if (!docPromise) { alert('Nothing to download yet — parse a course first.'); return; }
+    docPromise.then(function(doc) {
+      var url = URL.createObjectURL(doc.blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = doc.filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }).catch(function(err) {
+      alert('Failed to build .docx: ' + (err.message || err));
+    });
   }
 
   function saveCourseParserDocToDrive() {
-    var doc = _buildCourseParserDoc();
-    if (!doc) { alert('Nothing to save yet — parse a course first.'); return; }
+    var docPromise = _buildCourseParserDoc();
+    if (!docPromise) { alert('Nothing to save yet — parse a course first.'); return; }
     var driveUrl = activeCourse && activeCourse.driveFolder;
     if (!window.GDrive || !driveUrl) {
       alert('No Google Drive folder is configured for this course. Add a Google Drive Folder URL in Course Info to enable direct Drive upload.');
@@ -14399,69 +14373,87 @@ ${clone.innerHTML}
     }
     var btn = document.getElementById('cp-drive-btn');
     var origText = btn ? btn.textContent : null;
-    if (btn) { btn.textContent = '⏳ Uploading…'; btn.disabled = true; }
-    window.GDrive.uploadBlob(driveUrl, doc.driveName || doc.filename, doc.htmlBlob || doc.blob, 'text/html', null, 'application/vnd.google-apps.document').then(function(res) {
-      var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
-      var actualParents = res.parents || [];
-      if (actualParents.indexOf(expectedFolderId) === -1) {
-        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
-      }
-      if (btn && res.webViewLink) {
-        _replaceExportButton(btn, res.webViewLink, function() { saveCourseParserDocToDrive(); });
-      } else if (btn) {
-        btn.textContent = origText; btn.disabled = false;
-      }
+    if (btn) { btn.textContent = '⏳ Building…'; btn.disabled = true; }
+    docPromise.then(function(doc) {
+      if (btn) { btn.textContent = '⏳ Uploading…'; }
+      // Upload as .docx without conversion — see exportToGoogleDrive()
+      // for the rationale. Conversion strips <w:pgMar>, which defeats the
+      // whole point of generating real OOXML.
+      return window.GDrive.uploadBlob(driveUrl, doc.driveName || doc.filename, doc.blob, doc.mimeType, null, null).then(function(res) {
+        var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
+        var actualParents = res.parents || [];
+        if (actualParents.indexOf(expectedFolderId) === -1) {
+          alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+        }
+        if (btn && res.webViewLink) {
+          _replaceExportButton(btn, res.webViewLink, function() { saveCourseParserDocToDrive(); });
+        } else if (btn) {
+          btn.textContent = origText; btn.disabled = false;
+        }
+      });
     }).catch(function(err) {
       if (btn) { btn.textContent = origText; btn.disabled = false; }
-      alert('Drive upload failed (' + (err.message || 'unknown') + '). Try downloading the .doc instead.');
+      alert('Drive upload failed (' + (err.message || 'unknown') + '). Try downloading the .docx instead.');
     });
   }
 
   function exportToGoogleDrive() {
-    const exp = _buildDocumentExport();
-    if (!exp) return;
+    const expPromise = _buildDocumentExport();
+    if (!expPromise) return;
     const driveUrl = activeCourse.driveFolder;
-
-    // No folder configured — fall back to local download with a note.
-    if (!window.GDrive || !driveUrl) {
-      const url = URL.createObjectURL(exp.blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = exp.filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      setTimeout(function() {
-        alert('No Google Drive folder is configured for this course. Document downloaded locally. Add a Google Drive Folder URL in Course Info to enable direct Drive export.');
-      }, 300);
-      return;
-    }
-
-    // Upload directly into the course's Drive folder. Send the HTML blob
-    // and ask Drive to convert it to a native Google Doc — Drive renders
-    // a real previewable/editable doc instead of an opaque .doc blob.
     const btn = document.querySelector('button[onclick="exportToGoogleDrive()"]');
     const origText = btn ? btn.textContent : null;
-    if (btn) { btn.textContent = '⏳ Uploading to Drive…'; btn.disabled = true; }
-    window.GDrive.uploadBlob(driveUrl, exp.driveName || exp.filename, exp.htmlBlob || exp.blob, 'text/html', null, 'application/vnd.google-apps.document').then(function(res) {
-      console.log('[Drive] worksheet uploaded', res);
-      var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
-      var actualParents = res.parents || [];
-      if (actualParents.indexOf(expectedFolderId) === -1) {
-        alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+    if (btn) { btn.textContent = '⏳ Building .docx…'; btn.disabled = true; }
+
+    expPromise.then(function(exp) {
+      // No folder configured — fall back to local download with a note.
+      if (!window.GDrive || !driveUrl) {
+        const url = URL.createObjectURL(exp.blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = exp.filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        if (btn) { btn.textContent = origText; btn.disabled = false; }
+        setTimeout(function() {
+          alert('No Google Drive folder is configured for this course. Document downloaded locally. Add a Google Drive Folder URL in Course Info to enable direct Drive export.');
+        }, 300);
+        return;
       }
-      if (btn && res.webViewLink) {
-        _replaceExportButton(btn, res.webViewLink, function() { exportToGoogleDrive(); });
-      } else if (btn) {
-        btn.textContent = origText; btn.disabled = false;
-      }
+
+      // Upload as a real .docx and DO NOT convert to a native Google Doc.
+      // The drive.files.create convertTo parameter strips <w:pgMar> from
+      // the document during conversion, which is exactly the bug we were
+      // trying to fix. By keeping the file as .docx, Drive stores it as a
+      // Word document; Google Docs opens it in Office compatibility mode
+      // and renders the original 0.5" page margins exactly. The user can
+      // still edit, comment, and share it from Drive — it just shows the
+      // .docx icon instead of the Google Docs icon.
+      if (btn) { btn.textContent = '⏳ Uploading to Drive…'; }
+      window.GDrive.uploadBlob(driveUrl, exp.driveName || exp.filename, exp.blob, exp.mimeType, null, null).then(function(res) {
+        console.log('[Drive] worksheet uploaded', res);
+        var expectedFolderId = window.GDrive.folderIdFromUrl(driveUrl);
+        var actualParents = res.parents || [];
+        if (actualParents.indexOf(expectedFolderId) === -1) {
+          alert('Warning: file did not land in the expected folder.\nSearch Drive for "' + res.name + '" to locate it.');
+        }
+        if (btn && res.webViewLink) {
+          _replaceExportButton(btn, res.webViewLink, function() { exportToGoogleDrive(); });
+        } else if (btn) {
+          btn.textContent = origText; btn.disabled = false;
+        }
+      }).catch(function(err) {
+        if (btn) { btn.textContent = origText; btn.disabled = false; }
+        // Fall back to local download so the user still has the file.
+        const url = URL.createObjectURL(exp.blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = exp.filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        alert('Drive upload failed (' + (err.message || 'unknown') + '). Document downloaded locally instead.');
+      });
     }).catch(function(err) {
       if (btn) { btn.textContent = origText; btn.disabled = false; }
-      // Fall back to local download so the user still has the file.
-      const url = URL.createObjectURL(exp.blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = exp.filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      alert('Drive upload failed (' + (err.message || 'unknown') + '). Document downloaded locally instead.');
+      alert('Failed to build .docx: ' + (err.message || err));
     });
   }
 
@@ -16164,7 +16156,7 @@ ${clone.innerHTML}
       highlightBadge +
       '<div class="comment-text"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
       '<div class="comment-actions">' +
-        (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">View thread</button>' : '') +
+        (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">Reply</button>' : '') +
         (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToCommentInContext(\'' + c.section_id + '\',\'' + (c.id || '') + '\')">View in context</button>' : '') +
         (!c.resolved && !isDeleted && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
         statusTag +
@@ -16288,37 +16280,81 @@ ${clone.innerHTML}
 
   async function resolveComment(commentId) {
     if (!supabaseClient) return;
+    // Optimistic UI: remove the inline-highlight + field-indicator FIRST,
+    // then mark the local cache, then fire the network update. Doing the
+    // DOM unwrap before the await means the highlight disappears the
+    // moment the user clicks "Resolve" — previously it was stuck on
+    // screen until Supabase round-tripped, and any subsequent re-render
+    // of the section (e.g. caused by `loadComments`) could re-mount
+    // the mark before the await returned.
+    _stripHighlightFromDom(commentId);
+    _markCommentResolvedInCache(commentId);
+    if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
+
     try {
       await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
-      // Remove highlight from the text — unwrap the mark element
-      document.querySelectorAll('.inline-highlight[data-comment-id="' + commentId + '"]').forEach(mark => {
-        const parent = mark.parentNode;
-        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
-        parent.removeChild(mark);
-        parent.normalize(); // merge adjacent text nodes
-      });
       if (currentHighlightCommentId) {
         await loadComments(currentCommentSection, currentHighlightCommentId);
       } else if (currentCommentSection) {
         await loadComments(currentCommentSection);
       }
-      // Refresh field + section highlight classes so the resolved comment's
-      // yellow underlines/borders disappear immediately. loadComments only
-      // updates commentCache; the indicator function reads cache → DOM.
+      // Re-run the indicator pass post-fetch so any field/section pills
+      // tied to this comment also drop. (The optimistic pass above already
+      // covered the in-memory cache; this catches anything loadComments
+      // might have repopulated.)
       if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
-    } catch(e) { console.error('Failed to resolve comment:', e); }
+    } catch(e) {
+      console.error('Failed to resolve comment:', e);
+      // Highlight is already gone visually — no rollback. The next
+      // page reload will re-apply highlights only for unresolved comments
+      // from Supabase, so a failed update means the highlight returns
+      // automatically on refresh.
+    }
+  }
+
+  // Unwrap every <mark.inline-highlight> tied to commentId so the dashed
+  // underline disappears. Walks each mark's children back up into its
+  // parent, then drops the empty mark. Idempotent — safe to call twice.
+  function _stripHighlightFromDom(commentId) {
+    if (!commentId) return;
+    var marks = document.querySelectorAll('.inline-highlight[data-comment-id="' + String(commentId).replace(/"/g, '\\"') + '"]');
+    marks.forEach(function(mark) {
+      var parent = mark.parentNode;
+      if (!parent) return;
+      while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
+      parent.removeChild(mark);
+      try { parent.normalize(); } catch(e) {}
+    });
+    // Field-anchor highlights (textareas/inputs that got `.has-field-comment`)
+    // are reconciled by applyFieldCommentIndicators — they read from the
+    // commentCache, so updating the cache (below) is the load-bearing step.
+  }
+
+  // Flip the cached comment's resolved flag so applyFieldCommentIndicators
+  // and any other cache-readers see it as resolved before the network
+  // round-trip completes.
+  function _markCommentResolvedInCache(commentId) {
+    Object.keys(commentCache || {}).forEach(function(sectionId) {
+      var arr = commentCache[sectionId];
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function(c) {
+        if (c && c.id === commentId) c.resolved = true;
+      });
+    });
+    if (Array.isArray(window._commentCache)) {
+      window._commentCache.forEach(function(c) {
+        if (c && c.id === commentId) c.resolved = true;
+      });
+    }
   }
 
   async function deleteComment(commentId) {
     if (!supabaseClient) return;
     try {
-      // Remove highlight mark if exists
-      const mark = document.querySelector('.inline-highlight[data-comment-id="' + commentId + '"]');
-      if (mark) {
-        const parent = mark.parentNode;
-        while (mark.firstChild) parent.insertBefore(mark.firstChild, mark);
-        parent.removeChild(mark);
-      }
+      // Optimistic UI: drop the highlight + flip the cache resolve flag
+      // before the network round-trip (same pattern as resolveComment).
+      _stripHighlightFromDom(commentId);
+      _markCommentResolvedInCache(commentId);
       // Soft-delete: set deleted_at timestamp instead of removing the row
       const { error: softErr } = await supabaseClient.from('comments').update({ deleted_at: new Date().toISOString(), resolved: true }).eq('id', commentId);
       // If soft-delete fails (column doesn't exist yet), fall back to hard resolve
@@ -16683,33 +16719,50 @@ ${clone.innerHTML}
     }
   }
 
-  // Click handler for existing highlight marks. Runs in the CAPTURE
-  // phase so it fires before any inline onclick on parent elements
-  // (e.g. card-header toggleCard, activity-row expanders) that would
-  // otherwise collapse the section the highlight lives in and visually
-  // swallow the click. preventDefault + stopPropagation neutralize the
-  // parent handlers; the side panel opens reliably either way.
-  document.addEventListener('click', function(e) {
-    const mark = e.target.closest('.inline-highlight');
+  // Click handler for existing highlight marks + field-comment indicators.
+  //
+  // Runs in BOTH capture and mousedown phases so it fires before any
+  // inline onclick on parent elements (e.g. card-header toggleCard,
+  // activity-row expanders) that would otherwise collapse the section
+  // the highlight lives in and visually swallow the click. The mousedown
+  // path catches a subset of cases where another handler later cancels
+  // the click event entirely (e.g. drag handlers calling preventDefault
+  // on mousedown).
+  //
+  // preventDefault + stopPropagation neutralize the parent handlers;
+  // the side panel opens reliably either way.
+  function _handleHighlightOrFieldClick(e) {
+    if (!e.target || typeof e.target.closest !== 'function') return;
+    var mark = e.target.closest('.inline-highlight');
     if (mark) {
-      const commentId = mark.dataset.commentId;
-      if (!commentId) return;
+      // Resolved highlights are inert (cursor:default) — let the click
+      // bubble through so the user can interact with surrounding UI.
+      if (mark.classList.contains('resolved')) return;
+      var commentId = mark.dataset.commentId;
+      if (!commentId) {
+        console.warn('[highlight-click] mark has no data-comment-id', mark);
+        return;
+      }
       e.preventDefault();
       e.stopPropagation();
       if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      const sectionId = getViewSectionId(mark);
-      openCommentPanel(sectionId, commentId);
+      var sectionId = getViewSectionId(mark);
+      console.log('[highlight-click] opening comment', { commentId: commentId, sectionId: sectionId, eventType: e.type });
+      try {
+        openCommentPanel(sectionId, commentId);
+      } catch (err) {
+        console.error('[highlight-click] openCommentPanel threw:', err);
+      }
       return;
     }
     // Field-comment highlight click — same protection: an input wrapped
     // in a card-header would otherwise collapse the card on click.
-    const field = e.target.closest('.has-field-comment');
+    var field = e.target.closest('.has-field-comment');
     if (field) {
-      // Find the comment for this field
-      const fieldSelector = buildFieldSelector(field);
-      let foundComment = null;
-      Object.values(commentCache).forEach(comments => {
-        (comments || []).forEach(c => {
+      var fieldSelector = buildFieldSelector(field);
+      var foundComment = null;
+      Object.values(commentCache).forEach(function(comments) {
+        (comments || []).forEach(function(c) {
           if (c.highlight_anchor && c.highlight_anchor.isField && c.highlight_anchor.containerSelector === fieldSelector && !c.resolved && !c.deleted_at) {
             foundComment = c;
           }
@@ -16718,14 +16771,28 @@ ${clone.innerHTML}
       e.preventDefault();
       e.stopPropagation();
       if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
-      if (foundComment) {
-        openCommentPanel(foundComment.section_id, foundComment.id);
-      } else {
-        // Fall back to section comments
-        openCommentPanel(getViewSectionId(field));
+      try {
+        if (foundComment) {
+          openCommentPanel(foundComment.section_id, foundComment.id);
+        } else {
+          openCommentPanel(getViewSectionId(field));
+        }
+      } catch (err) {
+        console.error('[field-comment-click] openCommentPanel threw:', err);
       }
     }
-  }, true); // capture phase — beat parent inline onclicks like toggleCard
+  }
+  // Both phases registered: capture catches clicks before parent onclicks;
+  // mousedown is a backup for the case where a sibling handler aborts the
+  // click event before it reaches us (e.g. via touchend cancellation).
+  document.addEventListener('click', _handleHighlightOrFieldClick, true);
+  document.addEventListener('mousedown', function(e) {
+    // Only short-circuit on inline-highlight; field clicks need the full
+    // click event so they don't fire on text-selection drags.
+    if (e.target && typeof e.target.closest === 'function' && e.target.closest('.inline-highlight:not(.resolved)')) {
+      _handleHighlightOrFieldClick(e);
+    }
+  }, true);
 
   // ===== RESTORE HIGHLIGHTS ON PAGE LOAD =====
   async function loadAndApplyHighlights() {
