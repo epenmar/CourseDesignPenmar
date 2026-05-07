@@ -16284,35 +16284,70 @@
 
   async function resolveComment(commentId) {
     if (!supabaseClient) return;
-    // Optimistic UI: remove the inline-highlight + field-indicator FIRST,
-    // then mark the local cache, then fire the network update. Doing the
-    // DOM unwrap before the await means the highlight disappears the
-    // moment the user clicks "Resolve" — previously it was stuck on
-    // screen until Supabase round-tripped, and any subsequent re-render
-    // of the section (e.g. caused by `loadComments`) could re-mount
-    // the mark before the await returned.
+    // Optimistic UI happens in 4 steps so the comment disappears from
+    // the side panel the instant the user clicks Resolve, regardless of
+    // network latency. Each step is independent so a failure of one
+    // (e.g. cache miss) doesn't cancel the others:
+    //   1. Strip <mark.inline-highlight> from the document
+    //   2. Flip resolved=true in commentCache + window._commentCache
+    //   3. Re-render the comment side panel from the (now-updated) cache
+    //   4. Refresh field/section indicator classes
     _stripHighlightFromDom(commentId);
     _markCommentResolvedInCache(commentId);
+    _rerenderCommentPanelFromCache();
     if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
 
     try {
-      await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
+      var resp = await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
+      // Supabase resolves the await even on RLS / validation errors —
+      // the error rides in resp.error rather than being thrown. Surface
+      // it explicitly so a silent failure doesn't masquerade as success.
+      if (resp && resp.error) throw resp.error;
       if (currentHighlightCommentId) {
         await loadComments(currentCommentSection, currentHighlightCommentId);
       } else if (currentCommentSection) {
         await loadComments(currentCommentSection);
       }
-      // Re-run the indicator pass post-fetch so any field/section pills
-      // tied to this comment also drop. (The optimistic pass above already
-      // covered the in-memory cache; this catches anything loadComments
-      // might have repopulated.)
       if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
     } catch(e) {
       console.error('Failed to resolve comment:', e);
-      // Highlight is already gone visually — no rollback. The next
-      // page reload will re-apply highlights only for unresolved comments
-      // from Supabase, so a failed update means the highlight returns
-      // automatically on refresh.
+      // Optimistic UI stays applied — on next page reload, fresh data
+      // from Supabase will reflect the actual state. Highlights are only
+      // re-applied for unresolved comments, so a failed update means the
+      // highlight comes back on refresh as the user would expect.
+    }
+  }
+
+  // Re-render the active comment-panel view directly from commentCache
+  // (or the in-memory thread state if a highlight is open). Used after
+  // optimistic cache updates so the panel reflects the new state without
+  // waiting for a round-trip. Safe to call when the panel is closed —
+  // it just no-ops if there's no current section.
+  function _rerenderCommentPanelFromCache() {
+    if (!currentCommentSection) return;
+    var msgContainer = document.getElementById('comment-messages');
+    if (!msgContainer) return;
+    var sectionArr = commentCache[currentCommentSection] || [];
+    if (currentHighlightCommentId) {
+      // Thread view: gather the highlight root + its replies. The thread
+      // may not be in commentCache if it was loaded directly via the
+      // highlight-id path; in that case fall back to filtering the global
+      // _commentCache (which holds every section's top-level comments).
+      var threadComments = [];
+      var pool = sectionArr.length ? sectionArr : (window._commentCache || []);
+      pool.forEach(function(c) {
+        if (c && (c.id === currentHighlightCommentId || c.parent_id === currentHighlightCommentId)) {
+          threadComments.push(c);
+        }
+      });
+      // If we found nothing — thread isn't in any cache (e.g. fresh load
+      // straight into a highlight URL) — leave the existing render alone
+      // and let the Supabase round-trip refresh it.
+      if (threadComments.length === 0) return;
+      threadComments.sort(function(a, b) { return new Date(a.created_at) - new Date(b.created_at); });
+      renderComments(threadComments, true);
+    } else {
+      renderComments(sectionArr, false);
     }
   }
 
@@ -16352,6 +16387,25 @@
     }
   }
 
+  // Stamp deleted_at on the cached comment so renderComments shows it in
+  // the history pile with the "Deleted" tag instead of as a regular
+  // resolved comment.
+  function _markCommentDeletedInCache(commentId) {
+    var stamp = new Date().toISOString();
+    Object.keys(commentCache || {}).forEach(function(sectionId) {
+      var arr = commentCache[sectionId];
+      if (!Array.isArray(arr)) return;
+      arr.forEach(function(c) {
+        if (c && c.id === commentId) c.deleted_at = stamp;
+      });
+    });
+    if (Array.isArray(window._commentCache)) {
+      window._commentCache.forEach(function(c) {
+        if (c && c.id === commentId) c.deleted_at = stamp;
+      });
+    }
+  }
+
   async function deleteComment(commentId) {
     if (!supabaseClient) return;
     try {
@@ -16359,6 +16413,8 @@
       // before the network round-trip (same pattern as resolveComment).
       _stripHighlightFromDom(commentId);
       _markCommentResolvedInCache(commentId);
+      _markCommentDeletedInCache(commentId);
+      _rerenderCommentPanelFromCache();
       // Soft-delete: set deleted_at timestamp instead of removing the row
       const { error: softErr } = await supabaseClient.from('comments').update({ deleted_at: new Date().toISOString(), resolved: true }).eq('id', commentId);
       // If soft-delete fails (column doesn't exist yet), fall back to hard resolve
