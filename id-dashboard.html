@@ -5749,8 +5749,40 @@
     renderResourceLinks(cardId);
   }
 
+  // One-time migration: append the "👥 Contacts Directory" link to each
+  // college's saved resource card if it's not already present. Needed
+  // because initResourceLinks() seeds localStorage from the hardcoded
+  // HTML only on the very first load — existing users (with previously-
+  // saved card data) never picked up the directory link added later.
+  function _migrateAddContactsDirectory() {
+    var stored = getResourceLinks();
+    var pairs = [
+      ['new-college', 'contacts-directory.html#ncias'],
+      ['tph',         'contacts-directory.html#stph'],
+      ['chs',         'contacts-directory.html#chs']
+    ];
+    var changed = false;
+    pairs.forEach(function(p) {
+      var cardId = p[0], url = p[1];
+      if (!Array.isArray(stored[cardId])) return;
+      var already = stored[cardId].some(function(lnk) {
+        return lnk && typeof lnk.url === 'string'
+          && lnk.url.indexOf('contacts-directory.html') !== -1;
+      });
+      if (!already) {
+        stored[cardId].push({ label: '👥 Contacts Directory', url: url });
+        changed = true;
+      }
+    });
+    if (changed) {
+      saveResourceLinks(stored);
+      ['new-college', 'tph', 'chs'].forEach(renderResourceLinks);
+    }
+  }
+
   // Initialize on load
   initResourceLinks();
+  _migrateAddContactsDirectory();
 
   // ===== COMMENT NOTIFICATIONS =====
   // URL + key come from supabase-config.js so there's a single source of truth.
