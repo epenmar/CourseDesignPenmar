@@ -404,6 +404,7 @@
   #ic-results .ic-meta strong { color: #2a2a2a; font-weight: 600; }
   #ic-results .ic-college-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #fdf2f4; border: 1px solid #f0d9e0; color: #8c1d40; font-size: 11px; font-weight: 600; margin-right: 6px; }
   #ic-results .ic-program-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #f5f5f0; border: 1px solid #e0ddd5; color: #555; font-size: 11px; margin-right: 4px; margin-top: 2px; }
+  #ic-results .ic-level-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #fef9f0; border: 1px solid #f0d9a0; color: #8a6d3b; font-size: 11px; font-weight: 700; letter-spacing: 0.04em; margin-right: 4px; margin-top: 2px; }
   #ic-results .ic-cross { margin-top: 6px; padding: 6px 8px; background: #fff8e1; border: 1px dashed #ffd54f; border-radius: 4px; font-size: 12px; color: #6d5a00; }
   #ic-results .ic-empty { padding: 16px 8px; color: #999; font-style: italic; font-size: 13px; text-align: center; }
   #ic-results .ic-source { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-top: 8px; }
@@ -2030,11 +2031,23 @@
       };
       return records.map(function(r) {
         var f = r.fields || {};
+        var programStr = toStr(pickField(f, ['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'], /^programs?\b/i));
+        // Look for an explicit level field; ASU APM lookups sometimes
+        // expose this as "Degree", "Degree Type", or "Program Level".
+        var levelStr = toStr(pickField(f, ['Degree', 'Degree Type', 'Program Type', 'Program Level', 'APM Degree', 'Level', 'Plan Type'], /(degree|level|plan\s*type)/i));
+        // If no explicit level field, infer level from the program string
+        // itself (the program name often embeds the degree, e.g.
+        // "MPH in Public Health Technology" or "Population Health (BS)").
+        if (!levelStr && programStr) {
+          var m = programStr.match(/\b(MPH|MHI|MMS|MMSc|MSW|MBA|DNP|EdD|PhD|MEd|MFA|MS|MA|BS|BA|BAS|BSW|MSE)\b/);
+          if (m) levelStr = m[1];
+        }
         return {
           recordId: r.id,
           code: f['Course'] || '',
           title: f['Course Title'] || '',
-          program: toStr(pickField(f, ['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'], /^programs?\b/i)),
+          program: programStr,
+          level: levelStr,
           college: toStr(pickField(f, ['College (from Program)', 'College', 'College (from APM)', 'College Name'], /college/i))
         };
       });
@@ -2067,7 +2080,9 @@
       return;
     }
     // Group by normalized course code. Within a group, dedupe
-    // (program × college) pairs — each unique pair is one listing.
+    // (program × level × college) triples — each unique triple is one
+    // distinct listing (so the same course in BS + MS programs counts
+    // as two listings, since the level matters).
     var byCode = {};
     var codeOrder = [];
     records.forEach(function(rec) {
@@ -2076,12 +2091,13 @@
         byCode[key] = { code: key, title: rec.title, listings: [] };
         codeOrder.push(key);
       }
-      var pairKey = (rec.program || '') + '||' + (rec.college || '');
+      var pairKey = (rec.program || '') + '|' + (rec.level || '') + '|' + (rec.college || '');
       var seen = byCode[key].listings.some(function(l) { return l._key === pairKey; });
       if (!seen) {
         byCode[key].listings.push({
           _key: pairKey,
           program: rec.program,
+          level: rec.level,
           college: rec.college,
           recordId: rec.recordId
         });
@@ -2102,9 +2118,11 @@
         if (l.college) html += '<span class="ic-college-pill">' + escapeHtml(_icCollegeShort(l.college)) + '</span>';
         if (l.college) html += '<strong>' + escapeHtml(l.college) + '</strong>';
         html += '</div>';
-        if (l.program) {
+        if (l.program || l.level) {
           html += '<div class="ic-meta">';
-          html += '<span class="ic-program-pill">' + escapeHtml(l.program) + '</span>';
+          if (l.level) html += '<span class="ic-level-pill">' + escapeHtml(l.level) + '</span>';
+          if (l.program) html += '<span class="ic-program-pill">' + escapeHtml(l.program) + '</span>';
+          if (!l.level) html += ' <span style="color:#c4841d; font-style:italic;">level not in Airtable</span>';
           html += '</div>';
         }
       });
