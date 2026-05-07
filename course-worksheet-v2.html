@@ -16650,17 +16650,26 @@ ${clone.innerHTML}
     }
   }
 
-  // Click handler for existing highlight marks
+  // Click handler for existing highlight marks. Runs in the CAPTURE
+  // phase so it fires before any inline onclick on parent elements
+  // (e.g. card-header toggleCard, activity-row expanders) that would
+  // otherwise collapse the section the highlight lives in and visually
+  // swallow the click. preventDefault + stopPropagation neutralize the
+  // parent handlers; the side panel opens reliably either way.
   document.addEventListener('click', function(e) {
     const mark = e.target.closest('.inline-highlight');
     if (mark) {
       const commentId = mark.dataset.commentId;
       if (!commentId) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       const sectionId = getViewSectionId(mark);
       openCommentPanel(sectionId, commentId);
       return;
     }
-    // Also handle click on field-comment highlighted fields
+    // Field-comment highlight click — same protection: an input wrapped
+    // in a card-header would otherwise collapse the card on click.
     const field = e.target.closest('.has-field-comment');
     if (field) {
       // Find the comment for this field
@@ -16673,6 +16682,9 @@ ${clone.innerHTML}
           }
         });
       });
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       if (foundComment) {
         openCommentPanel(foundComment.section_id, foundComment.id);
       } else {
@@ -16680,7 +16692,7 @@ ${clone.innerHTML}
         openCommentPanel(getViewSectionId(field));
       }
     }
-  });
+  }, true); // capture phase — beat parent inline onclicks like toggleCard
 
   // ===== RESTORE HIGHLIGHTS ON PAGE LOAD =====
   async function loadAndApplyHighlights() {
