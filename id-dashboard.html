@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
+<script src="course-directory.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
   * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -394,6 +395,18 @@
   /* ===== RESOURCE ACCORDION ===== */
   .resource-accordion { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 11px 18px; font-size: 14px; font-weight: 600; color: #8c1d40; font-family: 'Inter', sans-serif; transition: all 0.15s; }
   .resource-accordion:hover { background: #fdf2f4; border-color: #8c1d40; }
+  /* Identify Course modal — result row styling */
+  #ic-results .ic-row { padding: 10px 12px; border-bottom: 1px solid #f0ede5; }
+  #ic-results .ic-row:last-child { border-bottom: none; }
+  #ic-results .ic-code { font-weight: 700; color: #8c1d40; font-size: 14px; margin-right: 6px; }
+  #ic-results .ic-name { color: #2a2a2a; font-size: 13px; }
+  #ic-results .ic-meta { font-size: 12px; color: #666; margin-top: 4px; line-height: 1.5; }
+  #ic-results .ic-meta strong { color: #2a2a2a; font-weight: 600; }
+  #ic-results .ic-college-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #fdf2f4; border: 1px solid #f0d9e0; color: #8c1d40; font-size: 11px; font-weight: 600; margin-right: 6px; }
+  #ic-results .ic-program-pill { display: inline-block; padding: 2px 8px; border-radius: 10px; background: #f5f5f0; border: 1px solid #e0ddd5; color: #555; font-size: 11px; margin-right: 4px; margin-top: 2px; }
+  #ic-results .ic-cross { margin-top: 6px; padding: 6px 8px; background: #fff8e1; border: 1px dashed #ffd54f; border-radius: 4px; font-size: 12px; color: #6d5a00; }
+  #ic-results .ic-empty { padding: 16px 8px; color: #999; font-style: italic; font-size: 13px; text-align: center; }
+  #ic-results .ic-source { font-size: 10px; color: #999; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; margin-top: 8px; }
   .resource-accordion .ra-arrow { transition: transform 0.2s; font-size: 12px; }
   .resource-accordion .ra-arrow.open { transform: rotate(180deg); }
   .resource-body { overflow: hidden; max-height: 0; transition: max-height 0.25s ease; }
@@ -532,6 +545,9 @@
         <button class="resource-accordion" onclick="var b=document.getElementById('multi-action-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
           🛠 Multi-course Actions <span class="ra-arrow">▾</span>
         </button>
+        <button class="resource-accordion" onclick="openIdentifyCourse()">
+          🔍 Identify Course
+        </button>
       </div>
       <div class="resource-body" id="uni-resource-body">
         <div class="resource-section" style="margin-top:4px;">
@@ -634,6 +650,19 @@
         <button onclick="closeCanvasShellModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px;">Cancel</button>
         <button id="canvas-shell-primary-btn" onclick="generateCanvasShellCsv()" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">Generate CSV</button>
       </div>
+    </div>
+  </div>
+
+  <!-- IDENTIFY COURSE MODAL -->
+  <div id="identify-course-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.35); z-index:300; align-items:flex-start; justify-content:center; padding-top:80px; font-family:Inter,sans-serif;" onclick="if(event.target===this) closeIdentifyCourse();">
+    <div style="background:#fff; border-radius:12px; padding:22px 26px; max-width:560px; width:92%; max-height:80vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:14px;">
+        <h3 style="margin:0; font-size:16px; color:#8c1d40;">🔍 Identify a course</h3>
+        <button onclick="closeIdentifyCourse()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
+      </div>
+      <p style="font-size:12px; color:#666; margin-bottom:10px;">Type a full code (<code>HSC 310</code>) or just the prefix (<code>HSC</code>) to see which program and college it belongs to.</p>
+      <input type="text" id="ic-input" autocomplete="off" autofocus placeholder="e.g. HSC, TPH 501, BMI 515" oninput="runIdentifyCourse()" style="width:100%; padding:10px 12px; font-size:14px; font-family:'Inter',sans-serif; border:1px solid #e0ddd5; border-radius:8px; margin-bottom:12px;">
+      <div id="ic-results" style="overflow-y:auto; flex:1; min-height:80px; border-top:1px solid #f0ede5; padding-top:10px;"></div>
     </div>
   </div>
 
@@ -1738,6 +1767,203 @@
     } catch(e) {}
     return '';
   }
+
+  // ===== IDENTIFY COURSE MODAL =====
+  // Lightweight directory tool: type a course code (full like "HSC 310"
+  // or just a prefix like "HSC") and see which program / college that
+  // course belongs to. Sources, in order of priority:
+  //   1. window.allCourses — the user's tracked courses (from
+  //      dashboard data + course overrides). Authoritative when found.
+  //   2. window.COURSE_SPECIFIC_DIRECTORY — known cross-listings or
+  //      jointly-offered courses from course-directory.js.
+  //   3. window.COURSE_PREFIX_DIRECTORY — prefix-level fallback so a
+  //      bare prefix like "HSC" still surfaces the home college.
+  window.openIdentifyCourse = function() {
+    var modal = document.getElementById('identify-course-modal');
+    if (!modal) return;
+    modal.style.display = 'flex';
+    var input = document.getElementById('ic-input');
+    if (input) { input.value = ''; setTimeout(function() { input.focus(); }, 50); }
+    runIdentifyCourse();
+  };
+  window.closeIdentifyCourse = function() {
+    var modal = document.getElementById('identify-course-modal');
+    if (modal) modal.style.display = 'none';
+  };
+  // Esc closes; cmd+f / ctrl+k could be wired later if it earns a shortcut.
+  document.addEventListener('keydown', function(e) {
+    if (e.key !== 'Escape') return;
+    var modal = document.getElementById('identify-course-modal');
+    if (modal && modal.style.display === 'flex') closeIdentifyCourse();
+  });
+
+  function _icEscape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+  // Use the dashboard's existing escapeHtml if it ever gets defined,
+  // otherwise fall back to the local one.
+  var escapeHtml = (typeof window.escapeHtml === 'function') ? window.escapeHtml : _icEscape;
+  function _icNormalize(s) {
+    return String(s || '').toUpperCase().replace(/\s+/g, ' ').trim();
+  }
+  // Split a normalized code into prefix + number when possible:
+  //   "HSC 310" -> { prefix: 'HSC', number: '310', full: 'HSC 310' }
+  //   "TPH501"  -> { prefix: 'TPH', number: '501', full: 'TPH 501' }
+  //   "HSC"     -> { prefix: 'HSC', number: '',    full: 'HSC' }
+  function _icParseCode(raw) {
+    var n = _icNormalize(raw);
+    var m = n.match(/^([A-Z]{2,4})\s*(\d{0,4})/);
+    if (!m) return { prefix: '', number: '', full: n };
+    var prefix = m[1];
+    var number = (m[2] || '').replace(/^0+/, '');
+    return {
+      prefix: prefix,
+      number: number,
+      full: number ? prefix + ' ' + number : prefix
+    };
+  }
+  // Strip a tracked-course code to its normalized "PREFIX NUMBER" shape.
+  function _icCourseCode(course) {
+    return _icNormalize(course && (course.code || ''));
+  }
+
+  window.runIdentifyCourse = function() {
+    var input = document.getElementById('ic-input');
+    var resultsEl = document.getElementById('ic-results');
+    if (!input || !resultsEl) return;
+    var raw = (input.value || '').trim();
+    if (!raw) {
+      resultsEl.innerHTML = '<div class="ic-empty">Type a course code to look it up.</div>';
+      return;
+    }
+    var parsed = _icParseCode(raw);
+    if (!parsed.prefix) {
+      resultsEl.innerHTML = '<div class="ic-empty">Use a code that starts with 2–4 letters, like <code>HSC</code> or <code>TPH 501</code>.</div>';
+      return;
+    }
+
+    var trackedCourses = (typeof allCourses !== 'undefined' && allCourses) ? allCourses
+      : (window.allCourses || {});
+    var trackedHits = [];
+    Object.keys(trackedCourses || {}).forEach(function(k) {
+      var c = trackedCourses[k];
+      if (!c) return;
+      var code = _icCourseCode(c);
+      if (!code) return;
+      if (code.indexOf(parsed.full) === 0 || code === parsed.full) {
+        trackedHits.push({ key: k, course: c, code: code });
+      } else if (!parsed.number && code.indexOf(parsed.prefix) === 0) {
+        trackedHits.push({ key: k, course: c, code: code });
+      }
+    });
+    trackedHits.sort(function(a, b) { return a.code.localeCompare(b.code); });
+
+    var specificMap = window.COURSE_SPECIFIC_DIRECTORY || {};
+    var specificEntry = specificMap[parsed.full] || null;
+    var prefixMap = window.COURSE_PREFIX_DIRECTORY || {};
+    var prefixEntry = prefixMap[parsed.prefix] || null;
+
+    var html = '';
+
+    // 1. Tracked courses — the user's own portfolio. Show the course
+    //    title from courseData and (if known) the college / program
+    //    from prefix or specific overrides.
+    if (trackedHits.length > 0) {
+      html += '<div class="ic-source">From your tracked courses</div>';
+      trackedHits.forEach(function(hit) {
+        var c = hit.course;
+        var title = c.title || c.name || c.emailName || '';
+        var hitParsed = _icParseCode(hit.code);
+        var spec = specificMap[hit.code];
+        var pre = prefixMap[hitParsed.prefix];
+        var college = (spec && spec.college) || (c.college) || (pre && pre.college) || '';
+        var collegeShort = (spec && spec.collegeShort) || (c.collegeShort) || (pre && pre.collegeShort) || '';
+        var programs = (spec && spec.programs) || (pre && pre.programs) || [];
+        var crossListed = (spec && spec.crossListedAs) || [];
+        html += '<div class="ic-row">';
+        html += '<div><span class="ic-code">' + escapeHtml(hit.code) + '</span>';
+        if (title) html += '<span class="ic-name">— ' + escapeHtml(title) + '</span>';
+        html += '</div>';
+        html += '<div class="ic-meta">';
+        if (college) html += '<span class="ic-college-pill">' + escapeHtml(collegeShort || college) + '</span>';
+        if (college) html += '<strong>' + escapeHtml(college) + '</strong>';
+        html += '</div>';
+        if (programs.length) {
+          html += '<div class="ic-meta">';
+          programs.forEach(function(p) { html += '<span class="ic-program-pill">' + escapeHtml(p) + '</span>'; });
+          html += '</div>';
+        }
+        if (crossListed.length) {
+          html += '<div class="ic-cross">Also listed as: ' + crossListed.map(escapeHtml).join('; ') + '</div>';
+        }
+        html += '</div>';
+      });
+    }
+
+    // 2. Specific override (when not already shown from tracked courses).
+    var trackedCodes = trackedHits.map(function(h) { return h.code; });
+    if (specificEntry && trackedCodes.indexOf(parsed.full) === -1) {
+      html += '<div class="ic-source">From the directory</div>';
+      html += '<div class="ic-row">';
+      html += '<div><span class="ic-code">' + escapeHtml(parsed.full) + '</span></div>';
+      html += '<div class="ic-meta">';
+      if (specificEntry.collegeShort) html += '<span class="ic-college-pill">' + escapeHtml(specificEntry.collegeShort) + '</span>';
+      if (specificEntry.college) html += '<strong>' + escapeHtml(specificEntry.college) + '</strong>';
+      html += '</div>';
+      if ((specificEntry.programs || []).length) {
+        html += '<div class="ic-meta">';
+        specificEntry.programs.forEach(function(p) { html += '<span class="ic-program-pill">' + escapeHtml(p) + '</span>'; });
+        html += '</div>';
+      }
+      if ((specificEntry.crossListedAs || []).length) {
+        html += '<div class="ic-cross">Also listed as: ' + specificEntry.crossListedAs.map(escapeHtml).join('; ') + '</div>';
+      }
+      html += '</div>';
+    }
+
+    // 3. Prefix fallback — show only if we haven't already shown this
+    //    prefix's college via the user's tracked courses.
+    var alreadyShownCollege = trackedHits.some(function(h) {
+      return _icParseCode(h.code).prefix === parsed.prefix;
+    }) || (specificEntry && specificEntry.collegeShort);
+    if (prefixEntry && !alreadyShownCollege) {
+      html += '<div class="ic-source">' + (parsed.number ? 'Prefix-level guess (course not in your tracked list)' : 'Prefix-level info') + '</div>';
+      html += '<div class="ic-row">';
+      html += '<div><span class="ic-code">' + escapeHtml(parsed.full) + '</span>';
+      if (parsed.number) html += '<span class="ic-name" style="color:#888; font-style:italic;"> — specific course not tracked here</span>';
+      html += '</div>';
+      html += '<div class="ic-meta">';
+      html += '<span class="ic-college-pill">' + escapeHtml(prefixEntry.collegeShort) + '</span>';
+      html += '<strong>' + escapeHtml(prefixEntry.college) + '</strong>';
+      html += '</div>';
+      if ((prefixEntry.programs || []).length) {
+        html += '<div class="ic-meta">';
+        prefixEntry.programs.forEach(function(p) { html += '<span class="ic-program-pill">' + escapeHtml(p) + '</span>'; });
+        html += '</div>';
+      }
+      html += '</div>';
+    }
+
+    if (!html) {
+      html = '<div class="ic-empty">No matches for <code>' + escapeHtml(parsed.full) + '</code>. '
+        + 'If this course is real but the directory hasn\'t been taught about it, add the prefix to <code>COURSE_PREFIX_DIRECTORY</code> '
+        + 'in <code>course-directory.js</code>, or — for cross-listings — add a specific override.</div>';
+    }
+
+    // Cross-listing nudge for any successful match.
+    if (trackedHits.length > 0 || specificEntry || prefixEntry) {
+      html += '<div class="ic-meta" style="margin-top:10px; padding-top:8px; border-top:1px dashed #f0ede5; color:#999; font-style:italic;">'
+        + 'Cross-listing data isn\'t pulled from Airtable yet — confirmed cross-lists can be added to <code>COURSE_SPECIFIC_DIRECTORY</code> in <code>course-directory.js</code>.'
+        + '</div>';
+    }
+
+    resultsEl.innerHTML = html;
+  };
 
   // Currently-open mode for the modal: 'dev' or 'live'. Stored on the modal
   // itself so the Generate button can branch correctly.
