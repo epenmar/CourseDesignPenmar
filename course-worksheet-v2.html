@@ -10083,6 +10083,15 @@
     }).join(' ');
   }
 
+  // Small-integer → English word ("two", "three", …). Used in prose
+  // where digits feel awkward (e.g., "replies to two peers").
+  function _numberWord(n) {
+    var words = ['zero','one','two','three','four','five','six','seven','eight','nine','ten'];
+    var i = parseInt(n, 10);
+    if (isNaN(i) || i < 0 || i > 10) return String(n);
+    return words[i];
+  }
+
   function _aiFillRubricLevelHeader(style, customLevels) {
     var presets = {
       'binary':     'Yes | No',
@@ -10265,6 +10274,18 @@
       if (ag.other) prompt += '- Other: ' + ag.other + '\n';
       prompt += '\nThese metrics MUST appear verbatim in the Instructions section (so students know exactly what to do) AND in the How You\'re Graded / Rubric sections (so students see how the auto-grade is calculated). Do NOT invent additional grading criteria beyond these. ';
       prompt += 'Since the platform auto-grades, the rubric is essentially a checklist — write each criterion as a metric (e.g., "Top-level post meets ' + (ag.minWords || 'word') + '-word minimum", "Replied to ' + (ag.peerReplies || 'required') + ' peer' + ((ag.peerReplies||0) === 1 ? '' : 's') + '") rather than qualitative descriptors like "Strong / Adequate / Developing".\n';
+
+      // Phrasing guidance for the grading-description sentence — this
+      // is the one-liner that tells students how the grade is computed.
+      // Use the engagement-based phrasing the instructor prefers; do
+      // NOT call it "a checklist rubric with yes/no criteria" or any
+      // similar rubric-mechanics description.
+      var basisPhrase = 'based on timely submission of your initial post';
+      if (ag.peerReplies === 1) basisPhrase += ' and a reply to one peer';
+      else if (ag.peerReplies > 1) basisPhrase += ' and replies to ' + _numberWord(ag.peerReplies) + ' peers';
+      prompt += '\nWhen describing how the grade is calculated in the How You\'re Graded section, ';
+      prompt += 'phrase the basis as: "' + basisPhrase + '" (or a close paraphrase). ';
+      prompt += 'Do NOT say "checklist rubric", "yes/no criteria", or any phrase that describes the rubric\'s mechanics — students don\'t care that it\'s a checklist, only what they need to do to earn credit.\n';
     }
 
     // Linked materials — pull title/type/links/notes/richText for each.
