@@ -9739,6 +9739,20 @@
       + '</div>';
     html += '</div>';
 
+    // Custom instructions — free-entry text the instructor wants the
+    // model to weight when generating. Useful when meeting notes are
+    // ambiguous / unsynced, when the discussion is supposed to do
+    // something specific the AI keeps missing, or when the user wants
+    // to override a default ("don't write peer-reply requirements,
+    // this one is solo"). Persisted on the activity so iterating on the
+    // generation doesn't lose context the user already typed.
+    var customNotesPref = (act.aiFillPrefs && act.aiFillPrefs.customNotes) || '';
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Custom instructions <span class="aif-meta">(optional, but treated as authoritative)</span></div>';
+    html += '<textarea id="aif-custom-notes" rows="3" placeholder="e.g., This is a casual icebreaker, not graded on academic content. Or: write the rubric as a 2-row checklist around participation, no quality dimensions." style="width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;">' + escapeHtml(customNotesPref) + '</textarea>';
+    html += '<div class="aif-hint">Anything you want the AI to weight while generating this content. Overrides default best-practices when in conflict.</div>';
+    html += '</div>';
+
     // Tool / platform — explicit selection beats letting Claude infer from
     // free-text meeting notes. The chosen tool's instruction conventions
     // (annotate vs post vs record etc.) are baked in as a prompt block.
@@ -10009,10 +10023,12 @@
     var agReplyWords = document.getElementById('aif-autograde-reply-words');
     var agReactions = document.getElementById('aif-autograde-reactions');
     var agOther = document.getElementById('aif-autograde-other');
+    var customNotesEl = document.getElementById('aif-custom-notes');
     var _intOrZero = function(el) { var v = parseInt((el && el.value) || '', 10); return isNaN(v) ? 0 : v; };
     return {
       tool: toolEl ? toolEl.value : '',
       toolCustom: toolCustomEl ? (toolCustomEl.value || '').trim() : '',
+      customNotes: customNotesEl ? (customNotesEl.value || '').trim() : '',
       autograde: {
         enabled: !!(agEnabled && agEnabled.checked),
         minWords: _intOrZero(agWords),
@@ -10200,6 +10216,19 @@
     if (mloTexts.length > 0) {
       prompt += '- Module Learning Objectives that this ' + tplType + ' must align to:\n';
       mloTexts.forEach(function(t) { prompt += '  • ' + t + '\n'; });
+    }
+
+    // Custom instructor notes — placed BEFORE tool/platform so they set
+    // the tone and can override the tool guide's defaults if needed
+    // ("Harmonize but post-based, not annotation"). When the meeting
+    // notes don't capture what the user wanted, this is the escape hatch.
+    var customNotes = (prefs && prefs.customNotes) || '';
+    if (customNotes) {
+      prompt += '\n## Instructor instructions for THIS generation (highest priority)\n';
+      prompt += '(Treat as the most authoritative input. If anything below — tool guide, '
+        + 'meeting notes, generic best-practices — conflicts with what the instructor wrote '
+        + 'here, the instructor wins.)\n';
+      prompt += customNotes + '\n';
     }
 
     // Tool / platform — explicit pick from the modal. Authoritative.
