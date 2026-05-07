@@ -470,12 +470,17 @@
     padding: 6px 8px; border-radius: 6px;
   }
   .ceph-alert-row + .ceph-alert-row { border-top: 1px dashed #ffe082; }
+  /* Fixed-width column wrapping the competency pill so descriptions in
+     every row start at the same x-position regardless of how long the
+     pill text is. The pill itself fills the column so visual width is
+     also uniform. */
   .ceph-alert-tag {
-    flex-shrink: 0; min-width: 72px;
-    padding: 2px 8px; border-radius: 10px;
+    flex-shrink: 0; width: 150px;
+    padding: 2px 8px; border-radius: 10px; box-sizing: border-box;
     background: #fff; border: 1px solid #c4841d;
     font-size: 10px; font-weight: 700; color: #c4841d;
     text-align: center; align-self: flex-start; margin-top: 2px;
+    white-space: nowrap;
   }
   .ceph-alert-rowtext { flex: 1; min-width: 0; }
   .ceph-alert-competency {
@@ -13327,6 +13332,24 @@ ${clone.innerHTML}
       '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
 
+    // STPH-program block: when the active course is one of the STPH MPH
+    // courses, the parser is taught (a) to prefer MLOs that bind 1:1 to
+    // assessments, and (b) which CEPH / UOEEE assessments are required
+    // for accreditation. The blocks are appended to the structure +
+    // assignment prompts only when applicable so non-STPH courses keep
+    // the existing generic behavior.
+    var stphCourse = (typeof _isStphCourse === 'function') && _isStphCourse();
+    var cephRequiredEntry = stphCourse && window.CEPH_REQUIRED_ASSESSMENTS
+      ? window.CEPH_REQUIRED_ASSESSMENTS[String(courseId || '').toLowerCase().replace(/\s+/g, '')]
+      : null;
+    var stphMloRules = '';
+    if (stphCourse) {
+      stphMloRules = '\n\n=== STPH MPH FORMATTING (this course is in the STPH MPH program) ===\n'
+        + '- Each MLO MUST be tied directly to a specific assessment so the resulting course has 1:1 alignment between MLOs and assignments. Phrase each MLO so the assessment type is named explicitly within the objective.\n'
+        + '- Example MLO: "Explain public health essential core functions in the US and their relationship to essential services in a quiz."\n'
+        + '- This means the MLO count per module should roughly match the number of major assignments that module contains.\n';
+    }
+
     var structureQuery =
       'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
       'Return ONLY this single section as HTML:\n' +
@@ -13338,8 +13361,9 @@ ${clone.innerHTML}
       '- CAP EACH MODULE AT 4 MLOs MAXIMUM. If consolidating the source weeks into this module would yield more than 4 objectives, MERGE closely-related objectives into broader consolidated MLOs that preserve the underlying learning intent (e.g. combine "explain X" + "explain Y" + "explain Z" into a single "explain X, Y, and Z" objective, keeping the highest cognitive verb). Prefer 3-4 well-scoped MLOs over 5+ narrow ones.\n' +
       '- The Learning Materials cell MUST be a <ul> with one <li> per material (textbook chapter, reading, video, etc.). Do NOT list assignments here.\n' +
       '- Close every tag — the <table>, every <tr>, every <td>, every <ul>. Emit complete, well-formed HTML.\n' +
-      '- Do NOT include <html>, <body>, <style>, markdown fences, or any other sections/tables.\n\n' +
-      '=== SOURCE ===\n' + raw;
+      '- Do NOT include <html>, <body>, <style>, markdown fences, or any other sections/tables.\n' +
+      stphMloRules +
+      '\n=== SOURCE ===\n' + raw;
 
     // NOTE: assignmentsQuery is built AFTER the structure call so we can include
     // the proposed module layout. Without that context the AI invents its own
@@ -13348,10 +13372,34 @@ ${clone.innerHTML}
       var allowedList = [];
       for (var i = 1; i <= targetModules; i++) allowedList.push(String(i));
       var allowedStr = allowedList.join(', ');
+
+      // CEPH-required-assessment block: when this STPH course has a
+      // mapped list of CEPH / UOEEE accreditation-required assessments,
+      // hand the parser the list verbatim and require it to (a) include
+      // each one as a row in the Assignment Mapping output, (b) prefix
+      // the Notes cell with "[<framework> <id> · <variant> — required]"
+      // so the marker survives the import into the worksheet.
+      var cephBlock = '';
+      if (cephRequiredEntry && Array.isArray(cephRequiredEntry.items) && cephRequiredEntry.items.length) {
+        var texts = window.CEPH_COMPETENCY_TEXTS || {};
+        cephBlock = '\n=== CEPH / UOEEE REQUIRED ASSESSMENTS for this course ===\n'
+          + 'These assessments are required for accreditation. They MUST appear as rows in your Assignment Mapping output. If the source content already includes them, use the source\'s wording for the Activity cell; if not, create a row using the title shown below. The Notes cell for each of these rows MUST start with the bracketed marker shown.\n\n';
+        cephRequiredEntry.items.forEach(function(it) {
+          var competencyText = (texts[it.fw] || {})[it.cId] || '';
+          var marker = '[' + it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '') + ' — required]';
+          cephBlock += '- Marker: ' + marker + '\n';
+          cephBlock += '  Competency: ' + competencyText + '\n';
+          cephBlock += '  Module: ' + (it.mod !== undefined && it.mod !== null && it.mod !== '' ? it.mod : 'TBD') + '\n';
+          cephBlock += '  Required title (use this if source is silent): ' + it.title + '\n';
+          cephBlock += '  Notes prefix to emit: "' + marker + ' "\n\n';
+        });
+      }
+
       return 'TARGET MODULE COUNT: ' + targetModules + '. The only valid values for the Module column are: ' + allowedStr + '. Any other number is INVALID and will be rejected.\n\n' +
       'The source course has ' + sourceWeeks + ' weeks but is being consolidated into ' + targetModules + ' modules. Extract EVERY assignment/activity from the SOURCE and place it into one of the ' + targetModules + ' target modules defined in the PROPOSED MODULE STRUCTURE below.\n\n' +
-      '=== PROPOSED MODULE STRUCTURE (authoritative — use these module numbers and these MLO numbers) ===\n' + structureHtml + '\n\n' +
-      'Return ONLY a single section as HTML:\n' +
+      '=== PROPOSED MODULE STRUCTURE (authoritative — use these module numbers and these MLO numbers) ===\n' + structureHtml + '\n' +
+      cephBlock +
+      '\nReturn ONLY a single section as HTML:\n' +
       '<h2>Assignment Mapping</h2> followed by a <table> with columns: Module, Objective(s), Activity, Points, Due, Notes.\n\n' +
       'Requirements:\n' +
       '- Output one row per assignment from the source.\n' +
@@ -13360,10 +13408,10 @@ ${clone.innerHTML}
       '- Activity cell: concise name of the assignment from the source.\n' +
       '- Points cell: point value from source, or "TBD".\n' +
       '- Due cell: capture the due date/week/deadline from the source (e.g. "Week 3", "End of Module 2", "Friday of Week 5"). If not specified, output "TBD".\n' +
-      '- Notes cell: concise — 1 short line max.\n' +
+      '- Notes cell: concise — 1 short line max. For CEPH / UOEEE required-assessment rows, the Notes cell MUST start with the bracketed marker (e.g. "[CEPH 7 — required] …") shown in the required-assessments block above.\n' +
       '- Sort rows by Module (ascending).\n' +
       '- COVERAGE: every target module (' + allowedStr + ') must appear in the output. If the source does not obviously contain assignments for a given target module, create reasonable placeholder assignment rows for that module (drawn from the topics/MLOs in the proposed structure) so it is still represented. Do NOT leave any of the ' + targetModules + ' modules without at least one row.\n' +
-      '- Before returning, run these checks: (a) every Module cell is one of ' + allowedStr + '; (b) every value in ' + allowedStr + ' appears in at least one row. If either check fails, fix the output before emitting.\n' +
+      '- Before returning, run these checks: (a) every Module cell is one of ' + allowedStr + '; (b) every value in ' + allowedStr + ' appears in at least one row; (c) every required-assessment marker listed above appears as the Notes prefix on at least one row. If any check fails, fix the output before emitting.\n' +
       'Do NOT include <html>, <body>, <style>, markdown fences, or any other sections.\n\n' +
       '=== SOURCE ===\n' + raw;
     };
