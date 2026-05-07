@@ -2566,11 +2566,14 @@
   function _mlosForModule(targetMod) {
     var savedMods = loadField('moduleOverviewData') || {};
     if (savedMods[targetMod] && Array.isArray(savedMods[targetMod].mlos)) {
+      if (window._debugMloReads) console.log('[mlo-read] module', targetMod, '← localStorage:', savedMods[targetMod].mlos);
       return savedMods[targetMod].mlos;
     }
     var startN = activeCourse.moduleStartZero ? 0 : 1;
     var mod = (activeCourse.modules || [])[targetMod - startN];
-    return (mod && mod.mlos) || [];
+    var fallback = (mod && mod.mlos) || [];
+    if (window._debugMloReads) console.log('[mlo-read] module', targetMod, '← activeCourse.modules fallback:', fallback);
+    return fallback;
   }
 
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
@@ -7410,19 +7413,38 @@
 
   function saveMloAccordionEdits(moduleNum) {
     var textareas = document.querySelectorAll('.mlo-acc-edit[data-mod="' + moduleNum + '"]');
+    if (textareas.length === 0) {
+      console.warn('[mlo-save] no textareas found for module', moduleNum);
+      return;
+    }
     var mlos = [];
     textareas.forEach(function(ta) { mlos.push(ta.value); });
-    // Update in-memory
+    console.log('[mlo-save] module', moduleNum, '→', mlos);
+    // Update in-memory.
     var _startN = activeCourse.moduleStartZero ? 0 : 1;
     if (activeCourse.modules && activeCourse.modules[moduleNum - _startN]) {
-      activeCourse.modules[moduleNum - _startN].mlos = mlos;
+      activeCourse.modules[moduleNum - _startN].mlos = mlos.slice();
     }
-    // Update localStorage
+    // Update localStorage. Read fresh, mutate, save back. saveField also
+    // stamps __modifiedAt so the cloud merge prefers our copy on push.
     var savedMods = loadField('moduleOverviewData') || {};
     if (!savedMods[moduleNum]) savedMods[moduleNum] = {};
-    savedMods[moduleNum].mlos = mlos;
+    savedMods[moduleNum].mlos = mlos.slice();
     saveField('moduleOverviewData', savedMods);
-    // Exit edit mode and re-render
+
+    // Verification: read back what we just wrote and confirm it stuck.
+    // If the read returns something else, something is mutating the
+    // bucket between save and re-read (e.g. an in-flight cloud pull).
+    var verify = loadField('moduleOverviewData') || {};
+    var readBack = (verify[moduleNum] && verify[moduleNum].mlos) || [];
+    var match = readBack.length === mlos.length && readBack.every(function(v, i) { return v === mlos[i]; });
+    if (!match) {
+      console.error('[mlo-save] verification FAILED — saved value did not stick. Saved:', mlos, 'Read back:', readBack);
+    } else {
+      console.log('[mlo-save] verified — value persisted in localStorage');
+    }
+
+    // Exit edit mode and re-render.
     mloAccordionEditMod = null;
     if (currentViewId === 'assignments-overview') renderAssignmentsOverview();
     else if (currentViewId === 'materials-overview') renderMaterialsOverview();
