@@ -430,6 +430,13 @@
   }
   .content-complete-bar input[type="checkbox"] { accent-color: #2e7d32; }
   .content-complete-bar.is-complete { background: #f0faf0; border-color: #c5e1c5; color: #2d7d46; font-weight: 600; }
+  .content-clear-btn {
+    margin-left: 8px; padding: 2px 10px; font-size: 11px;
+    border: 1px solid #d6d2c5; border-radius: 4px;
+    background: #fff; color: #888; cursor: pointer; white-space: nowrap;
+    font-family: 'Inter', sans-serif;
+  }
+  .content-clear-btn:hover { border-color: #c62828; color: #c62828; background: #fef0f0; }
 
   /* Custom tooltip on the link-usage badge — replaces native title= so it
      appears immediately on hover instead of after the browser's ~600ms delay. */
@@ -2551,18 +2558,27 @@
   // "Mark content complete" toggle that sits at the top of every
   // content-attach body. Stores its state on the underlying activity /
   // material as item.contentComplete so the indicator can render the
-  // tri-state (none / partial / complete).
+  // tri-state (none / partial / complete). Adds a "Clear content"
+  // escape-hatch button when there's actually content in the slot, so
+  // stale propagation / migration data can be reset without hunting
+  // through every field.
   function _buildContentCompleteBarHtml(prefix) {
     var info = (typeof _itemForContentPrefix === 'function') ? _itemForContentPrefix(prefix) : null;
     var done = !!(info && info.item && info.item.contentComplete);
+    var hasContent = info && typeof _hasAnyAttachedContent === 'function'
+      ? _hasAnyAttachedContent(info.item, info.kind) : false;
     var hint = done ? 'Reviewed and ready for student-facing use'
                     : 'Check this once content is reviewed and ready for student-facing use';
-    return '<label class="content-complete-bar' + (done ? ' is-complete' : '') + '">'
+    var html = '<label class="content-complete-bar' + (done ? ' is-complete' : '') + '">'
       + '<input type="checkbox" data-content-complete="' + escapeHtml(prefix) + '"'
       + ' onchange="toggleContentComplete(this, \'' + prefix + '\')"' + (done ? ' checked' : '') + '>'
       + '<span>Mark content complete</span>'
-      + '<span style="margin-left:auto; font-size:11px; color:#888; font-style:italic;">' + hint + '</span>'
-      + '</label>';
+      + '<span style="margin-left:auto; font-size:11px; color:#888; font-style:italic;">' + hint + '</span>';
+    if (hasContent) {
+      html += '<button type="button" class="content-clear-btn" title="Clear all content fields for this item" '
+        + 'onclick="event.preventDefault(); event.stopPropagation(); clearAllContent(\'' + prefix + '\')">Clear content</button>';
+    }
+    return html + '</label>';
   }
 
   function buildTplTextarea(actId, tplType, sectionLabel, placeholder, extraStyle) {
@@ -11097,6 +11113,42 @@
     });
     console.log(rows.join('\n'));
     return rows.length + ' activities. Check the console output above.';
+  };
+
+  // Wipe every content field on an activity / material — files, links,
+  // rich-text body, every populated template field, and the
+  // contentComplete flag. Used by the "Clear content" button on the
+  // content-complete-bar to reset stale data (e.g., legacy notes that
+  // got migrated into richText, or old apply-template propagation that
+  // the instructor didn't actually want).
+  window.clearAllContent = function(prefix) {
+    var info = _itemForContentPrefix(prefix);
+    if (!info || !info.item) return;
+    var label = (info.kind === 'activity' ? 'activity' : 'material');
+    if (!confirm('Clear ALL content for this ' + label + '?\n\n'
+      + 'This removes uploaded files, saved links, rich-text body, and every populated template field.\n'
+      + 'The ' + label + ' itself stays — only its content is cleared.\n\n'
+      + 'This cannot be undone.')) return;
+    info.item.attachedFiles = [];
+    info.item.links = [];
+    info.item.richText = '';
+    info.item.templateData = {};
+    info.item.contentComplete = false;
+    if (typeof saveActivityData === 'function') saveActivityData();
+    // Re-render the active overview / module so Quill editors and the
+    // rubric grid pick up the cleared state. refreshAllContentIndicators
+    // alone wouldn't reset Quill instances.
+    if (typeof renderAssignmentsOverview === 'function' && document.getElementById('assignments-overview-cards')) {
+      renderAssignmentsOverview();
+    }
+    if (typeof renderMaterialsOverview === 'function' && document.getElementById('materials-overview-cards')) {
+      renderMaterialsOverview();
+    }
+    if (typeof currentViewId === 'string' && /^module-/.test(currentViewId) && typeof renderModule === 'function') {
+      var modNum = parseInt(currentViewId.replace(/^module-/, ''), 10);
+      if (!isNaN(modNum)) renderModule(modNum);
+    }
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   };
 
   // Mark / unmark an activity or material's content as "complete" — the
