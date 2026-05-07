@@ -519,6 +519,18 @@
   }
   .btn-add-row.btn-ai-fill:hover { background: #701632; border-color: #701632; }
 
+  /* Animated spinner shown on the AI Fill Generate button while a request
+     is in flight. CSS-only — no static "Generating..." string. */
+  @keyframes ai-fill-spin { to { transform: rotate(360deg); } }
+  .ai-fill-loading {
+    display: inline-flex; align-items: center; gap: 8px; cursor: progress;
+  }
+  .ai-fill-loading::before {
+    content: ''; display: inline-block; width: 12px; height: 12px;
+    border: 2px solid rgba(255,255,255,0.4); border-top-color: #fff;
+    border-radius: 50%; animation: ai-fill-spin 0.8s infinite linear;
+  }
+
   /* ===== AI FILL / APPLY TEMPLATE / COPY FROM modal styling =====
      All three modals share the same vocabulary of section blocks, row
      labels, and quick-action links — one styling block, three hosts.
@@ -9396,7 +9408,9 @@
     document.getElementById('ai-fill-subtitle').textContent =
       tplType.charAt(0).toUpperCase() + tplType.slice(1) + ' template · Module ' + modNum;
     document.getElementById('ai-fill-status').textContent = 'Loading meeting context…';
-    document.getElementById('ai-fill-go-btn').disabled = false;
+    // Defensive reset — prior run may have left the button stuck on
+    // "Generating" with a spinner if the modal closed mid-flight.
+    if (typeof _aiFillResetGenerateButton === 'function') _aiFillResetGenerateButton();
     document.getElementById('ai-fill-overlay').style.display = 'flex';
 
     // Show modal immediately with a placeholder; meetings fetch happens
@@ -9712,6 +9726,7 @@
   window.closeAiFillModal = function() {
     document.getElementById('ai-fill-overlay').style.display = 'none';
     _aiFillState = null;
+    if (typeof _aiFillResetGenerateButton === 'function') _aiFillResetGenerateButton();
   };
 
   window.runAiFill = async function() {
@@ -9757,7 +9772,8 @@
 
     var goBtn = document.getElementById('ai-fill-go-btn');
     goBtn.disabled = true;
-    goBtn.textContent = '⏳ Generating…';
+    goBtn.classList.add('ai-fill-loading');
+    goBtn.textContent = 'Generating';
     document.getElementById('ai-fill-status').textContent = 'Calling Claude (this can take 20-40s)…';
 
     try {
@@ -9768,10 +9784,20 @@
       setTimeout(closeAiFillModal, 700);
     } catch (e) {
       document.getElementById('ai-fill-status').textContent = '⚠ ' + (e.message || 'Generation failed.');
-      goBtn.disabled = false;
-      goBtn.textContent = '✨ Generate';
+      _aiFillResetGenerateButton();
     }
   };
+
+  // Reset the Generate button back to its idle state. Called by modal
+  // open + close so the next session never inherits a stuck spinner /
+  // "Generating" label from a prior run.
+  function _aiFillResetGenerateButton() {
+    var goBtn = document.getElementById('ai-fill-go-btn');
+    if (!goBtn) return;
+    goBtn.disabled = false;
+    goBtn.classList.remove('ai-fill-loading');
+    goBtn.textContent = '✨ Generate';
+  }
 
   function _aiFillSystemPrompt() {
     return 'You are an expert instructional designer at Arizona State University Online. '
