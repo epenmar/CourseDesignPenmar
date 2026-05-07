@@ -1956,14 +1956,178 @@
     }
 
     // Cross-listing nudge for any successful match.
-    if (trackedHits.length > 0 || specificEntry || prefixEntry) {
-      html += '<div class="ic-meta" style="margin-top:10px; padding-top:8px; border-top:1px dashed #f0ede5; color:#999; font-style:italic;">'
-        + 'Cross-listing data isn\'t pulled from Airtable yet — confirmed cross-lists can be added to <code>COURSE_SPECIFIC_DIRECTORY</code> in <code>course-directory.js</code>.'
-        + '</div>';
-    }
+    // Reserve a slot at the bottom for the async Airtable lookup so
+    // results can stream in without disturbing the synchronous content
+    // above.
+    html += '<div id="ic-airtable-slot"></div>';
 
     resultsEl.innerHTML = html;
+
+    // Fire the async Airtable lookup. The token guards against stale
+    // responses arriving after the user types another character.
+    var token = ++_icSearchToken;
+    _icFetchAirtable(parsed).then(function(records) {
+      if (token !== _icSearchToken) return; // user has typed since
+      _icRenderAirtableResults(parsed, records);
+    });
   };
+
+  // Search token — bumped on every keystroke so an in-flight Airtable
+  // response that comes back AFTER the next keystroke is discarded.
+  var _icSearchToken = 0;
+
+  // Returns Promise<Array<{recordId, code, title, program, college}>>
+  // — or Promise<null> if Airtable is unreachable / unauthenticated.
+  // Reuses the dashboard's existing callAirtableAPI helper so no new
+  // auth machinery is needed.
+  async function _icFetchAirtable(parsed) {
+    if (!parsed || !parsed.prefix) return null;
+    if (typeof callAirtableAPI !== 'function' || typeof hasAirtableAuth !== 'function') return null;
+    if (!hasAirtableAuth() && !window.AIRTABLE_VIA_PROXY) return null;
+    // Filter formula: full-code lookup ("HSC 310" → exact match) or
+    // prefix-only lookup ("HSC" → all courses whose code begins with
+    // HSC). UPPER() so case differences in the Airtable Course column
+    // don't drop matches.
+    var formula;
+    if (parsed.number) {
+      // Allow either "HSC 310" or "HSC310" in the data — strip spaces
+      // before comparing.
+      var noSpace = parsed.prefix + parsed.number;
+      formula = 'OR(UPPER(SUBSTITUTE({Course}," ",""))="' + noSpace + '",UPPER({Course})="' + parsed.full + '")';
+    } else {
+      formula = 'LEFT(UPPER({Course}),' + parsed.prefix.length + ')="' + parsed.prefix + '"';
+    }
+    var fmtSuffix = '&cellFormat=string&timeZone=America%2FPhoenix&userLocale=en-us';
+    var path = AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE
+      + '?filterByFormula=' + encodeURIComponent(formula)
+      + '&pageSize=50' + fmtSuffix;
+    try {
+      var body = await callAirtableAPI(path);
+      var records = (body && body.records) || [];
+      var pickField = function(f, aliases, regex) {
+        for (var ai = 0; ai < aliases.length; ai++) {
+          if (f[aliases[ai]] != null) return f[aliases[ai]];
+        }
+        if (regex) {
+          var keys = Object.keys(f);
+          for (var i = 0; i < keys.length; i++) {
+            if (regex.test(keys[i]) && f[keys[i]] != null) return f[keys[i]];
+          }
+        }
+        return '';
+      };
+      var toStr = function(v) {
+        if (!v) return '';
+        if (Array.isArray(v)) {
+          var uniq = [];
+          v.forEach(function(x) {
+            var s = (x == null) ? '' : String(x).trim();
+            if (s && uniq.indexOf(s) === -1) uniq.push(s);
+          });
+          return uniq.join(', ');
+        }
+        return String(v).trim();
+      };
+      return records.map(function(r) {
+        var f = r.fields || {};
+        return {
+          recordId: r.id,
+          code: f['Course'] || '',
+          title: f['Course Title'] || '',
+          program: toStr(pickField(f, ['Programs (From APM)', 'Program (from APM)', 'Programs', 'Program'], /^programs?\b/i)),
+          college: toStr(pickField(f, ['College (from Program)', 'College', 'College (from APM)', 'College Name'], /college/i))
+        };
+      });
+    } catch (e) {
+      console.warn('[Identify Course] Airtable lookup failed:', e && e.message);
+      return null;
+    }
+  }
+
+  // Group Airtable records by course code, treating multiple
+  // (program, college) pairs under the same code as a cross-listing.
+  // Renders a section beneath the synchronous results.
+  function _icRenderAirtableResults(parsed, records) {
+    var slot = document.getElementById('ic-airtable-slot');
+    if (!slot) return;
+    var html = '<div class="ic-source" style="margin-top:14px;">From Airtable Developments table</div>';
+    if (records === null) {
+      // Auth or network failure. Show how to enable.
+      html += '<div class="ic-meta" style="font-style:italic; color:#999;">Airtable lookup unavailable — '
+        + (typeof hasAirtableAuth === 'function' && !hasAirtableAuth()
+            ? 'no Airtable PAT configured on this browser. Add one in Settings to enable cross-listing lookup.'
+            : 'request failed. See the browser console for details.')
+        + '</div>';
+      slot.innerHTML = html;
+      return;
+    }
+    if (!records.length) {
+      html += '<div class="ic-empty">No matching records in the Developments table.</div>';
+      slot.innerHTML = html;
+      return;
+    }
+    // Group by normalized course code. Within a group, dedupe
+    // (program × college) pairs — each unique pair is one listing.
+    var byCode = {};
+    var codeOrder = [];
+    records.forEach(function(rec) {
+      var key = _icNormalize(rec.code);
+      if (!byCode[key]) {
+        byCode[key] = { code: key, title: rec.title, listings: [] };
+        codeOrder.push(key);
+      }
+      var pairKey = (rec.program || '') + '||' + (rec.college || '');
+      var seen = byCode[key].listings.some(function(l) { return l._key === pairKey; });
+      if (!seen) {
+        byCode[key].listings.push({
+          _key: pairKey,
+          program: rec.program,
+          college: rec.college,
+          recordId: rec.recordId
+        });
+      }
+      if (!byCode[key].title && rec.title) byCode[key].title = rec.title;
+    });
+    codeOrder.sort();
+    codeOrder.forEach(function(k) {
+      var g = byCode[k];
+      var crossListed = g.listings.length > 1;
+      html += '<div class="ic-row">';
+      html += '<div><span class="ic-code">' + escapeHtml(g.code || '(untitled)') + '</span>';
+      if (g.title) html += '<span class="ic-name">— ' + escapeHtml(g.title) + '</span>';
+      if (crossListed) html += ' <span class="ic-college-pill" style="background:#fff8e1; border-color:#ffd54f; color:#8a6d3b;">cross-listed (' + g.listings.length + ')</span>';
+      html += '</div>';
+      g.listings.forEach(function(l) {
+        html += '<div class="ic-meta" style="margin-top:6px;">';
+        if (l.college) html += '<span class="ic-college-pill">' + escapeHtml(_icCollegeShort(l.college)) + '</span>';
+        if (l.college) html += '<strong>' + escapeHtml(l.college) + '</strong>';
+        html += '</div>';
+        if (l.program) {
+          html += '<div class="ic-meta">';
+          html += '<span class="ic-program-pill">' + escapeHtml(l.program) + '</span>';
+          html += '</div>';
+        }
+      });
+      html += '</div>';
+    });
+    slot.innerHTML = html;
+  }
+
+  // Map a long college name from Airtable to a short pill code. Uses
+  // the dashboard's existing collegeAbbr if present, else best-guess.
+  function _icCollegeShort(longName) {
+    if (typeof collegeAbbr === 'function') {
+      var abbr = collegeAbbr(longName);
+      if (abbr && abbr.length <= 6) return abbr;
+    }
+    var s = String(longName || '');
+    if (/health solutions/i.test(s)) return 'CHS';
+    if (/technology for public health/i.test(s)) return 'STPH';
+    if (/new college|interdisciplinary arts/i.test(s)) return 'NCIAS';
+    if (/teachers college|mary lou fulton/i.test(s)) return 'MLFTC';
+    if (/business|carey/i.test(s)) return 'WPC';
+    return s.replace(/college of |school of /i, '').slice(0, 6).toUpperCase();
+  }
 
   // Currently-open mode for the modal: 'dev' or 'live'. Stored on the modal
   // itself so the Generate button can branch correctly.
