@@ -374,6 +374,10 @@
   .obj-picker-display.open { border-color: #8c1d40; box-shadow: 0 0 0 3px rgba(140,29,64,0.08); }
   .obj-picker-placeholder { color: #999; font-size: 12px; }
   .obj-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; background: #fef3e8; border: 1px solid #f5d5b0; border-radius: 4px; font-size: 11px; font-weight: 600; color: #8c1d40; }
+  /* CEPH / UOEEE competency chips — distinct from module MLO chips so the
+     instructor can see at a glance which tags are course-MLOs vs. program
+     competencies. */
+  .obj-chip.obj-chip-ceph { background: #f3e8f5; border-color: #d8b4dc; color: #6a1b7a; }
   .obj-chip-remove { cursor: pointer; font-size: 13px; color: #c99; line-height: 1; }
   .obj-chip-remove:hover { color: #8c1d40; }
   .obj-dropdown { position: absolute; top: 100%; left: 0; right: 0; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,0.1); z-index: 50; margin-top: 4px; display: none; max-height: 180px; overflow-y: auto; }
@@ -2554,16 +2558,19 @@
   // same logic — earlier toggleAllCourseObjectives short-circuited on empty
   // mod.mlos arrays (truthy in JS) and never reached the saved data, so the
   // shortcut only saw modules whose in-memory mlos was non-empty.
+  // Single source of truth for "what MLOs does module N have". Reads
+  // localStorage FIRST (the user's edits live there) and falls back to
+  // the in-memory activeCourse.modules slot (which is reset to hardcoded
+  // defaults on every page load — so trusting it would silently revert
+  // edits made on another page that wrote to localStorage).
   function _mlosForModule(targetMod) {
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (savedMods[targetMod] && Array.isArray(savedMods[targetMod].mlos)) {
+      return savedMods[targetMod].mlos;
+    }
     var startN = activeCourse.moduleStartZero ? 0 : 1;
     var mod = (activeCourse.modules || [])[targetMod - startN];
-    var inMemory = mod && mod.mlos && mod.mlos.length ? mod.mlos : null;
-    if (!inMemory) {
-      var savedMods = loadField('moduleOverviewData') || {};
-      var savedMlos = savedMods[targetMod] && savedMods[targetMod].mlos;
-      if (savedMlos && savedMlos.length) inMemory = savedMlos;
-    }
-    return inMemory || [];
+    return (mod && mod.mlos) || [];
   }
 
   function buildObjPickerHtml(activityId, selectedObjectives, moduleNum) {
@@ -2625,14 +2632,60 @@
       }
     }
 
+    // CEPH / UOEEE competencies — STPH-program courses only. These are
+    // course-wide regardless of which module the activity sits in, so
+    // they appear after the module MLO list in every picker.
+    if (typeof _isStphCourse === 'function' && _isStphCourse() && window.CEPH_COMPETENCY_TEXTS) {
+      var cephTexts = window.CEPH_COMPETENCY_TEXTS;
+      var hasAnyCeph = false;
+      ['CEPH', 'UOEEE'].forEach(function(fw) {
+        if (!cephTexts[fw]) return;
+        var ids = Object.keys(cephTexts[fw]).map(function(k) { return parseInt(k, 10); }).filter(function(n) { return !isNaN(n); }).sort(function(a, b) { return a - b; });
+        if (ids.length === 0) return;
+        if (!hasAnyCeph) { hasAnyCeph = true; }
+        optionsHtml += '<div class="obj-group-label" style="font-size:10px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.04em; padding:6px 10px 2px;">' + fw + ' competencies</div>';
+        ids.forEach(function(cId) {
+          var tagId = fw + ' ' + cId;
+          var isSelected = selected.indexOf(tagId) !== -1;
+          optionsHtml += '<div class="obj-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObj(\'' + activityId + '\',\'' + tagId + '\')">' +
+            '<span class="obj-check">' + (isSelected ? '✓' : '') + '</span> ' +
+            '<span><strong>' + tagId + '</strong> ' + escapeHtml(cephTexts[fw][cId]) + '</span></div>';
+        });
+      });
+    }
+
+    // Build the valid-id set so phantom tags (e.g., "6.4" left over from
+    // a deleted MLO) don't render as chips. CEPH / UOEEE tags are always
+    // valid when the course is STPH; otherwise drop those too.
+    var validMloIds = {};
+    var modCountForFilter = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    var savedModsForFilter = loadField('moduleOverviewData') || {};
+    var modNumsForFilter = {};
+    for (var _f = 0; _f < modCountForFilter; _f++) modNumsForFilter[_f + _startN] = true;
+    Object.keys(savedModsForFilter).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modNumsForFilter[n] = true; });
+    Object.keys(modNumsForFilter).forEach(function(k) {
+      var mNum = parseInt(k, 10);
+      var mlosForFilter = _mlosFromModule(mNum);
+      for (var j = 0; j < mlosForFilter.length; j++) {
+        if (mlosForFilter[j] && mlosForFilter[j].trim()) validMloIds[mNum + '.' + (j + 1)] = true;
+      }
+    });
+    var stphForFilter = (typeof _isStphCourse === 'function') && _isStphCourse() && window.CEPH_COMPETENCY_TEXTS;
+
     let chipsHtml = '';
-    if (selected.length === 0) {
+    var visibleSelected = selected.filter(function(id) {
+      if (validMloIds[id]) return true;
+      if (stphForFilter && _isCephTag(id)) return true;
+      return false;
+    });
+    if (visibleSelected.length === 0) {
       chipsHtml = '<span class="obj-picker-placeholder">Select objectives...</span>';
     } else {
-      chipsHtml = selected.map(function(id) {
-        var fullText = getMloText(id);
+      chipsHtml = visibleSelected.map(function(id) {
+        var fullText = getObjectiveText(id);
         var tooltipAttr = fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '';
-        return '<span class="obj-chip"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + activityId + '\',\'' + id + '\')">×</span></span>';
+        var extraCls = _isCephTag(id) ? ' obj-chip-ceph' : '';
+        return '<span class="obj-chip' + extraCls + '"' + tooltipAttr + '>' + escapeHtml(id) + ' <span class="obj-chip-remove" onclick="event.stopPropagation(); removeObj(\'' + activityId + '\',\'' + id + '\')">×</span></span>';
       }).join('');
     }
 
@@ -7160,6 +7213,33 @@
   }
 
   // Helper: get MLO full text for a given ID like "1.2"
+  // Two tag families exist on activities:
+  //   1. Module Learning Objectives — id format "<modNum>.<idx>" (e.g. "6.1")
+  //   2. CEPH / UOEEE competencies — id format "CEPH 2", "UOEEE 1", etc.
+  //      (course-wide; available on STPH-program courses only)
+  // _isCephTag matches the second family so renderers can split chips
+  // and getObjectiveText can route to the right text source.
+  function _isCephTag(id) {
+    return /^(CEPH|UOEEE)\s+\d+(?:\s+·\s+\S+)?$/i.test(String(id || ''));
+  }
+  function _parseCephTag(id) {
+    var m = String(id).match(/^(CEPH|UOEEE)\s+(\d+)(?:\s+·\s+(\S+))?$/i);
+    if (!m) return null;
+    return { fw: m[1].toUpperCase(), cId: parseInt(m[2], 10), variant: m[3] || null };
+  }
+
+  // Resolve the descriptive text for a tag id (MLO or CEPH/UOEEE).
+  // Used for chip tooltips, prompt building, and the alignment matrix.
+  function getObjectiveText(id) {
+    if (_isCephTag(id)) {
+      var p = _parseCephTag(id);
+      if (!p) return '';
+      var texts = window.CEPH_COMPETENCY_TEXTS || {};
+      return (texts[p.fw] && texts[p.fw][p.cId]) || '';
+    }
+    return getMloText(id);
+  }
+
   function getMloText(mloId) {
     var parts = mloId.split('.');
     var modNum = parseInt(parts[0]);
@@ -7176,15 +7256,26 @@
     return '';
   }
 
-  // Build objective chips with tooltips for overview
+  // Build objective chips with tooltips for overview. Skips ids that
+  // don't correspond to any current MLO or CEPH/UOEEE competency so
+  // phantom tags (e.g. "6.4" after a 4-MLO module was trimmed to 3)
+  // never reach the user's eyes.
   function buildObjChipsHtml(objectives, moduleNum) {
-    var html = '';
     if (!objectives || objectives.length === 0) return '<span style="color:#ccc; font-size:11px;">—</span>';
-    for (var j = 0; j < objectives.length; j++) {
-      var fullText = getMloText(objectives[j]);
-      html += '<span class="obj-chip" style="font-size:10px; padding:1px 5px;"' +
+    var stphForFilter = (typeof _isStphCourse === 'function') && _isStphCourse() && window.CEPH_COMPETENCY_TEXTS;
+    var visible = objectives.filter(function(id) {
+      if (stphForFilter && _isCephTag(id)) return true;
+      return !!getMloText(id);
+    });
+    if (visible.length === 0) return '<span style="color:#ccc; font-size:11px;">—</span>';
+    var html = '';
+    for (var j = 0; j < visible.length; j++) {
+      var id = visible[j];
+      var fullText = getObjectiveText(id);
+      var extraCls = _isCephTag(id) ? ' obj-chip-ceph' : '';
+      html += '<span class="obj-chip' + extraCls + '" style="font-size:10px; padding:1px 5px;"' +
         (fullText ? ' data-tooltip="' + escapeHtml(fullText).replace(/"/g, '&quot;') + '"' : '') +
-        '>' + escapeHtml(objectives[j]) + '</span>';
+        '>' + escapeHtml(id) + '</span>';
     }
     return html;
   }
@@ -7271,9 +7362,11 @@
   var mloAccordionEditMod = null; // which module's MLO accordion is being edited
 
   function buildMloAccordionHtml(moduleNum) {
-    var _startN = activeCourse.moduleStartZero ? 0 : 1;
-    var mod = (activeCourse.modules || [])[moduleNum - _startN];
-    var mlos = mod && mod.mlos ? mod.mlos : [];
+    // Read via _mlosForModule so edits made on the Module Overview page
+    // (which write to moduleOverviewData in localStorage) flow through
+    // to this accordion. Reading directly from activeCourse.modules used
+    // to silently revert to hardcoded defaults on page reload.
+    var mlos = _mlosForModule(moduleNum);
     if (mlos.length === 0) return '';
     var isEditing = mloAccordionEditMod === moduleNum;
     var html = '<div class="mlo-accordion" data-mlo-acc-mod="' + moduleNum + '">';
