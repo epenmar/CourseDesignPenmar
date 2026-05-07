@@ -503,6 +503,16 @@
   #ai-fill-body .aif-section, #apply-tpl-body .aif-section, #copy-from-body .aif-section {
     margin-bottom: 12px; padding: 12px 14px;
     background: #fafaf7; border: 1px solid #ece9df; border-radius: 8px;
+    transition: opacity 0.15s;
+  }
+  /* Section is dimmed when it isn't relevant to the current field
+     selection (e.g., Rubric Design when the user only generates
+     Overview). Inputs stay focusable in case the user wants to set
+     prefs that survive a later field switch. */
+  #ai-fill-body .aif-section.aif-section--disabled { opacity: 0.45; }
+  #ai-fill-body .aif-section.aif-section--disabled .aif-section-title::after {
+    content: ' · not used for current selection';
+    font-size: 10px; color: #999; font-weight: 400; text-transform: none; letter-spacing: 0;
   }
   #ai-fill-body .aif-section-title, #apply-tpl-body .aif-section-title, #copy-from-body .aif-section-title {
     font-size: 11px; font-weight: 700; color: #8c1d40;
@@ -9360,7 +9370,7 @@
     sections.forEach(function(sec) {
       var hasContent = _aiFillSectionHasContent(act, tplType, sec.key);
       var checked = hasContent ? '' : 'checked';
-      html += '<label class="aif-row"><input type="checkbox" class="aif-field" data-section="' + escapeHtml(sec.key) + '"' + (checked ? ' checked' : '') + '>'
+      html += '<label class="aif-row"><input type="checkbox" class="aif-field" data-section="' + escapeHtml(sec.key) + '"' + (checked ? ' checked' : '') + ' onchange="_aifUpdateSectionRelevance()">'
         + '<span><strong>' + escapeHtml(sec.key) + '</strong> '
         + (hasContent ? '<span class="aif-meta">— already filled, opt in to overwrite</span>' : '<span class="aif-meta">— ' + escapeHtml(sec.hint) + '</span>')
         + '</span></label>';
@@ -9396,7 +9406,7 @@
     var toolPref = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
     var toolCustom = (act.aiFillPrefs && act.aiFillPrefs.toolCustom) || '';
     var tools = ['Harmonize', 'Yellowdig', 'Perusall', 'Hypothes.is', 'Flipgrid', 'Padlet', 'Kaltura'];
-    html += '<div class="aif-section">';
+    html += '<div class="aif-section" data-aif-section="tool">';
     html += '<div class="aif-section-title">Tool / platform</div>';
     html += '<select id="aif-tool" class="aif-select" onchange="_aifOnToolChange()">';
     html += '<option value=""' + (!toolPref ? ' selected' : '') + '>None / generic</option>';
@@ -9419,7 +9429,7 @@
       var rRows = rPref.rows || '';
       var rLevels = rPref.levels || '';
       var rCriteria = rPref.criteria || '';
-      html += '<div class="aif-section">';
+      html += '<div class="aif-section" data-aif-section="rubric">';
       html += '<div class="aif-section-title">Rubric design</div>';
 
       // Level structure + criteria row count on one line.
@@ -9527,11 +9537,34 @@
     html += '</div>';
 
     document.getElementById('ai-fill-body').innerHTML = html;
+    // Initial pass — match section dim state to whatever fields are
+    // pre-checked.
+    _aifUpdateSectionRelevance();
   }
 
+  // Dim sections that don't apply to the user's current field selection.
+  // Tool/platform applies to student-facing instructions (Instructions,
+  // Materials, Discussion Prompt, Peer Reply Requirements). Rubric Design
+  // applies only when Rubric is checked. Everything else stays bright.
+  window._aifUpdateSectionRelevance = function() {
+    var checked = {};
+    document.querySelectorAll('#ai-fill-body .aif-field:checked').forEach(function(cb) {
+      checked[cb.getAttribute('data-section')] = true;
+    });
+    var toolRelevant = !!(checked['Instructions'] || checked['Materials']
+      || checked['Discussion Prompt'] || checked['Peer Reply Requirements']);
+    var rubricRelevant = !!checked['Rubric'];
+    var toolSec = document.querySelector('#ai-fill-body [data-aif-section="tool"]');
+    var rubricSec = document.querySelector('#ai-fill-body [data-aif-section="rubric"]');
+    if (toolSec) toolSec.classList.toggle('aif-section--disabled', !toolRelevant);
+    if (rubricSec) rubricSec.classList.toggle('aif-section--disabled', !rubricRelevant);
+  };
+  // Quick-action buttons toggle multiple field checkboxes at once; refresh
+  // section dimming after the bulk change so visual state matches reality.
   window._aifSelectAll = function(kind, on) {
     var sel = kind === 'field' ? '.aif-field' : (kind === 'meeting' ? '.aif-meeting' : '.aif-material');
     document.querySelectorAll('#ai-fill-body ' + sel).forEach(function(cb) { cb.checked = !!on; });
+    if (kind === 'field') _aifUpdateSectionRelevance();
   };
 
   // Show / hide the "Other (specify)" tool name input.
