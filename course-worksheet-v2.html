@@ -9758,6 +9758,51 @@
     html += '<div class="aif-hint">Pick the LMS tool students will use. Instructions get written for that tool\'s actual UI flow (annotate vs. post vs. record).</div>';
     html += '</div>';
 
+    // Auto-grading section — Harmonize, Yellowdig, and Perusall all support
+    // engagement-based auto-grading where students earn points by hitting
+    // word-count / peer-reply / reaction thresholds. When the instructor
+    // toggles this on, the prompt locks the format to post-based discussion
+    // (overriding the tool guide's default annotation flow if applicable)
+    // and renders the rubric as a metric checklist instead of qualitative
+    // descriptors. Section visible always, dimmed when not relevant.
+    var autoPref = (act.aiFillPrefs && act.aiFillPrefs.autograde) || {};
+    var autoEnabled = !!autoPref.enabled;
+    html += '<div class="aif-section" data-aif-section="autograde">';
+    html += '<div class="aif-section-title">Auto-grading <span class="aif-meta">(Harmonize, Yellowdig, Perusall)</span></div>';
+    html += '<label class="aif-row">'
+      + '<input type="checkbox" id="aif-autograde"' + (autoEnabled ? ' checked' : '') + ' onchange="_aifOnAutogradeChange()">'
+      + '<span><strong>Use platform auto-grading</strong>'
+      + '<div class="aif-meta">Students earn points by hitting engagement thresholds; the rubric becomes a metric checklist.</div>'
+      + '</span></label>';
+    html += '<div id="aif-autograde-body" style="' + (autoEnabled ? '' : 'display:none;') + ' padding-left:24px; margin-top:6px;">';
+    html += '<div class="aif-field-row">';
+    html += '<label class="aif-field" style="flex:1; min-width:160px;">'
+      + '<div class="aif-field-label">Min words / top-level post</div>'
+      + '<input type="number" id="aif-autograde-words" min="0" value="' + escapeHtml(String(autoPref.minWords || '')) + '" placeholder="e.g., 150" style="width:120px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">'
+      + '</label>';
+    html += '<label class="aif-field" style="flex:1; min-width:160px;">'
+      + '<div class="aif-field-label">Required peer replies</div>'
+      + '<input type="number" id="aif-autograde-replies" min="0" value="' + escapeHtml(String(autoPref.peerReplies || '')) + '" placeholder="e.g., 2" style="width:120px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">'
+      + '</label>';
+    html += '</div>';
+    html += '<div class="aif-field-row">';
+    html += '<label class="aif-field" style="flex:1; min-width:160px;">'
+      + '<div class="aif-field-label">Min words / peer reply</div>'
+      + '<input type="number" id="aif-autograde-reply-words" min="0" value="' + escapeHtml(String(autoPref.replyWords || '')) + '" placeholder="e.g., 50" style="width:120px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">'
+      + '</label>';
+    html += '<label class="aif-field" style="flex:1; min-width:160px;">'
+      + '<div class="aif-field-label">Reactions / upvotes <span class="aif-meta">(Yellowdig)</span></div>'
+      + '<input type="number" id="aif-autograde-reactions" min="0" value="' + escapeHtml(String(autoPref.reactions || '')) + '" placeholder="e.g., 1" style="width:120px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">'
+      + '</label>';
+    html += '</div>';
+    html += '<div class="aif-field" style="margin-top:8px;">'
+      + '<div class="aif-field-label">Other requirements</div>'
+      + '<textarea id="aif-autograde-other" rows="2" placeholder="e.g., Posts must include a citation; replies must agree or disagree with rationale" style="width:100%; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:inherit; resize:vertical;">' + escapeHtml(autoPref.other || '') + '</textarea>'
+      + '</div>';
+    html += '<div class="aif-hint">These constraints flow into both Instructions and How You\'re Graded — they override the tool\'s default flow (e.g., if Harmonize is selected, auto-grading switches it from annotation to post-based discussion).</div>';
+    html += '</div>';  // end aif-autograde-body
+    html += '</div>';  // end aif-section
+
     // Rubric design controls — only shown when Rubric is a section in
     // this template type. The model gets these as hard constraints
     // BEFORE the JSON schema, so they override the schema's default.
@@ -9881,10 +9926,22 @@
     _aifUpdateSectionRelevance();
   }
 
+  // Toggle the auto-grading body (the threshold inputs) in lockstep with
+  // the parent checkbox. Prefs persist on the activity so re-opening the
+  // modal restores the same state.
+  window._aifOnAutogradeChange = function() {
+    var box = document.getElementById('aif-autograde');
+    var body = document.getElementById('aif-autograde-body');
+    if (!box || !body) return;
+    body.style.display = box.checked ? '' : 'none';
+  };
+
   // Dim sections that don't apply to the user's current field selection.
   // Tool/platform applies to student-facing instructions (Instructions,
   // Materials, Discussion Prompt, Peer Reply Requirements). Rubric Design
-  // applies only when Rubric is checked. Everything else stays bright.
+  // applies only when Rubric is checked. Auto-grading applies when the
+  // template is a discussion or the picked tool supports engagement-based
+  // grading. Everything else stays bright.
   window._aifUpdateSectionRelevance = function() {
     var checked = {};
     document.querySelectorAll('#ai-fill-body .aif-field:checked').forEach(function(cb) {
@@ -9897,6 +9954,21 @@
     var rubricSec = document.querySelector('#ai-fill-body [data-aif-section="rubric"]');
     if (toolSec) toolSec.classList.toggle('aif-section--disabled', !toolRelevant);
     if (rubricSec) rubricSec.classList.toggle('aif-section--disabled', !rubricRelevant);
+
+    // Auto-grade relevance: discussion template type, OR tool ∈
+    // {Harmonize, Yellowdig, Perusall}, OR activity name matches /discussion/.
+    var s = _aiFillState;
+    var tplType = s ? s.tplType : '';
+    var toolEl = document.getElementById('aif-tool');
+    var currentTool = toolEl ? toolEl.value : '';
+    var titleEl = document.getElementById('ai-fill-title');
+    var actName = titleEl ? titleEl.textContent : '';
+    var autoTools = { 'Harmonize': 1, 'Yellowdig': 1, 'Perusall': 1 };
+    var autoRelevant = (tplType === 'discussion')
+      || autoTools[currentTool]
+      || /\bdiscussion\b/i.test(actName);
+    var autoSec = document.querySelector('#ai-fill-body [data-aif-section="autograde"]');
+    if (autoSec) autoSec.classList.toggle('aif-section--disabled', !autoRelevant);
   };
   // Quick-action buttons toggle multiple field checkboxes at once; refresh
   // section dimming after the bulk change so visual state matches reality.
@@ -9911,6 +9983,9 @@
     var sel = document.getElementById('aif-tool');
     var custom = document.getElementById('aif-tool-custom');
     if (sel && custom) custom.style.display = (sel.value === 'other') ? '' : 'none';
+    // Re-evaluate auto-grade section relevance (Harmonize/Yellowdig/Perusall
+    // make the section bright; switching to a non-engagement tool dims it).
+    if (typeof _aifUpdateSectionRelevance === 'function') _aifUpdateSectionRelevance();
   };
   // Show / hide the "Custom level names" input.
   window._aifOnRubricStyleChange = function() {
@@ -9928,9 +10003,24 @@
     var rRowsEl = document.getElementById('aif-rubric-rows');
     var rLevelsEl = document.getElementById('aif-rubric-levels');
     var rCriteriaEl = document.getElementById('aif-rubric-criteria');
+    var agEnabled = document.getElementById('aif-autograde');
+    var agWords = document.getElementById('aif-autograde-words');
+    var agReplies = document.getElementById('aif-autograde-replies');
+    var agReplyWords = document.getElementById('aif-autograde-reply-words');
+    var agReactions = document.getElementById('aif-autograde-reactions');
+    var agOther = document.getElementById('aif-autograde-other');
+    var _intOrZero = function(el) { var v = parseInt((el && el.value) || '', 10); return isNaN(v) ? 0 : v; };
     return {
       tool: toolEl ? toolEl.value : '',
       toolCustom: toolCustomEl ? (toolCustomEl.value || '').trim() : '',
+      autograde: {
+        enabled: !!(agEnabled && agEnabled.checked),
+        minWords: _intOrZero(agWords),
+        peerReplies: _intOrZero(agReplies),
+        replyWords: _intOrZero(agReplyWords),
+        reactions: _intOrZero(agReactions),
+        other: agOther ? (agOther.value || '').trim() : ''
+      },
       rubric: {
         style: rStyleEl ? rStyleEl.value : 'auto',
         rows: rRowsEl ? (rRowsEl.value || '').trim() : '',
@@ -10113,12 +10203,39 @@
     }
 
     // Tool / platform — explicit pick from the modal. Authoritative.
+    // When auto-grading is enabled, override the tool guide's default flow
+    // (e.g., Harmonize defaults to social-annotation; auto-grading flips
+    // it to post-based threaded discussion) so the AI doesn't write
+    // "highlight passages" instructions for an engagement-points discussion.
     var pickedTool = _aiFillResolveTool(prefs);
+    var ag = (prefs && prefs.autograde) || {};
+    var autoActive = !!ag.enabled && (ag.minWords || ag.peerReplies || ag.replyWords || ag.reactions || ag.other);
     if (pickedTool) {
       prompt += '\n## Tool / platform (instructor-selected — authoritative)\n';
       prompt += 'This ' + tplType + ' uses **' + pickedTool + '**.\n';
       var toolGuide = _aiFillToolInstructions(pickedTool);
       if (toolGuide) prompt += toolGuide + '\n';
+      if (autoActive && /^(Harmonize|Yellowdig|Perusall)$/i.test(pickedTool)) {
+        prompt += '\n**Override:** Auto-grading is enabled below — treat ' + pickedTool
+          + ' as a post-based threaded discussion (top-level posts + peer replies). '
+          + 'Do NOT write annotated-reading / highlight-passage instructions.\n';
+      }
+    }
+
+    // Auto-grading constraints — the engagement metrics the platform will
+    // count against. These ride alongside the tool guide so the AI sees
+    // both the tool's UI flow + the specific thresholds, and writes
+    // student-facing requirements that mirror what the platform measures.
+    if (autoActive) {
+      prompt += '\n## Auto-grading requirements (instructor-set — authoritative)\n';
+      prompt += 'Students earn full credit by hitting these engagement thresholds, which the platform tracks automatically:\n';
+      if (ag.minWords) prompt += '- Each top-level post: at least ' + ag.minWords + ' words\n';
+      if (ag.peerReplies) prompt += '- Reply to at least ' + ag.peerReplies + ' peer' + (ag.peerReplies === 1 ? '' : 's') + '\n';
+      if (ag.replyWords) prompt += '- Each peer reply: at least ' + ag.replyWords + ' words\n';
+      if (ag.reactions) prompt += '- Earn at least ' + ag.reactions + ' reaction' + (ag.reactions === 1 ? '' : 's') + ' / upvote' + (ag.reactions === 1 ? '' : 's') + ' from peers\n';
+      if (ag.other) prompt += '- Other: ' + ag.other + '\n';
+      prompt += '\nThese metrics MUST appear verbatim in the Instructions section (so students know exactly what to do) AND in the How You\'re Graded / Rubric sections (so students see how the auto-grade is calculated). Do NOT invent additional grading criteria beyond these. ';
+      prompt += 'Since the platform auto-grades, the rubric is essentially a checklist — write each criterion as a metric (e.g., "Top-level post meets ' + (ag.minWords || 'word') + '-word minimum", "Replied to ' + (ag.peerReplies || 'required') + ' peer' + ((ag.peerReplies||0) === 1 ? '' : 's') + '") rather than qualitative descriptors like "Strong / Adequate / Developing".\n';
     }
 
     // Linked materials — pull title/type/links/notes/richText for each.
@@ -10150,7 +10267,12 @@
       prompt += '\n## Granola meeting notes the instructor flagged as relevant\n';
       prompt += '(These notes capture decisions made by the instructor about the assignment. '
         + 'Treat them as authoritative — if the notes specify a tool, format, count, rubric structure, '
-        + 'or requirement, follow it exactly even when it conflicts with a generic best-practice.)\n';
+        + 'or requirement, follow it exactly even when it conflicts with a generic best-practice. '
+        + 'IMPORTANT: if the notes do NOT mention a particular detail (e.g., specific format, length, '
+        + 'submission style, peer-engagement pattern) for THIS assignment, do NOT invent one. '
+        + 'Write generic content appropriate to the template + tool, and DO NOT extrapolate from '
+        + 'other assignments or other courses\' conventions. The notes are scoped to THIS course '
+        + 'and THIS assignment only.)\n';
       pickedMeetings.forEach(function(m) {
         var dateStr = _aiFillFormatMeetingDate(m.meeting_date);
         prompt += '\n### ' + dateStr + ' — ' + (m.title || '(untitled meeting)') + '\n';
