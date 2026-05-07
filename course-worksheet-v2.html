@@ -411,6 +411,28 @@
 
   /* Overview activity block with inline content */
   .overview-act-content { margin-top: 4px; margin-left: 24px; }
+  /* STPH-program MLO authoring reminder. Visually distinct from the
+     CEPH banner: maroon accent, no collapse — single-sentence reminder
+     that reads at-a-glance every time the page opens. */
+  .stph-alert {
+    display: flex; align-items: flex-start; gap: 12px;
+    margin-bottom: 16px; padding: 12px 16px;
+    background: #fdf2f4; border: 1px solid #f0d9e0;
+    border-left: 4px solid #8c1d40; border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+  }
+  .stph-alert-icon { font-size: 18px; flex-shrink: 0; line-height: 1.3; }
+  .stph-alert-text { flex: 1; min-width: 0; font-size: 13px; color: #2a2a2a; line-height: 1.5; }
+  .stph-alert-text strong { color: #8c1d40; }
+  .stph-alert-example {
+    margin-top: 6px; padding: 6px 10px;
+    background: #fff; border: 1px dashed #f0d9e0; border-radius: 6px;
+    font-size: 12px; color: #555; font-style: italic;
+  }
+  .stph-alert-example-label {
+    font-weight: 600; color: #8c1d40; font-style: normal; margin-right: 4px;
+  }
+
   /* CEPH / UOEEE required-assessment alert banner. Shown only when the
      active course's id maps to an entry in CEPH_REQUIRED_ASSESSMENTS. */
   .ceph-alert {
@@ -1175,6 +1197,10 @@
       <div id="view-module-overview" style="display:none;">
         <h1 style="font-size:22px; margin-bottom:4px;">Module Overview</h1>
         <p style="color:#666; font-size:13px; margin-bottom:16px;">Define topics and objectives for all modules. These will populate each module's detail page.</p>
+
+        <!-- STPH MLO authoring reminder (populated by JS only when the
+             active course is in the STPH MPH program). -->
+        <div id="stph-mlo-alert"></div>
 
         <!-- Action Verbs Guide Accordion -->
         <div class="card verb-guide-card" style="margin-bottom:16px; border-color:#c8d8e8; background:#f6f9fc;">
@@ -4192,6 +4218,7 @@
 
   // ===== RENDER MODULE OVERVIEW CARDS =====
   function renderModuleOverviewCards(openModules) {
+    if (typeof _renderStphMloAlert === 'function') _renderStphMloAlert();
     const container = document.getElementById('module-overview-cards');
     if (!container) return;
     // Snapshot which cards are currently open before re-rendering
@@ -7376,6 +7403,36 @@
     html += '</div></div>'; // content-attach-inner + content-attach
     html += '</div></div>'; // overview-content-body + overview-act-content
     return html;
+  }
+
+  // True when the current courseId belongs to the STPH MPH program
+  // (i.e., it has an entry in CEPH_REQUIRED_ASSESSMENTS). Used to gate
+  // STPH-specific reminders / alerts so they don't show on non-STPH
+  // courses.
+  function _isStphCourse() {
+    var map = window.CEPH_REQUIRED_ASSESSMENTS;
+    if (!map) return false;
+    var key = String(courseId || '').toLowerCase().replace(/\s+/g, '');
+    return Object.prototype.hasOwnProperty.call(map, key);
+  }
+
+  // STPH MLO authoring reminder, shown at the top of the Module Overview
+  // page for STPH-program courses only. Single-sentence guidance — not
+  // collapsible — since it's quick reading and the goal is for it to be
+  // present every time the instructor opens the page.
+  function _renderStphMloAlert() {
+    var host = document.getElementById('stph-mlo-alert');
+    if (!host) return;
+    if (!_isStphCourse()) { host.innerHTML = ''; return; }
+    var html = '';
+    html += '<div class="stph-alert">';
+    html += '<span class="stph-alert-icon">🎯</span>';
+    html += '<div class="stph-alert-text">';
+    html += '<strong>STPH preference:</strong> Tie each MLO directly to an assessment so you end up with 1:1 alignment between MLOs and assignments.';
+    html += '<div class="stph-alert-example"><span class="stph-alert-example-label">Example:</span> "Explain public health essential core functions in the US and their relationship to essential services in a quiz."</div>';
+    html += '</div>';
+    html += '</div>';
+    host.innerHTML = html;
   }
 
   // Render a banner at the top of the Assignments Overview when the
