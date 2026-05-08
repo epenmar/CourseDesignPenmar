@@ -9725,11 +9725,24 @@
   }
 
   // Pull the most-recent N meetings tied to this course out of Supabase.
+  // True when the current user identity is the instructional designer
+  // (or the dashboard owner whose id_profile fallback returns role:'id').
+  // Faculty + reviewer roles return false. Used to gate visibility of
+  // meeting notes — these are private ID notes and should never reach
+  // faculty eyes via the AI Fill modal.
+  function _isIdUser() {
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    return !!(identity && identity.role === 'id');
+  }
+
   // Reuses the same `meetings` table the dashboard syncs into via
   // granola-sync. Returns [] on any failure — AI fill still works,
-  // it just won't have transcript context.
+  // it just won't have transcript context. Also returns [] for non-ID
+  // users (faculty, reviewer) so private meeting notes never reach the
+  // modal — defense-in-depth even if RLS would have allowed the read.
   async function _fetchCourseMeetingsForAi(limit) {
     if (!window._sbClient) return [];
+    if (!_isIdUser()) return [];
     try {
       var r = await window._sbClient
         .from('meetings')
@@ -10014,6 +10027,16 @@
     // the activity in title/summary/decisions/actions, and (b) the single
     // most-recent meeting (since it's almost always the one that holds the
     // freshest decisions). The user can clear or expand the selection.
+    //
+    // For non-ID users (faculty, reviewers), this entire section is skipped:
+    // meeting notes are private ID-side reminders / candid follow-ups that
+    // shouldn't reach faculty eyes. _fetchCourseMeetingsForAi already
+    // returns [] for non-ID users, so this is defense-in-depth — even if
+    // the data somehow arrived, we wouldn't render it.
+    var idUserHere = (typeof _isIdUser === 'function') && _isIdUser();
+    if (!idUserHere) {
+      // Faculty / reviewer view — meetings section is omitted entirely.
+    } else {
     html += '<div class="aif-section">';
     html += '<div class="aif-section-title">Granola meeting notes for this course</div>';
     if (meetings === null) {
@@ -10048,6 +10071,7 @@
       html += '</div>';
     }
     html += '</div>';
+    }  // end if (idUserHere)
 
     document.getElementById('ai-fill-body').innerHTML = html;
     // Initial pass — match section dim state to whatever fields are
