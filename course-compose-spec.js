@@ -148,6 +148,13 @@
         var aid = a.id;
         var attached = (a.attachedFiles || []).slice();
         var actLinks = (a.links || []).slice();
+        // Lazy-create a stable per-activity edit token. This is the
+        // shared secret the iframe / SCORM source uses to gate edit
+        // mode for ID + faculty (vs. read-only for students). Tokens
+        // live on the activity itself so they survive across exports
+        // and round-trips; we persist back on `a` so subsequent
+        // saveActivityData() flushes pick it up.
+        if (!a.editToken) a.editToken = _mintToken();
 
         // Manifest entries for this activity's files + links.
         attached.forEach(function(f, idx) {
@@ -173,6 +180,7 @@
           due: a.due || '',
           objectives: (a.objectives || []).slice(),
           contentComplete: !!a.contentComplete,
+          editToken: a.editToken,
           richText: a.richText || '',
           links: actLinks,
           attachedFiles: attached,
@@ -321,6 +329,20 @@
 
   function _cloneJson(o) {
     try { return JSON.parse(JSON.stringify(o)); } catch (e) { return null; }
+  }
+
+  // Generate a stable random token for per-activity edit-mode gating.
+  // crypto.randomUUID is widely available in the modern browsers we
+  // target; the Math.random fallback is for older / sandboxed contexts
+  // (jsdom etc) where the spec still needs to build without throwing.
+  function _mintToken() {
+    try {
+      if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+        return window.crypto.randomUUID();
+      }
+    } catch (e) {}
+    var hex = function() { return Math.floor(Math.random() * 0xffffffff).toString(16).padStart(8, '0'); };
+    return hex() + '-' + hex() + '-' + hex() + '-' + hex();
   }
 
   // Public API.

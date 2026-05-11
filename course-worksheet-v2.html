@@ -1808,9 +1808,11 @@
             Preview of how this course will land in Canvas once CourseCompose hands off to CanvasCurate. Each row is a module, page, activity, or material; the status badges show whether it's ready to build. Edits made elsewhere in the worksheet update this view automatically.
           </p>
         </div>
-        <div class="view-toggle" style="margin-bottom:12px;">
+        <div class="view-toggle" style="margin-bottom:12px;" id="canvas-plan-toolbar">
           <button class="view-btn" onclick="renderCanvasPlan()">🔄 Refresh</button>
-          <button class="view-btn" onclick="downloadCourseBriefJson()" title="Download the CourseCompose spec — the JSON CanvasCurate ingests">🧱 Download Spec (.json)</button>
+          <button class="view-btn" onclick="downloadCourseBriefJson()" title="Download the raw spec without bundle wrapper — quick inspection only">🧱 Download Spec (.json)</button>
+          <!-- Handoff button is inserted dynamically by renderCanvasPlan() because its
+               disabled state + tooltip depend on the live gap counts. -->
         </div>
         <div id="canvas-plan-content" style="background:#fff; border:1px solid #e0ddd5; border-radius:12px; padding:16px; box-shadow:0 4px 20px rgba(0,0,0,0.04);"></div>
       </div>
@@ -12399,8 +12401,17 @@
     }
     var spec = window.CourseComposeSpec.build();
     var gaps = _computeCanvasPlanGaps(spec);
+    // Spec build mints editTokens on activities that didn't have one yet;
+    // persist those back so they're stable across page reloads and the
+    // JSON handoff bundle carries the same value the user might have
+    // already copied to a clipboard.
+    if (typeof saveActivityData === 'function') saveActivityData();
     var esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
     var html = '';
+
+    // Refresh the toolbar's handoff button — gated on no-blocking-issues,
+    // tooltip explains why it's disabled when it is.
+    _renderCanvasPlanToolbar(gaps);
 
     // ---- Header: course summary + spec metadata + summary counts ----
     html += '<div style="border-bottom:1px solid #e0ddd5; padding-bottom:12px; margin-bottom:16px;">';
@@ -12486,13 +12497,26 @@
               + '">' + esc(id) + '</span>';
           }).join('');
           var actGap = gaps.byRef['act-' + act.id] || { status: 'ok', reasons: [] };
+          // Edit-link affordance: any activity that has at least one
+          // link (the first one is treated as the embed source) gets a
+          // "Copy edit link" button. The generated URL appends
+          // ?edit=1&token=<stable-token> so the iframe / SCORM source
+          // can gate edit mode for instructors and ID without exposing
+          // anything to students browsing Canvas. The link only lives
+          // inside CourseCompose — never paste it into Canvas.
+          var firstLink = (act.links && act.links[0]) || '';
+          var actions = '';
+          if (firstLink && act.editToken) {
+            actions += '<button class="view-btn" style="font-size:11px; padding:3px 8px;" onclick="copyActivityEditLink(\'' + esc(act.id) + '\')" title="Copy the edit URL for this activity\'s embed — share with instructors only, not in Canvas">🔗 Copy edit link</button>';
+          }
           html += _canvasPlanRow({
             icon: iconForType,
             title: esc(act.name || '(unnamed activity)'),
             meta: meta.join(' · '),
             tags: tagChips,
             status: actGap.status,
-            reasons: actGap.reasons
+            reasons: actGap.reasons,
+            actions: actions
           });
         });
       }
@@ -12721,6 +12745,7 @@
     if (opts.meta) html += '<div style="font-size:11px; color:#888; margin-top:2px;">' + opts.meta + '</div>';
     if (opts.tags) html += '<div style="margin-top:4px;">' + opts.tags + '</div>';
     html += '</div>';
+    if (opts.actions) html += '<div style="flex-shrink:0; display:flex; gap:6px; align-items:center;">' + opts.actions + '</div>';
     html += '<span style="flex-shrink:0; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">' + s.label + '</span>';
     html += '</div>';
     // Reason rows — only show when there are reasons. Inline so the user
@@ -12743,6 +12768,162 @@
     html += '</div>';
     return html;
   }
+
+  // Refresh the Canvas Plan toolbar based on the current gap state.
+  // Re-rendered on every renderCanvasPlan() call so the button's
+  // enabled/disabled status, tooltip, and "Last shipped" indicator
+  // always reflect the freshest data without manually reloading.
+  function _renderCanvasPlanToolbar(gaps) {
+    var bar = document.getElementById('canvas-plan-toolbar');
+    if (!bar) return;
+    // Remove any handoff-button + last-shipped span from a previous render.
+    Array.prototype.slice.call(bar.querySelectorAll('[data-canvas-plan-dynamic]')).forEach(function(el) {
+      el.parentNode.removeChild(el);
+    });
+    var blockingCount = gaps.summary.error || 0;
+    var canShip = blockingCount === 0;
+    var btn = document.createElement('button');
+    btn.className = 'view-btn';
+    btn.setAttribute('data-canvas-plan-dynamic', '1');
+    btn.textContent = '🚀 Hand off to CanvasCurate';
+    if (canShip) {
+      btn.style.background = '#8c1d40';
+      btn.style.color = '#fff';
+      btn.style.borderColor = '#8c1d40';
+      btn.title = 'Bundle the CourseCompose spec + manifest and download for CanvasCurate ingestion';
+    } else {
+      btn.disabled = true;
+      btn.style.opacity = '0.5';
+      btn.style.cursor = 'not-allowed';
+      btn.title = blockingCount + ' blocking issue' + (blockingCount === 1 ? '' : 's') + ' still open — resolve them above before handoff.';
+    }
+    btn.onclick = function() { handOffToCanvasCurate(); };
+    bar.appendChild(btn);
+
+    // Last-shipped indicator — pulled from localStorage so it survives
+    // page reloads. Shown inline next to the button so the user can see
+    // when they last sent a build without leaving this view.
+    var lastAt = loadField('lastHandoffAt');
+    var lastFile = loadField('lastHandoffFilename');
+    if (lastAt) {
+      var stamp = document.createElement('span');
+      stamp.setAttribute('data-canvas-plan-dynamic', '1');
+      stamp.style.cssText = 'font-size:11px; color:#888; align-self:center; margin-left:4px;';
+      try {
+        stamp.textContent = 'Last shipped ' + new Date(lastAt).toLocaleString() + (lastFile ? ' (' + lastFile + ')' : '');
+      } catch (e) {
+        stamp.textContent = 'Last shipped recently';
+      }
+      bar.appendChild(stamp);
+    }
+  }
+
+  // Bundle the live spec into a self-contained handoff JSON and
+  // download it. The bundle wraps the spec with a small handoff
+  // envelope so the receiving tool (CanvasCurate) can see which
+  // worksheet shipped it, when, and from whom. Persists lastHandoffAt
+  // + lastHandoffFilename so the Canvas Plan toolbar can display
+  // "Last shipped …" until the next handoff.
+  //
+  // When CanvasCurate exposes a proper ingestion endpoint, this is
+  // where we'll switch from a manual download to a POST. Schema +
+  // bundle format stay the same — only the transport changes.
+  window.handOffToCanvasCurate = function() {
+    if (typeof window.CourseComposeSpec === 'undefined') {
+      alert('Spec library failed to load — refresh the page and try again.');
+      return;
+    }
+    var spec = window.CourseComposeSpec.build();
+    var gaps = _computeCanvasPlanGaps(spec);
+    if (gaps.summary.error > 0) {
+      alert('Cannot hand off — ' + gaps.summary.error + ' blocking issue' + (gaps.summary.error === 1 ? '' : 's') + ' still open. Resolve them on the Canvas Plan view and try again.');
+      return;
+    }
+    if (typeof saveActivityData === 'function') saveActivityData();
+
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    var bundle = {
+      handoff: {
+        version: '1.0',
+        from: 'CourseCompose',
+        to: 'CanvasCurate',
+        bundledAt: new Date().toISOString(),
+        bundledBy: identity && identity.name || null,
+        bundledByRole: identity && identity.role || null
+      },
+      spec: spec
+    };
+    var courseCode = (activeCourse && activeCourse.code) || 'course';
+    var baseName = (courseCode + ' - CourseCompose handoff ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+    var filename = baseName + '.json';
+    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
+
+    saveField('lastHandoffAt', bundle.handoff.bundledAt);
+    saveField('lastHandoffFilename', filename);
+    renderCanvasPlan(); // refresh toolbar + status pills
+  };
+
+  // Copy this activity's edit URL to clipboard. URL = first link on
+  // the activity + ?edit=1&token=<editToken>. The token lives on the
+  // activity (auto-minted on spec build), so it's stable across page
+  // reloads and identical to what CanvasCurate will see in the spec.
+  //
+  // This URL is ID/instructor-only — never paste it into Canvas, where
+  // students would see it. Use it directly with the iframe / SCORM
+  // source when an instructor needs to edit content.
+  window.copyActivityEditLink = function(activityId) {
+    var act = null;
+    Object.keys(courseActivities || {}).some(function(k) {
+      return (courseActivities[k] || []).some(function(a) {
+        if (a.id === activityId) { act = a; return true; }
+        return false;
+      });
+    });
+    if (!act) { alert('Activity not found.'); return; }
+    var firstLink = (act.links && act.links[0]) || '';
+    if (!firstLink) { alert('This activity has no link to wrap. Add the embed URL to the activity\'s Link tab first.'); return; }
+    if (!act.editToken) {
+      // Force a token mint by rebuilding the spec; persists back via the
+      // saveActivityData in renderCanvasPlan / spec builder.
+      if (typeof window.CourseComposeSpec !== 'undefined') {
+        window.CourseComposeSpec.build();
+        if (typeof saveActivityData === 'function') saveActivityData();
+      }
+    }
+    var token = act.editToken;
+    if (!token) { alert('Could not generate edit token.'); return; }
+    var join = firstLink.indexOf('?') === -1 ? '?' : '&';
+    var editUrl = firstLink + join + 'edit=1&token=' + encodeURIComponent(token);
+    var copy = function() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        return navigator.clipboard.writeText(editUrl);
+      }
+      // Fallback for older browsers / non-secure contexts.
+      var ta = document.createElement('textarea');
+      ta.value = editUrl;
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) {}
+      document.body.removeChild(ta);
+      return Promise.resolve();
+    };
+    copy().then(function() {
+      // Lightweight in-page confirmation so the user knows the copy
+      // worked without dragging in a toast library.
+      var orig = event && event.target ? event.target.textContent : null;
+      if (event && event.target) {
+        event.target.textContent = '✓ Copied';
+        setTimeout(function() { event.target.textContent = orig || '🔗 Copy edit link'; }, 1500);
+      }
+    }, function() {
+      alert('Could not copy to clipboard — here\'s the URL:\n\n' + editUrl);
+    });
+  };
 
   // Switch view + scroll to the target row + flash it briefly so the user
   // sees where to type. Called from inline "fix this" links in the Canvas
