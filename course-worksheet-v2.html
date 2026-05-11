@@ -1811,6 +1811,23 @@
           <p style="font-size:13px; color:#555; margin:0; max-width:760px; line-height:1.5;">
             Preview of how this course will land in Canvas once CourseCompose hands off to CanvasCurate. Each row is a module, page, activity, or material; the status badges show whether it's ready to build. Edits made elsewhere in the worksheet update this view automatically.
           </p>
+          <!-- Collapsed-by-default lifecycle explainer. Walks first-time
+               users through the bridge so the green/amber/red badges and
+               handoff/report flow actually mean something. After they've
+               opened it once the user can leave it closed; the verbal
+               version still survives in the page title + summary copy. -->
+          <details style="margin-top:10px; max-width:760px;">
+            <summary style="cursor:pointer; color:#8c1d40; font-weight:600; font-size:12px;">How this works ▾</summary>
+            <div style="margin-top:8px; padding:12px 14px; background:#fafaf7; border:1px solid #e0ddd5; border-radius:8px; font-size:12px; line-height:1.55; color:#444;">
+              <ol style="margin:0; padding-left:18px;">
+                <li style="margin-bottom:6px;"><strong>Compose</strong> — fill out the worksheet (Modules, Assignments, Materials, etc.). Each module gets a fixed page layout in Canvas: Overview → Learning Materials → Assignments.</li>
+                <li style="margin-bottom:6px;"><strong>Watch the badges</strong> — every row here is a Canvas page or item Curate will build. Red flags block handoff; amber are worth checking but don't block. Click "Fix →" next to any reason to jump straight to the edit surface.</li>
+                <li style="margin-bottom:6px;"><strong>Hand off</strong> — when blocking issues are clear, the 🚀 button lights up. It downloads a versioned bundle (<code style="background:#fff; padding:1px 5px; border-radius:3px; font-size:11px;">coursecompose/v1.0</code>) — spec + file manifest — that CanvasCurate ingests to build your Canvas modules and pages.</li>
+                <li style="margin-bottom:6px;"><strong>Review the build</strong> — Curate returns a report (📥 Import build report). Each row picks up a status line: ✓ built · 🟠 needs manual touch · ⚠ errored. Open-in-Canvas links go straight to the live pages.</li>
+                <li><strong>Iterate</strong> — fix what Curate flagged, hand off again. History of the last 5 builds stays in the report card so you can see what changed.</li>
+              </ol>
+            </div>
+          </details>
         </div>
         <div class="view-toggle" style="margin-bottom:12px;" id="canvas-plan-toolbar">
           <button class="view-btn" onclick="renderCanvasPlan()">🔄 Refresh</button>
@@ -12455,8 +12472,18 @@
     html += '<span style="font-size:14px; color:#444;">' + esc(spec.course.fullTitle || spec.course.name || '') + '</span>';
     html += '<span style="font-size:11px; color:#999;">' + esc(spec.course.session || '') + '</span>';
     html += '</div>';
+    // Projected-page count: every module gets Overview + Learning Materials
+    // + N assignment pages. Surfaced in the header so the user sees the
+    // scale of what's about to ship in Canvas at a glance.
+    var pagesProjected = 0;
+    spec.modules.forEach(function(m) {
+      pagesProjected += 2; // Overview + Learning Materials, always
+      pagesProjected += (m.activities || []).length; // one page per activity
+    });
     html += '<div style="font-size:11px; color:#888; margin-top:4px;">';
-    html += 'Spec ' + esc(spec.format) + ' · ' + spec.modules.length + ' modules · ' + spec.manifest.length + ' files/links in manifest';
+    html += 'Spec ' + esc(spec.format) + ' · ' + spec.modules.length + ' modules · '
+      + pagesProjected + ' page' + (pagesProjected === 1 ? '' : 's') + ' projected · '
+      + spec.manifest.length + ' file' + (spec.manifest.length === 1 ? '' : 's') + '/link' + (spec.manifest.length === 1 ? '' : 's') + ' in manifest';
     html += '</div>';
     // Summary pills: ready / warnings / blocking.
     html += '<div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">';
