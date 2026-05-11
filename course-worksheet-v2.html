@@ -27,6 +27,7 @@
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 <script src="docx-export.js"></script>
+<script src="course-compose-spec.js"></script>
 <script>
   if (window.pdfjsLib) {
     window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';
@@ -13201,98 +13202,22 @@
   // policy, the "reviewed" flags, and the milestone timeline. Designed
   // as the input format CanvasCurate (or any future build tool) can
   // ingest without re-uploading source documents.
+  // The Course Brief — and its richer sibling, the CourseCompose spec
+  // (course-compose-spec.js) — share the same field layout. We delegate
+  // to the spec builder so there's a single source of truth for what
+  // gets serialized; the back-compat alias _format keeps existing
+  // consumers (older Curate prototypes that read 'asu-course-brief/v1')
+  // working until they migrate to the new 'coursecompose/v1.0' marker.
   function _buildCourseBrief() {
-    var c = activeCourse || {};
-    var savedClos = (loadField('clos') || c.clos || []).filter(function(s) { return s && String(s).trim(); });
-    var savedElos = (loadField('flatElos') || c.flatElos || []).filter(function(s) { return s && String(s).trim(); });
-    var modOverview = loadField('moduleOverviewData') || {};
-    var startN = c.moduleStartZero ? 0 : 1;
-    var modCount = c.moduleCount || (c.modules || []).length || 7;
-    var modules = [];
-    for (var i = 0; i < modCount; i++) {
-      var n = i + startN;
-      var saved = modOverview[n] || {};
-      var fromCfg = (c.modules || [])[i] || {};
-      var mlos = (saved.mlos && saved.mlos.length ? saved.mlos : (fromCfg.mlos || [])).filter(function(s) { return s && String(s).trim(); });
-      var topic = saved.topic || fromCfg.title || '';
-      var acts = (courseActivities[n] || []).map(function(a) {
-        return {
-          id: a.id, name: a.name || '', type: a.contentType || 'assignment',
-          points: a.points || '', due: a.due || '',
-          objectives: (a.objectives || []).slice(),
-          richText: a.richText || '',
-          links: (a.links || []).slice(),
-          attachedFiles: (a.attachedFiles || []).slice(),
-          // Cross-references to materials in this course. Canvas Curate can use
-          // these to reuse the same Canvas resource instead of re-uploading.
-          linkedMaterialIds: (a.linkedMaterialIds || []).slice()
-        };
-      });
-      var mats = (courseMaterials[n] || []).map(function(m) {
-        // Computed list of activity ids that link to this material (single
-        // source of truth lives on the activity, surfaced here for consumers
-        // that read materials first).
-        var linkedActivityIds = [];
-        var allMods = Object.keys(courseActivities || {});
-        for (var ami = 0; ami < allMods.length; ami++) {
-          var arr = courseActivities[allMods[ami]] || [];
-          for (var ai = 0; ai < arr.length; ai++) {
-            if (Array.isArray(arr[ai].linkedMaterialIds) && arr[ai].linkedMaterialIds.indexOf(m.id) !== -1) {
-              linkedActivityIds.push(arr[ai].id);
-            }
-          }
-        }
-        return {
-          id: m.id, type: m.type || 'Reading', title: m.title || '',
-          objectives: (m.objectives || []).slice(),
-          richText: m.richText || '',
-          links: (m.links || []).slice(),
-          attachedFiles: (m.attachedFiles || []).slice(),
-          linkedActivityIds: linkedActivityIds
-        };
-      });
-      modules.push({ number: n, topic: topic, mlos: mlos, activities: acts, materials: mats });
+    if (typeof window.CourseComposeSpec === 'undefined' || typeof window.CourseComposeSpec.build !== 'function') {
+      // course-compose-spec.js not loaded — fall back to a minimal brief
+      // so the Course Brief download isn't completely broken.
+      console.warn('[brief] CourseComposeSpec not loaded; emitting minimal brief.');
+      return { _format: 'asu-course-brief/v1', generatedAt: new Date().toISOString(), course: { code: (activeCourse && activeCourse.code) || '' } };
     }
-    var formData = loadField('formData') || {};
-    var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
-    var courseContext = {};
-    contextFieldIds.forEach(function(id) { if (formData[id]) courseContext[id] = formData[id]; });
-    return {
-      _format: 'asu-course-brief/v1',
-      generatedAt: new Date().toISOString(),
-      generatedBy: (function() { var i = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null; return i && i.name; })() || null,
-      course: {
-        code: c.code || '',
-        name: c.name || c.fullTitle || '',
-        instructor: c.instructor || '',
-        instructorEmail: c.email || '',
-        session: c.session || c.sessionShort || '',
-        credits: c.credits || formData['ci-credits'] || '',
-        prerequisites: c.prerequisites || formData['ci-prerequisites'] || '',
-        textbook: c.textbook || formData['mat-textbook-1'] || '',
-        driveFolder: c.driveFolder || ''
-      },
-      courseContext: courseContext,
-      objectives: {
-        clos: savedClos,
-        elos: savedElos,
-        cloEloAlignment: c.cloEloAlignment || loadField('cloEloAlignment') || [],
-        eloMloAlignment: c.eloMloAlignment || loadField('eloMloAlignment') || {}
-      },
-      modules: modules,
-      assignmentWeights: loadField('assignmentWeights') || [],
-      gradingPolicy: loadField('gradingPolicy') || [],
-      timeline: {
-        milestoneDates: loadField('timelineDates') || {},
-        milestonesCompleted: loadField('milestoneManualComplete') || {}
-      },
-      reviewStatus: {
-        mlosReviewed: !!loadField('mlosReviewed'),
-        assignmentsReviewed: !!loadField('assignmentsReviewed'),
-        courseMappingApproved: !!loadField('courseMappingApproved')
-      },
-      progressPct: loadField('completionPct') || 0
-    };
+    var spec = window.CourseComposeSpec.build();
+    spec._format = 'asu-course-brief/v1';
+    return spec;
   }
 
   function _briefBaseFilename() {
