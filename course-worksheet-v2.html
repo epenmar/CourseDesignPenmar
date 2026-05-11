@@ -12383,12 +12383,13 @@
 
   // ===== CANVAS PLAN VIEW =====
   // Bridge between CourseCompose and CanvasCurate. Reads the live spec
-  // via window.CourseComposeSpec.build() and renders the projected
-  // Canvas hierarchy as the user will see it once Curate builds the
-  // course: each module gets an Overview page + per-activity pages +
-  // a Materials section. Status badges are placeholder for Day 2;
-  // Day 3 will fill in the gap-detection rules and inline "fix this"
-  // links that jump to the right edit surface.
+  // via window.CourseComposeSpec.build(), runs it through gap-detection
+  // rules, and renders the projected Canvas hierarchy with status badges
+  // and inline "fix this" links per row.
+  //
+  // Gap status precedence: error > warn > ok. A row's status is the worst
+  // of all its reasons; reasons themselves are rendered inline so the user
+  // sees exactly what's missing without expanding the row.
   function renderCanvasPlan() {
     var host = document.getElementById('canvas-plan-content');
     if (!host) return;
@@ -12397,10 +12398,11 @@
       return;
     }
     var spec = window.CourseComposeSpec.build();
+    var gaps = _computeCanvasPlanGaps(spec);
     var esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
     var html = '';
 
-    // ---- Header: course summary + spec metadata ----
+    // ---- Header: course summary + spec metadata + summary counts ----
     html += '<div style="border-bottom:1px solid #e0ddd5; padding-bottom:12px; margin-bottom:16px;">';
     html += '<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">';
     html += '<span style="font-size:16px; font-weight:600; color:#8c1d40;">' + esc(spec.course.code || '—') + '</span>';
@@ -12409,6 +12411,19 @@
     html += '</div>';
     html += '<div style="font-size:11px; color:#888; margin-top:4px;">';
     html += 'Spec ' + esc(spec.format) + ' · ' + spec.modules.length + ' modules · ' + spec.manifest.length + ' files/links in manifest';
+    html += '</div>';
+    // Summary pills: ready / warnings / blocking.
+    html += '<div style="margin-top:10px; display:flex; gap:10px; flex-wrap:wrap;">';
+    html += _planSummaryPill('ok', gaps.summary.ok, 'ready');
+    html += _planSummaryPill('warn', gaps.summary.warn, 'warning' + (gaps.summary.warn === 1 ? '' : 's'));
+    html += _planSummaryPill('error', gaps.summary.error, 'blocking');
+    if (gaps.summary.error > 0) {
+      html += '<span style="font-size:12px; color:#c62828; font-style:italic; align-self:center;">Resolve blocking issues before handoff.</span>';
+    } else if (gaps.summary.warn > 0) {
+      html += '<span style="font-size:12px; color:#8a6d00; font-style:italic; align-self:center;">Warnings are OK to leave but worth a look.</span>';
+    } else {
+      html += '<span style="font-size:12px; color:#2e7d32; font-style:italic; align-self:center;">All clear — ready to hand off.</span>';
+    }
     html += '</div>';
     html += '</div>';
 
@@ -12423,7 +12438,10 @@
       var actCount = (mod.activities || []).length;
       var matCount = (mod.materials || []).length;
       var mloCount = (mod.mlos || []).length;
-      html += '<details class="canvas-plan-mod" open style="border:1px solid #e0ddd5; border-radius:8px; margin-bottom:10px; background:#fafaf7;">';
+      var modGap = gaps.byRef['mod-' + mod.number] || { status: 'ok' };
+      var modStyle = _planRowStatusStyle(modGap.status);
+
+      html += '<details class="canvas-plan-mod" open style="border:1px solid ' + (modGap.status === 'error' ? '#f5b5b5' : (modGap.status === 'warn' ? '#f0d895' : '#e0ddd5')) + '; border-radius:8px; margin-bottom:10px; background:#fafaf7;">';
       html += '<summary style="padding:10px 14px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:10px;">';
       html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + mod.number + '</span>';
       html += '<span style="flex:1;">Module ' + mod.number + (mod.topic ? ': ' + esc(mod.topic) : '') + '</span>';
@@ -12436,18 +12454,16 @@
       html += '<div style="padding:8px 14px 14px; background:#fff; border-top:1px solid #e0ddd5;">';
 
       // -- Pages projected for this module --
-      // Curate creates: 1 Overview page + 1 page per activity + a Materials
-      // section (linked from each page or rolled into the Overview).
       html += '<div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#888; margin:8px 0 6px;">Pages</div>';
 
       // Overview page (auto-generated)
+      var overviewGap = gaps.byRef['overview-' + mod.number] || { status: 'ok', reasons: [] };
       html += _canvasPlanRow({
-        kind: 'page',
         icon: '📄',
         title: 'Module ' + mod.number + ' Overview',
         meta: 'auto-generated · lists MLOs + module summary',
-        status: mloCount > 0 ? 'ok' : 'warn',
-        statusText: mloCount > 0 ? 'ready' : 'no MLOs'
+        status: overviewGap.status,
+        reasons: overviewGap.reasons
       });
 
       // Activity pages
@@ -12464,21 +12480,19 @@
           var tool = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
           if (tool && tool !== 'other') meta.push('via ' + tool);
           else if (tool === 'other' && act.aiFillPrefs && act.aiFillPrefs.toolCustom) meta.push('via ' + act.aiFillPrefs.toolCustom);
-          // Tag chips: MLOs + CEPH/UOEEE
           var tagChips = (act.objectives || []).map(function(id) {
             return '<span style="display:inline-block; padding:1px 5px; margin:0 3px 0 0; border-radius:3px; font-size:10px; font-weight:600;'
               + (/^(CEPH|UOEEE)\s/i.test(id) ? ' background:#f3e8f5; color:#6a1b7a;' : ' background:#fef3e8; color:#8c1d40;')
               + '">' + esc(id) + '</span>';
           }).join('');
+          var actGap = gaps.byRef['act-' + act.id] || { status: 'ok', reasons: [] };
           html += _canvasPlanRow({
-            kind: 'activity',
             icon: iconForType,
             title: esc(act.name || '(unnamed activity)'),
             meta: meta.join(' · '),
             tags: tagChips,
-            // Placeholder status — Day 3 will compute real gap status.
-            status: act.contentComplete ? 'ok' : 'pending',
-            statusText: act.contentComplete ? 'ready' : 'in progress'
+            status: actGap.status,
+            reasons: actGap.reasons
           });
         });
       }
@@ -12494,14 +12508,13 @@
           if (fileCount) meta.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
           if (linkCount) meta.push(linkCount + ' link' + (linkCount === 1 ? '' : 's'));
           if ((mat.linkedActivityIds || []).length) meta.push('linked to ' + mat.linkedActivityIds.length + ' activit' + (mat.linkedActivityIds.length === 1 ? 'y' : 'ies'));
-          var hasResolvable = fileCount > 0 || linkCount > 0;
+          var matGap = gaps.byRef['mat-' + mat.id] || { status: 'ok', reasons: [] };
           html += _canvasPlanRow({
-            kind: 'material',
             icon: '📚',
             title: esc(mat.title || '(untitled material)'),
             meta: meta.join(' · '),
-            status: hasResolvable ? 'ok' : 'warn',
-            statusText: hasResolvable ? 'ready' : 'no file or link'
+            status: matGap.status,
+            reasons: matGap.reasons
           });
         });
       }
@@ -12513,18 +12526,195 @@
     host.innerHTML = html;
   }
 
-  // Build a single row in the Canvas Plan view. Centralized so the icons,
-  // status badges, and inline meta all stay consistent across pages,
-  // activities, and materials.
-  function _canvasPlanRow(opts) {
-    var statusStyles = {
-      ok:      { bg: '#e8f5e9', color: '#2e7d32', label: opts.statusText || 'ready' },
-      pending: { bg: '#fff8e1', color: '#8a6d00', label: opts.statusText || 'in progress' },
-      warn:    { bg: '#fff4cc', color: '#8a6d00', label: opts.statusText || 'warning' },
-      error:   { bg: '#fde8e8', color: '#c62828', label: opts.statusText || 'missing' }
+  // Compute gap status for every row in the Canvas Plan view. Returns a
+  // ref-keyed map (`mod-<n>`, `overview-<n>`, `act-<id>`, `mat-<id>`)
+  // plus a summary counter so the header can show "X ready / Y warn /
+  // Z blocking" at a glance.
+  //
+  // Status precedence (worst wins for a row's overall badge):
+  //   error  — hard-blocks handoff to CanvasCurate
+  //   warn   — render warning but allow handoff
+  //   ok     — green; nothing to flag
+  //
+  // Each reason carries an optional `fix` descriptor with a view + target
+  // selector so the inline "fix this" link can deep-link the user to the
+  // right edit surface.
+  function _computeCanvasPlanGaps(spec) {
+    var byRef = {};
+    var summary = { ok: 0, warn: 0, error: 0 };
+
+    function addReason(refKey, level, msg, fix) {
+      var entry = byRef[refKey] || { status: 'ok', reasons: [] };
+      entry.reasons.push({ level: level, msg: msg, fix: fix || null });
+      // worst-wins
+      if (level === 'error') entry.status = 'error';
+      else if (level === 'warn' && entry.status !== 'error') entry.status = 'warn';
+      byRef[refKey] = entry;
+    }
+
+    function _hasContent(html) {
+      if (!html) return false;
+      var stripped = String(html).replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+      return stripped.length > 0;
+    }
+
+    (spec.modules || []).forEach(function(mod) {
+      var modRef = 'mod-' + mod.number;
+
+      // ---- Overview page ----
+      var overviewRef = 'overview-' + mod.number;
+      if (!mod.mlos || mod.mlos.length === 0) {
+        addReason(overviewRef, 'error', 'No MLOs set for this module', {
+          view: 'module-overview',
+          modNum: mod.number,
+          label: 'Add MLOs'
+        });
+      }
+
+      // ---- Activities ----
+      (mod.activities || []).forEach(function(act) {
+        var ref = 'act-' + act.id;
+        var type = (act.type || 'assignment').toLowerCase();
+        var pts = parseFloat(act.points);
+        var isGraded = !isNaN(pts) && pts > 0;
+        var fixActivity = {
+          view: 'assignments-overview',
+          selector: '[data-activity-id="' + act.id + '"]',
+          modNum: mod.number,
+          label: 'Open activity'
+        };
+
+        // No "what students do" content drafted. The relevant section name
+        // varies by template type: Instructions for assignment, Discussion
+        // Prompt for discussion, Instructions/Activity for quiz/blank.
+        var tpl = (act.templateData || {})[type] || (act.templateData || {})[Object.keys(act.templateData || {})[0]] || {};
+        var hasInstructions = _hasContent(tpl['Instructions']) || _hasContent(tpl['Discussion Prompt']) || _hasContent(tpl['Activity']) || _hasContent(act.richText);
+        if (!hasInstructions) {
+          addReason(ref, 'error', 'No instructions drafted', Object.assign({}, fixActivity, { label: 'Draft content' }));
+        }
+
+        // Graded activity needs a rubric / "How You're Graded" section.
+        if (isGraded) {
+          var hasRubric = _hasContent(tpl['Rubric']) || _hasContent(tpl["How You're Graded"]) || _hasContent(tpl["How you're graded"]);
+          if (!hasRubric) {
+            addReason(ref, 'error', 'Graded but no rubric', Object.assign({}, fixActivity, { label: 'Add rubric' }));
+          }
+        }
+
+        // No MLO tagged — at minimum one valid MLO or CEPH/UOEEE tag is required.
+        var hasValidTag = (act.objectives || []).some(function(id) {
+          if (/^(CEPH|UOEEE)\s/i.test(id)) return true;
+          // MLO id like "3.2" — check the module's mlos array has that index.
+          var m = String(id).match(/^(\d+)\.(\d+)$/);
+          if (!m) return false;
+          var targetMod = (spec.modules || []).find(function(x) { return x.number === parseInt(m[1], 10); });
+          return targetMod && targetMod.mlos && targetMod.mlos[parseInt(m[2], 10) - 1];
+        });
+        if (!hasValidTag) {
+          addReason(ref, 'error', 'No MLO tagged', Object.assign({}, fixActivity, { label: 'Tag MLO' }));
+        }
+
+        // Soft flags (warn but allow handoff).
+        if (!act.due || !String(act.due).trim()) {
+          addReason(ref, 'warn', 'No due date set', Object.assign({}, fixActivity, { label: 'Set date' }));
+        }
+        if (isGraded === false && type === 'assignment') {
+          addReason(ref, 'warn', 'No points assigned', Object.assign({}, fixActivity, { label: 'Set points' }));
+        }
+        if (!act.contentComplete) {
+          // Don't double-warn if we already errored — just note "still in progress".
+          var existing = byRef[ref];
+          if (!existing || existing.status === 'ok') {
+            addReason(ref, 'warn', 'Marked in progress', Object.assign({}, fixActivity, { label: 'Mark complete' }));
+          }
+        }
+
+        if (!byRef[ref]) byRef[ref] = { status: 'ok', reasons: [] };
+      });
+
+      // ---- Materials ----
+      (mod.materials || []).forEach(function(mat) {
+        var ref = 'mat-' + mat.id;
+        var fixMaterial = {
+          view: 'materials-overview',
+          selector: '[data-material-id="' + mat.id + '"]',
+          modNum: mod.number,
+          label: 'Open material'
+        };
+        var hasSource = (mat.attachedFiles && mat.attachedFiles.length > 0)
+          || (mat.links && mat.links.length > 0)
+          || _hasContent(mat.richText);
+        if (!hasSource) {
+          addReason(ref, 'error', 'No file, link, or notes attached', Object.assign({}, fixMaterial, { label: 'Attach source' }));
+        }
+        if (!(mat.linkedActivityIds || []).length) {
+          addReason(ref, 'warn', 'Not linked to any activity', Object.assign({}, fixMaterial, { label: 'Link activity' }));
+        }
+        if (!byRef[ref]) byRef[ref] = { status: 'ok', reasons: [] };
+      });
+
+      // Module-level: worst-of-its-children. Used for the module card border.
+      var modStatus = 'ok';
+      Object.keys(byRef).forEach(function(k) {
+        if (k === modRef) return;
+        if (k.startsWith('overview-' + mod.number) || _refBelongsToModule(k, mod, spec)) {
+          var s = byRef[k].status;
+          if (s === 'error') modStatus = 'error';
+          else if (s === 'warn' && modStatus !== 'error') modStatus = 'warn';
+        }
+      });
+      byRef[modRef] = { status: modStatus, reasons: [] };
+    });
+
+    // Summary tally — count every row (not modules — modules are rollups).
+    Object.keys(byRef).forEach(function(k) {
+      if (k.startsWith('mod-')) return;
+      summary[byRef[k].status] = (summary[byRef[k].status] || 0) + 1;
+    });
+
+    return { byRef: byRef, summary: summary };
+  }
+
+  // True when a Canvas Plan ref-key belongs to a given module's activities
+  // or materials. Used to roll child statuses up into the module badge.
+  function _refBelongsToModule(refKey, mod, spec) {
+    if (refKey.startsWith('act-')) {
+      var aid = refKey.slice(4);
+      return (mod.activities || []).some(function(a) { return a.id === aid; });
+    }
+    if (refKey.startsWith('mat-')) {
+      var mid = refKey.slice(4);
+      return (mod.materials || []).some(function(m) { return m.id === mid; });
+    }
+    return false;
+  }
+
+  function _planRowStatusStyle(status) {
+    var t = {
+      ok:    { bg: '#e8f5e9', color: '#2e7d32', label: 'ready' },
+      warn:  { bg: '#fff4cc', color: '#8a6d00', label: 'warning' },
+      error: { bg: '#fde8e8', color: '#c62828', label: 'blocking' }
     };
-    var s = statusStyles[opts.status] || statusStyles.pending;
-    var html = '<div style="display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid #f0ede5; border-radius:6px; margin-bottom:4px; background:#fff;">';
+    return t[status] || t.ok;
+  }
+
+  function _planSummaryPill(status, count, label) {
+    if (count === 0 && status !== 'ok') return '';
+    var s = _planRowStatusStyle(status);
+    return '<span style="display:inline-flex; align-items:center; gap:6px; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">'
+      + count + ' ' + label + '</span>';
+  }
+
+  // Build a single row in the Canvas Plan view. Centralized so the icons,
+  // status badges, and inline reason rows all stay consistent across
+  // pages, activities, and materials.
+  function _canvasPlanRow(opts) {
+    var s = _planRowStatusStyle(opts.status);
+    var borderColor = opts.status === 'error' ? '#f5b5b5'
+                    : opts.status === 'warn' ? '#f0d895'
+                    : '#f0ede5';
+    var html = '<div style="border:1px solid ' + borderColor + '; border-radius:6px; margin-bottom:4px; background:#fff;">';
+    html += '<div style="display:flex; align-items:center; gap:10px; padding:8px 12px;">';
     html += '<span style="font-size:16px; flex-shrink:0;">' + (opts.icon || '•') + '</span>';
     html += '<div style="flex:1; min-width:0;">';
     html += '<div style="font-size:13px; color:#222; line-height:1.3;">' + opts.title + '</div>';
@@ -12533,8 +12723,58 @@
     html += '</div>';
     html += '<span style="flex-shrink:0; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">' + s.label + '</span>';
     html += '</div>';
+    // Reason rows — only show when there are reasons. Inline so the user
+    // doesn't need to expand anything to see what's missing.
+    if (opts.reasons && opts.reasons.length) {
+      html += '<div style="border-top:1px dashed #f0ede5; padding:6px 12px;">';
+      opts.reasons.forEach(function(r) {
+        var dot = r.level === 'error' ? '🔴' : (r.level === 'warn' ? '🟡' : '🟢');
+        html += '<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#666; padding:2px 0;">';
+        html += '<span>' + dot + '</span>';
+        html += '<span style="flex:1;">' + (r.msg || '') + '</span>';
+        if (r.fix) {
+          var fixJson = JSON.stringify(r.fix).replace(/"/g, '&quot;');
+          html += '<a href="#" onclick="event.preventDefault(); _jumpToCanvasPlanFix(' + "'" + (r.fix.view || '') + "'," + " JSON.parse(this.getAttribute('data-fix'))" + ');" data-fix="' + fixJson + '" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Fix') + ' →</a>';
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
     return html;
   }
+
+  // Switch view + scroll to the target row + flash it briefly so the user
+  // sees where to type. Called from inline "fix this" links in the Canvas
+  // Plan view's reason rows.
+  window._jumpToCanvasPlanFix = function(viewId, fix) {
+    if (!viewId) return;
+    showView(viewId);
+    // Wait for the view's render to settle before scrolling.
+    setTimeout(function() {
+      var el = null;
+      if (fix && fix.selector) {
+        try { el = document.querySelector(fix.selector); } catch (e) { el = null; }
+      }
+      if (!el && fix && fix.modNum) {
+        // Module-level fallback — scroll to the module card for that module.
+        var card = document.querySelector('[data-mod-num="' + fix.modNum + '"], [data-overview-module="' + fix.modNum + '"]');
+        if (card) el = card;
+      }
+      if (el && typeof el.scrollIntoView === 'function') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        // Brief amber flash so the row's location is obvious post-scroll.
+        var origBg = el.style.background || '';
+        var origTrans = el.style.transition || '';
+        el.style.transition = 'background 0.4s';
+        el.style.background = '#fff4cc';
+        setTimeout(function() {
+          el.style.background = origBg;
+          setTimeout(function() { el.style.transition = origTrans; }, 500);
+        }, 1400);
+      }
+    }, 350);
+  };
 
   // ===== DOCUMENT PREVIEW =====
   function renderPreview() {
