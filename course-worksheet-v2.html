@@ -2300,6 +2300,22 @@
   let courseMaterials = {};
   let activityCounter = 100;
   let materialCount = 100;
+  // Expose the live local variables on window via getters so the
+  // separate course-compose-spec.js file can read them. Plain assignment
+  // (`window.courseActivities = courseActivities`) would go stale every
+  // time we reassign the local in hydration / undo-redo / course-parser
+  // paths; a getter is evaluated lazily each read so it always returns
+  // the current binding. Initial bug symptom: Canvas Plan view showed
+  // every module as having 0 activities / materials even when both
+  // were populated, because spec.js read undefined.
+  Object.defineProperty(window, 'courseActivities', {
+    configurable: true,
+    get: function() { return courseActivities; }
+  });
+  Object.defineProperty(window, 'courseMaterials', {
+    configurable: true,
+    get: function() { return courseMaterials; }
+  });
 
   // ===== UNDO / REDO =====
   var undoStack = [];
