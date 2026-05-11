@@ -6,7 +6,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta http-equiv="Pragma" content="no-cache">
 <link rel="icon" type="image/svg+xml" href="favicon.svg">
-<title>Course Development — v2</title>
+<title>CourseCompose</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
@@ -919,7 +919,7 @@
     <div class="sidebar-header" style="position:relative;">
       <div style="display:flex; align-items:start; justify-content:space-between;">
         <div>
-          <h2>COURSE DEVELOPMENT</h2>
+          <h2>COURSECOMPOSE</h2>
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
         <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
@@ -3297,7 +3297,7 @@
     if (dashP) dashP.innerHTML = activeCourse.sessionShort + ' &bull; Instructional Designer: ' + activeCourse.id;
 
     // Page title
-    document.title = activeCourse.code + ' — Course Development';
+    document.title = activeCourse.code + ' — CourseCompose';
 
     // Restore saved module count and start-from-zero from localStorage
     // Only use saved moduleCount if it's >= the config default (never shrink below default)

@@ -608,7 +608,7 @@
           <div class="resource-card" data-rc-id="faculty-tools">
             <div class="rc-header"><span>🛠</span><span class="rc-title">Course Development Tools</span></div>
             <div class="rc-links" id="rc-links-faculty-tools">
-              <a class="rc-link" href="course-worksheet-v2.html" target="_blank" onclick="event.preventDefault(); var ov=document.getElementById('detail-overlay'); var cid=(ov&&ov._currentId)?ov._currentId:Object.keys(courseData)[0]; window.open('course-worksheet-v2.html?course='+cid,'_blank');">Course Development Worksheet</a>
+              <a class="rc-link" href="course-worksheet-v2.html" target="_blank" onclick="event.preventDefault(); var ov=document.getElementById('detail-overlay'); var cid=(ov&&ov._currentId)?ov._currentId:Object.keys(courseData)[0]; window.open('course-worksheet-v2.html?course='+cid,'_blank');">CourseCompose</a>
               <a class="rc-link" href="https://docs.google.com/presentation/d/1example/edit" target="_blank">Kickoff Slideshow</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('faculty-tools')">+ Add Link</button>
@@ -5215,7 +5215,7 @@
 
       // Worksheet link with milestone context
       if (worksheetUrl) {
-        kickoffBody += `Our Course Development Worksheet, which contains the milestone timeline`;
+        kickoffBody += `Our course development worksheet (CourseCompose), which contains the milestone timeline`;
         if (firstMilestone) {
           const msLabel = firstMilestone.label
             .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
