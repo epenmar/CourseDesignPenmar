@@ -56,6 +56,7 @@
   .nav-item .badge { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
   .badge-done { background: #e8f5e9; color: #2e7d32; }
   .badge-partial { background: #fff3e0; color: #e65100; }
+  .badge-blocked { background: #fde8e8; color: #c62828; }
   .badge-empty { background: #f5f5f5; color: #999; }
   .nav-item-module { padding-left: 20px; font-size: 12px; }
   .progress-section { padding: 12px 20px; border-top: 1px solid #e0ddd5; }
@@ -5752,6 +5753,15 @@
     if (_progressTimer) clearTimeout(_progressTimer);
     _progressTimer = setTimeout(function() {
       calculateProgress(true);
+      // Canvas Plan sidebar badge — recompute alongside the other
+      // sidebar progress badges so it stays live whether the user is
+      // on the Plan view or any other view. Cheap: just walks the spec.
+      try {
+        if (typeof window.CourseComposeSpec !== 'undefined' && typeof _computeCanvasPlanGaps === 'function' && typeof _updateCanvasPlanSidebarBadge === 'function') {
+          var _spec = window.CourseComposeSpec.build();
+          _updateCanvasPlanSidebarBadge(_computeCanvasPlanGaps(_spec));
+        }
+      } catch (e) { /* sidebar badge is non-critical; never block on it */ }
     }, 500);
   }
 
@@ -12416,12 +12426,27 @@
     // JSON handoff bundle carries the same value the user might have
     // already copied to a clipboard.
     if (typeof saveActivityData === 'function') saveActivityData();
+
+    // If a build report has landed since the last handoff, merge per-ref
+    // status into the gap map so each row carries both pre-build gaps
+    // (red/amber from the spec) AND post-build outcomes (errored,
+    // needs-manual-touch). The build's own status is informational —
+    // it doesn't add to summary.error / summary.warn counts, since
+    // those gate the NEXT handoff and shouldn't include results from
+    // a prior build.
+    _mergeBuildReportIntoGaps(gaps);
+
     var esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
     var html = '';
 
     // Refresh the toolbar's handoff button — gated on no-blocking-issues,
     // tooltip explains why it's disabled when it is.
     _renderCanvasPlanToolbar(gaps);
+
+    // Update the sidebar badge so the nav surface reflects current state
+    // even when the user isn't on this view. Done here (not on save) so
+    // we only recompute when the spec actually changes.
+    _updateCanvasPlanSidebarBadge(gaps);
 
     // ---- Header: course summary + spec metadata + summary counts ----
     html += '<div style="border-bottom:1px solid #e0ddd5; padding-bottom:12px; margin-bottom:16px;">';
@@ -12833,17 +12858,36 @@
     html += '<span style="flex-shrink:0; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">' + s.label + '</span>';
     html += '</div>';
     // Reason rows — only show when there are reasons. Inline so the user
-    // doesn't need to expand anything to see what's missing.
+    // doesn't need to expand anything to see what's missing. Levels:
+    //   error / warn        — pre-build spec gaps (red / amber dots)
+    //   info                — build report: page built successfully
+    //   warn-build          — build report: page needs manual touch
+    //   error-build         — build report: page errored during build
+    // Build-status reasons get a distinct light-grey row so the user
+    // can see at a glance which lines come from "what's wrong with my
+    // spec" vs "what Curate did last time it ran."
     if (opts.reasons && opts.reasons.length) {
       html += '<div style="border-top:1px dashed #f0ede5; padding:6px 12px;">';
       opts.reasons.forEach(function(r) {
-        var dot = r.level === 'error' ? '🔴' : (r.level === 'warn' ? '🟡' : '🟢');
-        html += '<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#666; padding:2px 0;">';
+        var dot, rowBg = '';
+        if (r.level === 'error') dot = '🔴';
+        else if (r.level === 'warn') dot = '🟡';
+        else if (r.level === 'info') { dot = '✓'; rowBg = ' background:#f5fbf5;'; }
+        else if (r.level === 'warn-build') { dot = '🟠'; rowBg = ' background:#fff8e1;'; }
+        else if (r.level === 'error-build') { dot = '⚠'; rowBg = ' background:#fde8e8;'; }
+        else dot = '•';
+        html += '<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#666; padding:2px 6px; border-radius:4px;' + rowBg + '">';
         html += '<span>' + dot + '</span>';
         html += '<span style="flex:1;">' + (r.msg || '') + '</span>';
         if (r.fix) {
-          var fixJson = JSON.stringify(r.fix).replace(/"/g, '&quot;');
-          html += '<a href="#" onclick="event.preventDefault(); _jumpToCanvasPlanFix(' + "'" + (r.fix.view || '') + "'," + " JSON.parse(this.getAttribute('data-fix'))" + ');" data-fix="' + fixJson + '" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Fix') + ' →</a>';
+          // Build-report reasons carry a URL (Open-in-Canvas link); spec
+          // gap reasons carry a view+selector pair for _jumpToCanvasPlanFix.
+          if (r.fix.url) {
+            html += '<a href="' + r.fix.url + '" target="_blank" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Open') + ' →</a>';
+          } else {
+            var fixJson = JSON.stringify(r.fix).replace(/"/g, '&quot;');
+            html += '<a href="#" onclick="event.preventDefault(); _jumpToCanvasPlanFix(' + "'" + (r.fix.view || '') + "'," + " JSON.parse(this.getAttribute('data-fix'))" + ');" data-fix="' + fixJson + '" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Fix') + ' →</a>';
+          }
         }
         html += '</div>';
       });
@@ -13084,6 +13128,86 @@
   //       ]
   //     }
   //   }
+  // Sidebar badge for the Canvas Plan nav item. Reuses the existing
+  // badge style classes (badge-done, badge-partial, badge-blocked) so
+  // it visually matches the per-section progress badges already on the
+  // sidebar. Hidden when there's nothing to flag.
+  function _updateCanvasPlanSidebarBadge(gaps) {
+    var el = document.getElementById('sidebar-plan-badge');
+    if (!el) return;
+    var errs = (gaps && gaps.summary && gaps.summary.error) || 0;
+    var warns = (gaps && gaps.summary && gaps.summary.warn) || 0;
+    var oks = (gaps && gaps.summary && gaps.summary.ok) || 0;
+    el.classList.remove('badge-empty', 'badge-done', 'badge-partial', 'badge-blocked');
+    if (errs > 0) {
+      el.classList.add('badge-blocked');
+      el.textContent = errs;
+      el.title = errs + ' blocking issue' + (errs === 1 ? '' : 's');
+    } else if (warns > 0) {
+      el.classList.add('badge-partial');
+      el.textContent = warns;
+      el.title = warns + ' warning' + (warns === 1 ? '' : 's');
+    } else if (oks > 0) {
+      el.classList.add('badge-done');
+      el.textContent = '✓';
+      el.title = 'Ready to hand off';
+    } else {
+      el.classList.add('badge-empty');
+      el.textContent = '—';
+      el.title = '';
+    }
+  }
+
+  // Merge per-ref status from the most recent build report into the
+  // gap map so each plan row can surface "Last build: ok / errored /
+  // manual" alongside its pre-build gap reasons. Read-only — does NOT
+  // touch summary counts (those gate the next handoff and shouldn't
+  // include results from a prior build that's already shipped).
+  function _mergeBuildReportIntoGaps(gaps) {
+    var reports = _loadBuildReports();
+    if (!reports.length) return;
+    var latest = reports[0].report || reports[0];
+    if (!latest || !Array.isArray(latest.pages)) return;
+    var canvasCourseUrl = latest.canvasCourseUrl || '';
+    var when = latest.completedAt ? new Date(latest.completedAt) : null;
+    var whenLabel = when ? _timeAgo(when) : 'recently';
+    latest.pages.forEach(function(p) {
+      if (!p || !p.ref) return;
+      var entry = gaps.byRef[p.ref] || { status: 'ok', reasons: [] };
+      var msg, level, fix = null;
+      if (p.status === 'ok') {
+        msg = 'Built ' + whenLabel;
+        level = 'info';
+        if (p.canvasUrl) fix = { url: p.canvasUrl, label: 'Open in Canvas' };
+      } else if (p.status === 'manual') {
+        msg = 'Built ' + whenLabel + ' — needs manual touch: ' + (p.note || '(see Curate)');
+        level = 'warn-build';
+      } else if (p.status === 'error') {
+        msg = 'Build errored ' + whenLabel + ': ' + (p.error || p.note || 'unknown');
+        level = 'error-build';
+      } else {
+        return;
+      }
+      entry.reasons = (entry.reasons || []).concat([{ level: level, msg: msg, fix: fix, fromBuild: true }]);
+      // Don't promote entry.status from build outcomes — keep the
+      // worst-spec-gap as the badge so re-handoff gating doesn't
+      // factor in past builds. Build status is rendered via the
+      // reason row's icon (informational).
+      gaps.byRef[p.ref] = entry;
+    });
+  }
+
+  // Short relative-time string: "2 minutes ago", "yesterday", etc.
+  // Kept narrow on purpose so the formatting matches across the app.
+  function _timeAgo(date) {
+    var diff = (Date.now() - date.getTime()) / 1000;
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.round(diff / 60) + ' min ago';
+    if (diff < 86400) return Math.round(diff / 3600) + ' hr ago';
+    if (diff < 86400 * 2) return 'yesterday';
+    return Math.round(diff / 86400) + ' days ago';
+  }
+
   function _loadBuildReports() {
     var arr = loadField('buildReports');
     return Array.isArray(arr) ? arr : [];
