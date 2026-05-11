@@ -987,14 +987,17 @@
         <span class="badge badge-empty" id="sidebar-mapping-badge">—</span>
       </div>
 
+      <div class="nav-section-label">Module View</div>
+      <div id="sidebar-module-list"></div>
+
+      <!-- Build section sits AFTER Module View so the workflow order in
+           the sidebar matches the order the user actually moves through:
+           configure → design → drill into each module → finally hand off. -->
       <div class="nav-section-label">Build</div>
       <div class="nav-item" onclick="showView('canvas-plan')">
         <span class="icon">🧱</span> Canvas Plan
         <span class="badge badge-empty" id="sidebar-plan-badge">—</span>
       </div>
-
-      <div class="nav-section-label">Module View</div>
-      <div id="sidebar-module-list"></div>
     </div>
 
     <div class="progress-section">
@@ -12465,9 +12468,18 @@
       html += '<div style="padding:8px 14px 14px; background:#fff; border-top:1px solid #e0ddd5;">';
 
       // -- Pages projected for this module --
+      // Default Canvas module structure (matches what CourseCompose
+      // generates and what most ASU Online courses follow):
+      //   1. Overview         (auto-generated, lists MLOs + summary)
+      //   2. Learning Materials (single page rolling up all materials)
+      //   3. Assignments      (one page per activity)
+      //
+      // The order in this view IS the order Curate will publish in
+      // Canvas. Per-course tweaks are possible at build time but the
+      // default lands here.
       html += '<div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#888; margin:8px 0 6px;">Pages</div>';
 
-      // Overview page (auto-generated)
+      // 1. Overview page (auto-generated)
       var overviewGap = gaps.byRef['overview-' + mod.number] || { status: 'ok', reasons: [] };
       html += _canvasPlanRow({
         icon: '📄',
@@ -12477,9 +12489,92 @@
         reasons: overviewGap.reasons
       });
 
-      // Activity pages
+      // 2. Learning Materials page — one Canvas page that lists every
+      //    material for this module (PDFs, readings, videos, etc.).
+      //    Aggregates the worst per-material status into a single rolled-up
+      //    badge so the user can see at-a-glance whether every material has
+      //    a resolvable source. Drill in via the Materials Overview view.
+      var materialsPageStatus = 'ok';
+      var materialsPageReasons = [];
+      if (matCount === 0) {
+        materialsPageStatus = 'warn';
+        materialsPageReasons.push({
+          level: 'warn',
+          msg: 'No materials added for this module',
+          fix: { view: 'materials-overview', modNum: mod.number, label: 'Add materials' }
+        });
+      } else {
+        (mod.materials || []).forEach(function(mat) {
+          var mg = gaps.byRef['mat-' + mat.id];
+          if (!mg) return;
+          if (mg.status === 'error' && materialsPageStatus !== 'error') materialsPageStatus = 'error';
+          else if (mg.status === 'warn' && materialsPageStatus === 'ok') materialsPageStatus = 'warn';
+          (mg.reasons || []).forEach(function(r) {
+            materialsPageReasons.push({
+              level: r.level,
+              msg: (mat.title || '(untitled material)') + ' — ' + r.msg,
+              fix: r.fix
+            });
+          });
+        });
+      }
+      var materialsPageMeta = matCount === 0
+        ? 'no materials yet'
+        : matCount + ' material' + (matCount === 1 ? '' : 's')
+          + ' · ' + (mod.materials || []).reduce(function(acc, m) {
+              return acc + ((m.attachedFiles || []).length) + ((m.links || []).length);
+            }, 0) + ' file/link source' + ((mod.materials || []).reduce(function(acc, m) {
+              return acc + ((m.attachedFiles || []).length) + ((m.links || []).length);
+            }, 0) === 1 ? '' : 's');
+      html += _canvasPlanRow({
+        icon: '📚',
+        title: 'Learning Materials',
+        meta: materialsPageMeta,
+        status: materialsPageStatus,
+        reasons: materialsPageReasons
+      });
+
+      // Per-material breakdown (indented under Learning Materials so the
+      // page-level rollup stays clean but each material's specifics are
+      // still visible at a glance).
+      if (matCount > 0) {
+        html += '<div style="padding-left:24px;">';
+        (mod.materials || []).forEach(function(mat) {
+          var meta = [];
+          meta.push(mat.type || 'Reading');
+          var fileCount = (mat.attachedFiles || []).length;
+          var linkCount = (mat.links || []).length;
+          if (fileCount) meta.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
+          if (linkCount) meta.push(linkCount + ' link' + (linkCount === 1 ? '' : 's'));
+          if ((mat.linkedActivityIds || []).length) meta.push('linked to ' + mat.linkedActivityIds.length + ' activit' + (mat.linkedActivityIds.length === 1 ? 'y' : 'ies'));
+          var matGap = gaps.byRef['mat-' + mat.id] || { status: 'ok', reasons: [] };
+          html += _canvasPlanRow({
+            icon: '•',
+            title: esc(mat.title || '(untitled material)'),
+            meta: meta.join(' · '),
+            status: matGap.status,
+            reasons: matGap.reasons
+          });
+        });
+        html += '</div>';
+      }
+
+      // 3. Assignment / activity pages — one Canvas page per activity.
       if (actCount === 0) {
-        html += '<div style="padding:8px 12px; color:#999; font-style:italic; font-size:12px;">No activities — Curate will create no activity pages for this module.</div>';
+        // Empty-state row instead of plain prose, so it matches the rest
+        // of the rendered hierarchy and the user notices that a module
+        // with no assignments is unusual.
+        html += _canvasPlanRow({
+          icon: '📝',
+          title: 'Assignments',
+          meta: 'no activities yet',
+          status: 'warn',
+          reasons: [{
+            level: 'warn',
+            msg: 'No activities added for this module',
+            fix: { view: 'assignments-overview', modNum: mod.number, label: 'Add activities' }
+          }]
+        });
       } else {
         (mod.activities || []).forEach(function(act) {
           var typeLabel = (act.type || 'assignment').charAt(0).toUpperCase() + (act.type || 'assignment').slice(1);
@@ -12499,11 +12594,9 @@
           var actGap = gaps.byRef['act-' + act.id] || { status: 'ok', reasons: [] };
           // Edit-link affordance: any activity that has at least one
           // link (the first one is treated as the embed source) gets a
-          // "Copy edit link" button. The generated URL appends
-          // ?edit=1&token=<stable-token> so the iframe / SCORM source
-          // can gate edit mode for instructors and ID without exposing
-          // anything to students browsing Canvas. The link only lives
-          // inside CourseCompose — never paste it into Canvas.
+          // "Copy edit link" button. URL appends ?edit=1&token=<token>
+          // so the iframe / SCORM source can gate edit mode without
+          // exposing anything to students browsing Canvas.
           var firstLink = (act.links && act.links[0]) || '';
           var actions = '';
           if (firstLink && act.editToken) {
@@ -12517,28 +12610,6 @@
             status: actGap.status,
             reasons: actGap.reasons,
             actions: actions
-          });
-        });
-      }
-
-      // -- Materials --
-      if (matCount > 0) {
-        html += '<div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#888; margin:12px 0 6px;">Materials</div>';
-        (mod.materials || []).forEach(function(mat) {
-          var meta = [];
-          meta.push(mat.type || 'Reading');
-          var fileCount = (mat.attachedFiles || []).length;
-          var linkCount = (mat.links || []).length;
-          if (fileCount) meta.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
-          if (linkCount) meta.push(linkCount + ' link' + (linkCount === 1 ? '' : 's'));
-          if ((mat.linkedActivityIds || []).length) meta.push('linked to ' + mat.linkedActivityIds.length + ' activit' + (mat.linkedActivityIds.length === 1 ? 'y' : 'ies'));
-          var matGap = gaps.byRef['mat-' + mat.id] || { status: 'ok', reasons: [] };
-          html += _canvasPlanRow({
-            icon: '📚',
-            title: esc(mat.title || '(untitled material)'),
-            meta: meta.join(' · '),
-            status: matGap.status,
-            reasons: matGap.reasons
           });
         });
       }
