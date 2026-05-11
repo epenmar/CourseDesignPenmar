@@ -987,6 +987,12 @@
         <span class="badge badge-empty" id="sidebar-mapping-badge">—</span>
       </div>
 
+      <div class="nav-section-label">Build</div>
+      <div class="nav-item" onclick="showView('canvas-plan')">
+        <span class="icon">🧱</span> Canvas Plan
+        <span class="badge badge-empty" id="sidebar-plan-badge">—</span>
+      </div>
+
       <div class="nav-section-label">Module View</div>
       <div id="sidebar-module-list"></div>
     </div>
@@ -1783,6 +1789,30 @@
           <button class="view-btn" onclick="downloadCourseBriefMarkdown()" title="Readable Markdown snapshot of the worksheet — share with anyone">📝 Course Brief (.md)</button>
         </div>
         <div class="doc-preview" id="doc-preview-content"></div>
+      </div>
+
+      <!-- ===== CANVAS PLAN VIEW =====
+           The bridge between CourseCompose and CanvasCurate. Renders the
+           projected Canvas hierarchy (module → page → activity/material)
+           from the live course-compose-spec, with status badges per row
+           that flag what's missing before handoff. Day 3 will add the gap
+           rules + inline "fix this" links; Day 4 will add the handoff
+           button bundled here.  -->
+      <div id="view-canvas-plan" style="display:none;">
+        <div style="margin-bottom:16px;">
+          <div style="display:flex; align-items:baseline; gap:12px; flex-wrap:wrap; margin-bottom:6px;">
+            <h2 style="margin:0; font-size:20px; color:#8c1d40;">Canvas Plan</h2>
+            <span style="font-size:12px; color:#999;">Projected Canvas hierarchy · feeds CanvasCurate</span>
+          </div>
+          <p style="font-size:13px; color:#555; margin:0; max-width:760px; line-height:1.5;">
+            Preview of how this course will land in Canvas once CourseCompose hands off to CanvasCurate. Each row is a module, page, activity, or material; the status badges show whether it's ready to build. Edits made elsewhere in the worksheet update this view automatically.
+          </p>
+        </div>
+        <div class="view-toggle" style="margin-bottom:12px;">
+          <button class="view-btn" onclick="renderCanvasPlan()">🔄 Refresh</button>
+          <button class="view-btn" onclick="downloadCourseBriefJson()" title="Download the CourseCompose spec — the JSON CanvasCurate ingests">🧱 Download Spec (.json)</button>
+        </div>
+        <div id="canvas-plan-content" style="background:#fff; border:1px solid #e0ddd5; border-radius:12px; padding:16px; box-shadow:0 4px 20px rgba(0,0,0,0.04);"></div>
       </div>
 
     </div>
@@ -6890,7 +6920,7 @@
   setTimeout(() => renderPageNav('dashboard'), 0);
 
   // ===== VIEW SWITCHING =====
-  const views = ['dashboard','course-parser','syllabus-checklist','module','module-overview','assignments-overview','materials-overview','course-mapping','course-info','objectives','additional','materials','preview'];
+  const views = ['dashboard','course-parser','syllabus-checklist','module','module-overview','assignments-overview','materials-overview','course-mapping','course-info','objectives','additional','materials','preview','canvas-plan'];
   let currentViewId = 'dashboard';
 
   function getCurrentSection() {
@@ -6936,13 +6966,13 @@
     }
     document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
     // Highlight the active nav item in the sidebar
-    var navViewMap = { 'dashboard':'dashboard', 'course-parser':'course-parser', 'course-info':'course-info', 'materials':'materials', 'additional':'additional', 'syllabus-checklist':'syllabus-checklist', 'objectives':'objectives', 'module-overview':'module-overview', 'assignments-overview':'assignments-overview', 'materials-overview':'materials-overview', 'course-mapping':'course-mapping', 'preview':'preview' };
+    var navViewMap = { 'dashboard':'dashboard', 'course-parser':'course-parser', 'course-info':'course-info', 'materials':'materials', 'additional':'additional', 'syllabus-checklist':'syllabus-checklist', 'objectives':'objectives', 'module-overview':'module-overview', 'assignments-overview':'assignments-overview', 'materials-overview':'materials-overview', 'course-mapping':'course-mapping', 'preview':'preview', 'canvas-plan':'canvas-plan' };
     var navTarget = navViewMap[viewId];
     if (navTarget) {
       var navEl = document.querySelector('.nav-item[onclick*="showView(\'' + navTarget + '\')"]');
       if (navEl) navEl.classList.add('active');
     }
-    const names = {'dashboard':'Getting Started / Dashboard','course-parser':'Getting Started / Course Parser','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview'};
+    const names = {'dashboard':'Getting Started / Dashboard','course-parser':'Getting Started / Course Parser','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview','canvas-plan':'Build / Canvas Plan'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -6963,6 +6993,7 @@
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
     if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); updateMlosReviewedButton(); }
     if (viewId === 'course-parser') { renderCourseParser(); }
+    if (viewId === 'canvas-plan') { renderCanvasPlan(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     updateGlobalCommentBtn();
     // Re-apply comment highlights for the newly visible view
@@ -12349,6 +12380,161 @@
       document.querySelectorAll('.obj-dropdown').forEach(function(d) { d.classList.remove('show'); if (d.previousElementSibling) d.previousElementSibling.classList.remove('open'); });
     }
   });
+
+  // ===== CANVAS PLAN VIEW =====
+  // Bridge between CourseCompose and CanvasCurate. Reads the live spec
+  // via window.CourseComposeSpec.build() and renders the projected
+  // Canvas hierarchy as the user will see it once Curate builds the
+  // course: each module gets an Overview page + per-activity pages +
+  // a Materials section. Status badges are placeholder for Day 2;
+  // Day 3 will fill in the gap-detection rules and inline "fix this"
+  // links that jump to the right edit surface.
+  function renderCanvasPlan() {
+    var host = document.getElementById('canvas-plan-content');
+    if (!host) return;
+    if (typeof window.CourseComposeSpec === 'undefined') {
+      host.innerHTML = '<div style="padding:24px; text-align:center; color:#c62828;">course-compose-spec.js failed to load — refresh the page.</div>';
+      return;
+    }
+    var spec = window.CourseComposeSpec.build();
+    var esc = function(s) { return s ? String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') : ''; };
+    var html = '';
+
+    // ---- Header: course summary + spec metadata ----
+    html += '<div style="border-bottom:1px solid #e0ddd5; padding-bottom:12px; margin-bottom:16px;">';
+    html += '<div style="display:flex; align-items:baseline; gap:10px; flex-wrap:wrap;">';
+    html += '<span style="font-size:16px; font-weight:600; color:#8c1d40;">' + esc(spec.course.code || '—') + '</span>';
+    html += '<span style="font-size:14px; color:#444;">' + esc(spec.course.fullTitle || spec.course.name || '') + '</span>';
+    html += '<span style="font-size:11px; color:#999;">' + esc(spec.course.session || '') + '</span>';
+    html += '</div>';
+    html += '<div style="font-size:11px; color:#888; margin-top:4px;">';
+    html += 'Spec ' + esc(spec.format) + ' · ' + spec.modules.length + ' modules · ' + spec.manifest.length + ' files/links in manifest';
+    html += '</div>';
+    html += '</div>';
+
+    // ---- Module rows ----
+    if (!spec.modules || spec.modules.length === 0) {
+      html += '<div style="padding:24px; text-align:center; color:#999; font-style:italic;">No modules defined yet. Add modules on the Module Overview page.</div>';
+      host.innerHTML = html;
+      return;
+    }
+
+    spec.modules.forEach(function(mod) {
+      var actCount = (mod.activities || []).length;
+      var matCount = (mod.materials || []).length;
+      var mloCount = (mod.mlos || []).length;
+      html += '<details class="canvas-plan-mod" open style="border:1px solid #e0ddd5; border-radius:8px; margin-bottom:10px; background:#fafaf7;">';
+      html += '<summary style="padding:10px 14px; cursor:pointer; font-weight:600; display:flex; align-items:center; gap:10px;">';
+      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:24px; height:24px; border-radius:50%; background:#fef3e8; font-size:12px; font-weight:700; color:#8c1d40;">' + mod.number + '</span>';
+      html += '<span style="flex:1;">Module ' + mod.number + (mod.topic ? ': ' + esc(mod.topic) : '') + '</span>';
+      html += '<span style="font-size:11px; color:#888; font-weight:normal;">'
+        + mloCount + ' MLO' + (mloCount === 1 ? '' : 's')
+        + ' · ' + actCount + ' activit' + (actCount === 1 ? 'y' : 'ies')
+        + ' · ' + matCount + ' material' + (matCount === 1 ? '' : 's')
+        + '</span>';
+      html += '</summary>';
+      html += '<div style="padding:8px 14px 14px; background:#fff; border-top:1px solid #e0ddd5;">';
+
+      // -- Pages projected for this module --
+      // Curate creates: 1 Overview page + 1 page per activity + a Materials
+      // section (linked from each page or rolled into the Overview).
+      html += '<div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#888; margin:8px 0 6px;">Pages</div>';
+
+      // Overview page (auto-generated)
+      html += _canvasPlanRow({
+        kind: 'page',
+        icon: '📄',
+        title: 'Module ' + mod.number + ' Overview',
+        meta: 'auto-generated · lists MLOs + module summary',
+        status: mloCount > 0 ? 'ok' : 'warn',
+        statusText: mloCount > 0 ? 'ready' : 'no MLOs'
+      });
+
+      // Activity pages
+      if (actCount === 0) {
+        html += '<div style="padding:8px 12px; color:#999; font-style:italic; font-size:12px;">No activities — Curate will create no activity pages for this module.</div>';
+      } else {
+        (mod.activities || []).forEach(function(act) {
+          var typeLabel = (act.type || 'assignment').charAt(0).toUpperCase() + (act.type || 'assignment').slice(1);
+          var iconForType = { assignment: '📝', discussion: '💬', quiz: '❓', page: '📄' }[act.type] || '📝';
+          var meta = [];
+          meta.push(typeLabel);
+          if (act.points) meta.push(act.points + ' pts');
+          if (act.due) meta.push('due ' + act.due);
+          var tool = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
+          if (tool && tool !== 'other') meta.push('via ' + tool);
+          else if (tool === 'other' && act.aiFillPrefs && act.aiFillPrefs.toolCustom) meta.push('via ' + act.aiFillPrefs.toolCustom);
+          // Tag chips: MLOs + CEPH/UOEEE
+          var tagChips = (act.objectives || []).map(function(id) {
+            return '<span style="display:inline-block; padding:1px 5px; margin:0 3px 0 0; border-radius:3px; font-size:10px; font-weight:600;'
+              + (/^(CEPH|UOEEE)\s/i.test(id) ? ' background:#f3e8f5; color:#6a1b7a;' : ' background:#fef3e8; color:#8c1d40;')
+              + '">' + esc(id) + '</span>';
+          }).join('');
+          html += _canvasPlanRow({
+            kind: 'activity',
+            icon: iconForType,
+            title: esc(act.name || '(unnamed activity)'),
+            meta: meta.join(' · '),
+            tags: tagChips,
+            // Placeholder status — Day 3 will compute real gap status.
+            status: act.contentComplete ? 'ok' : 'pending',
+            statusText: act.contentComplete ? 'ready' : 'in progress'
+          });
+        });
+      }
+
+      // -- Materials --
+      if (matCount > 0) {
+        html += '<div style="font-size:10px; font-weight:600; text-transform:uppercase; letter-spacing:0.04em; color:#888; margin:12px 0 6px;">Materials</div>';
+        (mod.materials || []).forEach(function(mat) {
+          var meta = [];
+          meta.push(mat.type || 'Reading');
+          var fileCount = (mat.attachedFiles || []).length;
+          var linkCount = (mat.links || []).length;
+          if (fileCount) meta.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
+          if (linkCount) meta.push(linkCount + ' link' + (linkCount === 1 ? '' : 's'));
+          if ((mat.linkedActivityIds || []).length) meta.push('linked to ' + mat.linkedActivityIds.length + ' activit' + (mat.linkedActivityIds.length === 1 ? 'y' : 'ies'));
+          var hasResolvable = fileCount > 0 || linkCount > 0;
+          html += _canvasPlanRow({
+            kind: 'material',
+            icon: '📚',
+            title: esc(mat.title || '(untitled material)'),
+            meta: meta.join(' · '),
+            status: hasResolvable ? 'ok' : 'warn',
+            statusText: hasResolvable ? 'ready' : 'no file or link'
+          });
+        });
+      }
+
+      html += '</div>'; // end module body
+      html += '</details>';
+    });
+
+    host.innerHTML = html;
+  }
+
+  // Build a single row in the Canvas Plan view. Centralized so the icons,
+  // status badges, and inline meta all stay consistent across pages,
+  // activities, and materials.
+  function _canvasPlanRow(opts) {
+    var statusStyles = {
+      ok:      { bg: '#e8f5e9', color: '#2e7d32', label: opts.statusText || 'ready' },
+      pending: { bg: '#fff8e1', color: '#8a6d00', label: opts.statusText || 'in progress' },
+      warn:    { bg: '#fff4cc', color: '#8a6d00', label: opts.statusText || 'warning' },
+      error:   { bg: '#fde8e8', color: '#c62828', label: opts.statusText || 'missing' }
+    };
+    var s = statusStyles[opts.status] || statusStyles.pending;
+    var html = '<div style="display:flex; align-items:center; gap:10px; padding:8px 12px; border:1px solid #f0ede5; border-radius:6px; margin-bottom:4px; background:#fff;">';
+    html += '<span style="font-size:16px; flex-shrink:0;">' + (opts.icon || '•') + '</span>';
+    html += '<div style="flex:1; min-width:0;">';
+    html += '<div style="font-size:13px; color:#222; line-height:1.3;">' + opts.title + '</div>';
+    if (opts.meta) html += '<div style="font-size:11px; color:#888; margin-top:2px;">' + opts.meta + '</div>';
+    if (opts.tags) html += '<div style="margin-top:4px;">' + opts.tags + '</div>';
+    html += '</div>';
+    html += '<span style="flex-shrink:0; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">' + s.label + '</span>';
+    html += '</div>';
+    return html;
+  }
 
   // ===== DOCUMENT PREVIEW =====
   function renderPreview() {
