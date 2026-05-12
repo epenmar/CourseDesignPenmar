@@ -13013,7 +13013,15 @@
   // When CanvasCurate exposes a proper ingestion endpoint, this is
   // where we'll switch from a manual download to a POST. Schema +
   // bundle format stay the same — only the transport changes.
-  window.handOffToCanvasCurate = function() {
+  // CanvasCurate base URL. Local dev defaults to the FastAPI port; a
+  // production deploy can override by setting window.CURATE_API_URL
+  // before this script runs (e.g. on the deployed Pages site).
+  // Override path: drop a tiny <script>window.CURATE_API_URL='https://…';</script>
+  // above course-worksheet-v2.html's main <script>.
+  var CURATE_API_URL = window.CURATE_API_URL || 'http://127.0.0.1:8081';
+  var HANDOFF_TIMEOUT_MS = 30000;
+
+  window.handOffToCanvasCurate = async function() {
     if (typeof window.CourseComposeSpec === 'undefined') {
       alert('Spec library failed to load — refresh the page and try again.');
       return;
@@ -13039,18 +13047,63 @@
       spec: spec
     };
     var courseCode = (activeCourse && activeCourse.code) || 'course';
-    var baseName = (courseCode + ' - CourseCompose handoff ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
-    var filename = baseName + '.json';
-    var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
 
-    saveField('lastHandoffAt', bundle.handoff.bundledAt);
-    saveField('lastHandoffFilename', filename);
-    renderCanvasPlan(); // refresh toolbar + status pills
+    // Disable the handoff button while the POST is in flight so the user
+    // can't double-fire it. Re-enabled in the finally branch below.
+    var btn = document.querySelector('#canvas-plan-toolbar button[data-canvas-plan-dynamic]');
+    var origText = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Sending to CanvasCurate…'; }
+
+    try {
+      var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timer = controller ? setTimeout(function() { controller.abort(); }, HANDOFF_TIMEOUT_MS) : null;
+      var resp;
+      try {
+        resp = await fetch(CURATE_API_URL + '/api/coursecompose/handoff', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-CourseCompose-Source': location.host || 'coursecompose'
+          },
+          body: JSON.stringify(bundle),
+          signal: controller ? controller.signal : undefined
+        });
+      } finally { if (timer) clearTimeout(timer); }
+
+      if (!resp.ok) {
+        var errBody = await resp.text().catch(function() { return ''; });
+        throw new Error('Curate responded ' + resp.status + (errBody ? ': ' + errBody.slice(0, 200) : ''));
+      }
+      var data = await resp.json();
+      if (!data || !data.ok) throw new Error('Curate response missing ok flag');
+
+      saveField('lastHandoffAt', bundle.handoff.bundledAt);
+      saveField('lastHandoffFilename', '→ Curate handoff ' + (data.handoff_id || ''));
+      saveField('lastHandoffId', data.handoff_id || null);
+      renderCanvasPlan();
+      alert('✓ Sent to CanvasCurate.\n\nHandoff ID: ' + (data.handoff_id || '?') + '\n\nCurate will surface this in its Incoming queue.');
+    } catch (err) {
+      // Curate is unreachable / errored — fall back to the local download
+      // so the user isn't blocked. We keep the same bundle shape on disk
+      // as on the wire, so manually uploading later through Curate's UI
+      // (once that exists) produces the same outcome.
+      console.error('[coursecompose] handoff POST failed, falling back to download:', err);
+      var baseName = (courseCode + ' - CourseCompose handoff ' + _todayYmd()).replace(/[\/\\:*?"<>|]/g, ' ').replace(/\s+/g, ' ').trim();
+      var filename = baseName + '.json';
+      var blob = new Blob([JSON.stringify(bundle, null, 2)], { type: 'application/json' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+
+      saveField('lastHandoffAt', bundle.handoff.bundledAt);
+      saveField('lastHandoffFilename', filename + ' (offline)');
+      renderCanvasPlan();
+      alert('CanvasCurate is unreachable (' + (err.message || 'unknown error') + ').\n\nBundle downloaded locally — you can upload it to Curate manually once it\'s back up.');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText || '🚀 Hand off to CanvasCurate'; }
+    }
   };
 
   // Copy this activity's edit URL to clipboard. URL = first link on
