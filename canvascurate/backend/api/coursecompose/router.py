@@ -92,11 +92,48 @@ def _validate_envelope(payload: HandoffPayload) -> None:
 
 @router.post("/handoff", status_code=201)
 async def receive_handoff(payload: HandoffPayload, request: Request) -> Dict[str, Any]:
+    """Accept a CourseCompose handoff and (atomically-ish) supersede any
+    earlier pending row for the same course.
+
+    Why supersede: CourseCompose users iterate. They push partial work,
+    refine, push again. Without this step, the second push lands as a
+    second `pending` row alongside the first — Curate's inbox shows two
+    items for the same course and a builder who picks the older one
+    ships a stale spec. Supersede guarantees at most ONE pending row
+    per (course_code) at any given time, so the inbox can't surface a
+    superseded snapshot.
+
+    Earlier rows get status='superseded' (not deleted) so the audit
+    trail of every push is preserved — useful for debugging or for
+    showing "Elisa pushed 3 times before this build" in a future UI.
+    """
     _validate_envelope(payload)
 
     source = request.headers.get("x-coursecompose-source") or "unknown"
+    course_code = (payload.spec.get("course") or {}).get("code")
 
     supabase = get_supabase()
+
+    # Step 1: supersede any prior PENDING rows for this course. We don't
+    # touch rows in processing / built / error / archived / superseded
+    # states — those are user-actioned outcomes that shouldn't be
+    # rewritten by a fresh push. Only the un-actioned 'pending' tier
+    # gets bumped aside.
+    superseded_count = 0
+    if course_code:
+        prior = (
+            supabase.table("coursecompose_handoffs")
+            .update({"status": "superseded"})
+            .eq("course_code", course_code)
+            .eq("status", "pending")
+            .execute()
+        )
+        superseded_count = len(prior.data or [])
+
+    # Step 2: insert the new handoff. If insert fails after supersede,
+    # we end up with zero pending rows for the course — recoverable
+    # by pushing again, no data loss (the prior bundles remain
+    # in 'superseded' state and are still in the table).
     row = {
         "bundle": payload.model_dump(mode="json"),
         "status": "pending",
@@ -111,7 +148,8 @@ async def receive_handoff(payload: HandoffPayload, request: Request) -> Dict[str
         "ok": True,
         "handoff_id": inserted["id"],
         "received_at": inserted["received_at"],
-        "course_code": (payload.spec.get("course") or {}).get("code"),
+        "course_code": course_code,
+        "superseded_count": superseded_count,
     }
 
 

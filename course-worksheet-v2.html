@@ -13113,7 +13113,14 @@
       saveField('lastHandoffFilename', '→ Curate handoff ' + (data.handoff_id || ''));
       saveField('lastHandoffId', data.handoff_id || null);
       renderCanvasPlan();
-      alert('✓ Sent to CanvasCurate.\n\nHandoff ID: ' + (data.handoff_id || '?') + '\n\nCurate will surface this in its Incoming queue.');
+      var msg = '✓ Sent to CanvasCurate.\n\nHandoff ID: ' + (data.handoff_id || '?');
+      if (data.superseded_count && data.superseded_count > 0) {
+        msg += '\n\n' + data.superseded_count + ' earlier pending handoff' + (data.superseded_count === 1 ? '' : 's')
+          + ' for this course ' + (data.superseded_count === 1 ? 'was' : 'were') + ' superseded — only this push will be built.';
+      } else {
+        msg += '\n\nCurate will surface this in its Incoming queue.';
+      }
+      alert(msg);
     } catch (err) {
       // Curate is unreachable / errored — fall back to the local download
       // so the user isn't blocked. We keep the same bundle shape on disk

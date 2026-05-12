@@ -32,8 +32,12 @@ create table if not exists coursecompose_handoffs (
   generated_by    text generated always as (bundle->'handoff'->>'bundledBy') stored,
   generated_role  text generated always as (bundle->'handoff'->>'bundledByRole') stored,
   -- Build state. Curate flips this as it ingests / processes.
+  -- 'superseded' is set automatically by the handoff endpoint when a
+  -- newer push arrives for the same course_code while an earlier
+  -- handoff is still pending — guarantees at most one pending row
+  -- per course at any time, so the inbox never shows duplicates.
   status          text not null default 'pending'
-                    check (status in ('pending', 'processing', 'built', 'error', 'archived')),
+                    check (status in ('pending', 'processing', 'built', 'error', 'archived', 'superseded')),
   processed_at    timestamptz,
   processed_by    uuid references auth.users(id) on delete set null,
   notes           text,
@@ -71,3 +75,33 @@ create policy "authenticated_can_update_cc_handoffs"
 -- spam this table directly from a browser.
 --
 -- (Intentionally NO `for insert to anon` policy.)
+
+
+-- ============================================================
+--   FOLLOW-UP: add 'superseded' to the status check constraint
+-- ============================================================
+-- If you applied the migration BEFORE 'superseded' was added to the
+-- enum (early May 2026 onward), this block re-bases the check so the
+-- handoff endpoint can mark older pending rows as superseded when a
+-- new push arrives for the same course. Idempotent — safe to re-run.
+--
+-- The drop-then-add pattern is necessary because Postgres doesn't
+-- support ALTER CHECK CONSTRAINT in-place. The DROP IF EXISTS guard
+-- means re-running on a fresh DB (where this constraint was already
+-- baked in with the right list) is a no-op.
+
+do $$
+begin
+  if exists (
+    select 1 from pg_constraint
+     where conrelid = 'coursecompose_handoffs'::regclass
+       and conname like '%status%check%'
+  ) then
+    alter table coursecompose_handoffs
+      drop constraint if exists coursecompose_handoffs_status_check;
+  end if;
+end $$;
+
+alter table coursecompose_handoffs
+  add constraint coursecompose_handoffs_status_check
+  check (status in ('pending', 'processing', 'built', 'error', 'archived', 'superseded'));
