@@ -16825,8 +16825,23 @@
     }
   }
 
+  // True when this browser belongs to the ID (id_profile saved) AND the
+  // current page was opened with a ?user= impersonation link. We log no
+  // time in that case — the ID is previewing what a faculty member sees,
+  // not actually doing work as that person, and accumulating into the
+  // impersonated identity's row makes the dashboard show fictional
+  // faculty activity (and races the ID's own concurrent tab).
+  function _isIdImpersonation() {
+    if (!urlIdentity) return false;
+    try {
+      var prof = JSON.parse(localStorage.getItem('id_profile') || 'null');
+      return !!(prof && prof.name);
+    } catch (e) { return false; }
+  }
+
   function _pushSessionEventToCloud(startedAt, endedAt) {
     try {
+      if (_isIdImpersonation()) return;
       var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
       if (!identity || !identity.name || !identity.role) return;
       if (!window._sbClient || !courseId) return;
@@ -16851,6 +16866,7 @@
 
   function _pushSessionDeltaToCloud(deltaMs, incrementCount, isUnload) {
     try {
+      if (_isIdImpersonation()) return;
       var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
       if (!identity || !identity.name || !identity.role) return;
       if (!window._sbClient || !courseId) return;
