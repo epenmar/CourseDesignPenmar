@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Canvas Curator — EdPlus Design System Updates</title>
+  <link rel="stylesheet" href="colors_and_type.css">
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    html, body {
+      background: var(--color-surface);
+      color: var(--color-on-surface);
+      font-family: var(--font-text);
+      line-height: 1.6;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 60px 40px;
+    }
+
+    header {
+      border-bottom: 2px solid var(--color-outline);
+      padding-bottom: 40px;
+      margin-bottom: 60px;
+    }
+
+    h1 {
+      font-size: 48px;
+      font-family: var(--font-display);
+      font-weight: 700;
+      margin-bottom: 12px;
+      letter-spacing: -0.02em;
+    }
+
+    .subtitle {
+      font-size: 20px;
+      color: var(--color-on-surface-variant);
+      font-weight: 400;
+    }
+
+    .section {
+      margin-bottom: 80px;
+    }
+
+    .section h2 {
+      font-size: 32px;
+      font-family: var(--font-display);
+      font-weight: 600;
+      margin-bottom: 8px;
+      letter-spacing: -0.02em;
+    }
+
+    .section-eyebrow {
+      font-size: 12px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--color-on-surface-variant);
+      margin-bottom: 24px;
+    }
+
+    .comparison {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+
+    .comparison-card {
+      border: 1px solid var(--color-outline-variant);
+      border-radius: 12px;
+      padding: 32px;
+      background: var(--color-surface-container-lowest);
+    }
+
+    .comparison-label {
+      font-size: 14px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-on-surface-variant);
+      margin-bottom: 16px;
+    }
+
+    .color-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 24px;
+      margin-bottom: 40px;
+    }
+
+    .color-swatch {
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+    }
+
+    .color-sample {
+      height: 120px;
+      width: 100%;
+    }
+
+    .color-info {
+      padding: 16px;
+      background: var(--color-surface-container-lowest);
+      border-top: 1px solid var(--color-outline-variant);
+    }
+
+    .color-name {
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-on-surface);
+      margin-bottom: 4px;
+    }
+
+    .color-value {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      color: var(--color-on-surface-variant);
+    }
+
+    .type-scale {
+      display: grid;
+      gap: 32px;
+      margin-bottom: 40px;
+    }
+
+    .type-item {
+      border-left: 4px solid var(--color-primary);
+      padding-left: 20px;
+    }
+
+    .type-sample {
+      margin-bottom: 8px;
+    }
+
+    .type-label {
+      font-size: 12px;
+      color: var(--color-on-surface-variant);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .token-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 40px;
+    }
+
+    .token-table thead {
+      background: var(--color-surface-container);
+      border: 1px solid var(--color-outline-variant);
+    }
+
+    .token-table th {
+      padding: 16px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 14px;
+      color: var(--color-on-surface);
+      border-bottom: 2px solid var(--color-outline);
+    }
+
+    .token-table td {
+      padding: 16px;
+      border-bottom: 1px solid var(--color-outline-variant);
+      font-size: 14px;
+    }
+
+    .token-table tr:hover {
+      background: var(--color-surface-container-lowest);
+    }
+
+    .before {
+      color: #ba1a1a;
+      font-weight: 600;
+    }
+
+    .after {
+      color: #005c32;
+      font-weight: 600;
+    }
+
+    code {
+      font-family: var(--font-mono);
+      background: var(--color-surface-container);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 13px;
+    }
+
+    .button-group {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 150ms cubic-bezier(0.2, 0.8, 0.2, 1);
+      font-family: var(--font-text);
+    }
+
+    .btn-primary {
+      background: var(--color-primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      opacity: 0.9;
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(140, 29, 64, 0.2);
+    }
+
+    .btn-secondary {
+      background: var(--color-secondary);
+      color: var(--color-on-surface);
+    }
+
+    .btn-secondary:hover {
+      opacity: 0.9;
+      transform: translateY(-2px);
+    }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--color-primary);
+      border: 2px solid var(--color-outline);
+    }
+
+    .btn-ghost:hover {
+      background: var(--color-surface-container);
+    }
+
+    .callout {
+      background: var(--color-primary);
+      color: white;
+      padding: 24px;
+      border-radius: 12px;
+      margin: 40px 0;
+    }
+
+    .callout h3 {
+      margin-bottom: 8px;
+      font-size: 20px;
+    }
+
+    @media (max-width: 768px) {
+      .comparison {
+        grid-template-columns: 1fr;
+      }
+
+      .container {
+        padding: 40px 20px;
+      }
+
+      h1 {
+        font-size: 36px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Canvas Curator</h1>
+      <p class="subtitle">EdPlus Design System Implementation Guide</p>
+    </header>
+
+    <!-- Color Palette Section -->
+    <section class="section">
+      <div class="section-eyebrow">Visual Design</div>
+      <h2>Color Palette</h2>
+      <p style="margin-bottom: 40px; color: var(--color-on-surface-variant);">
+        The Canvas Curator frontend now uses the ASU EdPlus institutional color palette with true maroon and gold, replacing the previous blue-tinted surface colors.
+      </p>
+
+      <h3 style="font-size: 20px; margin-bottom: 24px; font-family: var(--font-display); font-weight: 600;">Brand Colors</h3>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #8C1D40;"></div>
+          <div class="color-info">
+            <div class="color-name">ASU Maroon</div>
+            <div class="color-value">#8C1D40</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #FFC627;"></div>
+          <div class="color-info">
+            <div class="color-name">ASU Gold</div>
+            <div class="color-value">#FFC627</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #FFFFFF; border: 1px solid var(--color-outline-variant);"></div>
+          <div class="color-info">
+            <div class="color-name">Surface (White)</div>
+            <div class="color-value">#FFFFFF</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #191919;"></div>
+          <div class="color-info">
+            <div class="color-name">Text Primary</div>
+            <div class="color-value">#191919</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="font-size: 20px; margin-bottom: 24px; font-family: var(--font-display); font-weight: 600;">Neutral Scale</h3>
+      <div class="color-grid">
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #FAFAFA; border: 1px solid var(--color-outline-variant);"></div>
+          <div class="color-info">
+            <div class="color-name">Subtle Fill</div>
+            <div class="color-value">#FAFAFA</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #EFEFEF;"></div>
+          <div class="color-info">
+            <div class="color-name">Light Hairline</div>
+            <div class="color-value">#EFEFEF</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #D0D0D0;"></div>
+          <div class="color-info">
+            <div class="color-name">Strong Rule</div>
+            <div class="color-value">#D0D0D0</div>
+          </div>
+        </div>
+        <div class="color-swatch">
+          <div class="color-sample" style="background: #6F6F6F;"></div>
+          <div class="color-info">
+            <div class="color-name">Secondary Text</div>
+            <div class="color-value">#6F6F6F</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Typography Section -->
+    <section class="section">
+      <div class="section-eyebrow">Typography</div>
+      <h2>Type Scale & Weights</h2>
+      <p style="margin-bottom: 40px; color: var(--color-on-surface-variant);">
+        Canvas Curator now uses Neue Haas Grotesk (with Inter Tight fallback per EdPlus spec). All type scales follow the institutional standard with tight letter-spacing (-0.02em) by default.
+      </p>
+
+      <div class="type-scale">
+        <div class="type-item">
+          <div class="type-label">Eyebrow (12px, Semibold, +0.15em tracking)</div>
+          <div class="type-sample eyebrow" style="margin-bottom: 16px;">THE ASU MODEL</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Heading 1 (36px, Bold, -0.02em)</div>
+          <div class="type-sample" style="font-family: var(--font-display); font-size: 36px; font-weight: 700; letter-spacing: -0.02em; margin-bottom: 16px;">Scale Education</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Heading 2 (30px, Medium, -0.02em)</div>
+          <div class="type-sample" style="font-family: var(--font-display); font-size: 30px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 16px;">Learn at Scale</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Heading 3 (24px, Medium, -0.02em)</div>
+          <div class="type-sample" style="font-family: var(--font-display); font-size: 24px; font-weight: 500; letter-spacing: -0.02em; margin-bottom: 16px;">World-Class Programs</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Body (18px, Regular, -0.02em)</div>
+          <div class="type-sample" style="font-size: 18px; font-weight: 400; letter-spacing: -0.02em; margin-bottom: 16px;">We exist to help the university move faster, reach farther, and deliver on the promise of access.</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Body Small (16px, Regular, -0.02em)</div>
+          <div class="type-sample" style="font-size: 16px; font-weight: 400; letter-spacing: -0.02em; margin-bottom: 16px;">Supporting text for secondary information and metadata.</div>
+        </div>
+
+        <div class="type-item">
+          <div class="type-label">Caption (14px, Regular, -0.02em)</div>
+          <div class="type-sample" style="font-size: 14px; font-weight: 400; letter-spacing: -0.02em; margin-bottom: 16px;">Smallest text size for labels and metadata.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Components Section -->
+    <section class="section">
+      <div class="section-eyebrow">Interactive Elements</div>
+      <h2>Button States</h2>
+      <p style="margin-bottom: 40px; color: var(--color-on-surface-variant);">
+        Buttons follow EdPlus conventions with 12px border radius, medium font weight, and smooth transitions.
+      </p>
+
+      <div class="button-group">
+        <button class="btn-primary">Primary Button</button>
+        <button class="btn-secondary">Secondary Button</button>
+        <button class="btn-ghost">Ghost Button</button>
+      </div>
+
+      <table class="token-table">
+        <thead>
+          <tr>
+            <th>Component</th>
+            <th>Before</th>
+            <th>After</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Border Radius</strong></td>
+            <td><span class="before">rounded-xl (20px)</span></td>
+            <td><span class="after">rounded-lg (12px)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Button Font Weight</strong></td>
+            <td><span class="before">font-bold</span></td>
+            <td><span class="after">font-semibold</span></td>
+          </tr>
+          <tr>
+            <td><strong>Shadow</strong></td>
+            <td><span class="before">shadow-2xl (heavy)</span></td>
+            <td><span class="after">shadow-card (subtle)</span></td>
+          </tr>
+          <tr>
+            <td><strong>Transition</strong></td>
+            <td><span class="before">Generic ease</span></td>
+            <td><span class="after">150ms cubic-bezier (institutional)</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Key Changes Table -->
+    <section class="section">
+      <div class="section-eyebrow">Implementation</div>
+      <h2>Files Updated</h2>
+
+      <table class="token-table">
+        <thead>
+          <tr>
+            <th>File</th>
+            <th>Changes</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>globals.css</code></td>
+            <td>Complete color token refresh, type scale standardization, shadow/spacing redefinition</td>
+          </tr>
+          <tr>
+            <td><code>layout.tsx</code></td>
+            <td>Font import updated from Manrope+Inter to Inter Tight (EdPlus fallback)</td>
+          </tr>
+          <tr>
+            <td><code>AppHeader.tsx</code></td>
+            <td>Radius (12px), font weights (medium/semibold), shadows, and spacing refined</td>
+          </tr>
+          <tr>
+            <td><code>SideNav.tsx</code></td>
+            <td>Navigation styling aligned: radius, weights, colors, spacing per EdPlus grid</td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
+
+    <!-- Next Steps -->
+    <section class="section">
+      <div class="section-eyebrow">Next Steps</div>
+      <h2>Implementation Roadmap</h2>
+
+      <div class="callout">
+        <h3>Immediate (This Sprint)</h3>
+        <p>✅ Color system updated  |  ✅ Typography aligned  |  ✅ Key components styled</p>
+      </div>
+
+      <div style="background: var(--color-surface-container-low); border-left: 4px solid var(--color-secondary); padding: 24px; border-radius: 8px; margin-bottom: 24px;">
+        <h3 style="font-size: 18px; margin-bottom: 12px; font-family: var(--font-display);">Upcoming Work</h3>
+        <ul style="list-style: disc; padding-left: 24px; color: var(--color-on-surface);">
+          <li>Apply EdPlus patterns to Forms, Cards, and Modal components</li>
+          <li>Update Dashboard and Session pages with institutional styling</li>
+          <li>Create reusable component library (Buttons, Inputs, Badges, etc.)</li>
+          <li>License and integrate Neue Haas Grotesk fonts</li>
+          <li>Comprehensive accessibility audit (WCAG AA contrast, focus states)</li>
+        </ul>
+      </div>
+
+      <div style="background: var(--color-surface-container-low); border-left: 4px solid var(--color-primary); padding: 24px; border-radius: 8px;">
+        <h3 style="font-size: 18px; margin-bottom: 12px; font-family: var(--font-display);">Design System Reference</h3>
+        <p style="margin-bottom: 16px;">Full ASU EdPlus Design System documentation is available in the project files:</p>
+        <ul style="list-style: disc; padding-left: 24px; color: var(--color-on-surface);">
+          <li><code>colors_and_type.css</code> — Complete token definitions and base styles</li>
+          <li><code>assets/logos/</code> — ASU, ASU Online, and EdPlus brand marks</li>
+          <li><code>assets/icons/</code> — Heroicons and ASU discipline icons</li>
+          <li><code>README.md</code> — Full design system guide and voice standards</li>
+        </ul>
+      </div>
+    </section>
+
+  </div>
+</body>
+</html>

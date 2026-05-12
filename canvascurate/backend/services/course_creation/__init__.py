@@ -1,0 +1,2 @@
+"""Course Creation service boundary."""
+
