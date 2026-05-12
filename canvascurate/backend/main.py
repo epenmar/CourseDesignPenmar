@@ -22,6 +22,7 @@ import time  # noqa: E402
 from api.admin.router import router as admin_router
 from api.documents import router as api_documents
 from api.course_creation.router import router as course_creation_router
+from api.coursecompose.router import router as coursecompose_router
 from api.editor.router import router as editor_router
 from api.images.router import router as images_router
 from api.inventory.router import router as inventory_router
@@ -61,6 +62,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(admin_router)
+app.include_router(coursecompose_router)
 app.include_router(canvas.router)
 app.include_router(editor_router)
 app.include_router(images_router)
