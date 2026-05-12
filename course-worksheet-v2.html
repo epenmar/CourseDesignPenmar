@@ -12507,9 +12507,12 @@
     html += _planSummaryPill('warn', gaps.summary.warn, 'warning' + (gaps.summary.warn === 1 ? '' : 's'));
     html += _planSummaryPill('error', gaps.summary.error, 'blocking');
     if (gaps.summary.error > 0) {
-      html += '<span style="font-size:12px; color:#c62828; font-style:italic; align-self:center;">Resolve blocking issues before handoff.</span>';
+      // Blocking now only triggers when Curate would literally reject the
+      // spec (missing course code, zero modules). Be explicit so the user
+      // knows this is a hard floor, not a quality nag.
+      html += '<span style="font-size:12px; color:#c62828; font-style:italic; align-self:center;">Curate would reject this spec. Resolve the blocking item(s) before handoff.</span>';
     } else if (gaps.summary.warn > 0) {
-      html += '<span style="font-size:12px; color:#8a6d00; font-style:italic; align-self:center;">Warnings are OK to leave but worth a look.</span>';
+      html += '<span style="font-size:12px; color:#8a6d00; font-style:italic; align-self:center;">' + gaps.summary.warn + ' warning' + (gaps.summary.warn === 1 ? '' : 's') + ' — handoff still works. Curate builds placeholders for what\'s missing.</span>';
     } else {
       html += '<span style="font-size:12px; color:#2e7d32; font-style:italic; align-self:center;">All clear — ready to hand off.</span>';
     }
@@ -12734,13 +12737,37 @@
       return stripped.length > 0;
     }
 
+    // ---- Course-level: the ONLY truly blocking conditions ----
+    // Curate's /api/coursecompose/handoff endpoint will reject the spec
+    // outright if either of these is missing. Everything else can be
+    // built into Canvas as a placeholder and refined later — we want
+    // CourseCompose to be able to push partial work, not gate handoff
+    // on every blank field.
+    var courseRef = 'course';
+    if (!spec.course || !spec.course.code) {
+      addReason(courseRef, 'error', 'Course code missing — Curate cannot create a Canvas course without it', {
+        view: 'course-info',
+        label: 'Set course code'
+      });
+    }
+    if (!Array.isArray(spec.modules) || spec.modules.length === 0) {
+      addReason(courseRef, 'error', 'No modules defined — nothing to build', {
+        view: 'module-overview',
+        label: 'Add a module'
+      });
+    }
+    if (!byRef[courseRef]) byRef[courseRef] = { status: 'ok', reasons: [] };
+
     (spec.modules || []).forEach(function(mod) {
       var modRef = 'mod-' + mod.number;
 
       // ---- Overview page ----
+      // No MLOs is a content gap, not a build blocker. Curate creates the
+      // overview page either way; an MLO-less overview just lists the
+      // module topic + a placeholder.
       var overviewRef = 'overview-' + mod.number;
       if (!mod.mlos || mod.mlos.length === 0) {
-        addReason(overviewRef, 'error', 'No MLOs set for this module', {
+        addReason(overviewRef, 'warn', 'No MLOs set for this module', {
           view: 'module-overview',
           modNum: mod.number,
           label: 'Add MLOs'
@@ -12748,6 +12775,9 @@
       }
 
       // ---- Activities ----
+      // Every activity-level gap is a warning now. The build proceeds;
+      // Curate creates each Canvas page with whatever content is present
+      // (or a placeholder) and the user iterates after seeing it live.
       (mod.activities || []).forEach(function(act) {
         var ref = 'act-' + act.id;
         var type = (act.type || 'assignment').toLowerCase();
@@ -12760,37 +12790,30 @@
           label: 'Open activity'
         };
 
-        // No "what students do" content drafted. The relevant section name
-        // varies by template type: Instructions for assignment, Discussion
-        // Prompt for discussion, Instructions/Activity for quiz/blank.
         var tpl = (act.templateData || {})[type] || (act.templateData || {})[Object.keys(act.templateData || {})[0]] || {};
         var hasInstructions = _hasContent(tpl['Instructions']) || _hasContent(tpl['Discussion Prompt']) || _hasContent(tpl['Activity']) || _hasContent(act.richText);
         if (!hasInstructions) {
-          addReason(ref, 'error', 'No instructions drafted', Object.assign({}, fixActivity, { label: 'Draft content' }));
+          addReason(ref, 'warn', 'No instructions drafted', Object.assign({}, fixActivity, { label: 'Draft content' }));
         }
 
-        // Graded activity needs a rubric / "How You're Graded" section.
         if (isGraded) {
           var hasRubric = _hasContent(tpl['Rubric']) || _hasContent(tpl["How You're Graded"]) || _hasContent(tpl["How you're graded"]);
           if (!hasRubric) {
-            addReason(ref, 'error', 'Graded but no rubric', Object.assign({}, fixActivity, { label: 'Add rubric' }));
+            addReason(ref, 'warn', 'Graded but no rubric', Object.assign({}, fixActivity, { label: 'Add rubric' }));
           }
         }
 
-        // No MLO tagged — at minimum one valid MLO or CEPH/UOEEE tag is required.
         var hasValidTag = (act.objectives || []).some(function(id) {
           if (/^(CEPH|UOEEE)\s/i.test(id)) return true;
-          // MLO id like "3.2" — check the module's mlos array has that index.
           var m = String(id).match(/^(\d+)\.(\d+)$/);
           if (!m) return false;
           var targetMod = (spec.modules || []).find(function(x) { return x.number === parseInt(m[1], 10); });
           return targetMod && targetMod.mlos && targetMod.mlos[parseInt(m[2], 10) - 1];
         });
         if (!hasValidTag) {
-          addReason(ref, 'error', 'No MLO tagged', Object.assign({}, fixActivity, { label: 'Tag MLO' }));
+          addReason(ref, 'warn', 'No MLO tagged', Object.assign({}, fixActivity, { label: 'Tag MLO' }));
         }
 
-        // Soft flags (warn but allow handoff).
         if (!act.due || !String(act.due).trim()) {
           addReason(ref, 'warn', 'No due date set', Object.assign({}, fixActivity, { label: 'Set date' }));
         }
@@ -12798,7 +12821,6 @@
           addReason(ref, 'warn', 'No points assigned', Object.assign({}, fixActivity, { label: 'Set points' }));
         }
         if (!act.contentComplete) {
-          // Don't double-warn if we already errored — just note "still in progress".
           var existing = byRef[ref];
           if (!existing || existing.status === 'ok') {
             addReason(ref, 'warn', 'Marked in progress', Object.assign({}, fixActivity, { label: 'Mark complete' }));
@@ -12809,6 +12831,9 @@
       });
 
       // ---- Materials ----
+      // A material with no source becomes a placeholder Canvas page in
+      // the Learning Materials roll-up. Faculty can fill it in once
+      // Curate publishes the course.
       (mod.materials || []).forEach(function(mat) {
         var ref = 'mat-' + mat.id;
         var fixMaterial = {
@@ -12821,7 +12846,7 @@
           || (mat.links && mat.links.length > 0)
           || _hasContent(mat.richText);
         if (!hasSource) {
-          addReason(ref, 'error', 'No file, link, or notes attached', Object.assign({}, fixMaterial, { label: 'Attach source' }));
+          addReason(ref, 'warn', 'No file, link, or notes attached', Object.assign({}, fixMaterial, { label: 'Attach source' }));
         }
         if (!(mat.linkedActivityIds || []).length) {
           addReason(ref, 'warn', 'Not linked to any activity', Object.assign({}, fixMaterial, { label: 'Link activity' }));
@@ -12966,7 +12991,7 @@
       btn.disabled = true;
       btn.style.opacity = '0.5';
       btn.style.cursor = 'not-allowed';
-      btn.title = blockingCount + ' blocking issue' + (blockingCount === 1 ? '' : 's') + ' still open — resolve them above before handoff.';
+      btn.title = blockingCount + ' blocking issue' + (blockingCount === 1 ? '' : 's') + ' — Curate would reject the spec. (Warnings don\'t count; the button only locks for hard-required fields like course code + ≥1 module.)';
     }
     btn.onclick = function() { handOffToCanvasCurate(); };
     bar.appendChild(btn);
