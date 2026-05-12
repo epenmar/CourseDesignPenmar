@@ -3,12 +3,21 @@
 Registers focused routers, shared middleware, and app-level request timing.
 """
 
-from fastapi import FastAPI, Request
-from fastapi.middleware.cors import CORSMiddleware
-from contextlib import asynccontextmanager
-import logging
-import os
-import time
+# Load .env BEFORE any module-level os.getenv calls. CourseCompose's repo
+# uses a single shared env file (canvascurate/backend/.env, typically
+# symlinked to /Users/epenmar/conductor/.env) so secrets aren't duplicated
+# across services. Without this call, `start.sh` runs uvicorn directly
+# and no Supabase/encryption vars reach the process — every protected
+# route would 401 and PAT encryption would fail at import time.
+from dotenv import load_dotenv  # noqa: E402  (must precede other imports)
+load_dotenv()
+
+from fastapi import FastAPI, Request  # noqa: E402
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
+from contextlib import asynccontextmanager  # noqa: E402
+import logging  # noqa: E402
+import os  # noqa: E402
+import time  # noqa: E402
 
 from api.admin.router import router as admin_router
 from api.documents import router as api_documents
