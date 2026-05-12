@@ -1,0 +1,238 @@
+/* ===================================================================
+   ASU EdPlus Design System — Colors & Type
+   =================================================================== */
+
+/* -- Web fonts -----------------------------------------------------
+   The brand uses Neue Haas Grotesk Display Pro & Text Pro (paid
+   typeface). When font files are unavailable, we fall back to
+   Inter Tight (Google Fonts) which is the closest free metric
+   match. Replace these @font-face declarations with the licensed
+   files in fonts/ when available.
+------------------------------------------------------------------ */
+@import url("https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&display=swap");
+
+:root {
+  /* ===== ASU PRIMARY PALETTE ===========================
+     ASU's two non-negotiable brand colors.
+  ===================================================== */
+  --asu-maroon:       #8C1D40;   /* primary brand color */
+  --asu-gold:         #FFC627;   /* primary accent */
+
+  /* Tints / shades observed in deck */
+  --asu-maroon-700:   #6E1632;
+  --asu-maroon-600:   #7A1A39;
+  --asu-maroon-500:   #8C1D40;   /* base */
+  --asu-maroon-400:   #AC3B5F;   /* lighter rose tint used for fills */
+  --asu-maroon-300:   #C66B85;
+  --asu-maroon-200:   #FFB6CD;   /* hot pink decorative ground */
+
+  --asu-gold-500:     #FFC627;   /* base */
+  --asu-gold-300:     #FFE6A0;   /* warm cream tint */
+  --asu-gold-100:     #FFF4D1;
+
+  /* ===== NEUTRALS ====================================== */
+  --neutral-0:        #FFFFFF;
+  --neutral-50:       #FAFAFA;
+  --neutral-100:      #F0F0F0;
+  --neutral-200:      #EFEFEF;
+  --neutral-300:      #DCDCDC;
+  --neutral-400:      #CDCDCD;
+  --neutral-500:      #BDBDBD;
+  --neutral-600:      #8C8C8C;
+  --neutral-700:      #6F6F6F;
+  --neutral-800:      #4E4E4E;
+  --neutral-900:      #444444;
+  --neutral-950:      #222222;
+  --neutral-1000:     #191919;
+  --neutral-black:    #000000;
+
+  /* ===== SUPPORTING / SEMANTIC ACCENTS =================
+     Sampled from program-card slides (Dreamscape, e-SHE,
+     Starbucks, Uber, partner blocks, etc.)
+  ===================================================== */
+  --accent-sky:       #00A3E0;   /* Dreamscape blue */
+  --accent-skyTint:   #BBEDFF;
+  --accent-green:     #005C32;   /* Starbucks dark green */
+  --accent-lime:      #6FC23B;   /* freshSTEM green */
+  --accent-orange:    #E26B2C;   /* StudyHall orange */
+  --accent-pink:      #E0488B;   /* e-SHE pink */
+  --accent-navy:      #15375E;   /* Air Force navy panels */
+  --accent-charcoal:  #2D2F33;
+
+  /* ===== FOREGROUND / BACKGROUND TOKENS (semantic) ===== */
+  --fg-1:             var(--neutral-1000);   /* primary text */
+  --fg-2:             var(--neutral-800);    /* secondary text */
+  --fg-3:             var(--neutral-700);    /* tertiary / labels */
+  --fg-muted:         var(--neutral-600);    /* eyebrow / meta */
+  --fg-on-dark:       var(--neutral-50);
+  --fg-on-maroon:     #FFFFFF;
+  --fg-on-gold:       var(--asu-maroon);
+
+  --bg-app:           var(--neutral-0);
+  --bg-subtle:        var(--neutral-100);
+  --bg-card:          var(--neutral-0);
+  --bg-dark:          var(--neutral-1000);
+  --bg-maroon:        var(--asu-maroon);
+  --bg-gold:          var(--asu-gold);
+
+  --border-1:         var(--neutral-200);    /* hairline */
+  --border-2:         var(--neutral-300);
+  --border-strong:    var(--neutral-500);
+
+  /* ===== ELEVATION ==================================== */
+  --shadow-card:      0 5px 20px rgba(0,0,0,0.10), 0 0 3px rgba(0,0,0,0.30);
+  --shadow-floating:  0 4px 22px rgba(0,0,0,0.09);
+  --shadow-popover:   0 1px 2px rgba(0,0,0,0.04), 0 8px 24px rgba(0,0,0,0.08);
+  --shadow-inset:     inset 0 0 0 1px rgba(0,0,0,0.06);
+
+  /* ===== RADII ======================================== */
+  --radius-xs:        4px;
+  --radius-sm:        8px;
+  --radius-md:        12px;
+  --radius-lg:        16px;
+  --radius-xl:        24px;
+  --radius-pill:      999px;
+
+  /* ===== SPACING (8pt-ish scale) ====================== */
+  --space-0:          0;
+  --space-1:          4px;
+  --space-2:          8px;
+  --space-3:          12px;
+  --space-4:          16px;
+  --space-5:          24px;
+  --space-6:          32px;
+  --space-7:          48px;
+  --space-8:          64px;
+  --space-9:          96px;
+  --space-10:        128px;
+
+  /* ===== TYPE FAMILIES ================================ */
+  --font-display:     "Neue Haas Grotesk Display Pro", "Inter Tight",
+                      -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+                      Helvetica, Arial, sans-serif;
+  --font-text:        "Neue Haas Grotesk Text Pro", "Inter Tight",
+                      -apple-system, BlinkMacSystemFont, "Helvetica Neue",
+                      Helvetica, Arial, sans-serif;
+  --font-mono:        ui-monospace, SFMono-Regular, "Menlo", monospace;
+
+  /* ===== TYPE WEIGHTS ================================= */
+  --w-light:    300;     /* Display 45 Light */
+  --w-regular:  400;     /* 55 Roman */
+  --w-medium:   500;     /* 65 Medium */
+  --w-bold:     700;     /* 75 Bold */
+
+  /* ===== SEMANTIC TYPE TOKENS (rough deck scales) ===== */
+  /* Brand uses very large display sizes on slides and tight
+     -2% letter spacing nearly everywhere. */
+  --eyebrow-size:     18px;
+  --eyebrow-tracking: 0.15em;
+
+  --display-1:        96px;   /* hero numbers / "EdPlus" */
+  --display-2:        64px;
+  --display-3:        48px;
+  --h1:               36px;
+  --h2:               30px;
+  --h3:               24px;
+  --body-lg:          20px;
+  --body:             18px;
+  --body-sm:          16px;
+  --caption:          14px;
+
+  --leading-tight:    1.05;
+  --leading-snug:     1.20;
+  --leading-normal:   1.30;
+  --leading-loose:    1.50;
+  --tracking-tight:   -0.02em;
+  --tracking-display: -0.022em;
+}
+
+/* ===================================================================
+   Element defaults
+   =================================================================== */
+html, body {
+  font-family: var(--font-text);
+  color: var(--fg-1);
+  background: var(--bg-app);
+  font-size: 16px;
+  line-height: var(--leading-normal);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+h1, .h1 {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--h1);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
+}
+h2, .h2 {
+  font-family: var(--font-display);
+  font-weight: var(--w-medium);
+  font-size: var(--h2);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
+}
+h3, .h3 {
+  font-family: var(--font-display);
+  font-weight: var(--w-medium);
+  font-size: var(--h3);
+  line-height: var(--leading-snug);
+  letter-spacing: var(--tracking-tight);
+  margin: 0;
+}
+p {
+  font-family: var(--font-text);
+  font-weight: var(--w-regular);
+  font-size: var(--body);
+  line-height: var(--leading-normal);
+  letter-spacing: var(--tracking-tight);
+  margin: 0 0 var(--space-4);
+  text-wrap: pretty;
+}
+
+.eyebrow {
+  font-family: var(--font-display);
+  font-weight: var(--w-light);
+  font-size: var(--eyebrow-size);
+  letter-spacing: var(--eyebrow-tracking);
+  text-transform: uppercase;
+  color: var(--fg-2);
+}
+
+.display-1 {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--display-1);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+}
+.display-2 {
+  font-family: var(--font-display);
+  font-weight: var(--w-bold);
+  font-size: var(--display-2);
+  line-height: var(--leading-tight);
+  letter-spacing: var(--tracking-display);
+}
+.display-3 {
+  font-family: var(--font-display);
+  font-weight: var(--w-medium);
+  font-size: var(--display-3);
+  line-height: 1.07;
+  letter-spacing: var(--tracking-tight);
+}
+
+.muted { color: var(--fg-muted); }
+.on-dark { color: var(--fg-on-dark); }
+.on-maroon { color: var(--fg-on-maroon); }
+.on-gold { color: var(--fg-on-gold); }
+
+code, pre {
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  background: var(--neutral-100);
+  border-radius: var(--radius-xs);
+  padding: 0 4px;
+}

@@ -1,0 +1,1 @@
+"""Course module API package."""

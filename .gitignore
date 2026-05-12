@@ -1,0 +1,9 @@
+# Reference repo (old codebase — read only, never import)
+_reference/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# OS
+.DS_Store

@@ -1,0 +1,12 @@
+fastapi==0.115.12
+uvicorn[standard]==0.34.0
+python-dotenv==1.2.2
+httpx==0.28.1
+supabase==2.15.1
+cryptography==46.0.7
+boto3==1.38.30
+Pillow==12.2.0
+PyMuPDF>=1.24,<2
+pikepdf>=9,<11
+python-multipart==0.0.28
+openpyxl==3.1.5

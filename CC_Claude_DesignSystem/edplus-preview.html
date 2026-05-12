@@ -1,0 +1,1775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>EdPlus Component Library — Canvas Curator</title>
+  <link rel="stylesheet" href="colors_and_type.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--color-surface, #fff);
+      color: var(--color-on-surface, #191919);
+      font-family: var(--font-text, "Inter Tight", sans-serif);
+      font-size: 15px;
+      line-height: 1.5;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ── Layout ── */
+    .topnav {
+      position: sticky; top: 0; z-index: 40;
+      background: rgba(255,255,255,0.96);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid #EFEFEF;
+      padding: 12px 40px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .topnav h1 { font-size: 16px; font-weight: 700; color: #8C1D40; letter-spacing: -0.02em; }
+    .topnav nav { display: flex; gap: 24px; }
+    .topnav nav a { font-size: 12px; font-weight: 600; color: #6F6F6F; text-decoration: none; text-transform: uppercase; letter-spacing: 0.1em; transition: color 0.15s; }
+    .topnav nav a:hover { color: #8C1D40; }
+
+    .layout { display: flex; gap: 0; }
+    .sidebar {
+      width: 220px; flex-shrink: 0;
+      position: sticky; top: 49px; height: calc(100vh - 49px); overflow-y: auto;
+      border-right: 1px solid #EFEFEF;
+      padding: 24px 16px;
+    }
+    .sidebar-section { margin-bottom: 20px; }
+    .sidebar-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: #8C8C8C; padding: 0 8px; margin-bottom: 6px; }
+    .sidebar a { display: block; padding: 6px 8px; font-size: 13px; font-weight: 500; color: #4E4E4E; text-decoration: none; border-radius: 6px; transition: all 0.1s; }
+    .sidebar a:hover { background: #F0F0F0; color: #191919; }
+
+    .main { flex: 1; padding: 40px 48px; max-width: 960px; }
+
+    /* ── Section ── */
+    .section { margin-bottom: 64px; scroll-margin-top: 20px; }
+    .eyebrow { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.15em; color: #8C8C8C; margin-bottom: 4px; }
+    .section-title { font-size: 26px; font-weight: 700; color: #191919; letter-spacing: -0.02em; margin-bottom: 4px; }
+    .section-desc { font-size: 13px; color: #6F6F6F; margin-bottom: 20px; }
+
+    /* ── Card ── */
+    .card {
+      background: #fff;
+      border: 1px solid #EFEFEF;
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .card-body { padding: 24px; }
+    .card-body + .card-body { border-top: 1px solid #EFEFEF; }
+    .card-footer { padding: 16px 24px; border-top: 1px solid #EFEFEF; display: flex; justify-content: flex-end; gap: 8px; }
+
+    /* ── Buttons ── */
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      border: none; border-radius: 8px; cursor: pointer; font-family: inherit;
+      font-weight: 600; transition: all 0.15s; white-space: nowrap;
+    }
+    .btn-sm { padding: 6px 12px; font-size: 13px; height: 32px; }
+    .btn-md { padding: 8px 16px; font-size: 14px; height: 38px; }
+    .btn-lg { padding: 10px 22px; font-size: 15px; height: 44px; }
+    .btn-primary { background: #8C1D40; color: #fff; }
+    .btn-primary:hover { opacity: 0.9; }
+    .btn-secondary { background: #FFC627; color: #191919; }
+    .btn-secondary:hover { opacity: 0.9; }
+    .btn-ghost { background: transparent; color: #8C1D40; border: 2px solid #D0D0D0; }
+    .btn-ghost:hover { background: #F0F0F0; }
+    .btn-destructive { background: #ba1a1a; color: #fff; }
+    .btn-destructive:hover { opacity: 0.9; }
+
+    /* ── Tags / Badges ── */
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .badge-default { background: #F0F0F0; color: #191919; }
+    .badge-primary { background: rgba(140,29,64,0.08); color: #8C1D40; }
+    .badge-success { background: #e7f4ea; color: #1f6b2a; border: 1px solid rgba(46,125,50,0.3); }
+    .badge-warning { background: #fff2e8; color: #8a3b00; border: 1px solid rgba(255,127,50,0.4); }
+    .badge-error { background: #ffdad6; color: #ba1a1a; border: 1px solid rgba(186,26,26,0.3); }
+    .badge-pending { background: rgba(255,198,39,0.12); color: #6d5200; border: 1px solid rgba(255,198,39,0.3); }
+    .badge-inactive { background: #F0F0F0; color: #6F6F6F; border: 1px solid #DCDCDC; }
+
+    /* ── Input ── */
+    .input-group { display: flex; flex-direction: column; gap: 6px; }
+    .input-label { font-size: 13px; font-weight: 600; color: #191919; }
+    .input-hint { font-size: 11px; color: #6F6F6F; }
+    .input-error { font-size: 11px; color: #ba1a1a; font-weight: 500; }
+    .input-wrap { position: relative; }
+    .input-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8C8C8C; pointer-events: none; }
+    input[type="text"], input[type="email"], input[type="password"], input[type="search"] {
+      width: 100%; padding: 10px 14px; border-radius: 8px;
+      border: 1px solid #EFEFEF; background: #FAFAFA;
+      font-family: inherit; font-size: 14px; color: #191919;
+      transition: all 0.15s; outline: none;
+    }
+    input:focus { border-color: #8C1D40; box-shadow: 0 0 0 3px rgba(140,29,64,0.12); }
+    input.has-icon { padding-left: 38px; }
+    input.has-error { border-color: #ba1a1a; }
+
+    /* ── Tabs ── */
+    .tabs { display: flex; border-bottom: 1px solid #EFEFEF; gap: 2px; margin-bottom: 16px; }
+    .tab {
+      padding: 9px 16px; font-size: 13px; font-weight: 500; color: #6F6F6F;
+      cursor: pointer; border: none; background: none; border-radius: 6px 6px 0 0;
+      display: inline-flex; align-items: center; gap: 6px; transition: all 0.15s;
+      position: relative;
+    }
+    .tab.active { color: #8C1D40; }
+    .tab.active::after {
+      content: ""; position: absolute; bottom: -1px; left: 0; right: 0;
+      height: 2px; background: #8C1D40; border-radius: 2px;
+    }
+    .tab:hover:not(.active) { background: #F0F0F0; color: #191919; }
+    .tab-count {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 1px 6px; border-radius: 999px; font-size: 10px; font-weight: 700;
+      background: #F0F0F0; color: #6F6F6F;
+    }
+    .tab.active .tab-count { background: rgba(140,29,64,0.1); color: #8C1D40; }
+
+    /* ── Alerts ── */
+    .alert {
+      display: flex; gap: 12px; padding: 14px 16px;
+      border-radius: 8px; border: 1px solid;
+      font-size: 13px;
+    }
+    .alert-icon { flex-shrink: 0; margin-top: 1px; }
+    .alert-title { font-weight: 600; margin-bottom: 2px; }
+    .alert-info { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+    .alert-success { background: #f0fdf4; border-color: #bbf7d0; color: #166534; }
+    .alert-warning { background: #fff2e8; border-color: rgba(255,127,50,0.4); color: #8a3b00; }
+    .alert-error { background: #ffdad6; border-color: rgba(186,26,26,0.3); color: #ba1a1a; }
+
+    /* ── Table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    thead { background: #FAFAFA; }
+    th { padding: 10px 16px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #6F6F6F; text-align: left; border-bottom: 1px solid #EFEFEF; white-space: nowrap; user-select: none; }
+    th.sortable { cursor: pointer; }
+    th.sortable:hover { color: #191919; }
+    td { padding: 11px 16px; border-bottom: 1px solid #EFEFEF; color: #191919; }
+    tr:hover td { background: #FAFAFA; }
+    tr:last-child td { border-bottom: none; }
+    .sort-icon { display: inline-block; margin-left: 4px; opacity: 0.4; font-size: 10px; }
+    .sort-icon.active { opacity: 1; color: #8C1D40; }
+
+    /* ── Checkbox ── */
+    input[type="checkbox"] { accent-color: #8C1D40; width: 15px; height: 15px; cursor: pointer; border-radius: 3px; }
+
+    /* ── Pagination ── */
+    .pagination { display: flex; align-items: center; justify-content: space-between; padding: 12px 0; font-size: 13px; }
+    .pagination .range { color: #6F6F6F; font-size: 12px; }
+    .pagination .controls { display: flex; align-items: center; gap: 8px; }
+    .page-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 34px; height: 34px; border-radius: 8px;
+      border: 1px solid #EFEFEF; background: #fff;
+      font-size: 13px; cursor: pointer; transition: all 0.15s; color: #6F6F6F;
+    }
+    .page-btn:hover:not(:disabled) { background: #F0F0F0; color: #191919; }
+    .page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .page-info { font-size: 12px; font-weight: 600; color: #191919; padding: 0 8px; }
+    .jump-wrap { display: flex; align-items: center; gap: 6px; border-left: 1px solid #EFEFEF; padding-left: 12px; margin-left: 4px; }
+    .jump-label { font-size: 11px; color: #8C8C8C; white-space: nowrap; }
+    .jump-input { width: 48px; padding: 5px 8px; border-radius: 6px; border: 1px solid #EFEFEF; background: #FAFAFA; font-size: 12px; text-align: center; outline: none; font-family: inherit; }
+
+    /* ── SearchInput ── */
+    .search-wrap { position: relative; }
+    .search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #8C8C8C; pointer-events: none; }
+    .search-clear { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: #8C8C8C; cursor: pointer; padding: 2px; border-radius: 4px; }
+    .search-clear:hover { color: #191919; }
+    input[type="search"] { padding-left: 38px; padding-right: 32px; }
+    input[type="search"]::-webkit-search-cancel-button { display: none; }
+
+    /* ── FilterBar ── */
+    .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .filter-pills { display: flex; align-items: center; gap: 2px; border-radius: 8px; border: 1px solid #EFEFEF; background: #fff; padding: 4px; }
+    .filter-pill { padding: 5px 10px; border-radius: 6px; font-size: 12px; font-weight: 500; color: #6F6F6F; cursor: pointer; border: none; background: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 4px; }
+    .filter-pill.active { background: #8C1D40; color: #fff; }
+    .filter-pill:hover:not(.active) { background: #F0F0F0; color: #191919; }
+    .filter-count { font-size: 10px; opacity: 0.7; }
+
+    /* ── BulkActionBar ── */
+    .bulk-bar {
+      display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+      padding: 12px 16px; border-radius: 8px;
+      background: #191919; color: #fff;
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 5px 20px rgba(0,0,0,0.2);
+      margin-top: 12px;
+    }
+    .bulk-count { font-size: 13px; font-weight: 600; }
+    .bulk-sep { width: 1px; height: 18px; background: rgba(255,255,255,0.15); flex-shrink: 0; }
+    .bulk-actions { display: flex; gap: 6px; }
+    .bulk-btn { padding: 5px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; border: none; transition: all 0.15s; font-family: inherit; }
+    .bulk-btn-default { background: rgba(255,255,255,0.12); color: #fff; }
+    .bulk-btn-default:hover { background: rgba(255,255,255,0.2); }
+    .bulk-btn-destructive { background: #ba1a1a; color: #fff; }
+    .bulk-btn-destructive:hover { opacity: 0.9; }
+
+    /* ── ConfirmDialog ── */
+    .dialog-overlay { position: fixed; inset: 0; background: rgba(25,25,25,0.45); backdrop-filter: blur(4px); z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
+    .dialog {
+      background: #fff; border-radius: 12px; border: 1px solid #EFEFEF;
+      box-shadow: 0 24px 60px rgba(0,0,0,0.18);
+      padding: 24px; width: 100%; max-width: 360px;
+    }
+    .dialog-icon { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; border-radius: 10px; background: #ffdad6; margin-bottom: 14px; }
+    .dialog-title { font-size: 16px; font-weight: 700; color: #191919; margin-bottom: 8px; }
+    .dialog-desc { font-size: 13px; color: #6F6F6F; margin-bottom: 12px; }
+    .dialog-context { background: #F0F0F0; border: 1px solid #EFEFEF; border-radius: 8px; padding: 10px 12px; font-size: 13px; color: #191919; font-weight: 500; margin-bottom: 18px; }
+    .dialog-actions { display: flex; gap: 10px; }
+    .dialog-actions .btn { flex: 1; }
+
+    /* ── Skeleton ── */
+    @keyframes shimmer {
+      0% { background-position: -200% center; }
+      100% { background-position: 200% center; }
+    }
+    .skeleton {
+      background: linear-gradient(90deg, #EFEFEF 25%, #FAFAFA 50%, #EFEFEF 75%);
+      background-size: 200% 100%;
+      animation: shimmer 1.5s infinite;
+      border-radius: 6px;
+    }
+
+    /* ── Empty State ── */
+    .empty-state { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 56px 24px; text-align: center; }
+    .empty-icon { display: flex; align-items: center; justify-content: center; width: 56px; height: 56px; border-radius: 14px; background: #F0F0F0; color: #8C8C8C; margin-bottom: 16px; font-size: 22px; }
+    .empty-title { font-size: 15px; font-weight: 600; color: #191919; margin-bottom: 6px; }
+    .empty-desc { font-size: 13px; color: #6F6F6F; max-width: 320px; margin-bottom: 20px; }
+
+    /* ── StatusBadge ── */
+    .status-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+
+    /* ── Divider ── */
+    .divider { height: 1px; background: #EFEFEF; margin: 20px 0; }
+    .divider-labeled { display: flex; align-items: center; gap: 12px; margin: 20px 0; }
+    .divider-labeled::before, .divider-labeled::after { content: ""; flex: 1; height: 1px; background: #EFEFEF; }
+    .divider-label { font-size: 11px; font-weight: 600; color: #8C8C8C; text-transform: uppercase; letter-spacing: 0.1em; padding: 0 8px; }
+
+    /* ── Util ── */
+    .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+    .mt4 { margin-top: 16px; }
+    .mt2 { margin-top: 8px; }
+    .mb4 { margin-bottom: 16px; }
+    .gap-y { display: flex; flex-direction: column; gap: 12px; }
+    .label-row { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #8C8C8C; margin-bottom: 10px; }
+    .new-tag { display: inline-flex; align-items: center; padding: 2px 7px; background: rgba(140,29,64,0.08); color: #8C1D40; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.06em; margin-left: 6px; text-transform: uppercase; vertical-align: middle; }
+
+    /* ── Spinner ──────────────────────────────────────────────────── */
+    @keyframes sp-tick {
+      0%   { opacity: 1;    fill: #FFFFFF; }
+      10%  { opacity: 0.62; fill: #E8E8E8; }
+      28%  { opacity: 0.18; fill: #D0D0D0; }
+      90%  { opacity: 0.18; fill: #D0D0D0; }
+      100% { opacity: 1;    fill: #FFFFFF; }
+    }
+    @keyframes sp-tick-light {
+      0%   { opacity: 1;    fill: #FFC627; }
+      10%  { opacity: 0.62; fill: #8C1D40; }
+      28%  { opacity: 0.11; fill: #8C1D40; }
+      90%  { opacity: 0.11; fill: #8C1D40; }
+      100% { opacity: 1;    fill: #FFC627; }
+    }
+    @keyframes sp-arc-spin { from { transform: rotate(-90deg); } to { transform: rotate(270deg); } }
+    @keyframes sp-dot-pop {
+      0%, 80%, 100% { opacity: 0.18; transform: scale(0.72); }
+      40%           { opacity: 1;    transform: scale(1);    }
+    }
+
+    .sp { display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sp-sm { width: 16px;  height: 16px;  }
+    .sp-md { width: 24px;  height: 24px;  }
+    .sp-lg { width: 40px;  height: 40px;  }
+    .sp-xl { width: 56px;  height: 56px;  }
+
+    /* Radial: 8 tick marks sweep clockwise, gold leading edge */
+    .sp-radial rect { fill: #8C1D40; animation: sp-tick 800ms linear infinite; }
+    .sp-radial.sp-light rect { animation: sp-tick-light 800ms linear infinite; }
+    .sp-radial rect:nth-child(1) { animation-delay:    0ms; }
+    .sp-radial rect:nth-child(2) { animation-delay: -700ms; }
+    .sp-radial rect:nth-child(3) { animation-delay: -600ms; }
+    .sp-radial rect:nth-child(4) { animation-delay: -500ms; }
+    .sp-radial rect:nth-child(5) { animation-delay: -400ms; }
+    .sp-radial rect:nth-child(6) { animation-delay: -300ms; }
+    .sp-radial rect:nth-child(7) { animation-delay: -200ms; }
+    .sp-radial rect:nth-child(8) { animation-delay: -100ms; }
+
+    /* Arc: rotating stroke */
+    .arc-fg { animation: sp-arc-spin 850ms linear infinite; transform-origin: 12px 12px; }
+
+    /* Dots: sequential pulse */
+    .sp-dots { display: inline-flex !important; gap: 4px; align-items: center; width: auto !important; height: auto !important; }
+    .sp-dot { display: block; border-radius: 50%; background: #8C1D40; animation: sp-dot-pop 1200ms ease-in-out infinite; }
+    .sp-dot:nth-child(2) { animation-delay: 160ms; }
+    .sp-dot:nth-child(3) { animation-delay: 320ms; }
+    .sp-dot-sm { width: 4px; height: 4px; }
+    .sp-dot-md { width: 6px; height: 6px; }
+    .sp-dot-lg { width: 8px; height: 8px; }
+
+    /* AI generation in-context banner */
+    .sp-gen-banner {
+      display: flex; flex-direction: column; gap: 10px;
+      padding: 16px; border-radius: 10px;
+      border: 1px solid rgba(140,29,64,0.14); background: rgba(140,29,64,0.03);
+    }
+    .sp-gen-row { display: flex; align-items: center; gap: 14px; }
+    .sp-gen-progress { height: 2px; background: #EFEFEF; border-radius: 1px; overflow: hidden; }
+    .sp-gen-fill { height: 100%; border-radius: 1px; background: #8C1D40; }
+
+    /* Spinner size legend */
+    .sp-legend { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+    .sp-legend-label { font-size: 11px; color: #8C8C8C; }
+
+    /* ── Accordion ─────────────────────────────────────────────────── */
+    .acc-header {
+      width: 100%; display: flex; align-items: center; gap: 10px;
+      padding: 13px 0; background: none; border: none; cursor: pointer;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      color: #191919; text-align: left; letter-spacing: -0.01em; transition: color 0.15s;
+    }
+    .acc-header:hover { color: #8C1D40; }
+    .acc-header-end { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+
+    .acc-chevron {
+      width: 16px; height: 16px; color: #8C8C8C;
+      transition: transform 250ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    }
+    .acc-item.open > .acc-header .acc-chevron { transform: rotate(180deg); }
+
+    .acc-body { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 250ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+    .acc-item.open > .acc-body { grid-template-rows: 1fr; }
+    .acc-body-inner { overflow: hidden; }
+    .acc-content { padding-bottom: 16px; font-size: 13px; color: #6F6F6F; line-height: 1.6; }
+
+    /* Bordered variant (default, within card) */
+    .acc-bordered .acc-item + .acc-item { border-top: 1px solid #EFEFEF; }
+
+    /* Card variant: each item is its own card */
+    .acc-cards { display: flex; flex-direction: column; gap: 8px; }
+    .acc-cards .acc-item { border: 1px solid #EFEFEF; border-radius: 10px; overflow: hidden; transition: border-color 0.2s; }
+    .acc-cards .acc-header { padding: 14px 16px; }
+    .acc-cards .acc-content { padding: 0 16px 16px; }
+    .acc-cards .acc-item.open { border-color: rgba(140,29,64,0.25); }
+    .acc-cards .acc-item.open > .acc-header { color: #8C1D40; }
+
+    /* Flush variant: minimal, for sidepanels */
+    .acc-flush .acc-item + .acc-item { border-top: 1px solid #EFEFEF; }
+    .acc-flush .acc-header { padding: 10px 0; font-size: 13px; }
+    .acc-flush .acc-content { padding-bottom: 10px; font-size: 12px; }
+
+    /* Disabled item */
+    .acc-item[data-disabled] > .acc-header { opacity: 0.38; cursor: not-allowed; pointer-events: none; }
+
+    /* Accordion icon slot */
+    .acc-icon { width: 16px; height: 16px; flex-shrink: 0; color: #8C8C8C; }
+    .acc-item.open > .acc-header .acc-icon { color: #8C1D40; }
+
+    /* Tag chips (used inside accordion demo) */
+    .tag-chip { display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 999px; font-size: 11px; font-weight: 600; background: rgba(140,29,64,0.07); color: #8C1D40; border: 1px solid rgba(140,29,64,0.15); }
+  </style>
+</head>
+<body>
+
+<!-- Top Nav -->
+<div class="topnav">
+  <h1>Canvas Curator — EdPlus Component Library</h1>
+  <nav>
+    <a href="#primitives">Primitives</a>
+    <a href="#feedback">Feedback</a>
+    <a href="#navigation">Navigation</a>
+    <a href="#data">Data</a>
+  </nav>
+</div>
+
+<div class="layout">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-section">
+      <div class="sidebar-label">Primitives</div>
+      <a href="#buttons">Buttons</a>
+      <a href="#inputs">Inputs</a>
+      <a href="#badges">Badges</a>
+      <a href="#status">StatusBadge <span class="new-tag">new</span></a>
+      <a href="#dividers">Dividers</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Feedback</div>
+      <a href="#alerts">Alerts</a>
+      <a href="#empty">EmptyState <span class="new-tag">new</span></a>
+      <a href="#skeleton">Skeleton <span class="new-tag">new</span></a>
+      <a href="#spinner">Spinner <span class="new-tag">new</span></a>
+      <a href="#confirm">ConfirmDialog <span class="new-tag">new</span></a>
+      <a href="#cards">Cards</a>
+      <a href="#modals">Modal</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Navigation</div>
+      <a href="#tabs">Tabs <span class="new-tag">new</span></a>
+      <a href="#search">SearchInput <span class="new-tag">new</span></a>
+      <a href="#filterbar">FilterBar <span class="new-tag">new</span></a>
+      <a href="#accordion">Accordion <span class="new-tag">new</span></a>
+      <a href="#pagination">Pagination <span class="new-tag">new</span></a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Data</div>
+      <a href="#datatable">DataTable <span class="new-tag">new</span></a>
+      <a href="#bulkbar">BulkActionBar <span class="new-tag">new</span></a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-label">Editor</div>
+      <a href="#pendingreview">PendingReviewPanel <span class="new-tag">new</span></a>
+    </div>
+  </div>
+
+  <!-- Main -->
+  <div class="main">
+
+    <!-- ── Primitives ─────────────────────────────────────────── -->
+    <div id="primitives">
+
+      <div class="section" id="buttons">
+        <div class="eyebrow">Primitives</div>
+        <div class="section-title">Buttons</div>
+        <div class="section-desc">4 variants × 3 sizes. Loading state with spinner. Optional leading icon.</div>
+        <div class="card">
+          <div class="card-body gap-y">
+            <div class="label-row">Primary</div>
+            <div class="row">
+              <button class="btn btn-sm btn-primary">Small</button>
+              <button class="btn btn-md btn-primary">Medium</button>
+              <button class="btn btn-lg btn-primary">Large</button>
+              <button class="btn btn-md btn-primary" disabled style="opacity:0.5;cursor:not-allowed">Disabled</button>
+            </div>
+            <div class="divider" style="margin:12px 0"></div>
+            <div class="label-row">Secondary</div>
+            <div class="row">
+              <button class="btn btn-sm btn-secondary">Small</button>
+              <button class="btn btn-md btn-secondary">Medium</button>
+              <button class="btn btn-lg btn-secondary">Large</button>
+            </div>
+            <div class="divider" style="margin:12px 0"></div>
+            <div class="label-row">Ghost</div>
+            <div class="row">
+              <button class="btn btn-sm btn-ghost">Small</button>
+              <button class="btn btn-md btn-ghost">Medium</button>
+              <button class="btn btn-lg btn-ghost">Large</button>
+            </div>
+            <div class="divider" style="margin:12px 0"></div>
+            <div class="label-row">Destructive</div>
+            <div class="row">
+              <button class="btn btn-sm btn-destructive">Small</button>
+              <button class="btn btn-md btn-destructive">Delete Item</button>
+              <button class="btn btn-lg btn-destructive">Permanent Delete</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="inputs">
+        <div class="eyebrow">Primitives</div>
+        <div class="section-title">Inputs</div>
+        <div class="section-desc">Labels, hints, error states, leading icons, full-width.</div>
+        <div class="card">
+          <div class="card-body grid2">
+            <div class="input-group">
+              <label class="input-label">Email Address</label>
+              <div class="input-wrap">
+                <span class="input-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+                </span>
+                <input type="email" class="has-icon" placeholder="user@asu.edu">
+              </div>
+              <span class="input-hint">Use your ASU email address.</span>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Password</label>
+              <div class="input-wrap">
+                <span class="input-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <input type="password" class="has-icon" placeholder="••••••••">
+              </div>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Username</label>
+              <input type="text" class="has-error" placeholder="jsmith" value="jsmith123">
+              <span class="input-error">Username already taken.</span>
+            </div>
+            <div class="input-group">
+              <label class="input-label">Course Name</label>
+              <input type="text" placeholder="e.g. CS 101 Fall 2026" style="width:100%">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="badges">
+        <div class="eyebrow">Primitives</div>
+        <div class="section-title">Badges</div>
+        <div class="section-desc">Generic category labels in 5 semantic variants.</div>
+        <div class="card">
+          <div class="card-body row">
+            <span class="badge badge-default">Default</span>
+            <span class="badge badge-primary">Primary</span>
+            <span class="badge badge-success">Success</span>
+            <span class="badge badge-warning">Warning</span>
+            <span class="badge badge-error">Error</span>
+            <span class="badge badge-pending">Pending</span>
+            <span class="badge badge-inactive">Inactive</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="status">
+        <div class="eyebrow">Primitives</div>
+        <div class="section-title">StatusBadge <span class="new-tag">New</span></div>
+        <div class="section-desc">Auto-maps status strings from your data models to colors + icons. Covers decision actions, content states, Canvas sync, accessibility, deployment, and linked status.</div>
+        <div class="card">
+          <div class="card-body status-grid">
+            <span class="badge badge-success">✓ keep</span>
+            <span class="badge badge-error">✕ delete</span>
+            <span class="badge badge-pending">⏱ defer</span>
+            <span class="badge badge-success">✓ published</span>
+            <span class="badge badge-inactive">— unpublished</span>
+            <span class="badge badge-pending">⏱ draft</span>
+            <span class="badge badge-warning">⚠ needs_review</span>
+            <span class="badge badge-success">✓ passed_initial_check</span>
+            <span class="badge badge-success">✓ validated</span>
+            <span class="badge badge-error">✕ rejected</span>
+            <span class="badge badge-error">✕ expired</span>
+            <span class="badge badge-inactive">— archived</span>
+            <span class="badge badge-success">✓ linked</span>
+            <span class="badge badge-warning">⚠ unlinked</span>
+            <span class="badge badge-success">✓ succeeded</span>
+            <span class="badge badge-pending">⏱ running</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="dividers">
+        <div class="eyebrow">Primitives</div>
+        <div class="section-title">Dividers</div>
+        <div class="section-desc">Horizontal, labeled, and vertical separators.</div>
+        <div class="card">
+          <div class="card-body gap-y">
+            <p style="font-size:13px;color:#6F6F6F">Horizontal (default)</p>
+            <div class="divider" style="margin:4px 0"></div>
+            <p style="font-size:13px;color:#6F6F6F">With label</p>
+            <div class="divider-labeled"><span class="divider-label">OR</span></div>
+            <p style="font-size:13px;color:#6F6F6F">Vertical (inline)</p>
+            <div style="display:flex;align-items:center;gap:12px;height:32px">
+              <span style="font-size:13px;color:#6F6F6F">Left</span>
+              <div style="width:1px;height:100%;background:#EFEFEF"></div>
+              <span style="font-size:13px;color:#6F6F6F">Right</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Feedback ─────────────────────────────────────────────── -->
+    <div id="feedback">
+
+      <div class="section" id="alerts">
+        <div class="eyebrow">Feedback</div>
+        <div class="section-title">Alerts</div>
+        <div class="section-desc">Informational, success, warning, and error. Optional close button.</div>
+        <div class="gap-y">
+          <div class="alert alert-info">
+            <div class="alert-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></div>
+            <div><div class="alert-title">Canvas sync scheduled</div>Canvas sync runs tonight at 11 PM. No action needed.</div>
+          </div>
+          <div class="alert alert-success">
+            <div class="alert-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div>
+            <div><div class="alert-title">Sync complete</div>47 items successfully synced to Canvas.</div>
+          </div>
+          <div class="alert alert-warning">
+            <div class="alert-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+            <div><div class="alert-title">Canvas token expiring soon</div>Your PAT expires in 3 days. Update it in the header.</div>
+          </div>
+          <div class="alert alert-error">
+            <div class="alert-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg></div>
+            <div><div class="alert-title">Sync failed</div>Canvas API unreachable. Check your token and retry.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="empty">
+        <div class="eyebrow">Feedback</div>
+        <div class="section-title">Empty States <span class="new-tag">New</span></div>
+        <div class="section-desc">Icon, title, description, and optional action. Three sizes.</div>
+        <div class="grid2">
+          <div class="card">
+            <div class="empty-state">
+              <div class="empty-icon">🔍</div>
+              <div class="empty-title">No results found</div>
+              <div class="empty-desc">Try adjusting your search or filter to find what you're looking for.</div>
+              <button class="btn btn-sm btn-ghost">Clear filters</button>
+            </div>
+          </div>
+          <div class="card">
+            <div class="empty-state">
+              <div class="empty-icon">📄</div>
+              <div class="empty-title">No documents yet</div>
+              <div class="empty-desc">Upload or sync a course to see files here.</div>
+              <button class="btn btn-sm btn-primary">Sync course</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="skeleton">
+        <div class="eyebrow">Feedback</div>
+        <div class="section-title">Skeleton Loaders <span class="new-tag">New</span></div>
+        <div class="section-desc">Shimmer animation. Table skeleton, card skeleton variants.</div>
+        <div class="gap-y">
+          <div class="grid3">
+            <div class="card" style="padding:20px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="skeleton" style="height:12px;width:80%"></div>
+                <div class="skeleton" style="height:12px;width:95%"></div>
+                <div class="skeleton" style="height:12px;width:60%"></div>
+              </div>
+            </div>
+            <div class="card" style="padding:20px">
+              <div style="display:flex;gap:12px;margin-bottom:12px">
+                <div class="skeleton" style="width:40px;height:40px;border-radius:50%;flex-shrink:0"></div>
+                <div style="flex:1;display:flex;flex-direction:column;gap:8px">
+                  <div class="skeleton" style="height:12px;width:60%"></div>
+                  <div class="skeleton" style="height:10px;width:40%"></div>
+                </div>
+              </div>
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <div class="skeleton" style="height:12px;width:90%"></div>
+                <div class="skeleton" style="height:12px;width:70%"></div>
+              </div>
+            </div>
+            <div class="card" style="padding:20px">
+              <div style="display:flex;flex-direction:column;gap:10px">
+                <div class="skeleton" style="height:12px;width:70%"></div>
+                <div class="skeleton" style="height:12px;width:50%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- Table skeleton -->
+          <div class="card" style="overflow:hidden">
+            <div style="padding:10px 16px;border-bottom:1px solid #EFEFEF;background:#FAFAFA;display:flex;gap:16px;align-items:center">
+              <div class="skeleton" style="width:15px;height:15px;flex-shrink:0;border-radius:3px"></div>
+              <div class="skeleton" style="height:11px;width:35%"></div>
+              <div class="skeleton" style="height:11px;width:12%"></div>
+              <div class="skeleton" style="height:11px;width:14%"></div>
+              <div class="skeleton" style="height:11px;width:18%"></div>
+              <div class="skeleton" style="height:11px;width:12%"></div>
+            </div>
+            <div id="skel-rows"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Spinner ── -->
+      <div class="section" id="spinner">
+        <div class="eyebrow">Feedback</div>
+        <div class="section-title">Spinner <span class="new-tag">New</span></div>
+        <div class="section-desc">Three brand-aligned loading variants. <strong>Radial</strong> — 8 tick marks sweep gold→maroon clockwise; use for AI generation. <strong>Arc</strong> — rotating stroke; use for buttons and background jobs. <strong>Dots</strong> — sequential pulse; use for queued states.</div>
+
+        <div class="gap-y">
+
+          <!-- ── Sizes + Variants grid ── -->
+          <div class="card">
+            <div class="card-body gap-y">
+              <div class="label-row">Radial — sm · md · lg · xl</div>
+              <div class="row" style="align-items:center;gap:32px">
+                <div class="sp-legend">
+                  <svg class="sp sp-radial sp-sm" viewBox="0 0 24 24" aria-label="Loading" role="img">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                  </svg>
+                  <span class="sp-legend-label">sm · 16</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-radial sp-md" viewBox="0 0 24 24" aria-label="Loading" role="img">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                  </svg>
+                  <span class="sp-legend-label">md · 24</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-radial sp-lg" viewBox="0 0 24 24" aria-label="Loading" role="img">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                  </svg>
+                  <span class="sp-legend-label">lg · 40</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-radial sp-xl" viewBox="0 0 24 24" aria-label="Loading" role="img">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                  </svg>
+                  <span class="sp-legend-label">xl · 56</span>
+                </div>
+              </div>
+
+              <div class="divider" style="margin:4px 0"></div>
+
+              <div class="label-row">Arc — sm · md · lg · xl</div>
+              <div class="row" style="align-items:center;gap:32px">
+                <div class="sp-legend">
+                  <svg class="sp sp-arc sp-sm" viewBox="0 0 24 24" fill="none" aria-label="Loading" role="img">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(140,29,64,0.1)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#8C1D40" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  <span class="sp-legend-label">sm · 16</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-arc sp-md" viewBox="0 0 24 24" fill="none" aria-label="Loading" role="img">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(140,29,64,0.1)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#8C1D40" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  <span class="sp-legend-label">md · 24</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-arc sp-lg" viewBox="0 0 24 24" fill="none" aria-label="Loading" role="img">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(140,29,64,0.1)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#8C1D40" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  <span class="sp-legend-label">lg · 40</span>
+                </div>
+                <div class="sp-legend">
+                  <svg class="sp sp-arc sp-xl" viewBox="0 0 24 24" fill="none" aria-label="Loading" role="img">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(140,29,64,0.1)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#8C1D40" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  <span class="sp-legend-label">xl · 56</span>
+                </div>
+              </div>
+
+              <div class="divider" style="margin:4px 0"></div>
+
+              <div class="label-row">Dots — sm · md · lg</div>
+              <div class="row" style="align-items:center;gap:36px">
+                <div class="sp-legend">
+                  <div class="sp sp-dots" aria-label="Loading" role="img">
+                    <span class="sp-dot sp-dot-sm"></span>
+                    <span class="sp-dot sp-dot-sm"></span>
+                    <span class="sp-dot sp-dot-sm"></span>
+                  </div>
+                  <span class="sp-legend-label">sm</span>
+                </div>
+                <div class="sp-legend">
+                  <div class="sp sp-dots" aria-label="Loading" role="img">
+                    <span class="sp-dot sp-dot-md"></span>
+                    <span class="sp-dot sp-dot-md"></span>
+                    <span class="sp-dot sp-dot-md"></span>
+                  </div>
+                  <span class="sp-legend-label">md</span>
+                </div>
+                <div class="sp-legend">
+                  <div class="sp sp-dots" aria-label="Loading" role="img">
+                    <span class="sp-dot sp-dot-lg"></span>
+                    <span class="sp-dot sp-dot-lg"></span>
+                    <span class="sp-dot sp-dot-lg"></span>
+                  </div>
+                  <span class="sp-legend-label">lg</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── In context: AI generation banner ── -->
+          <div class="card">
+            <div class="card-body gap-y">
+              <div class="label-row">In context — AI generation</div>
+              <div class="sp-gen-banner">
+                <div class="sp-gen-row">
+                  <svg class="sp sp-radial sp-light sp-lg" viewBox="0 0 24 24" aria-label="Generating" role="img" style="flex-shrink:0">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                  </svg>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-size:14px;font-weight:600;color:#191919;letter-spacing:-0.01em">Generating TagFlow previews</div>
+                    <div style="font-size:12px;color:#6F6F6F;margin-top:2px">3 of 8 pages complete — this may take a moment.</div>
+                  </div>
+                  <button class="btn btn-sm btn-ghost" style="flex-shrink:0">Cancel</button>
+                </div>
+                <div class="sp-gen-progress">
+                  <div class="sp-gen-fill" style="width:37.5%"></div>
+                </div>
+              </div>
+
+              <!-- Queued state -->
+              <div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-radius:8px;background:#FAFAFA;border:1px solid #EFEFEF">
+                <div class="sp sp-dots" aria-label="Queued" role="img">
+                  <span class="sp-dot sp-dot-md"></span>
+                  <span class="sp-dot sp-dot-md"></span>
+                  <span class="sp-dot sp-dot-md"></span>
+                </div>
+                <div>
+                  <div style="font-size:13px;font-weight:600;color:#191919">Health scan queued</div>
+                  <div style="font-size:11px;color:#6F6F6F;margin-top:1px">Waiting for a worker — this page will update automatically.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ── In context: button loading states ── -->
+          <div class="card">
+            <div class="card-body gap-y">
+              <div class="label-row">In context — button loading states</div>
+              <div class="row" style="flex-wrap:wrap;gap:12px;align-items:center">
+                <!-- Primary + radial white ticks -->
+                <button class="btn btn-md btn-primary" disabled style="opacity:0.92;cursor:wait">
+                  <svg class="sp sp-radial sp-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(315 12 12)"/>
+                  </svg>
+                  Generating…
+                </button>
+                <!-- Ghost + arc maroon -->
+                <button class="btn btn-md btn-ghost" disabled style="opacity:0.92;cursor:wait">
+                  <svg class="sp sp-arc sp-sm" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(140,29,64,0.2)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#8C1D40" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  Scanning…
+                </button>
+                <!-- Secondary + dots -->
+                <button class="btn btn-sm btn-secondary" disabled style="opacity:0.92;cursor:wait">
+                  <div class="sp sp-dots" aria-hidden="true" style="gap:3px">
+                    <span class="sp-dot sp-dot-sm" style="background:#191919"></span>
+                    <span class="sp-dot sp-dot-sm" style="background:#191919"></span>
+                    <span class="sp-dot sp-dot-sm" style="background:#191919"></span>
+                  </div>
+                  Queued
+                </button>
+                <!-- Small primary + arc white -->
+                <button class="btn btn-sm btn-primary" disabled style="opacity:0.92;cursor:wait">
+                  <svg class="sp sp-arc sp-sm" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                    <circle cx="12" cy="12" r="9.5" stroke="rgba(255,255,255,0.25)" stroke-width="2.2"/>
+                    <circle cx="12" cy="12" r="9.5" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-dasharray="22 37.7" class="arc-fg"/>
+                  </svg>
+                  Syncing
+                </button>
+              </div>
+
+              <div class="divider" style="margin:4px 0"></div>
+              <div class="label-row">Dark background variants (maroon / gold)</div>
+              <div class="row" style="flex-wrap:wrap;gap:12px;align-items:center;background:#8C1D40;padding:16px;border-radius:8px">
+                <!-- Maroon button + white radial -->
+                <button class="btn btn-md btn-secondary" disabled style="opacity:0.92;cursor:wait">
+                  <svg class="sp sp-radial sp-sm" viewBox="0 0 24 24" aria-hidden="true">
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(0 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(45 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(90 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(135 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(180 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(225 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(270 12 12)"/>
+                    <rect x="11" y="1" width="2" height="5" rx="1" fill="#fff" transform="rotate(315 12 12)"/>
+                  </svg>
+                  On Maroon
+                </button>
+              </div>
+
+              <div class="divider" style="margin:4px 0"></div>
+              <div class="label-row">Full-page loading (xl radial)</div>
+              <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:32px 0;border-radius:8px;background:#FAFAFA;">
+                <svg class="sp sp-radial sp-light sp-xl" viewBox="0 0 24 24" aria-label="Loading" role="img">
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(0 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(45 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(90 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(135 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(180 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(225 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(270 12 12)"/>
+                  <rect x="11" y="1" width="2" height="5" rx="1" fill="#8C1D40" transform="rotate(315 12 12)"/>
+                </svg>
+                <div style="text-align:center">
+                  <div style="font-size:14px;font-weight:600;color:#191919;letter-spacing:-0.01em">Running health scan</div>
+                  <div style="font-size:12px;color:#6F6F6F;margin-top:4px">Checking 245 content items for issues.</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- /spinner -->
+
+      <div class="section" id="confirm">
+        <div class="eyebrow">Feedback</div>
+        <div class="section-title">ConfirmDialog <span class="new-tag">New</span></div>
+        <div class="section-desc">Destructive action modal. Auto-focuses Cancel. ESC to dismiss. Loading state on confirm.</div>
+        <div class="grid2">
+          <!-- Static preview -->
+          <div class="card" style="padding:24px">
+            <div class="dialog-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ba1a1a" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            </div>
+            <div class="dialog-title">Delete 3 items?</div>
+            <div class="dialog-desc">This will permanently remove the selected items. This action cannot be undone.</div>
+            <div class="dialog-context">Week 1 Intro, Quiz 1, Assignment 1</div>
+            <div class="dialog-actions">
+              <button class="btn btn-md btn-ghost">Cancel</button>
+              <button class="btn btn-md btn-destructive">Delete Items</button>
+            </div>
+          </div>
+          <div class="card" style="padding:24px">
+            <div class="dialog-icon" style="background:rgba(140,29,64,0.1)">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8C1D40" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg>
+            </div>
+            <div class="dialog-title">Sync course to Canvas?</div>
+            <div class="dialog-desc">All pending changes will be pushed to Canvas. Students will see updates immediately.</div>
+            <div class="dialog-context">12 pending changes across 3 modules</div>
+            <div class="dialog-actions">
+              <button class="btn btn-md btn-ghost">Cancel</button>
+              <button class="btn btn-md btn-primary">Sync Now</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Navigation ─────────────────────────────────────────── -->
+    <div id="navigation">
+
+      <div class="section" id="tabs">
+        <div class="eyebrow">Navigation</div>
+        <div class="section-title">Tabs <span class="new-tag">New</span></div>
+        <div class="section-desc">Keyboard navigable (← →). Optional count badges. Disabled state.</div>
+        <div class="card">
+          <div class="card-body">
+            <div class="tabs">
+              <button class="tab active">All <span class="tab-count">245</span></button>
+              <button class="tab">Pages <span class="tab-count">120</span></button>
+              <button class="tab">Assignments <span class="tab-count">58</span></button>
+              <button class="tab">Quizzes <span class="tab-count">32</span></button>
+              <button class="tab" disabled style="opacity:0.4;cursor:not-allowed">Files <span class="tab-count">35</span></button>
+            </div>
+            <p style="font-size:13px;color:#6F6F6F;margin-top:8px">Active tab: <strong style="color:#191919">All</strong></p>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="search">
+        <div class="eyebrow">Navigation</div>
+        <div class="section-title">SearchInput <span class="new-tag">New</span></div>
+        <div class="section-desc">Built-in debounce (250ms). Clear button. Controlled or uncontrolled. sm + md sizes.</div>
+        <div class="card">
+          <div class="card-body gap-y">
+            <div class="search-wrap" style="max-width:380px">
+              <span class="search-icon">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              </span>
+              <input type="search" placeholder="Search content items…">
+            </div>
+            <div class="search-wrap" style="max-width:240px">
+              <span class="search-icon" style="left:10px">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+              </span>
+              <input type="search" placeholder="Small size…" style="height:32px;font-size:13px;padding-left:32px">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="filterbar">
+        <div class="eyebrow">Navigation</div>
+        <div class="section-title">FilterBar <span class="new-tag">New</span></div>
+        <div class="section-desc">Combines SearchInput, filter pill groups, sort toggles, and a trailing slot. Composes other components.</div>
+        <div class="card">
+          <div class="card-body">
+            <div class="filter-bar">
+              <div class="search-wrap" style="flex:1;min-width:180px">
+                <span class="search-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input type="search" placeholder="Search modules…">
+              </div>
+              <div class="filter-pills">
+                <button class="filter-pill active">All <span class="filter-count">245</span></button>
+                <button class="filter-pill">Pages <span class="filter-count">120</span></button>
+                <button class="filter-pill">Assignments <span class="filter-count">58</span></button>
+                <button class="filter-pill">Quizzes <span class="filter-count">32</span></button>
+              </div>
+              <div class="filter-pills">
+                <button class="filter-pill active">Name ↑</button>
+                <button class="filter-pill">Date</button>
+                <button class="filter-pill">Type</button>
+              </div>
+              <button class="btn btn-sm btn-ghost" style="margin-left:auto">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Accordion ── -->
+      <div class="section" id="accordion">
+        <div class="eyebrow">Navigation</div>
+        <div class="section-title">Accordion <span class="new-tag">New</span></div>
+        <div class="section-desc">Collapsible sections with smooth CSS grid-row height animation. Three variants: <strong>Bordered</strong> — stacked within a card (document details); <strong>Card</strong> — each item is its own card (TagFlow metadata); <strong>Flush</strong> — minimal dividers for sidepanels. Supports single-open or multi-open modes, icons, badges, and disabled items.</div>
+
+        <div class="gap-y">
+
+          <!-- ── Bordered (default) ── -->
+          <div>
+            <div class="label-row">Bordered — document details (single-open)</div>
+            <div class="card">
+              <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+                <div class="acc acc-bordered" data-acc-mode="single">
+
+                  <!-- Item 1: open by default -->
+                  <div class="acc-item open">
+                    <button class="acc-header" type="button" aria-expanded="true">
+                      <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"/><path d="M5 8h6M5 5.5h4M5 10.5h3"/></svg>
+                      Course Information
+                      <div class="acc-header-end">
+                        <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                      </div>
+                    </button>
+                    <div class="acc-body">
+                      <div class="acc-body-inner">
+                        <div class="acc-content">
+                          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px 24px">
+                            <div><p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:3px">Course ID</p><p style="font-size:13px;color:#191919;font-weight:500">CS 480 · Fall 2026</p></div>
+                            <div><p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:3px">Canvas ID</p><p style="font-size:13px;color:#191919;font-weight:500">4521</p></div>
+                            <div><p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:3px">Instructor</p><p style="font-size:13px;color:#191919;font-weight:500">Dr. A. Patel</p></div>
+                            <div><p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:3px">Items</p><p style="font-size:13px;color:#191919;font-weight:500">245</p></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Item 2 -->
+                  <div class="acc-item">
+                    <button class="acc-header" type="button" aria-expanded="false">
+                      <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10M3 8h7M3 12h5"/></svg>
+                      Learning Objectives
+                      <div class="acc-header-end">
+                        <span class="badge badge-default" style="font-size:10px">6</span>
+                        <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                      </div>
+                    </button>
+                    <div class="acc-body">
+                      <div class="acc-body-inner">
+                        <div class="acc-content">
+                          <ul style="list-style:none;display:flex;flex-direction:column;gap:6px;padding:0">
+                            <li style="display:flex;gap:8px;align-items:start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8C1D40" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Apply supervised learning algorithms to real-world datasets.</span></li>
+                            <li style="display:flex;gap:8px;align-items:start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8C1D40" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Evaluate model performance using standard metrics.</span></li>
+                            <li style="display:flex;gap:8px;align-items:start"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#8C1D40" stroke-width="2" style="flex-shrink:0;margin-top:1px"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg><span>Design and train basic neural network architectures.</span></li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Item 3 -->
+                  <div class="acc-item">
+                    <button class="acc-header" type="button" aria-expanded="false">
+                      <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 5v3l2 2"/></svg>
+                      Prerequisites
+                      <div class="acc-header-end">
+                        <span class="badge badge-warning" style="font-size:10px">2 unmet</span>
+                        <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                      </div>
+                    </button>
+                    <div class="acc-body">
+                      <div class="acc-body-inner">
+                        <div class="acc-content">
+                          <div style="display:flex;flex-direction:column;gap:6px">
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;background:#f0fdf4;border:1px solid #bbf7d0"><span style="font-size:13px;color:#166534;font-weight:500">MAT 270 — Calculus</span><span class="badge badge-success" style="font-size:10px">✓ met</span></div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;background:#fff2e8;border:1px solid rgba(255,127,50,0.3)"><span style="font-size:13px;color:#8a3b00;font-weight:500">CSE 360 — Software Engineering</span><span class="badge badge-warning" style="font-size:10px">⚠ unmet</span></div>
+                            <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 10px;border-radius:6px;background:#fff2e8;border:1px solid rgba(255,127,50,0.3)"><span style="font-size:13px;color:#8a3b00;font-weight:500">CSE 310 — Data Structures</span><span class="badge badge-warning" style="font-size:10px">⚠ unmet</span></div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Item 4 -->
+                  <div class="acc-item">
+                    <button class="acc-header" type="button" aria-expanded="false">
+                      <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2z"/><path d="M8 6v2l1.5 1.5"/></svg>
+                      Accessibility Notes
+                      <div class="acc-header-end">
+                        <span class="badge badge-error" style="font-size:10px">3 issues</span>
+                        <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                      </div>
+                    </button>
+                    <div class="acc-body">
+                      <div class="acc-body-inner">
+                        <div class="acc-content">
+                          <div class="alert alert-warning" style="font-size:12px;padding:10px 12px">
+                            <div class="alert-icon"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4M12 17h.01"/></svg></div>
+                            <div>3 images missing alt text across 2 modules. Run a health scan to locate them.</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div><!-- /acc-bordered -->
+              </div>
+            </div>
+          </div>
+
+          <!-- ── Card variant ── -->
+          <div>
+            <div class="label-row">Card items — TagFlow metadata (multi-open)</div>
+            <div class="acc acc-cards" data-acc-mode="multi">
+
+              <div class="acc-item open">
+                <button class="acc-header" type="button" aria-expanded="true">
+                  <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><polygon points="3 4 13 4 13 14 8 11 3 14"/></svg>
+                  Tag Assignments
+                  <div class="acc-header-end">
+                    <span class="badge badge-success" style="font-size:10px">12 tags</span>
+                    <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                  </div>
+                </button>
+                <div class="acc-body">
+                  <div class="acc-body-inner">
+                    <div class="acc-content">
+                      <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <span class="tag-chip">machine-learning</span>
+                        <span class="tag-chip">supervised-learning</span>
+                        <span class="tag-chip">neural-networks</span>
+                        <span class="tag-chip">python</span>
+                        <span class="tag-chip">datasets</span>
+                        <span class="tag-chip">model-evaluation</span>
+                        <span class="tag-chip">classification</span>
+                        <span class="tag-chip">regression</span>
+                        <span class="tag-chip">CS480</span>
+                        <span class="tag-chip">fall-2026</span>
+                        <span class="tag-chip">undergraduate</span>
+                        <span class="tag-chip">stem</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="acc-item open">
+                <button class="acc-header" type="button" aria-expanded="true">
+                  <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"/><path d="M8 4v4l2.5 2.5"/></svg>
+                  Generation History
+                  <div class="acc-header-end">
+                    <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                  </div>
+                </button>
+                <div class="acc-body">
+                  <div class="acc-body-inner">
+                    <div class="acc-content">
+                      <div style="display:flex;flex-direction:column;gap:0">
+                        <div style="display:flex;gap:12px;align-items:start;padding:8px 0;border-bottom:1px solid #EFEFEF">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#1f6b2a;flex-shrink:0;margin-top:4px"></div>
+                          <div><p style="font-size:12px;font-weight:600;color:#191919">Run completed</p><p style="font-size:11px;color:#6F6F6F;margin-top:1px">May 8, 2026 · 2:14 PM · 245 items</p></div>
+                          <span class="badge badge-success" style="font-size:10px;margin-left:auto">succeeded</span>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:start;padding:8px 0">
+                          <div style="width:8px;height:8px;border-radius:50%;background:#8C8C8C;flex-shrink:0;margin-top:4px"></div>
+                          <div><p style="font-size:12px;font-weight:600;color:#191919">Run completed</p><p style="font-size:11px;color:#6F6F6F;margin-top:1px">May 6, 2026 · 10:02 AM · 238 items</p></div>
+                          <span class="badge badge-inactive" style="font-size:10px;margin-left:auto">archived</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="acc-item">
+                <button class="acc-header" type="button" aria-expanded="false">
+                  <svg class="acc-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2 4h12v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4z"/><path d="M6 4V2h4v2"/></svg>
+                  Source Pages
+                  <div class="acc-header-end">
+                    <span class="badge badge-default" style="font-size:10px">8 pages</span>
+                    <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                  </div>
+                </button>
+                <div class="acc-body">
+                  <div class="acc-body-inner">
+                    <div class="acc-content">
+                      <table style="width:100%;border-collapse:collapse;font-size:12px">
+                        <thead><tr><th style="text-align:left;font-weight:700;color:#8C8C8C;padding:4px 0;border-bottom:1px solid #EFEFEF">Page</th><th style="text-align:left;font-weight:700;color:#8C8C8C;padding:4px 0;border-bottom:1px solid #EFEFEF">Status</th></tr></thead>
+                        <tbody>
+                          <tr><td style="padding:7px 0;border-bottom:1px solid #EFEFEF;color:#191919;font-weight:500">Page 1 — Introduction</td><td style="padding:7px 0;border-bottom:1px solid #EFEFEF"><span class="badge badge-success" style="font-size:10px">✓ generated</span></td></tr>
+                          <tr><td style="padding:7px 0;border-bottom:1px solid #EFEFEF;color:#191919;font-weight:500">Page 2 — Background</td><td style="padding:7px 0;border-bottom:1px solid #EFEFEF"><span class="badge badge-success" style="font-size:10px">✓ generated</span></td></tr>
+                          <tr><td style="padding:7px 0;color:#191919;font-weight:500">Page 3 — Methods</td><td style="padding:7px 0"><span class="badge badge-pending" style="font-size:10px">⏱ running</span></td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+            </div><!-- /acc-cards -->
+          </div>
+
+          <!-- ── Flush variant ── -->
+          <div>
+            <div class="label-row">Flush — sidepanel metadata (single-open)</div>
+            <div class="grid2">
+              <div class="card">
+                <div class="card-body" style="padding-top:4px;padding-bottom:4px">
+                  <div class="acc acc-flush" data-acc-mode="single">
+
+                    <div class="acc-item open">
+                      <button class="acc-header" type="button" aria-expanded="true">
+                        Metadata
+                        <div class="acc-header-end">
+                          <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                        </div>
+                      </button>
+                      <div class="acc-body">
+                        <div class="acc-body-inner">
+                          <div class="acc-content">
+                            <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Type</span><span style="color:#191919;font-weight:500">page</span></div>
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Module</span><span style="color:#191919;font-weight:500">Module 1</span></div>
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Last edited</span><span style="color:#191919;font-weight:500">May 8</span></div>
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Word count</span><span style="color:#191919;font-weight:500">1,842</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="acc-item">
+                      <button class="acc-header" type="button" aria-expanded="false">
+                        Canvas Sync
+                        <div class="acc-header-end">
+                          <span class="badge badge-success" style="font-size:10px">✓ synced</span>
+                          <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                        </div>
+                      </button>
+                      <div class="acc-body">
+                        <div class="acc-body-inner">
+                          <div class="acc-content">
+                            <div style="display:flex;flex-direction:column;gap:6px;font-size:12px">
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Canvas ID</span><span style="color:#191919;font-weight:500">4521-p-18</span></div>
+                              <div style="display:flex;justify-content:space-between"><span style="color:#8C8C8C">Last push</span><span style="color:#191919;font-weight:500">May 7 · Rev 3</span></div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    <!-- Disabled item -->
+                    <div class="acc-item" data-disabled>
+                      <button class="acc-header" type="button" aria-expanded="false" disabled>
+                        Health Report
+                        <div class="acc-header-end">
+                          <span class="badge badge-inactive" style="font-size:10px">no scan</span>
+                          <svg class="acc-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="4 6 8 10 12 6"/></svg>
+                        </div>
+                      </button>
+                      <div class="acc-body">
+                        <div class="acc-body-inner">
+                          <div class="acc-content">No data.</div>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              </div>
+              <!-- Anatomy callout -->
+              <div style="display:flex;flex-direction:column;gap:12px;padding:4px 0">
+                <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C">Anatomy</div>
+                <div style="font-size:12px;color:#6F6F6F;line-height:1.7;display:flex;flex-direction:column;gap:8px">
+                  <div style="display:flex;gap:8px;align-items:start"><span style="flex-shrink:0;width:20px;height:20px;border-radius:4px;background:rgba(140,29,64,0.08);color:#8C1D40;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">H</span><span>Full-width <code style="background:#F0F0F0;padding:1px 4px;border-radius:3px;font-size:11px">button.acc-header</code> — keyboard accessible, hover color shifts to maroon.</span></div>
+                  <div style="display:flex;gap:8px;align-items:start"><span style="flex-shrink:0;width:20px;height:20px;border-radius:4px;background:rgba(140,29,64,0.08);color:#8C1D40;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">C</span><span>Body uses <code style="background:#F0F0F0;padding:1px 4px;border-radius:3px;font-size:11px">grid-template-rows: 0fr → 1fr</code> for smooth height animation. No JS height measurement needed.</span></div>
+                  <div style="display:flex;gap:8px;align-items:start"><span style="flex-shrink:0;width:20px;height:20px;border-radius:4px;background:rgba(140,29,64,0.08);color:#8C1D40;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">↕</span><span>Chevron rotates 180° via CSS <code style="background:#F0F0F0;padding:1px 4px;border-radius:3px;font-size:11px">transform</code> — no icon swap needed.</span></div>
+                  <div style="display:flex;gap:8px;align-items:start"><span style="flex-shrink:0;width:20px;height:20px;border-radius:4px;background:#F0F0F0;color:#6F6F6F;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-weight:700">✕</span><span><code style="background:#F0F0F0;padding:1px 4px;border-radius:3px;font-size:11px">data-disabled</code> attr disables pointer events + fades to 38% opacity.</span></div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div><!-- /accordion -->
+
+      <div class="section" id="pagination">
+        <div class="eyebrow">Navigation</div>
+        <div class="section-title">Pagination <span class="new-tag">New</span></div>
+        <div class="section-desc">Prev/next, page indicator, jump-to-page input. Disabled on boundaries.</div>
+        <div class="card">
+          <div class="card-body gap-y">
+            <div class="pagination">
+              <span class="range">51–100 of 1,180</span>
+              <div class="controls">
+                <button class="page-btn">‹</button>
+                <span class="page-info">2 / 24</span>
+                <button class="page-btn">›</button>
+                <div class="jump-wrap">
+                  <span class="jump-label">Go to</span>
+                  <input type="text" class="jump-input" placeholder="2">
+                </div>
+              </div>
+            </div>
+            <div class="divider" style="margin:4px 0"></div>
+            <div class="pagination">
+              <span class="range">Page 1 of 2</span>
+              <div class="controls">
+                <button class="page-btn" disabled>‹</button>
+                <span class="page-info">1 / 2</span>
+                <button class="page-btn">›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── Data ──────────────────────────────────────────────────── -->
+    <div id="data">
+
+      <div class="section" id="datatable">
+        <div class="eyebrow">Data</div>
+        <div class="section-title">DataTable <span class="new-tag">New</span></div>
+        <div class="section-desc">Sortable columns, row checkboxes, row actions dropdown, empty state, loading skeleton, resizable columns. Composes Skeleton, EmptyState, Pagination, and BulkActionBar.</div>
+        <div class="card" style="overflow:hidden">
+          <div style="padding:16px;border-bottom:1px solid #EFEFEF">
+            <div class="filter-bar">
+              <div class="search-wrap" style="flex:1;min-width:160px">
+                <span class="search-icon">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+                </span>
+                <input type="search" placeholder="Search items…">
+              </div>
+              <div class="filter-pills">
+                <button class="filter-pill active">All <span class="filter-count">6</span></button>
+                <button class="filter-pill">Pages</button>
+                <button class="filter-pill">Quizzes</button>
+                <button class="filter-pill">Assignments</button>
+              </div>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:40px"><input type="checkbox"></th>
+                  <th class="sortable" style="width:38%">Title <span class="sort-icon active">↑</span></th>
+                  <th class="sortable" style="width:14%">Type <span class="sort-icon">⇅</span></th>
+                  <th class="sortable" style="width:16%">Status <span class="sort-icon">⇅</span></th>
+                  <th style="width:18%">Module</th>
+                  <th style="width:14%">Decision</th>
+                  <th style="width:52px"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td style="font-weight:500">Week 1: Introduction to Machine Learning</td>
+                  <td><span class="badge badge-default">page</span></td>
+                  <td><span class="badge badge-success">✓ published</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 1</td>
+                  <td><span class="badge badge-success">✓ keep</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox" checked></td>
+                  <td style="font-weight:500">Quiz: Supervised vs. Unsupervised</td>
+                  <td><span class="badge badge-default">quiz</span></td>
+                  <td><span class="badge badge-success">✓ published</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 1</td>
+                  <td><span style="color:#BDBDBD;font-size:11px">—</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td style="font-weight:500">Assignment 1: Dataset Exploration</td>
+                  <td><span class="badge badge-default">assignment</span></td>
+                  <td><span class="badge badge-pending">⏱ draft</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 2</td>
+                  <td><span class="badge badge-pending">⏱ defer</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td style="font-weight:500">Discussion: Real-world ML Applications</td>
+                  <td><span class="badge badge-default">discussion</span></td>
+                  <td><span class="badge badge-success">✓ published</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 2</td>
+                  <td><span class="badge badge-success">✓ keep</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td style="font-weight:500">Week 2: Neural Networks Fundamentals</td>
+                  <td><span class="badge badge-default">page</span></td>
+                  <td><span class="badge badge-inactive">— unpublished</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 3</td>
+                  <td><span class="badge badge-error">✕ delete</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+                <tr>
+                  <td><input type="checkbox"></td>
+                  <td style="font-weight:500">Lab 2: Building a Simple Neural Net</td>
+                  <td><span class="badge badge-default">assignment</span></td>
+                  <td><span class="badge badge-success">✓ published</span></td>
+                  <td style="color:#6F6F6F;font-size:12px">Module 3</td>
+                  <td><span style="color:#BDBDBD;font-size:11px">—</span></td>
+                  <td style="text-align:right;padding-right:12px">
+                    <button style="background:none;border:none;cursor:pointer;color:#8C8C8C;padding:4px;border-radius:4px">⋮</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div style="padding:12px 16px;border-top:1px solid #EFEFEF">
+            <div class="pagination">
+              <span class="range">1–6 of 6</span>
+              <div class="controls">
+                <button class="page-btn" disabled>‹</button>
+                <span class="page-info">1 / 1</span>
+                <button class="page-btn" disabled>›</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="section" id="bulkbar">
+        <div class="eyebrow">Data</div>
+        <div class="section-title">BulkActionBar <span class="new-tag">New</span></div>
+        <div class="section-desc">Sticky floating toolbar for batch operations. Shows when rows are selected. Select-all link, action buttons, clear selection.</div>
+        <div class="bulk-bar">
+          <button style="background:rgba(255,255,255,0.12);border:none;border-radius:6px;width:28px;height:28px;cursor:pointer;color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:14px">✕</button>
+          <span class="bulk-count">2 items selected</span>
+          <button style="font-size:12px;color:rgba(255,255,255,0.6);background:none;border:none;cursor:pointer;text-decoration:underline">Select all 6</button>
+          <div class="bulk-sep"></div>
+          <div class="bulk-actions">
+            <button class="bulk-btn bulk-btn-default">Keep</button>
+            <button class="bulk-btn bulk-btn-default">Defer</button>
+            <button class="bulk-btn bulk-btn-destructive">Delete</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PendingReviewPanel ── -->
+      <div class="section" id="pendingreview">
+        <div class="eyebrow">Editor</div>
+        <div class="section-title">PendingReviewPanel <span class="new-tag">New</span></div>
+        <div class="section-desc">
+          Full-featured pending changes dialog for the ContentEditorWorkspace. Includes a compact trigger bar, content change rows with push actions, module operation rows with apply/discard, diff viewer, and recent push/apply history.
+        </div>
+
+        <!-- Trigger bar -->
+        <div style="margin-bottom:16px;">
+          <p class="label-row">Trigger bar (collapsed state)</p>
+          <div style="background:#FAFAFA;border:1px solid #EFEFEF;border-radius:8px;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+            <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+              <div style="width:8px;height:8px;border-radius:50%;background:#FFC627;flex-shrink:0"></div>
+              <span style="font-size:14px;font-weight:600;color:#191919;">Pending Review</span>
+              <span style="font-size:12px;color:#6F6F6F;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">2 content · 1 module pending</span>
+              <span class="badge badge-pending" style="font-size:10px;">This item</span>
+            </div>
+            <button style="border:1px solid #EFEFEF;background:#fff;border-radius:6px;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#6F6F6F;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Full dialog preview (static) -->
+        <p class="label-row">Full dialog (open state)</p>
+        <div style="border:1px solid #EFEFEF;border-radius:12px;overflow:hidden;box-shadow:0 5px 20px rgba(0,0,0,0.08);">
+
+          <!-- Dialog header -->
+          <div style="background:#FAFAFA;border-bottom:1px solid #EFEFEF;padding:14px 24px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div style="display:flex;align-items:center;gap:10px;">
+              <div style="width:10px;height:10px;border-radius:50%;background:#FFC627;flex-shrink:0"></div>
+              <div>
+                <div style="font-size:16px;font-weight:700;color:#191919;letter-spacing:-0.02em;">Pending Review</div>
+                <div style="font-size:11px;color:#6F6F6F;margin-top:1px;">2 content · 1 module pending</div>
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              <button class="btn btn-sm btn-ghost" style="display:inline-flex;align-items:center;gap:6px;">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/></svg>
+                Refresh
+              </button>
+              <button style="border:1px solid #EFEFEF;background:#fff;border-radius:8px;width:32px;height:32px;display:inline-flex;align-items:center;justify-content:center;cursor:pointer;color:#6F6F6F;">✕</button>
+            </div>
+          </div>
+
+          <!-- Dialog body -->
+          <div style="padding:20px 24px;display:flex;flex-direction:column;gap:16px;max-height:560px;overflow-y:auto;">
+
+            <!-- Status message -->
+            <div style="display:flex;align-items:center;gap:10px;background:#FAFAFA;border:1px solid #EFEFEF;border-radius:8px;padding:12px 16px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8C1D40" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+              <span style="font-size:13px;color:#191919;">Applied 2 module operations to Canvas.</span>
+            </div>
+
+            <!-- Current item section -->
+            <div style="border:1px solid #EFEFEF;border-radius:8px;overflow:hidden;">
+              <div style="background:#FAFAFA;border-bottom:1px solid #EFEFEF;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.13em;color:#6F6F6F;display:flex;align-items:center;gap:6px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="18" cy="18" r="3"/><circle cx="6" cy="6" r="3"/><path d="M13 6h3a2 2 0 0 1 2 2v7"/><path d="M11 18H8a2 2 0 0 1-2-2V9"/></svg>
+                  This item
+                </span>
+                <span class="badge badge-primary" style="font-size:10px;">ready to push</span>
+              </div>
+              <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;padding:16px;">
+                <div>
+                  <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:4px;">Last changed</p>
+                  <p style="font-size:13px;color:#191919;">May 8, 2026, 2:14 PM</p>
+                </div>
+                <div>
+                  <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:4px;">Changes</p>
+                  <p style="font-size:13px;color:#191919;">html body</p>
+                  <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">3 paragraphs modified · +42 words</p>
+                </div>
+                <div>
+                  <p style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.12em;color:#8C8C8C;margin-bottom:4px;">Summary</p>
+                  <p style="font-size:13px;color:#191919;">Updated learning objectives and added week 1 overview.</p>
+                </div>
+              </div>
+              <div style="padding:0 16px 14px;">
+                <button class="btn btn-sm btn-ghost" style="display:inline-flex;align-items:center;gap:6px;font-size:11px;">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  Show diff
+                </button>
+              </div>
+            </div>
+
+            <!-- Content changes -->
+            <div style="border:1px solid #EFEFEF;border-radius:8px;overflow:hidden;">
+              <div style="background:#FAFAFA;border-bottom:1px solid #EFEFEF;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <input type="checkbox" style="width:14px;height:14px;accent-color:#8C1D40;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6F6F6F" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="16 12 12 8 8 12"/><line x1="12" y1="16" x2="12" y2="8"/></svg>
+                  <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.13em;color:#6F6F6F;">Content Changes</span>
+                </div>
+                <div style="display:flex;gap:6px;align-items:center;">
+                  <span style="font-size:11px;color:#6F6F6F;">2 items</span>
+                  <button class="bulk-btn bulk-btn-default" style="background:#FFC627;color:#191919;">Push selected</button>
+                  <button class="bulk-btn" style="background:#8C1D40;color:#fff;">Push all</button>
+                </div>
+              </div>
+              <!-- Row 1 (active / this item) -->
+              <div style="padding:12px 16px;background:rgba(140,29,64,0.03);border-bottom:1px solid #EFEFEF;">
+                <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
+                  <div style="display:flex;align-items:start;gap:10px;min-width:0;flex:1;">
+                    <input type="checkbox" checked style="width:14px;height:14px;margin-top:2px;accent-color:#8C1D40;flex-shrink:0;">
+                    <div style="min-width:0;">
+                      <p style="font-size:13px;font-weight:600;color:#191919;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">Week 1: Introduction to Machine Learning <span style="font-size:11px;font-weight:400;color:#6F6F6F;">(this item)</span></p>
+                      <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">page / Module 1 · html body</p>
+                    </div>
+                  </div>
+                  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;flex-shrink:0;">
+                    <div style="display:flex;align-items:center;gap:6px;">
+                      <span class="badge badge-primary" style="font-size:10px;">ready to push</span>
+                      <button class="bulk-btn bulk-btn-default" style="font-size:11px;padding:3px 8px;">Push</button>
+                    </div>
+                  </div>
+                </div>
+                <p style="font-size:11px;color:#6F6F6F;margin-top:6px;padding-left:24px;">Updated learning objectives and added week 1 overview.</p>
+              </div>
+              <!-- Row 2 -->
+              <div style="padding:12px 16px;">
+                <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
+                  <div style="display:flex;align-items:start;gap:10px;min-width:0;flex:1;">
+                    <input type="checkbox" checked style="width:14px;height:14px;margin-top:2px;accent-color:#8C1D40;flex-shrink:0;">
+                    <div style="min-width:0;">
+                      <p style="font-size:13px;font-weight:600;color:#191919;">Assignment 1: Dataset Exploration</p>
+                      <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">assignment / Module 2 · html body + title</p>
+                    </div>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                    <span class="badge badge-primary" style="font-size:10px;">ready to push</span>
+                    <button class="bulk-btn bulk-btn-default" style="font-size:11px;padding:3px 8px;">Push</button>
+                  </div>
+                </div>
+                <p style="font-size:11px;color:#6F6F6F;margin-top:6px;padding-left:24px;">Revised instructions to include rubric criteria.</p>
+              </div>
+            </div>
+
+            <!-- Module operations -->
+            <div style="border:1px solid #EFEFEF;border-radius:8px;overflow:hidden;">
+              <div style="background:#FAFAFA;border-bottom:1px solid #EFEFEF;padding:10px 16px;display:flex;align-items:center;justify-content:space-between;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.13em;color:#6F6F6F;display:flex;align-items:center;gap:6px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6F6F6F" stroke-width="2"><rect x="2" y="3" width="6" height="6"/><rect x="2" y="15" width="6" height="6"/><rect x="10" y="3" width="12" height="6"/><rect x="10" y="15" width="12" height="6"/></svg>
+                  Module Operations
+                </span>
+                <div style="display:flex;gap:6px;">
+                  <button class="bulk-btn" style="background:#FFC627;color:#191919;font-size:11px;">Apply all</button>
+                  <button class="bulk-btn bulk-btn-default" style="font-size:11px;">Discard all</button>
+                </div>
+              </div>
+              <div style="padding:12px;">
+                <!-- Operation row: rename -->
+                <div style="border:1px solid #EFEFEF;border-radius:8px;background:#FAFAFA;padding:12px;">
+                  <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;">
+                    <div>
+                      <p style="font-size:13px;font-weight:600;color:#191919;">Rename Module Item</p>
+                      <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">Week 1 Introduction → Week 1: Introduction to Machine Learning</p>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+                      <span class="badge badge-pending" style="font-size:10px;">pending</span>
+                      <button class="bulk-btn" style="background:#FFC627;color:#191919;font-size:11px;">Apply</button>
+                      <button class="bulk-btn bulk-btn-default" style="font-size:11px;">Discard</button>
+                    </div>
+                  </div>
+                  <!-- Compare table -->
+                  <div style="margin-top:10px;border:1px solid #EFEFEF;border-radius:6px;overflow:hidden;">
+                    <table style="width:100%;font-size:11px;border-collapse:collapse;">
+                      <thead>
+                        <tr style="background:#F0F0F0;border-bottom:1px solid #EFEFEF;">
+                          <th style="padding:6px 10px;text-align:left;font-weight:600;color:#6F6F6F;width:90px;">Field</th>
+                          <th style="padding:6px 10px;text-align:left;font-weight:600;color:#6F6F6F;">Before</th>
+                          <th style="padding:6px 10px;text-align:left;font-weight:600;color:#6F6F6F;">After</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style="border-top:1px solid #EFEFEF;">
+                          <td style="padding:6px 10px;font-weight:600;color:#6F6F6F;">Item title</td>
+                          <td style="padding:6px 10px;color:#6F6F6F;">Week 1 Introduction</td>
+                          <td style="padding:6px 10px;font-weight:500;color:#191919;">Week 1: Introduction to Machine Learning</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Recent Content Pushes -->
+            <div style="border:1px solid #EFEFEF;border-radius:8px;overflow:hidden;">
+              <div style="background:#FAFAFA;border-bottom:1px solid #EFEFEF;padding:10px 16px;">
+                <span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.13em;color:#6F6F6F;display:flex;align-items:center;gap:6px;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                  Recent Content Pushes
+                </span>
+              </div>
+              <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid #EFEFEF;">
+                <div>
+                  <p style="font-size:13px;font-weight:600;color:#191919;">Week 1: Introduction to Machine Learning</p>
+                  <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">page · single push · Canvas ID 4521</p>
+                  <p style="font-size:11px;font-weight:500;color:#191919;margin-top:2px;">Revision 3 pushed</p>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                  <span class="badge badge-primary" style="font-size:10px;">Pushed</span>
+                  <p style="font-size:10px;color:#8C8C8C;margin-top:4px;">May 7, 2026</p>
+                </div>
+              </div>
+              <div style="display:flex;align-items:start;justify-content:space-between;gap:12px;padding:12px 16px;">
+                <div>
+                  <p style="font-size:13px;font-weight:600;color:#191919;">Quiz: Supervised vs. Unsupervised</p>
+                  <p style="font-size:11px;color:#6F6F6F;margin-top:2px;">quiz · batch push</p>
+                </div>
+                <div style="text-align:right;flex-shrink:0;">
+                  <span class="badge badge-primary" style="font-size:10px;">Pushed</span>
+                  <p style="font-size:10px;color:#8C8C8C;margin-top:4px;">May 6, 2026</p>
+                </div>
+              </div>
+            </div>
+
+          </div><!-- /dialog body -->
+        </div><!-- /dialog preview -->
+      </div><!-- /pendingreview section -->
+
+    </div><!-- /data -->
+
+  </div><!-- /main -->
+</div><!-- /layout -->
+
+<script>
+  // ── Accordion toggle ──────────────────────────────────────────
+  document.addEventListener('click', function(e) {
+    const header = e.target.closest('.acc-header');
+    if (!header) return;
+    const item = header.closest('.acc-item');
+    if (!item || item.hasAttribute('data-disabled')) return;
+
+    const acc = item.closest('[data-acc-mode]');
+    const mode = acc ? acc.dataset.accMode : 'multi';
+    const isOpen = item.classList.contains('open');
+
+    if (mode === 'single' && !isOpen) {
+      // Close all siblings first
+      acc.querySelectorAll('.acc-item.open').forEach(function(other) {
+        other.classList.remove('open');
+        const btn = other.querySelector('.acc-header');
+        if (btn) btn.setAttribute('aria-expanded', 'false');
+      });
+    }
+
+    item.classList.toggle('open', !isOpen);
+    header.setAttribute('aria-expanded', String(!isOpen));
+  });
+
+  // Build skeleton rows dynamically
+  const container = document.getElementById('skel-rows');
+  for (let r = 0; r < 5; r++) {
+    const row = document.createElement('div');
+    row.style.cssText = `padding:10px 16px;border-bottom:${r<4?'1px solid #EFEFEF':'none'};display:flex;gap:16px;align-items:center;opacity:${1 - r*0.1}`;
+    const sizes = ['15px', '35%', '12%', '14%', '18%', '12%'];
+    sizes.forEach((w, i) => {
+      const el = document.createElement('div');
+      el.className = 'skeleton';
+      el.style.cssText = i === 0
+        ? `width:${w};height:${w};flex-shrink:0;border-radius:3px`
+        : `height:11px;width:${w}`;
+      row.appendChild(el);
+    });
+    container.appendChild(row);
+  }
+</script>
+
+</body>
+</html>
