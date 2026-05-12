@@ -10,6 +10,7 @@ import {
   HeartPulse,
   Home,
   ImageIcon,
+  Inbox,
   Link2,
   List,
   PencilLine,
@@ -126,13 +127,25 @@ export default function SideNav({ canvasBaseUrl, sessionId, sessionType }: SideN
           href="/dashboard"
           title="Dashboard"
           className={`flex items-center rounded-lg text-sm font-medium transition-all duration-200 ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3 py-3"}
-            ${isActive("/dashboard")
+            ${isActive("/dashboard") && !pathname.startsWith("/dashboard/incoming")
               ? `bg-surface-container-lowest font-semibold text-primary shadow-sm ${collapsed ? "" : "translate-x-1"}`
               : "text-on-surface-variant hover:text-primary hover:bg-surface-container"
             }`}
         >
           <DashboardIcon size={19} strokeWidth={2.2} aria-hidden="true" />
           <span className={collapsed ? "sr-only" : ""}>Dashboard</span>
+        </Link>
+        <Link
+          href="/dashboard/incoming"
+          title="Incoming from CourseCompose"
+          className={`flex items-center rounded-lg text-sm font-medium transition-all duration-200 ${collapsed ? "justify-center px-0 py-3" : "gap-3 px-3 py-3"}
+            ${pathname.startsWith("/dashboard/incoming")
+              ? `bg-surface-container-lowest font-semibold text-primary shadow-sm ${collapsed ? "" : "translate-x-1"}`
+              : "text-on-surface-variant hover:text-primary hover:bg-surface-container"
+            }`}
+        >
+          <Inbox size={19} strokeWidth={2.2} aria-hidden="true" />
+          <span className={collapsed ? "sr-only" : ""}>Incoming</span>
         </Link>
       </nav>
 
