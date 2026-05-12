@@ -12660,11 +12660,15 @@
           }]
         });
       } else {
-        (mod.activities || []).forEach(function(act) {
-          var typeLabel = (act.type || 'assignment').charAt(0).toUpperCase() + (act.type || 'assignment').slice(1);
-          var iconForType = { assignment: '📝', discussion: '💬', quiz: '❓', page: '📄' }[act.type] || '📝';
+        // Activities are draggable within their own module for
+        // reordering. Cross-module moves still happen in Assignments
+        // Overview (where the data-flow already exists); the Canvas
+        // Plan keeps drags local so a stray drag can't accidentally
+        // change which module owns an activity.
+        (mod.activities || []).forEach(function(act, actIdx) {
+          var actType = (act.type || act.contentType || 'assignment');
+          var iconForType = { assignment: '📝', discussion: '💬', quiz: '❓', page: '📄' }[actType] || '📝';
           var meta = [];
-          meta.push(typeLabel);
           if (act.points) meta.push(act.points + ' pts');
           if (act.due) meta.push('due ' + act.due);
           var tool = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
@@ -12676,17 +12680,16 @@
               + '">' + esc(id) + '</span>';
           }).join('');
           var actGap = gaps.byRef['act-' + act.id] || { status: 'ok', reasons: [] };
-          // Edit-link affordance: any activity that has at least one
-          // link (the first one is treated as the embed source) gets a
-          // "Copy edit link" button. URL appends ?edit=1&token=<token>
-          // so the iframe / SCORM source can gate edit mode without
-          // exposing anything to students browsing Canvas.
           var firstLink = (act.links && act.links[0]) || '';
           var actions = '';
           if (firstLink && act.editToken) {
             actions += '<button class="view-btn" style="font-size:11px; padding:3px 8px;" onclick="copyActivityEditLink(\'' + esc(act.id) + '\')" title="Copy the edit URL for this activity\'s embed — share with instructors only, not in Canvas">🔗 Copy edit link</button>';
           }
-          html += _canvasPlanRow({
+          html += _canvasPlanActivityRow({
+            actId: act.id,
+            modNum: mod.number,
+            actIdx: actIdx,
+            actType: actType,
             icon: iconForType,
             title: esc(act.name || '(unnamed activity)'),
             meta: meta.join(' · '),
@@ -12697,6 +12700,15 @@
           });
         });
       }
+
+      // "+ Add page" — drops a new type='page' activity into this module's
+      // activity store. Lands in Assignments Overview too (same backing
+      // array), so renaming / point-setting / MLO-tagging still happen
+      // there. The Canvas Plan stays purely a planning + handoff surface.
+      html += '<div style="margin-top:8px; padding:6px 12px;">';
+      html += '<button onclick="_addCanvasPlanPage(' + mod.number + ')" style="background:#fafaf7; color:#8c1d40; border:1px dashed #d5d0c8; padding:6px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">+ Add page to Module ' + mod.number + '</button>';
+      html += '<span style="margin-left:10px; font-size:11px; color:#999;">Creates a Canvas Page (type changeable inline; reorder via the drag handle).</span>';
+      html += '</div>';
 
       html += '</div>'; // end module body
       html += '</details>';
@@ -12909,6 +12921,195 @@
   // Build a single row in the Canvas Plan view. Centralized so the icons,
   // status badges, and inline reason rows all stay consistent across
   // pages, activities, and materials.
+  // Activity-specific row builder. Wraps the generic _canvasPlanRow
+  // markup with the drag handle, type select, and module-scoped data
+  // attributes the manipulation handlers below read.
+  //
+  // Why a separate function: Overview / Materials rows aren't user-
+  // editable (their existence is implied by the spec). Activities ARE
+  // — they can be reordered, retyped, deleted, or added. Concentrating
+  // the activity-only chrome here keeps _canvasPlanRow honest as a
+  // pure presentation helper.
+  function _canvasPlanActivityRow(opts) {
+    var s = _planRowStatusStyle(opts.status);
+    var borderColor = opts.status === 'error' ? '#f5b5b5'
+                    : opts.status === 'warn' ? '#f0d895'
+                    : '#f0ede5';
+    // Drag handle (left edge) + drop zones above/below this row for
+    // intra-module reordering. The wrapper is the draggable element so
+    // the user can grab anywhere on it; the handle ⠿ is just a visual
+    // hint. Drop targets are the row itself; ondragover allows drop.
+    var html = ''
+      + '<div class="canvas-plan-act-row" '
+      +   'data-act-id="' + opts.actId + '" '
+      +   'data-mod-num="' + opts.modNum + '" '
+      +   'data-act-idx="' + opts.actIdx + '" '
+      +   'draggable="true" '
+      +   'ondragstart="_canvasPlanRowDragStart(event)" '
+      +   'ondragover="_canvasPlanRowDragOver(event)" '
+      +   'ondragleave="_canvasPlanRowDragLeave(event)" '
+      +   'ondrop="_canvasPlanRowDrop(event)" '
+      +   'ondragend="_canvasPlanRowDragEnd(event)" '
+      +   'style="border:1px solid ' + borderColor + '; border-radius:6px; margin-bottom:4px; background:#fff; transition:background 0.15s, border-color 0.15s;">';
+    html += '<div style="display:flex; align-items:center; gap:10px; padding:8px 12px;">';
+    // Drag handle
+    html += '<span title="Drag to reorder within this module" style="cursor:grab; color:#bbb; font-size:14px; user-select:none; flex-shrink:0;">⠿</span>';
+    // Type select replaces the static icon — same visual real estate,
+    // the user can click to retype on the fly.
+    var types = [
+      ['assignment', '📝 Assignment'],
+      ['discussion', '💬 Discussion'],
+      ['quiz',       '❓ Quiz'],
+      ['page',       '📄 Page']
+    ];
+    html += '<select onchange="_setActivityType(\'' + opts.actId + '\', this.value)" '
+      + 'title="Change Canvas item type — assignment / discussion / quiz / page" '
+      + 'style="font-size:11px; padding:3px 6px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; cursor:pointer; flex-shrink:0; min-width:140px;">';
+    types.forEach(function(t) {
+      html += '<option value="' + t[0] + '"' + (opts.actType === t[0] ? ' selected' : '') + '>' + t[1] + '</option>';
+    });
+    html += '</select>';
+    html += '<div style="flex:1; min-width:0;">';
+    html += '<div style="font-size:13px; color:#222; line-height:1.3;">' + opts.title + '</div>';
+    if (opts.meta) html += '<div style="font-size:11px; color:#888; margin-top:2px;">' + opts.meta + '</div>';
+    if (opts.tags) html += '<div style="margin-top:4px;">' + opts.tags + '</div>';
+    html += '</div>';
+    if (opts.actions) html += '<div style="flex-shrink:0; display:flex; gap:6px; align-items:center;">' + opts.actions + '</div>';
+    html += '<span style="flex-shrink:0; padding:2px 8px; border-radius:10px; font-size:10px; font-weight:600; background:' + s.bg + '; color:' + s.color + ';">' + s.label + '</span>';
+    html += '</div>';
+    if (opts.reasons && opts.reasons.length) {
+      html += '<div style="border-top:1px dashed #f0ede5; padding:6px 12px;">';
+      opts.reasons.forEach(function(r) {
+        var dot, rowBg = '';
+        if (r.level === 'error') dot = '🔴';
+        else if (r.level === 'warn') dot = '🟡';
+        else if (r.level === 'info') { dot = '✓'; rowBg = ' background:#f5fbf5;'; }
+        else if (r.level === 'warn-build') { dot = '🟠'; rowBg = ' background:#fff8e1;'; }
+        else if (r.level === 'error-build') { dot = '⚠'; rowBg = ' background:#fde8e8;'; }
+        else dot = '•';
+        html += '<div style="display:flex; align-items:center; gap:6px; font-size:11px; color:#666; padding:2px 6px; border-radius:4px;' + rowBg + '">';
+        html += '<span>' + dot + '</span><span style="flex:1;">' + (r.msg || '') + '</span>';
+        if (r.fix) {
+          if (r.fix.url) {
+            html += '<a href="' + r.fix.url + '" target="_blank" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Open') + ' →</a>';
+          } else {
+            var fixJson = JSON.stringify(r.fix).replace(/"/g, '&quot;');
+            html += '<a href="#" onclick="event.preventDefault(); _jumpToCanvasPlanFix(\'' + (r.fix.view || '') + "', JSON.parse(this.getAttribute('data-fix')));\" data-fix=\"" + fixJson + '" style="color:#8c1d40; font-weight:600; text-decoration:none; font-size:11px;">' + (r.fix.label || 'Fix') + ' →</a>';
+          }
+        }
+        html += '</div>';
+      });
+      html += '</div>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  // Set a new contentType on the activity. Backs the inline type
+  // select in the Canvas Plan view; auto-saves + re-renders so the
+  // icon, gap-detection rules, and Assignments Overview view all
+  // sync immediately.
+  window._setActivityType = function(actId, newType) {
+    if (!['assignment', 'discussion', 'quiz', 'page'].includes(newType)) return;
+    Object.keys(courseActivities || {}).some(function(k) {
+      return (courseActivities[k] || []).some(function(a) {
+        if (a.id === actId) {
+          a.contentType = newType;
+          // Also stamp the alternate-name `type` field some helpers
+          // read — keeps the two in sync so nothing reads a stale value.
+          a.type = newType;
+          return true;
+        }
+        return false;
+      });
+    });
+    if (typeof saveActivityData === 'function') saveActivityData();
+    renderCanvasPlan();
+  };
+
+  // Create a new type='page' activity in the given module's activity
+  // store. Shows up in Assignments Overview too (single source of
+  // truth — same backing array), so renaming / point-setting / MLO
+  // tagging still happen there. We default name to "New page" so the
+  // user can immediately see what they added and rename it from
+  // either surface.
+  window._addCanvasPlanPage = function(modNum) {
+    if (!courseActivities[modNum]) courseActivities[modNum] = [];
+    var newId = 'act-' + Date.now().toString(36) + '-' + Math.floor(Math.random() * 1e6).toString(36);
+    courseActivities[modNum].push({
+      id: newId,
+      name: 'New page',
+      contentType: 'page',
+      type: 'page',
+      points: '',
+      due: '',
+      objectives: [],
+      links: [],
+      attachedFiles: [],
+      linkedMaterialIds: [],
+      templateData: {},
+      contentComplete: false
+    });
+    if (typeof saveActivityData === 'function') saveActivityData();
+    renderCanvasPlan();
+  };
+
+  // ---- Drag-reorder (intra-module only) ----
+  //
+  // dataTransfer carries the dragged activity's id + source module so
+  // we can validate the drop. Cross-module drops are intentionally
+  // dropped on the floor here — that flow already exists in the
+  // Assignments Overview view's drag handlers, and the user asked us
+  // to keep Canvas Plan moves local-only.
+  var _planDragSrcId = null;
+  var _planDragSrcMod = null;
+
+  window._canvasPlanRowDragStart = function(event) {
+    var row = event.currentTarget;
+    _planDragSrcId = row.getAttribute('data-act-id');
+    _planDragSrcMod = row.getAttribute('data-mod-num');
+    event.dataTransfer.effectAllowed = 'move';
+    try { event.dataTransfer.setData('text/plain', _planDragSrcId); } catch (e) {}
+    row.style.opacity = '0.4';
+  };
+  window._canvasPlanRowDragEnd = function(event) {
+    event.currentTarget.style.opacity = '';
+    _planDragSrcId = null;
+    _planDragSrcMod = null;
+  };
+  window._canvasPlanRowDragOver = function(event) {
+    // Only allow drop inside the same module — visual + behavioral.
+    var row = event.currentTarget;
+    if (_planDragSrcMod && row.getAttribute('data-mod-num') === _planDragSrcMod && row.getAttribute('data-act-id') !== _planDragSrcId) {
+      event.preventDefault();
+      row.style.borderColor = '#8c1d40';
+      row.style.background = '#fef9f0';
+    }
+  };
+  window._canvasPlanRowDragLeave = function(event) {
+    var row = event.currentTarget;
+    row.style.borderColor = '';
+    row.style.background = '';
+  };
+  window._canvasPlanRowDrop = function(event) {
+    event.preventDefault();
+    var row = event.currentTarget;
+    row.style.borderColor = '';
+    row.style.background = '';
+    var targetId = row.getAttribute('data-act-id');
+    var targetMod = row.getAttribute('data-mod-num');
+    if (!_planDragSrcId || _planDragSrcMod !== targetMod || _planDragSrcId === targetId) return;
+    var modNum = parseInt(targetMod, 10);
+    var arr = courseActivities[modNum] || [];
+    var srcIdx = arr.findIndex(function(a) { return a.id === _planDragSrcId; });
+    var tgtIdx = arr.findIndex(function(a) { return a.id === targetId; });
+    if (srcIdx < 0 || tgtIdx < 0) return;
+    var moved = arr.splice(srcIdx, 1)[0];
+    arr.splice(tgtIdx, 0, moved);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    renderCanvasPlan();
+  };
+
   function _canvasPlanRow(opts) {
     var s = _planRowStatusStyle(opts.status);
     var borderColor = opts.status === 'error' ? '#f5b5b5'
