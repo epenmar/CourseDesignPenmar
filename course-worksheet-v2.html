@@ -13239,10 +13239,10 @@
   // When CanvasCurate exposes a proper ingestion endpoint, this is
   // where we'll switch from a manual download to a POST. Schema +
   // bundle format stay the same — only the transport changes.
-  // CanvasCurate base URL. Local dev defaults to the FastAPI port; a
-  // production deploy can override by setting window.CURATE_API_URL
-  // before this script runs — drop a tiny inline script tag setting
-  // that global above the main worksheet script include.
+  // CanvasCurate endpoints — production deploy overrides via
+  // window.CURATE_API_URL / window.CURATE_FRONTEND_URL set before
+  // this script runs. Both have local-dev defaults so the handoff
+  // round-trip works out of the box on a developer machine.
   //
   // (Earlier revision of this comment contained a literal closing
   // script tag as an example. The HTML parser greedily matches the
@@ -13252,6 +13252,7 @@
   // Plan view rendered blank. Don't put literal close-script
   // sequences in JS comments; describe in plain English instead.)
   var CURATE_API_URL = window.CURATE_API_URL || 'http://127.0.0.1:8081';
+  var CURATE_FRONTEND_URL = window.CURATE_FRONTEND_URL || 'http://localhost:3000';
   var HANDOFF_TIMEOUT_MS = 30000;
 
   window.handOffToCanvasCurate = async function() {
@@ -13314,12 +13315,19 @@
       saveField('lastHandoffFilename', '→ Curate handoff ' + (data.handoff_id || ''));
       saveField('lastHandoffId', data.handoff_id || null);
       renderCanvasPlan();
-      var msg = '✓ Sent to CanvasCurate.\n\nHandoff ID: ' + (data.handoff_id || '?');
+
+      // Open CanvasCurate in a new tab so the user lands directly in
+      // the next step of the workflow. We pass the handoff_id in a
+      // query param so once Curate ships its incoming-handoffs page
+      // it can deep-link to this specific row. Until then, the user
+      // lands on Curate's dashboard.
+      var curateUrl = CURATE_FRONTEND_URL.replace(/\/$/, '') + '/dashboard?handoff=' + encodeURIComponent(data.handoff_id || '');
+      try { window.open(curateUrl, '_blank', 'noopener'); } catch (e) {}
+
+      var msg = '✓ Sent to CanvasCurate. Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
       if (data.superseded_count && data.superseded_count > 0) {
         msg += '\n\n' + data.superseded_count + ' earlier pending handoff' + (data.superseded_count === 1 ? '' : 's')
           + ' for this course ' + (data.superseded_count === 1 ? 'was' : 'were') + ' superseded — only this push will be built.';
-      } else {
-        msg += '\n\nCurate will surface this in its Incoming queue.';
       }
       alert(msg);
     } catch (err) {
@@ -13340,7 +13348,31 @@
       saveField('lastHandoffAt', bundle.handoff.bundledAt);
       saveField('lastHandoffFilename', filename + ' (offline)');
       renderCanvasPlan();
-      alert('CanvasCurate is unreachable (' + (err.message || 'unknown error') + ').\n\nBundle downloaded locally — you can upload it to Curate manually once it\'s back up.');
+
+      // Best-effort diagnosis: browsers report cross-origin / mixed-content
+      // / network errors all as a vague "Failed to fetch" TypeError, so
+      // we infer the most likely cause from the error message + the
+      // current page protocol to give actionable guidance instead of
+      // raw "Failed to fetch".
+      var diagnosis;
+      var pageHttps = location.protocol === 'https:';
+      var apiHttp = CURATE_API_URL.indexOf('http://') === 0;
+      var rawMsg = (err && err.message) || 'unknown error';
+      if (pageHttps && apiHttp) {
+        diagnosis = "Mixed-content blocked — this page is on HTTPS but Curate is at "
+          + CURATE_API_URL + " (HTTP). Open the worksheet locally instead (python3 -m http.server "
+          + "from this repo and visit the local URL), or deploy Curate over HTTPS.";
+      } else if (/Failed to fetch|NetworkError|ECONN/i.test(rawMsg)) {
+        diagnosis = "Curate's backend doesn't appear to be running at " + CURATE_API_URL + ". "
+          + "Start it locally:\n  cd canvascurate && ./start.sh\nThen click Hand off again.";
+      } else if (/CORS|Access-Control/i.test(rawMsg)) {
+        diagnosis = "CORS rejected the request — add this worksheet's origin (" + location.origin
+          + ") to ALLOWED_ORIGINS in /Users/epenmar/conductor/.env and restart Curate.";
+      } else {
+        diagnosis = "Error: " + rawMsg;
+      }
+      alert("Could not reach CanvasCurate.\n\n" + diagnosis
+        + "\n\nBundle downloaded locally — you can upload it manually once Curate is reachable.");
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = origText || '🚀 Hand off to CanvasCurate'; }
     }
