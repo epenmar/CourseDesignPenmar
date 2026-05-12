@@ -5190,10 +5190,10 @@
       });
 
       kickoffBody = `Hi ${name},\n\n`;
-      kickoffBody += `I really enjoyed our kickoff ${timeRef.replace('after our kickoff meeting ', '').replace('since our kickoff meeting', 'meeting')} — thank you for sharing your vision for ${courseLabel}! `;
+      kickoffBody += `Thank you for a wonderful kickoff ${timeRef.replace('after our kickoff meeting ', '').replace('since our kickoff meeting', 'meeting')}. I really enjoyed hearing your vision for ${courseLabel}. `;
 
       if (excitementPoints.length > 0) {
-        kickoffBody += `I'm especially excited about the ideas we discussed around `;
+        kickoffBody += `I am especially excited about the ideas we discussed around `;
         if (excitementPoints.length === 1) {
           kickoffBody += excitementPoints[0];
         } else if (excitementPoints.length === 2) {
@@ -5201,36 +5201,36 @@
         } else {
           kickoffBody += excitementPoints.slice(0, -1).join(', ') + ', and ' + excitementPoints[excitementPoints.length - 1];
         }
-        kickoffBody += `. I think these are going to make this course really stand out for students.\n\n`;
+        kickoffBody += `. I think these will make the course really stand out for students.\n\n`;
       } else {
-        kickoffBody += `I can already tell this is going to be a great course, and I'm looking forward to helping bring your ideas to life.\n\n`;
+        kickoffBody += `I can already tell this is going to be a thoughtful, engaging course, and I am looking forward to helping bring your ideas to life.\n\n`;
       }
 
-      kickoffBody += `I wanted to send you the links to the various resources we discussed during the meeting.\n\n`;
+      kickoffBody += `I wanted to share the resources we talked about during the meeting.\n\n`;
 
       // Google Drive link
       if (driveUrl) {
-        kickoffBody += `Our shared Google Drive space where you'll drop all assignment and learning materials documents:\n${driveUrl}\n\n`;
+        kickoffBody += `Our shared Google Drive space, where assignment and learning materials documents will live:\n${driveUrl}\n\n`;
       }
 
       // Worksheet link with milestone context
       if (worksheetUrl) {
-        kickoffBody += `Our course development worksheet (CourseCompose), which contains the milestone timeline`;
+        kickoffBody += `Our course development worksheet (CourseCompose), which holds the milestone timeline`;
         if (firstMilestone) {
           const msLabel = firstMilestone.label
             .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
             .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
             .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
-          kickoffBody += `. Right now, the first milestone (${msLabel}) is${firstMilestone.date ? " set for " + firstMilestone.date : " coming up"}. Please let me know if this still works for you — if not, we can absolutely adjust the dates`;
+          kickoffBody += `. The first milestone (${msLabel}) is${firstMilestone.date ? " currently set for " + firstMilestone.date : " coming up"}. Please let me know if that timing works for you — we can absolutely adjust as needed`;
         }
         kickoffBody += `:\n${worksheetUrl}\n\n`;
       }
 
       // Slideshow link
-      kickoffBody += `Here is the link to the course development kickoff slideshow that I went over during our meeting:\n${slideshowUrl}\n\n`;
+      kickoffBody += `The course development kickoff slideshow we went through together:\n${slideshowUrl}\n\n`;
 
       // MasterClass link
-      kickoffBody += `Here is the link to register for MasterClass, which will expose you to different online teaching ideas:\n${masterclassUrl}\n\n`;
+      kickoffBody += `The link to register for MasterClass — a great way to see different approaches to online teaching:\n${masterclassUrl}\n\n`;
 
       // Weave in any instructor-owned action items as natural encouragement
       const allActions = m.actionItems || [];
@@ -5245,12 +5245,12 @@
         .replace(/MLOs/g, 'Module Learning Objectives (MLOs)') : 'your next steps';
 
       if (instrActions.length > 0) {
-        kickoffBody += `As you begin your work on the ${firstMsLabel} for ${courseLabel}, please know that I'm here to support you every step of the way. `;
+        kickoffBody += `As you begin your work on the ${firstMsLabel} for ${courseLabel}, please know that I am here to support you every step of the way. `;
       } else {
-        kickoffBody += `As you get started with ${courseLabel} development, please know that I'm here to support you every step of the way. `;
+        kickoffBody += `As you get started with ${courseLabel} development, please know that I am here to support you every step of the way. `;
       }
 
-      kickoffBody += `Don't hesitate to reach out with any questions, ideas, or even just to brainstorm — that's what I'm here for!\n\n`;
+      kickoffBody += `Please feel free to reach out with any questions, ideas, or just to brainstorm — that is what I am here for.\n\n`;
 
       // Cross-course items
       const crossItems = allActions.filter(a => !a.done && !isPastEvent(a.text) && isAboutOtherCourse(a.text));
@@ -5265,13 +5265,13 @@
         Object.keys(grouped).forEach(code => {
           const oc = Object.values(otherCourses).find(x => x.code === code);
           const otherName = oc ? (code + ' (' + oc.courseName + ')') : code;
-          kickoffBody += `As you're thinking about ${otherName} — just a reminder that I can help with:\n`;
+          kickoffBody += `As you turn to ${otherName} — a quick reminder that I am also happy to help with:\n`;
           grouped[code].forEach(t => { kickoffBody += `  • ${t}\n`; });
           kickoffBody += '\n';
         });
       }
 
-      kickoffBody += `All the best,\n` + getProfile().sig;
+      kickoffBody += `Looking forward to building this out with you.\n\nAll the best,\n` + getProfile().sig;
     }
 
     // ===== MEETING FOLLOW-UP (non-kickoff) =====
@@ -5306,13 +5306,13 @@
         );
         if (highlights.length > 0) {
           const pick = highlights[0];
-          warmOpen = `Thank you for a great meeting today! It's clear you have a strong vision for ${courseLabel} — I especially appreciated your thinking around ${pick.charAt(0).toLowerCase() + pick.slice(1)}.\n\n`;
+          warmOpen = `Thank you for a wonderful meeting today. It is clear you have a thoughtful vision for ${courseLabel} — I especially appreciated your thinking around ${pick.charAt(0).toLowerCase() + pick.slice(1)}.\n\n`;
         } else if (sentences.length > 0) {
-          warmOpen = `Thank you for a great meeting today! We covered a lot of ground on ${courseLabel} and I can see how thoughtfully you're approaching the course design.\n\n`;
+          warmOpen = `Thank you for a wonderful meeting today. We covered a lot of ground on ${courseLabel}, and I can see how thoughtfully you are approaching the course design.\n\n`;
         }
       }
       if (!warmOpen) {
-        warmOpen = `Thank you for a great meeting today! I really enjoyed our conversation about ${courseLabel} — your enthusiasm for this course really comes through.\n\n`;
+        warmOpen = `Thank you for a wonderful meeting today. I really enjoyed our conversation about ${courseLabel} — your enthusiasm for this course really comes through.\n\n`;
       }
       followUpBody += warmOpen;
 
@@ -5334,12 +5334,12 @@
       });
 
       if (theirPending.length > 0) {
-        followUpBody += `From our conversation, I have these as your next steps:\n`;
+        followUpBody += `From our conversation, here are the next steps on your side:\n`;
         theirPending.forEach(t => { followUpBody += `  • ${t}\n`; });
         followUpBody += '\n';
       }
       if (myPending.length > 0) {
-        followUpBody += `In the meantime, I'll:\n`;
+        followUpBody += `In the meantime, I will:\n`;
         myPending.forEach(t => { followUpBody += `  • ${t}\n`; });
         followUpBody += '\n';
       }
@@ -5368,17 +5368,17 @@
       if (m.decisions && m.decisions.length > 0) {
         const relevantDecisions = m.decisions.filter(d => !isAboutOtherCourse(d));
         if (relevantDecisions.length > 0) {
-          followUpBody += `Here are the decisions we made today:\n`;
+          followUpBody += `A quick recap of what we landed on today:\n`;
           relevantDecisions.forEach(d => { followUpBody += `  • ${d}\n`; });
           followUpBody += '\n';
         }
       }
 
-      followUpBody += `Let me know if anything comes up or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
+      followUpBody += `Please feel free to reach out if anything comes up or if there is anything I can help with.\n\nLooking forward to continuing the work together.\n\nAll the best,\n${getProfile().sig}`;
     } else if (!latestMeeting && c.notes) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nLet me know if you have any questions or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
+      followUpBody = `Hi ${name},\n\nI wanted to follow up on our recent conversation about ${courseLabel}. ${c.notes.text}\n\nPlease let me know if you have any questions, or if there is anything I can help with.\n\nAll the best,\n${getProfile().sig}`;
     } else if (!followUpBody) {
-      followUpBody = `Hi ${name},\n\nFollowing up on our recent conversation about ${courseLabel}.\n\nLet me know if you have any questions or if there's anything I can help with!\n\nAll the best,\n${getProfile().sig}`;
+      followUpBody = `Hi ${name},\n\nI wanted to follow up on our recent conversation about ${courseLabel}.\n\nPlease let me know if you have any questions, or if there is anything I can help with.\n\nAll the best,\n${getProfile().sig}`;
     }
 
     // ===== CHECK-IN =====
@@ -5390,17 +5390,17 @@
           .replace(/ELOs/g, 'Expected Learning Outcomes (ELOs)')
           .replace(/CLOs/g, 'Course Level Objectives (CLOs)')
           .replace(/MLOs/g, 'Module Learning Objectives (MLOs)');
-        checkInBody += `Hope things are going well! I wanted to touch base on ${courseLabel} — our next milestone is the ${label}${upcoming.date ? ' (target: ' + upcoming.date + ')' : ''}.\n\nHow are things looking on your end? Is there anything I can help with to keep things moving?\n\n`;
+        checkInBody += `Hope things are going well! I wanted to touch base on ${courseLabel} — our next milestone is the ${label}${upcoming.date ? ' (target: ' + upcoming.date + ')' : ''}.\n\nHow are things going on your end? Please let me know if there is anything I can help with to keep momentum.\n\n`;
       } else {
-        checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
+        checkInBody += `I wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nPlease let me know if there is anything I can help with or any blockers I should know about.\n\n`;
       }
     } else {
-      checkInBody += `Just wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nIs there anything I can help with or any blockers I should know about?\n\n`;
+      checkInBody += `I wanted to check in on ${courseLabel} course development. How are things going on your end?\n\nPlease let me know if there is anything I can help with or any blockers I should know about.\n\n`;
     }
     checkInBody += `Looking forward to hearing from you.\n\nAll the best,\n${getProfile().sig}`;
 
     // Course readiness body
-    const readinessBody = `Hi ${name},\n\nI'm writing to provide a brief update on the ${courseLabel} course development progress.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you'd like to discuss any details.\n\nAll the best,\n${getProfile().sig}`;
+    const readinessBody = `Hi ${name},\n\nI wanted to share a brief update on where things stand with ${courseLabel} course development.\n\nCurrent status: ${c.status}\nProgress: ${c.progressLabel}\nCurrent phase: ${c.phase}\n\nPlease let me know if you would like to talk through any of this together.\n\nAll the best,\n${getProfile().sig}`;
 
     // Meeting no-show body — pulls the day-of-week + time from the next
     // calendar meeting on file so the "we are meeting right now" reference
@@ -5415,7 +5415,7 @@
           dayTimePhrase = day + (nm.time ? ', ' + nm.time : '');
         }
       }
-      return `Hi ${name},\n\nHope things are going well!\n\nI wanted to touch base on ${courseLabel}. I have on my calendar that we are meeting right now (${dayTimePhrase}).\n\nIf we need to reschedule, please let me know and I'd be happy to choose a different time that works better for you.\n\nLooking forward to hearing from you.\n\nAll the best,\n${getProfile().sig}`;
+      return `Hi ${name},\n\nHope things are going well!\n\nI wanted to touch base on ${courseLabel} — I see on my calendar that we are meeting right now (${dayTimePhrase}).\n\nIf we need to reschedule, please let me know and we can find a time that works better for you.\n\nLooking forward to hearing from you.\n\nAll the best,\n${getProfile().sig}`;
     })();
 
     const makeMailto = (subj, body) => {
