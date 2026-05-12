@@ -13015,9 +13015,16 @@
   // bundle format stay the same — only the transport changes.
   // CanvasCurate base URL. Local dev defaults to the FastAPI port; a
   // production deploy can override by setting window.CURATE_API_URL
-  // before this script runs (e.g. on the deployed Pages site).
-  // Override path: drop a tiny <script>window.CURATE_API_URL='https://…';</script>
-  // above course-worksheet-v2.html's main <script>.
+  // before this script runs — drop a tiny inline script tag setting
+  // that global above the main worksheet script include.
+  //
+  // (Earlier revision of this comment contained a literal closing
+  // script tag as an example. The HTML parser greedily matches the
+  // first such sequence regardless of JS comment context, which
+  // terminated the host script element here and broke every line
+  // below — including renderCanvasPlan, which is why the Canvas
+  // Plan view rendered blank. Don't put literal close-script
+  // sequences in JS comments; describe in plain English instead.)
   var CURATE_API_URL = window.CURATE_API_URL || 'http://127.0.0.1:8081';
   var HANDOFF_TIMEOUT_MS = 30000;
 
