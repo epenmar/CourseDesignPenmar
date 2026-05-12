@@ -111,6 +111,16 @@ async function sbPatch(table, filterQuery, body) {
   if (!r.ok) throw new Error(`Supabase ${table} PATCH ${r.status}: ${await r.text()}`);
 }
 
+// `dashboard_state.meeting_synced_uids` historical shape was
+//   { courseId: [uid1, uid2, ...] }
+// Newer shape stores the meeting interval alongside the UID:
+//   { courseId: [{ uid, start, end }, ...] }
+// The interval form lets us subtract a meeting's wall-clock range from
+// future worksheet events even after the meeting has rolled out of the
+// current calendar, AND lets us subtract already-synced worksheet event
+// time from a freshly-discovered meeting so we don't double-count when
+// the calendar lags. Both shapes are read here; writes always emit the
+// new shape, so the ledger migrates itself over time.
 async function loadSyncedMeetingUids() {
   try {
     const rows = await sbSelect('dashboard_state', 'key=eq.meeting_synced_uids&select=data');
@@ -119,6 +129,72 @@ async function loadSyncedMeetingUids() {
     console.warn('[sync-jira-time] Could not read meeting_synced_uids:', e.message);
     return {};
   }
+}
+
+// Normalize a ledger entry to {uid, start?, end?}. Legacy entries are
+// plain string UIDs and have no interval available.
+function syncedEntryToObj(entry) {
+  if (typeof entry === 'string') return { uid: entry };
+  return entry || {};
+}
+
+// Build a Set of every meeting UID known to be already posted to Jira
+// for `courseId` — used to skip meetings we've already accounted for.
+function syncedUidSetForCourse(syncedUidMap, courseId) {
+  const arr = syncedUidMap[courseId] || [];
+  return new Set(arr.map(e => syncedEntryToObj(e).uid).filter(Boolean));
+}
+
+// Pull [startMs, endMs] intervals out of historical synced ledger entries
+// that have them. Older string-only entries contribute no interval — but
+// they're still recorded so we don't re-post their UIDs.
+function syncedIntervalsForCourse(syncedUidMap, courseId) {
+  const arr = syncedUidMap[courseId] || [];
+  const out = [];
+  for (const e of arr) {
+    const obj = syncedEntryToObj(e);
+    const s = Number(obj.start), n = Number(obj.end);
+    if (s > 0 && n > s) out.push([s, n]);
+  }
+  return out;
+}
+
+// Merge an arbitrary number of [startMs, endMs] interval lists into a
+// single sorted + dedupe-merged list. Used to combine current-calendar
+// intervals with historical synced-meeting intervals so overlap math
+// against worksheet events considers BOTH.
+function mergeIntervalLists(...lists) {
+  const flat = [];
+  for (const list of lists) for (const iv of (list || [])) flat.push([iv[0], iv[1]]);
+  flat.sort((a, b) => a[0] - b[0]);
+  const merged = [];
+  for (const iv of flat) {
+    if (merged.length && iv[0] <= merged[merged.length - 1][1]) {
+      merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
+    } else {
+      merged.push([iv[0], iv[1]]);
+    }
+  }
+  return merged;
+}
+
+// Parse a meeting's wall-clock start/end in ms. Prefers dtStartIso /
+// dtEndIso; falls back to "date + time + durationMinutes" as buildMeetingIntervals does.
+function meetingInterval(m) {
+  const durMs = Math.max(0, Number(m.durationMinutes || 0)) * 60000;
+  let start = null;
+  if (m.dtStartIso) {
+    const d = new Date(m.dtStartIso);
+    if (!isNaN(d.getTime())) start = d.getTime();
+  }
+  if (start == null && m.date && m.time) {
+    const d = new Date(`${m.date} ${m.time}`);
+    if (!isNaN(d.getTime())) start = d.getTime();
+  }
+  if (start == null) return null;
+  const end = m.dtEndIso ? new Date(m.dtEndIso).getTime() : start + durMs;
+  if (isNaN(end) || end <= start) return null;
+  return [start, end];
 }
 
 async function saveSyncedMeetingUids(map) {
@@ -319,11 +395,19 @@ async function main() {
   const started = new Date().toISOString();
   console.log(`[sync-jira-time] Starting run at ${started} (dry=${DRY}, minSeconds=${MIN_SECONDS})`);
 
-  // Load unsynced worksheet events.
+  // Load unsynced worksheet events — ROLE-FILTERED.
+  //
+  // We only post time from identity_role = 'id' (the instructional
+  // designer). Faculty + reviewer sessions used to flow into Jira too
+  // because the script grouped by course_id alone, which silently
+  // inflated every course's Designing worklog by every visitor's
+  // session time. The dashboard sidebar still shows everyone's time
+  // (it reads worksheet_sessions, not events) so faculty visibility
+  // isn't lost — only the Jira ledger is now ID-scoped.
   let events = [];
   try {
     events = await sbSelect('worksheet_session_events',
-      'select=id,course_id,identity_name,identity_role,started_at,ended_at&synced_to_jira=eq.false&order=started_at.asc');
+      'select=id,course_id,identity_name,identity_role,started_at,ended_at&synced_to_jira=eq.false&identity_role=eq.id&order=started_at.asc');
   } catch (e) {
     if (/PGRST205|Could not find|does not exist/.test(e.message)) {
       console.warn('[sync-jira-time] worksheet_session_events table not found — run the schema migration. Continuing with meeting time only.');
@@ -334,11 +418,52 @@ async function main() {
   }
   if (!events.length) console.log('[sync-jira-time] No unsynced worksheet events; processing calendar meetings only.');
 
+  // Pull ALREADY-SYNCED ID-role events too — used for overlap subtraction
+  // against new meetings. If a worksheet event covering 2-3pm got posted
+  // last night, and a 2-3pm meeting lands in the calendar today, that
+  // meeting's standalone post should subtract the already-paid portion
+  // so the same hour isn't billed twice. We only need course_id + start
+  // + end; size is bounded (~couple thousand rows per course over months).
+  let historicalSyncedEvents = [];
+  try {
+    historicalSyncedEvents = await sbSelect('worksheet_session_events',
+      'select=course_id,started_at,ended_at&synced_to_jira=eq.true&identity_role=eq.id&order=started_at.asc');
+  } catch (e) {
+    if (!/PGRST205|Could not find|does not exist/.test(e.message)) {
+      console.warn('[sync-jira-time] Could not load historical synced events:', e.message);
+    }
+  }
+  // Pre-bucket by course so the loop below is O(1) per course.
+  const historicalEventIntervalsByCourse = {};
+  for (const ev of historicalSyncedEvents) {
+    const s = new Date(ev.started_at).getTime();
+    const e = new Date(ev.ended_at).getTime();
+    if (isNaN(s) || isNaN(e) || e <= s) continue;
+    (historicalEventIntervalsByCourse[ev.course_id] = historicalEventIntervalsByCourse[ev.course_id] || []).push([s, e]);
+  }
+  for (const cid of Object.keys(historicalEventIntervalsByCourse)) {
+    historicalEventIntervalsByCourse[cid] = mergeIntervalLists(historicalEventIntervalsByCourse[cid]);
+  }
+
   // Load calendar meetings and already-synced meeting UIDs.
   const calendarByCourse = loadCalendarMeetingsByCourse();
   const syncedUidMap = await loadSyncedMeetingUids();
 
-  // Build per-course buckets with overlap-corrected worksheet time + new meeting time.
+  // Build per-course buckets with BIDIRECTIONAL overlap-corrected time.
+  //
+  //   - Worksheet events subtract overlap with BOTH current-calendar
+  //     meetings AND historical synced-meeting intervals from the ledger.
+  //     This catches the case where a meeting was synced standalone on
+  //     a prior run and a worksheet event spanning that meeting arrives
+  //     late (e.g. user closes their tab, beforeunload flush lands a
+  //     row dated yesterday).
+  //
+  //   - Meetings being posted standalone (UID not yet in ledger) subtract
+  //     overlap with ALREADY-SYNCED worksheet event intervals from their
+  //     duration. This catches the mirror case: a meeting wasn't in the
+  //     calendar at the time worksheet events covering its window got
+  //     synced, so that window already counted toward worksheet time —
+  //     posting the meeting at full duration would double-count.
   const buckets = {};
   const courseIds = new Set([
     ...Object.keys(calendarByCourse),
@@ -346,27 +471,46 @@ async function main() {
   ]);
   for (const courseId of courseIds) {
     const meetings = calendarByCourse[courseId] || [];
-    const intervals = buildMeetingIntervals(meetings);
+    const currentIntervals = buildMeetingIntervals(meetings);
+    const historicalMeetingIntervals = syncedIntervalsForCourse(syncedUidMap, courseId);
+    const allMeetingIntervals = mergeIntervalLists(currentIntervals, historicalMeetingIntervals);
+    const historicalEventIntervals = historicalEventIntervalsByCourse[courseId] || [];
+
+    // 1. Worksheet events: subtract overlap with the FULL meeting interval
+    //    set (current + historical).
     const courseEvents = events.filter(e => e.course_id === courseId);
     let worksheetMs = 0;
     const eventIds = [];
+    const newEventIntervals = []; // [[start, end], …] of THIS run's events
     for (const ev of courseEvents) {
       const s = new Date(ev.started_at).getTime();
       const e = new Date(ev.ended_at).getTime();
       if (isNaN(s) || isNaN(e) || e <= s) continue;
-      worksheetMs += nonOverlapMs(s, e, intervals);
+      worksheetMs += nonOverlapMs(s, e, allMeetingIntervals);
       eventIds.push(ev.id);
+      newEventIntervals.push([s, e]);
     }
-    const already = new Set(syncedUidMap[courseId] || []);
+    // For meeting-side overlap subtraction we want EVERY ID-role event
+    // interval that's been posted, which is historical + this run's
+    // about-to-be-posted ones.
+    const eventIntervalsForSubtract = mergeIntervalLists(historicalEventIntervals, newEventIntervals);
+
+    // 2. Meetings: skip UIDs already in the ledger; for new UIDs, post
+    //    only the portion NOT overlapping any already-counted event window.
+    const alreadyUids = syncedUidSetForCourse(syncedUidMap, courseId);
     let meetingMs = 0;
-    const newMeetingUids = [];
+    const newMeetingEntries = []; // [{uid, start, end, postedMs}]
     for (const m of meetings) {
-      if (!m.uid || already.has(m.uid)) continue;
-      meetingMs += m.durationMinutes * 60000;
-      newMeetingUids.push(m.uid);
+      if (!m.uid || alreadyUids.has(m.uid)) continue;
+      const iv = meetingInterval(m);
+      if (!iv) continue;
+      const [mStart, mEnd] = iv;
+      const postedMs = nonOverlapMs(mStart, mEnd, eventIntervalsForSubtract);
+      meetingMs += postedMs;
+      newMeetingEntries.push({ uid: m.uid, start: mStart, end: mEnd, postedMs: postedMs });
     }
-    if (worksheetMs > 0 || meetingMs > 0 || eventIds.length) {
-      buckets[courseId] = { worksheetMs, meetingMs, eventIds, newMeetingUids };
+    if (worksheetMs > 0 || meetingMs > 0 || eventIds.length || newMeetingEntries.length) {
+      buckets[courseId] = { worksheetMs, meetingMs, eventIds, newMeetingEntries };
     }
   }
 
@@ -416,7 +560,7 @@ async function main() {
     const mins = Math.round(seconds / 60);
     const worksheetMins = Math.round(bucket.worksheetMs / 60000);
     const meetingMins = Math.round(bucket.meetingMs / 60000);
-    const meetingNote = meetingMins > 0 ? ` (worksheet ${worksheetMins}m + meetings ${meetingMins}m across ${bucket.newMeetingUids.length})` : '';
+    const meetingNote = meetingMins > 0 ? ` (worksheet ${worksheetMins}m + meetings ${meetingMins}m across ${bucket.newMeetingEntries.length})` : '';
     console.log(`  · ${courseId}: ${mins}m${meetingNote} → ${target} (${targetKind})`);
 
     if (DRY) {
@@ -432,9 +576,19 @@ async function main() {
         const filter = 'id=in.(' + bucket.eventIds.join(',') + ')';
         await sbPatch('worksheet_session_events', filter, { synced_to_jira: true });
       }
-      if (bucket.newMeetingUids.length) {
-        const prev = syncedUidMap[courseId] || [];
-        syncedUidMap[courseId] = Array.from(new Set([...prev, ...bucket.newMeetingUids]));
+      // Persist each new meeting with its [start, end] interval so future
+      // runs can subtract overlap. Existing string-only entries get
+      // migrated to objects on the fly, converging the ledger to the new
+      // shape without a separate migration step.
+      if (bucket.newMeetingEntries.length) {
+        const prev = (syncedUidMap[courseId] || []).map(syncedEntryToObj);
+        const additions = bucket.newMeetingEntries.map(e => ({ uid: e.uid, start: e.start, end: e.end }));
+        const seenUids = new Set();
+        syncedUidMap[courseId] = [...prev, ...additions].filter(e => {
+          if (!e.uid || seenUids.has(e.uid)) return false;
+          seenUids.add(e.uid);
+          return true;
+        });
         anyMeetingUidsNewlySynced = true;
       }
       summary.posted++;
