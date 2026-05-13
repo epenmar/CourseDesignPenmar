@@ -215,9 +215,16 @@ def ingest_bundle(supabase, handoff_row: Dict[str, Any], user_id: str) -> str:
     session_id = str(uuid.uuid4())
 
     # ---- 1. sessions row ----
-    # type='create' so the existing Edit view at /sessions/{id}/edit
-    # picks it up. We tag it in `meta` so future code can distinguish
-    # CourseCompose-built sessions from upload-built ones if needed.
+    # type='create' is the closest existing analog to "course built from
+    # scratch, no upstream Canvas course." But the session layout only
+    # renders the full editor chrome (SideNav with Health/Inventory/Edit/
+    # Images/Links/...) when meta.course_creation.status is
+    # 'exported_to_canvas_clean'. Without that flag the SideNav narrows
+    # to a single 'Create' link, which leaves a CourseCompose-built
+    # session looking like a stripped-down draft instead of a full
+    # editable course. We set the flag here so the ingest lands the
+    # user inside the same workspace they'd see for a
+    # synced-from-Canvas course.
     supabase.table("sessions").insert({
         "id": session_id,
         "user_id": user_id,
@@ -231,6 +238,9 @@ def ingest_bundle(supabase, handoff_row: Dict[str, Any], user_id: str) -> str:
             "coursecompose_handoff_id": handoff_row.get("id"),
             "course_code": course_code,
             "course_full_title": full_title,
+            "course_creation": {
+                "status": "exported_to_canvas_clean",
+            },
         },
     }).execute()
 
