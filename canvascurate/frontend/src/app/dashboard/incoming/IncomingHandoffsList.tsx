@@ -116,12 +116,31 @@ export default function IncomingHandoffsList({ handoffs, apiUrl, token }: Props)
         },
         body: JSON.stringify({ status: "processing" }),
       });
-      if (!res.ok) throw new Error(`API ${res.status}`);
-      // Optimistically drop the row from the pending list — it's no
-      // longer "pending." Server-side it's now status=processing, and
-      // a future build pipeline will flip it to 'built' or 'error'.
+      if (!res.ok) {
+        // Read the error body so the user sees the real reason, not
+        // just "API 500". The ingest pipeline surfaces useful messages
+        // via FastAPI's HTTPException detail.
+        let detail = `API ${res.status}`;
+        try {
+          const body = await res.json();
+          if (body?.detail) detail = `${detail}: ${body.detail}`;
+        } catch {
+          // Non-JSON body — keep the bare status code.
+        }
+        throw new Error(detail);
+      }
+      const data = (await res.json()) as { session_id?: string };
       setRows((current) => current.filter((r) => r.id !== id));
-      router.refresh();
+      if (data.session_id) {
+        // The PATCH ran the ingest synchronously and returned the new
+        // session id. Drop the user straight into the editor — that's
+        // the payoff of clicking Start build ("show me my course").
+        router.push(`/sessions/${data.session_id}/edit`);
+      } else {
+        // No session_id means status flipped without an ingest (e.g. a
+        // future async build path). Fall back to refreshing the inbox.
+        router.refresh();
+      }
     } catch (err) {
       alert(`Could not start build: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {

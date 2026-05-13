@@ -36,6 +36,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 
 from auth import get_current_user
+from services.coursecompose_ingest import ingest_bundle
 from supabase_client import get_supabase
 
 
@@ -205,16 +206,85 @@ async def update_handoff(
     patch: HandoffPatch,
     user: dict = Depends(get_current_user),
 ) -> Dict[str, Any]:
+    """Drive a handoff through its lifecycle.
+
+    Special case: when the caller sets status='processing' we run the
+    full ingest synchronously here — translating the bundle into a new
+    Curate session + module/page tree — and only then write status,
+    session_id, and the processed_at stamp. Doing it in one round-trip
+    means the inbox's "Start build" button can immediately redirect
+    the user to /sessions/{session_id}/edit on success.
+
+    Ingest is idempotent at this layer: a handoff already carrying a
+    session_id is treated as 'built' and we refuse to run again rather
+    than creating a duplicate session.
+    """
+    from datetime import datetime, timezone
+
+    supabase = get_supabase()
+
+    if patch.status is not None and patch.status not in _ALLOWED_STATUS:
+        raise HTTPException(status_code=400, detail=f"Unknown status {patch.status!r}")
+
+    # Special-cased branch: trigger the ingest pipeline.
+    if patch.status == "processing":
+        existing = (
+            supabase.table("coursecompose_handoffs")
+            .select("*")
+            .eq("id", handoff_id)
+            .execute()
+        )
+        existing_rows = existing.data or []
+        if not existing_rows:
+            raise HTTPException(status_code=404, detail="Handoff not found")
+        handoff_row = existing_rows[0]
+
+        if handoff_row.get("session_id"):
+            # Already built. Surface the session_id so the UI can
+            # navigate the user there instead of erroring out.
+            return {"ok": True, "handoff": handoff_row, "session_id": handoff_row["session_id"]}
+
+        if handoff_row.get("status") in {"built", "archived"}:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Handoff is already {handoff_row['status']}.",
+            )
+
+        # Mark processing first so concurrent clicks don't race the
+        # ingest. We undo this on failure below.
+        now_iso = datetime.now(timezone.utc).isoformat()
+        supabase.table("coursecompose_handoffs").update({
+            "status": "processing",
+            "processed_at": now_iso,
+            "processed_by": user.get("sub"),
+            "notes": patch.notes if patch.notes is not None else handoff_row.get("notes"),
+        }).eq("id", handoff_id).execute()
+
+        try:
+            session_id = ingest_bundle(supabase, handoff_row, user_id=user.get("sub"))
+        except Exception as exc:  # pragma: no cover — surfaced to UI
+            supabase.table("coursecompose_handoffs").update({
+                "status": "error",
+                "notes": f"Ingest failed: {exc}",
+            }).eq("id", handoff_id).execute()
+            raise HTTPException(status_code=500, detail=f"Ingest failed: {exc}") from exc
+
+        final = supabase.table("coursecompose_handoffs").update({
+            "status": "built",
+            "session_id": session_id,
+        }).eq("id", handoff_id).execute()
+        rows = final.data or []
+        built_row = rows[0] if rows else {**handoff_row, "status": "built", "session_id": session_id}
+        return {"ok": True, "handoff": built_row, "session_id": session_id}
+
+    # Plain status / notes update — no ingest.
     updates: Dict[str, Any] = {}
     if patch.status is not None:
-        if patch.status not in _ALLOWED_STATUS:
-            raise HTTPException(status_code=400, detail=f"Unknown status {patch.status!r}")
         updates["status"] = patch.status
         if patch.status in {"built", "error", "archived"}:
             # Stamp processed_at + processed_by the moment a handoff
             # leaves the working states. Lets the UI show "built 3h ago
             # by …" without an extra audit table.
-            from datetime import datetime, timezone
             updates["processed_at"] = datetime.now(timezone.utc).isoformat()
             updates["processed_by"] = user.get("sub")
     if patch.notes is not None:
@@ -222,7 +292,6 @@ async def update_handoff(
     if not updates:
         raise HTTPException(status_code=400, detail="No fields to update.")
 
-    supabase = get_supabase()
     result = (
         supabase.table("coursecompose_handoffs")
         .update(updates)

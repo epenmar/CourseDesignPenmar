@@ -105,3 +105,24 @@ end $$;
 alter table coursecompose_handoffs
   add constraint coursecompose_handoffs_status_check
   check (status in ('pending', 'processing', 'built', 'error', 'archived', 'superseded'));
+
+
+-- ============================================================
+--   FOLLOW-UP: link a built handoff back to its Curate session
+-- ============================================================
+-- When the build pipeline ingests a handoff into Curate's data model
+-- it creates a sessions row + module/page tree. We stamp that session_id
+-- on the handoff so:
+--   1. The inbox can deep-link Start Build → /sessions/{id}/edit
+--   2. We can refuse to double-ingest the same handoff (idempotency:
+--      a handoff with session_id already set is "built", don't run it
+--      again — that would create a duplicate session).
+-- Nullable because every row starts life session-less (pending). The
+-- FK uses on delete set null so deleting the session in Curate doesn't
+-- cascade-destroy the audit trail of which bundle built it.
+
+alter table coursecompose_handoffs
+  add column if not exists session_id uuid references sessions(id) on delete set null;
+
+create index if not exists idx_cc_handoffs_session on coursecompose_handoffs(session_id)
+  where session_id is not null;
