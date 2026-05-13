@@ -13321,7 +13321,7 @@
       // query param so once Curate ships its incoming-handoffs page
       // it can deep-link to this specific row. Until then, the user
       // lands on Curate's dashboard.
-      var curateUrl = CURATE_FRONTEND_URL.replace(/\/$/, '') + '/dashboard/incoming?handoff=' + encodeURIComponent(data.handoff_id || '');
+      var curateUrl = CURATE_FRONTEND_URL.replace(/\/$/, '') + '/dashboard?handoff=' + encodeURIComponent(data.handoff_id || '');
       try { window.open(curateUrl, '_blank', 'noopener'); } catch (e) {}
 
       var msg = '✓ Sent to CanvasCurate. Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
