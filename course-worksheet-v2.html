@@ -26,6 +26,9 @@
 <script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<!-- flatpickr: date picker for assignment due dates -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr@4.6.13/dist/flatpickr.min.js"></script>
 <script src="docx-export.js"></script>
 <script src="course-compose-spec.js"></script>
 <script>
@@ -5807,6 +5810,11 @@
       document.getElementById('timeline-body').innerHTML = '<tr><td colspan="3" style="text-align:center; padding:24px; color:#999; font-style:italic;">No session assigned yet. Select a target session above to generate a timeline.</td></tr>';
       return;
     }
+    // Convert any pre-existing "Week N <Day>" due strings to real dates anchored
+    // to the newly selected session start. Unparseable entries are untouched.
+    if (typeof reconcileDueValuesFromSession === 'function') {
+      try { reconcileDueValuesFromSession(); } catch (e) {}
+    }
     const launchStr = sel.replace(/[a-z]$/i, '');
     const launch = new Date(launchStr + 'T00:00:00');
     const summerOk = document.getElementById('summer-toggle').checked;
@@ -7207,6 +7215,7 @@
     });
 
     if (window.RichEditor) window.RichEditor.initAll(container);
+    if (typeof attachAllDuePickers === 'function') attachAllDuePickers(container);
   }
 
   function renderModuleMaterials(num) {
@@ -7919,6 +7928,10 @@
       if (cardsContainer) window.RichEditor.initAll(cardsContainer);
       if (tableContainer) window.RichEditor.initAll(tableContainer);
     }
+    if (typeof attachAllDuePickers === 'function') {
+      if (cardsContainer) attachAllDuePickers(cardsContainer);
+      if (tableContainer) attachAllDuePickers(tableContainer);
+    }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
@@ -8088,6 +8101,128 @@
     else if (field === 'points') act.points = el.value;
     else if (field === 'due') act.due = el.value;
     saveActivityData();
+  }
+
+  // ===== DUE DATE PICKER =====
+  // Reads "2026-08-20" from the session-select (strips any letter suffix like "2026-08-20c").
+  function _dueGetSessionStartIso() {
+    var el = document.getElementById('session-select');
+    if (!el || !el.value) return null;
+    var m = String(el.value).match(/^(\d{4}-\d{2}-\d{2})/);
+    return m ? m[1] : null;
+  }
+
+  // Parse "Wednesday Week 1" / "W2 Fri" / "Week 3 Thurs" / etc. into a real ISO
+  // date, treating sessionStartIso as the start of week 1. Returns null when we
+  // can't unambiguously reconcile.
+  function _dueParseWeekDay(text, sessionStartIso) {
+    if (!text || !sessionStartIso) return null;
+    var t = String(text).trim();
+    if (!t) return null;
+    if (/^\d{4}-\d{2}-\d{2}/.test(t)) return t.slice(0, 10);
+    var wkMatch = t.match(/week\s*(\d+)/i) || t.match(/\bw(\d+)\b/i);
+    var dayMatch = t.match(/\b(sun(?:day)?|mon(?:day)?|tue(?:s|sday)?|wed(?:nesday)?|thurs(?:day)?|thur|thu|fri(?:day)?|sat(?:urday)?)\b/i);
+    if (!wkMatch || !dayMatch) return null;
+    var weekNum = parseInt(wkMatch[1], 10);
+    if (!weekNum || weekNum < 1 || weekNum > 30) return null;
+    var dayKey = dayMatch[1].toLowerCase().slice(0, 3);
+    var dayMap = { sun: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6 };
+    var targetDow = dayMap[dayKey];
+    if (targetDow === undefined) return null;
+    var d = new Date(sessionStartIso + 'T00:00:00');
+    d.setDate(d.getDate() + (weekNum - 1) * 7);
+    var offset = targetDow - d.getDay();
+    if (offset < 0) offset += 7;
+    d.setDate(d.getDate() + offset);
+    var yyyy = d.getFullYear();
+    var mm = String(d.getMonth() + 1).padStart(2, '0');
+    var dd = String(d.getDate()).padStart(2, '0');
+    return yyyy + '-' + mm + '-' + dd;
+  }
+
+  function _dueFormatDisplay(iso) {
+    if (!iso || !/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso || '';
+    var d = new Date(iso + 'T00:00:00');
+    try { return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }); }
+    catch (e) { return iso; }
+  }
+
+  function _dueAttachPicker(el) {
+    if (!el || el._flatpickr || typeof flatpickr === 'undefined') return;
+    var sessionStartIso = _dueGetSessionStartIso();
+    var existing = el.value || '';
+    var parsedIso = _dueParseWeekDay(existing, sessionStartIso);
+    flatpickr(el, {
+      allowInput: true,
+      dateFormat: 'D, M j',
+      defaultDate: parsedIso || null,
+      clickOpens: true,
+      onReady: function(_, __, instance) {
+        if (!instance.selectedDates.length && sessionStartIso) {
+          try { instance.jumpToDate(sessionStartIso); } catch (e) {}
+        }
+      },
+      onOpen: function(_, __, instance) {
+        if (!instance.selectedDates.length && sessionStartIso) {
+          try { instance.jumpToDate(sessionStartIso); } catch (e) {}
+        }
+      },
+      onChange: function() {
+        // Reuse existing save paths: overview inputs listen to "input",
+        // module-detail inputs are bound to "input"/"change" via container delegation.
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+    });
+  }
+
+  // Courses whose due-date values should be left exactly as faculty entered
+  // them — no picker attachment (which would auto-format on init) and no
+  // session-start reconciliation sweep.
+  var DUE_RECONCILE_SKIP = { mns521: true };
+
+  function attachAllDuePickers(root) {
+    if (typeof flatpickr === 'undefined') return;
+    if (DUE_RECONCILE_SKIP[courseId]) return;
+    var scope = root || document;
+    scope.querySelectorAll('[data-field="due"]').forEach(function(el) { _dueAttachPicker(el); });
+  }
+
+  // Sweep saved activities: any due value that unambiguously parses as
+  // "Week N <Day>" gets converted to a concrete display date ("Wed, May 20").
+  // Unparseable entries (e.g., "End of semester", "TBD") are left alone.
+  function reconcileDueValuesFromSession() {
+    if (typeof courseActivities === 'undefined') return;
+    if (DUE_RECONCILE_SKIP[courseId]) return;
+    var sessionStartIso = _dueGetSessionStartIso();
+    if (!sessionStartIso) return;
+    var changed = false;
+    Object.keys(courseActivities).forEach(function(modKey) {
+      var acts = courseActivities[modKey] || [];
+      acts.forEach(function(act) {
+        if (!act || !act.due) return;
+        if (/^\w{3,},?\s+\w{3,}\s+\d/.test(act.due)) return; // already display format
+        var iso = _dueParseWeekDay(act.due, sessionStartIso);
+        if (!iso) return;
+        var display = _dueFormatDisplay(iso);
+        if (display && display !== act.due) { act.due = display; changed = true; }
+      });
+    });
+    if (changed) {
+      saveActivityData();
+      // Reflect into any visible due inputs / flatpickr instances.
+      document.querySelectorAll('[data-field="due"]').forEach(function(el) {
+        var block = el.closest('[data-activity-id]');
+        var actId = (el.getAttribute('data-activity-id')) || (block && block.getAttribute('data-activity-id'));
+        var modAttr = el.getAttribute('data-module-num') || (block && block.getAttribute('data-module-num'));
+        var modNum = parseInt(modAttr, 10);
+        if (!actId || isNaN(modNum)) return;
+        var act = (courseActivities[modNum] || []).find(function(a) { return a.id === actId; });
+        if (!act) return;
+        if (el._flatpickr) { try { el._flatpickr.setDate(act.due, false); } catch (e) { el.value = act.due; } }
+        else { el.value = act.due; }
+      });
+    }
   }
 
   function syncOverviewMaterial(el) {
