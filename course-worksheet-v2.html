@@ -2782,6 +2782,9 @@
   }
 
   // ===== TEMPLATE DATA PERSISTENCE =====
+  // Exposed on `window` because rich-editor.js dispatches saves via
+  // `window.saveTemplateField(...)` — without the window alias the call
+  // silently returns and every keystroke in a template section is lost.
   function saveTemplateField(actId, tplType, sectionLabel, value) {
     // Find which module this activity belongs to
     for (var m in courseActivities) {
@@ -2797,13 +2800,17 @@
       }
     }
   }
+  window.saveTemplateField = saveTemplateField;
 
   function getTemplateVal(act, tplType, sectionLabel) {
     if (!act.templateData || !act.templateData[tplType]) return '';
     return act.templateData[tplType][sectionLabel] || '';
   }
 
-  // Called from rich-editor.js — persists rich text into courseMaterials
+  // Called from rich-editor.js — persists rich text into courseMaterials.
+  // Also exposed on `window` so the rich-editor's `window.saveMaterialField`
+  // dispatch resolves; without the alias, material rich-text edits silently
+  // fail the same way template edits did.
   function saveMaterialField(matId, modNum, field, html) {
     if (!courseMaterials[modNum]) return;
     var mat = courseMaterials[modNum].find(function(m) { return m.id === matId; });
@@ -2811,6 +2818,7 @@
     mat[field] = html;
     saveActivityData();
   }
+  window.saveMaterialField = saveMaterialField;
 
   // "Mark content complete" toggle that sits at the top of every
   // content-attach body. Stores its state on the underlying activity /
