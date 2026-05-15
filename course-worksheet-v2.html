@@ -5369,7 +5369,12 @@
     var moduleScore = 0;
     var modsWithMlos = 0;
     var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
-    for (var i = 1; i <= modCount; i++) {
+    // Honour the moduleStartZero flag so Module 0 isn't silently skipped
+    // (and a phantom Module modCount isn't checked instead) — same pattern
+    // the sidebar badges use further down this function.
+    var _pStart = activeCourse.moduleStartZero ? 0 : 1;
+    var _pEnd = _pStart + modCount;
+    for (var i = _pStart; i < _pEnd; i++) {
       var modData = savedModOverview[i] || {};
       var mlos = modData.mlos || [];
       var hasMlos = mlos.length > 0 && mlos.some(function(m) { return m && m.trim(); });
@@ -5397,7 +5402,7 @@
     // 5. Assignments (20%) — fraction of modules that have at least one named activity
     // Half credit until the user clicks "Assignments reviewed" (same rationale).
     var modsWithActs = 0;
-    for (var ai = 1; ai <= modCount; ai++) {
+    for (var ai = _pStart; ai < _pEnd; ai++) {
       var acts = courseActivities[ai];
       if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) modsWithActs++;
     }
@@ -5407,7 +5412,7 @@
 
     // 6. Materials (20%) — fraction of modules that have at least one titled material
     var modsWithMats = 0;
-    for (var mi = 1; mi <= modCount; mi++) {
+    for (var mi = _pStart; mi < _pEnd; mi++) {
       var mats = courseMaterials[mi];
       if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) modsWithMats++;
     }
@@ -5417,7 +5422,7 @@
     //    A module page counts as "started" if it has MLOs AND (activities OR materials)
     //    Uses savedModOverview (from localStorage) not hardcoded config
     var modsWithContent = 0;
-    for (var ci = 1; ci <= modCount; ci++) {
+    for (var ci = _pStart; ci < _pEnd; ci++) {
       var cModData = savedModOverview[ci] || {};
       var cMlos = cModData.mlos || [];
       var cHasMlos = cMlos.length > 0 && cMlos.some(function(m) { return m && m.trim(); });
@@ -5593,33 +5598,38 @@
       }
     }
 
-    // Update sidebar Assignments Overview badge
+    // Update sidebar Assignments Overview badge — counts modules where at
+    // least one activity is marked contentComplete. "Module has a named
+    // activity" was too weak a signal (an empty stub counted as done);
+    // requiring contentComplete makes the badge reflect faculty intent.
     var assignBadge = document.getElementById('sidebar-assign-badge');
     if (assignBadge) {
-      var modsWithActs = 0;
-      var modsMissingActs = [];
+      var modsWithCompleteActs = 0;
+      var modsMissingCompleteActs = [];
       var startN_a = activeCourse.moduleStartZero ? 0 : 1;
       for (var ai = 0; ai < modCount; ai++) {
         var modN = ai + startN_a;
         var acts = courseActivities[modN];
-        var has = acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); });
-        if (has) modsWithActs++;
-        else modsMissingActs.push(modN);
+        var has = acts && acts.length > 0 && acts.some(function(a) {
+          return a && a.name && a.name.trim() && a.contentComplete;
+        });
+        if (has) modsWithCompleteActs++;
+        else modsMissingCompleteActs.push(modN);
       }
-      if (modsWithActs === modCount && modCount > 0) {
+      if (modsWithCompleteActs === modCount && modCount > 0) {
         assignBadge.className = 'badge badge-done';
-        assignBadge.textContent = modsWithActs + '/' + modCount;
-        assignBadge.title = 'All modules have at least one named activity.';
-      } else if (modsWithActs > 0) {
+        assignBadge.textContent = modsWithCompleteActs + '/' + modCount;
+        assignBadge.title = 'Every module has at least one completed activity.';
+      } else if (modsWithCompleteActs > 0) {
         assignBadge.className = 'badge badge-partial';
-        assignBadge.textContent = modsWithActs + '/' + modCount;
-        assignBadge.title = modsMissingActs.length === 1
-          ? 'Module ' + modsMissingActs[0] + ' has no named activity yet.'
-          : 'Missing named activities in: Module ' + modsMissingActs.join(', Module ');
+        assignBadge.textContent = modsWithCompleteActs + '/' + modCount;
+        assignBadge.title = modsMissingCompleteActs.length === 1
+          ? 'Module ' + modsMissingCompleteActs[0] + ' has no completed activity yet.'
+          : 'No completed activity in: Module ' + modsMissingCompleteActs.join(', Module ');
       } else {
         assignBadge.className = 'badge badge-empty';
         assignBadge.textContent = '—';
-        assignBadge.title = 'No activities named yet.';
+        assignBadge.title = 'No activities marked complete yet.';
       }
     }
 
