@@ -215,9 +215,12 @@
   #materials-overview-table tbody.mod-band-alt > tr > td,
   #module-overview-table tr.mod-band-alt > td { background-color: #faf6ea; }
 
-  /* Tighten vertical padding in overview tables */
+  /* Tighten vertical padding in overview tables. vertical-align:top keeps
+     the row's other cells anchored when the activity-name textarea auto-grows
+     on input (default vertical-align:middle re-centers everything and reads
+     as cells "shifting"). */
   #assignments-overview-table .timeline-table td,
-  #materials-overview-table .timeline-table td { padding: 2px 8px; }
+  #materials-overview-table .timeline-table td { padding: 2px 8px; vertical-align: top; }
   #assignments-overview-table .timeline-table td textarea.activity-input,
   #assignments-overview-table .timeline-table td input.activity-input,
   #materials-overview-table .timeline-table td textarea.activity-input,
@@ -8666,6 +8669,15 @@
           if (mat) owner = { type: 'material', modNum, item: mat };
         }
       }
+    }
+
+    // Diagnostic: if owner lookup fails, the click is a no-op and the user
+    // thinks they tagged an MLO that never saved. Log enough context to
+    // pinpoint which picker is orphaned (table-view tv-* prefix vs card-view
+    // ov-* prefix) so the next repro narrows the cause.
+    if (!owner) {
+      console.warn('[obj-picker] toggleObj: no owner activity/material found for picker', pickerId,
+        '— click will not persist. Picker DOM:', picker, 'closest activity-block:', picker.closest('.activity-block'));
     }
 
     // Merge known (from dropdown options) with any chip objectives the dropdown didn't have as options
