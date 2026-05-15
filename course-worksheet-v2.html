@@ -6257,52 +6257,19 @@
   }
 
   // Subscribe to realtime UPDATE events on the worksheets row for this course.
-  // When a different browser saves changes we surface a non-blocking banner
-  // prompting a reload. We deliberately don't auto-merge — the worksheet's
-  // data shape is too broad to reason about conflict-free merges without CRDTs.
-  var _remoteChangeChannel = null;
-  // Timestamp of the most recent live broadcast we applied. The postgres_changes
-  // UPDATE that follows ~2s later represents the same edit, so we suppress the
-  // reload banner in that window — the user already saw the change land live.
+  // Timestamp of the most recent live broadcast we applied. Stamped by
+  // _stampLive in the edit-channel handler. The reload banner that used
+  // to consume this has been removed; the stamp is retained because
+  // re-introducing a "live channel went quiet" indicator would key off it.
   var _lastRemoteLiveEditAt = 0;
-  function subscribeToRemoteWorksheetChanges() {
-    if (!window._sbClient || !courseId) return;
-    if (_remoteChangeChannel) return; // already subscribed
-    _remoteChangeChannel = window._sbClient
-      .channel('worksheet-changes:' + courseId)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'worksheets',
-        filter: 'course_id=eq.' + courseId
-      }, function(payload) {
-        // Ignore echoes of our own save (Supabase re-broadcasts our upserts).
-        if (Date.now() - _lastLocalPushAt < 3000) return;
-        // If the live broadcast channel just delivered an edit, this UPDATE is
-        // the same event reaching us a second time — don't nag for a reload.
-        if (Date.now() - _lastRemoteLiveEditAt < 10000) return;
-        showRemoteChangeBanner(payload && payload.new && payload.new.updated_at);
-      })
-      .subscribe();
-  }
-
-  function showRemoteChangeBanner(updatedAtIso) {
-    var banner = document.getElementById('remote-change-banner');
-    if (!banner) {
-      banner = document.createElement('div');
-      banner.id = 'remote-change-banner';
-      banner.style.cssText = 'position:fixed; top:12px; left:50%; transform:translateX(-50%); z-index:10001; background:#fff4cc; border:1px solid #e6b800; color:#664d00; padding:10px 16px; border-radius:8px; font-size:13px; box-shadow:0 4px 16px rgba(0,0,0,0.15); display:flex; align-items:center; gap:12px;';
-      document.body.appendChild(banner);
-    }
-    var time = '';
-    try { if (updatedAtIso) time = ' at ' + new Date(updatedAtIso).toLocaleTimeString(); } catch(e) {}
-    banner.innerHTML =
-      '<span>🔄 Another collaborator saved changes' + time + '.</span>' +
-      '<button id="remote-change-reload" style="background:#664d00; color:#fff; border:none; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer;">Reload</button>' +
-      '<button id="remote-change-dismiss" style="background:transparent; color:#664d00; border:1px solid #e6b800; border-radius:4px; padding:4px 10px; font-size:12px; cursor:pointer;">Dismiss</button>';
-    document.getElementById('remote-change-reload').onclick = function() { location.reload(); };
-    document.getElementById('remote-change-dismiss').onclick = function() { banner.remove(); };
-  }
+  // Removed: subscribeToRemoteWorksheetChanges + showRemoteChangeBanner.
+  // The postgres_changes "Another collaborator saved" reload banner has
+  // been superseded by the live-edit broadcast channel — every keystroke
+  // is delivered to other sessions in real time, so the lossy "reload to
+  // see changes" prompt is no longer useful. _lastLocalPushAt and
+  // _lastRemoteLiveEditAt stamping is retained where it happens (cheap,
+  // harmless) in case we re-introduce a banner that surfaces only when
+  // the live channel has been silent.
 
   function saveField(key, value) {
     try {
@@ -9577,9 +9544,9 @@
 
     // Initialize real-time presence
     initPresence();
-    // Subscribe to remote worksheet changes (banner prompt to reload)
-    subscribeToRemoteWorksheetChanges();
     // Live collaborative editing — push each keystroke to other sessions.
+    // (The postgres_changes "another collaborator saved" reload banner was
+    // removed once the live-edit channel covered the same need in real time.)
     initLiveEditChannel();
   });
 
