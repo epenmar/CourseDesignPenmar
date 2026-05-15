@@ -9611,6 +9611,14 @@
       // between 'link' and 'linked' that the previous matcher had.
       var tabBtn = body.querySelector('.content-attach-tab[data-tab-key="' + tab + '"]');
       if (!tabBtn) return;
+      // Skip the DOM swap if the right tab is already active. Without this
+      // guard the function was firing on every keystroke save (via
+      // refreshAllContentIndicators) and momentarily display:none-ing the
+      // very tab body the user was typing in — Quill briefly lost its
+      // paint surface and the typed text appeared to vanish until the
+      // user clicked away and back. The guard makes the function only do
+      // real work after a structural re-render that reset the tabs.
+      if (tabBtn.classList.contains('active')) return;
       // Manually replicate switchAttachTab's DOM swap without re-saving
       // (the tab is already saved — calling switchAttachTab here would
       // create a saveActivityData feedback loop on every render).
