@@ -396,6 +396,39 @@
   .obj-check { width: 16px; height: 16px; border: 1.5px solid #ccc; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 11px; flex-shrink: 0; }
   .obj-option.selected .obj-check { background: #8c1d40; border-color: #8c1d40; color: #fff; }
 
+  /* "Expand" header inside each module-scoped picker dropdown — promotes
+     the dropdown into a full-window modal so faculty can pick MLOs from
+     other modules without leaving the activity page. */
+  .obj-expand-row { display: flex; justify-content: flex-end; padding: 6px 10px; border-bottom: 1px solid #f0ede5; background: #fafaf7; position: sticky; top: 0; z-index: 2; }
+  .obj-expand-btn { border: none; background: transparent; font-size: 11px; font-weight: 600; color: #8c1d40; cursor: pointer; padding: 4px 10px; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; }
+  .obj-expand-btn:hover { background: #fef3e8; }
+  .obj-expand-icon { font-size: 13px; line-height: 1; }
+
+  /* Full-window MLO picker modal — opened from the obj-expand-btn.
+     Shows every course MLO grouped by module, with the same toggle
+     behavior as the small dropdown but room to breathe. */
+  .obj-modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.45); z-index: 9999; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .obj-modal { background: #fff; border-radius: 10px; width: 820px; max-width: 100%; max-height: 85vh; display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0, 0, 0, 0.25); }
+  .obj-modal-header { padding: 16px 20px; border-bottom: 1px solid #e8e5dd; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .obj-modal-title { font-size: 16px; font-weight: 700; color: #8c1d40; margin: 0; }
+  .obj-modal-subtitle { font-size: 12px; color: #777; margin-top: 2px; }
+  .obj-modal-close { border: none; background: transparent; font-size: 22px; line-height: 1; cursor: pointer; color: #888; padding: 4px 8px; border-radius: 4px; }
+  .obj-modal-close:hover { background: #f5f3ed; color: #333; }
+  .obj-modal-body { padding: 12px 20px 20px; overflow-y: auto; flex: 1; }
+  .obj-modal-group-label { font-size: 11px; font-weight: 700; color: #8c1d40; text-transform: uppercase; letter-spacing: 0.04em; margin: 14px 0 4px; padding-bottom: 4px; border-bottom: 1px solid #f0ede5; }
+  .obj-modal-group-label:first-child { margin-top: 0; }
+  .obj-modal-option { padding: 8px 10px; cursor: pointer; border-radius: 4px; display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.4; }
+  .obj-modal-option:hover { background: #fef3e8; }
+  .obj-modal-option.selected { background: #fef3e8; }
+  .obj-modal-option.shortcut { background: #fff8e1; font-weight: 600; }
+  .obj-modal-option.shortcut:hover { background: #ffefcd; }
+  .obj-modal-check { width: 18px; height: 18px; border: 1.5px solid #ccc; border-radius: 3px; display: flex; align-items: center; justify-content: center; font-size: 12px; flex-shrink: 0; margin-top: 1px; }
+  .obj-modal-option.selected .obj-modal-check { background: #8c1d40; border-color: #8c1d40; color: #fff; }
+  .obj-modal-id { font-weight: 700; color: #8c1d40; margin-right: 4px; }
+  .obj-modal-footer { padding: 12px 20px; border-top: 1px solid #e8e5dd; display: flex; justify-content: flex-end; gap: 8px; background: #fafaf7; }
+  .obj-modal-done { padding: 8px 20px; border: none; background: #8c1d40; color: #fff; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; }
+  .obj-modal-done:hover { background: #6f1733; }
+
   /* Objective chip tooltip on hover */
   .obj-chip { position: relative; cursor: default; }
   .obj-chip[data-tooltip]:hover::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: #333; color: #fff; padding: 6px 10px; border-radius: 6px; font-size: 11px; font-weight: 400; white-space: normal; width: max-content; max-width: 280px; z-index: 60; line-height: 1.4; pointer-events: none; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
@@ -2667,6 +2700,14 @@
     // Build the option list. Course-wide picks aggregate every module's MLOs;
     // module-scoped picks only show the activity's own module.
     let optionsHtml = '';
+    // Sticky "Expand ⤢" header — opens a full-window modal that always
+    // shows every course MLO regardless of whether this picker is module-
+    // scoped or course-wide. The button is rendered before the options so
+    // it sits at the top of the scrollable dropdown.
+    optionsHtml += '<div class="obj-expand-row">' +
+      '<button class="obj-expand-btn" onclick="event.stopPropagation(); openObjPickerExpanded(\'' + activityId + '\')" title="Open full-window picker with every course MLO">' +
+      '<span class="obj-expand-icon">⤢</span> Expand</button>' +
+      '</div>';
     function _mlosFromModule(targetMod) { return _mlosForModule(targetMod); }
 
     if (courseWide) {
@@ -8831,6 +8872,213 @@
   function removeObj(pickerId, objId) {
     toggleObj(pickerId, objId);
   }
+
+  // ===== FULL-WINDOW OBJECTIVES PICKER MODAL =====
+  // Same content as the small dropdown's course-wide branch, just
+  // promoted to a real lightbox so faculty can see every course MLO at
+  // once and isn't fighting a 180px scroll area to find an MLO from
+  // another module.
+
+  function _resolveObjPickerOwner(pickerId) {
+    var picker = document.querySelector('.obj-picker[data-picker="' + pickerId + '"]');
+    if (!picker) return null;
+    var block = picker.closest('.activity-block');
+    if (block) {
+      var rawActId = block.getAttribute('data-activity-id');
+      var modNum = parseInt(block.getAttribute('data-module-num'), 10);
+      if (rawActId && !isNaN(modNum) && courseActivities[modNum]) {
+        var act = courseActivities[modNum].find(function(a) { return a.id === rawActId; });
+        if (act) return { type: 'activity', modNum: modNum, item: act, picker: picker };
+      }
+    }
+    var matRow = picker.closest('[data-material-id]');
+    if (matRow) {
+      var rawMatId = matRow.getAttribute('data-material-id');
+      var modNumM = parseInt(matRow.getAttribute('data-module-num'), 10);
+      if (rawMatId && !isNaN(modNumM) && courseMaterials[modNumM]) {
+        var mat = courseMaterials[modNumM].find(function(m) { return m.id === rawMatId; });
+        if (mat) return { type: 'material', modNum: modNumM, item: mat, picker: picker };
+      }
+    }
+    return null;
+  }
+
+  function _collectAllCourseMloIds() {
+    // Walk every module that exists in either activeCourse.modules or
+    // the moduleOverviewData store (so user-added modules outside the
+    // canonical range still surface).
+    var startN = activeCourse.moduleStartZero ? 0 : 1;
+    var savedMods = loadField('moduleOverviewData') || {};
+    var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
+    var modSet = {};
+    for (var i = 0; i < modCount; i++) modSet[i + startN] = true;
+    Object.keys(savedMods).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) modSet[n] = true; });
+    return Object.keys(modSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+  }
+
+  function _renderObjModalBody(pickerId, selected) {
+    var allMods = _collectAllCourseMloIds();
+    var courseMloIds = [];
+    allMods.forEach(function(mNum) {
+      var mlos = _mlosForModule(mNum);
+      for (var j = 0; j < mlos.length; j++) {
+        if (mlos[j] && mlos[j].trim()) courseMloIds.push(mNum + '.' + (j + 1));
+      }
+    });
+    var allSelected = courseMloIds.length > 0 && courseMloIds.every(function(id) { return selected.indexOf(id) !== -1; });
+
+    var html = '';
+    // Quick-action shortcut row at the top.
+    html += '<div class="obj-modal-option shortcut" onclick="toggleAllCourseObjectivesFromModal(\'' + pickerId + '\')">' +
+      '<span class="obj-modal-check">' + (allSelected ? '✓' : '') + '</span>' +
+      '<span>' + (allSelected ? 'Clear all course objectives' : 'Select all course objectives') +
+      ' <span style="color:#999; font-weight:400; font-size:11px;">(' + courseMloIds.length + ')</span></span></div>';
+
+    // Per-module groups.
+    allMods.forEach(function(mNum) {
+      var mlos = _mlosForModule(mNum);
+      if (!mlos.length || !mlos.some(function(m) { return m && m.trim(); })) return;
+      html += '<div class="obj-modal-group-label">Module ' + mNum + '</div>';
+      for (var j = 0; j < mlos.length; j++) {
+        if (!mlos[j] || !mlos[j].trim()) continue;
+        var mloId = mNum + '.' + (j + 1);
+        var isSelected = selected.indexOf(mloId) !== -1;
+        html += '<div class="obj-modal-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObjFromModal(\'' + pickerId + '\',\'' + mloId + '\')">' +
+          '<span class="obj-modal-check">' + (isSelected ? '✓' : '') + '</span>' +
+          '<span><span class="obj-modal-id">' + mloId + '</span>' + escapeHtml(mlos[j]) + '</span></div>';
+      }
+    });
+
+    // CEPH / UOEEE competencies (STPH-program courses only) — match the
+    // small picker so the modal isn't missing options the dropdown shows.
+    if (typeof _isStphCourse === 'function' && _isStphCourse() && window.CEPH_COMPETENCY_TEXTS) {
+      var cephTexts = window.CEPH_COMPETENCY_TEXTS;
+      ['CEPH', 'UOEEE'].forEach(function(fw) {
+        if (!cephTexts[fw]) return;
+        var ids = Object.keys(cephTexts[fw]).map(function(k) { return parseInt(k, 10); }).filter(function(n) { return !isNaN(n); }).sort(function(a, b) { return a - b; });
+        if (ids.length === 0) return;
+        html += '<div class="obj-modal-group-label">' + fw + ' competencies</div>';
+        ids.forEach(function(cId) {
+          var tagId = fw + ' ' + cId;
+          var isSelected = selected.indexOf(tagId) !== -1;
+          html += '<div class="obj-modal-option' + (isSelected ? ' selected' : '') + '" onclick="toggleObjFromModal(\'' + pickerId + '\',\'' + tagId + '\')">' +
+            '<span class="obj-modal-check">' + (isSelected ? '✓' : '') + '</span>' +
+            '<span><span class="obj-modal-id">' + tagId + '</span>' + escapeHtml(cephTexts[fw][cId]) + '</span></div>';
+        });
+      });
+    }
+    return html;
+  }
+
+  function openObjPickerExpanded(pickerId) {
+    var owner = _resolveObjPickerOwner(pickerId);
+    if (!owner) return;
+    var existing = document.getElementById('obj-modal-overlay');
+    if (existing) existing.remove();
+
+    var activityName = (owner.item.name || owner.item.title || '').trim() || (owner.type === 'material' ? 'Material' : 'Activity');
+    var selected = Array.isArray(owner.item.objectives) ? owner.item.objectives.slice() : [];
+
+    var overlay = document.createElement('div');
+    overlay.className = 'obj-modal-overlay';
+    overlay.id = 'obj-modal-overlay';
+    overlay.setAttribute('data-picker', pickerId);
+    overlay.innerHTML =
+      '<div class="obj-modal" role="dialog" aria-modal="true" aria-labelledby="obj-modal-title">' +
+        '<div class="obj-modal-header">' +
+          '<div>' +
+            '<h3 class="obj-modal-title" id="obj-modal-title">Course Objectives</h3>' +
+            '<div class="obj-modal-subtitle">' + escapeHtml(activityName) + ' &middot; Module ' + owner.modNum + '</div>' +
+          '</div>' +
+          '<button class="obj-modal-close" onclick="closeObjPickerModal()" aria-label="Close">&times;</button>' +
+        '</div>' +
+        '<div class="obj-modal-body" id="obj-modal-body">' + _renderObjModalBody(pickerId, selected) + '</div>' +
+        '<div class="obj-modal-footer">' +
+          '<button class="obj-modal-done" onclick="closeObjPickerModal()">Done</button>' +
+        '</div>' +
+      '</div>';
+    overlay.addEventListener('click', function(e) {
+      // Click on the dark backdrop closes the modal; clicks inside the
+      // card bubble are caught by stopPropagation below.
+      if (e.target === overlay) closeObjPickerModal();
+    });
+    document.body.appendChild(overlay);
+    document.body.style.overflow = 'hidden';
+    document.addEventListener('keydown', _objModalKeydownHandler);
+  }
+
+  function closeObjPickerModal() {
+    var overlay = document.getElementById('obj-modal-overlay');
+    if (overlay) overlay.remove();
+    document.body.style.overflow = '';
+    document.removeEventListener('keydown', _objModalKeydownHandler);
+  }
+
+  function _objModalKeydownHandler(e) {
+    if (e.key === 'Escape') closeObjPickerModal();
+  }
+
+  function _refreshObjPickerAndModal(owner, pickerId) {
+    // Rebuild the small picker so its chips reflect the new selection.
+    if (owner && owner.picker) {
+      var modForRender = owner.modNum;
+      owner.picker.outerHTML = buildObjPickerHtml(pickerId, owner.item.objectives, modForRender);
+    }
+    // Rebuild the modal body so option states stay in sync.
+    var body = document.getElementById('obj-modal-body');
+    if (body) {
+      var selected = Array.isArray(owner.item.objectives) ? owner.item.objectives.slice() : [];
+      body.innerHTML = _renderObjModalBody(pickerId, selected);
+    }
+  }
+
+  function toggleObjFromModal(pickerId, mloId) {
+    var owner = _resolveObjPickerOwner(pickerId);
+    if (!owner) {
+      console.warn('[obj-picker] toggleObjFromModal: no owner for picker', pickerId);
+      return;
+    }
+    var existing = Array.isArray(owner.item.objectives) ? owner.item.objectives.slice() : [];
+    var idx = existing.indexOf(mloId);
+    if (idx === -1) existing.push(mloId);
+    else existing.splice(idx, 1);
+    owner.item.objectives = existing;
+    saveActivityData();
+    if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate(owner.type, owner.modNum, owner.item);
+    _refreshObjPickerAndModal(owner, pickerId);
+  }
+
+  function toggleAllCourseObjectivesFromModal(pickerId) {
+    var owner = _resolveObjPickerOwner(pickerId);
+    if (!owner) return;
+    var allMods = _collectAllCourseMloIds();
+    var courseMloIds = [];
+    allMods.forEach(function(mNum) {
+      var mlos = _mlosForModule(mNum);
+      for (var j = 0; j < mlos.length; j++) {
+        if (mlos[j] && mlos[j].trim()) courseMloIds.push(mNum + '.' + (j + 1));
+      }
+    });
+    var existing = Array.isArray(owner.item.objectives) ? owner.item.objectives.slice() : [];
+    var allSelected = courseMloIds.length > 0 && courseMloIds.every(function(id) { return existing.indexOf(id) !== -1; });
+    var next;
+    if (allSelected) {
+      next = existing.filter(function(id) { return courseMloIds.indexOf(id) === -1; });
+    } else {
+      next = existing.slice();
+      courseMloIds.forEach(function(id) { if (next.indexOf(id) === -1) next.push(id); });
+    }
+    owner.item.objectives = next;
+    saveActivityData();
+    if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate(owner.type, owner.modNum, owner.item);
+    _refreshObjPickerAndModal(owner, pickerId);
+  }
+
+  // Inline onclick="openObjPickerExpanded(...)" resolves through window.
+  window.openObjPickerExpanded = openObjPickerExpanded;
+  window.closeObjPickerModal = closeObjPickerModal;
+  window.toggleObjFromModal = toggleObjFromModal;
+  window.toggleAllCourseObjectivesFromModal = toggleAllCourseObjectivesFromModal;
 
   // ===== PAGE ORDER & PREV/NEXT =====
   const pageOrder = (function() {
