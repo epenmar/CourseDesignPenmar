@@ -14211,7 +14211,7 @@
         // whitespace character "ELO 1" and the ELO text would collide.
         html += '<div style="margin-top:14px; margin-bottom:4px;">';
         html += '<div style="font-size:12px; font-weight:600; color:#8c1d40;">ELO ' + (eloIdx+1)
-          + (elo ? '&nbsp; <span style="color:#666; font-weight:400;">' + esc(String(elo).slice(0, 120)) + (String(elo).length > 120 ? '…' : '') + '</span>' : '')
+          + (elo ? '&nbsp; <span style="color:#666; font-weight:400;">' + esc(String(elo)) + '</span>' : '')
           + '</div>';
         if (linkedMlos.length === 0) {
           html += '<div style="font-size:11px; color:#c0392b; margin-top:2px;">No MLOs mapped to this ELO</div>';
