@@ -504,6 +504,8 @@
   .todo-course-header:hover { background: #fafaf7; }
   .todo-course-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; color: #fff; letter-spacing: 0.02em; flex-shrink: 0; }
   .todo-course-name { font-size: 11px; color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-course-next { font-size: 10px; font-weight: 600; color: #8c1d40; background: #fdf2f4; padding: 1px 6px; border-radius: 8px; flex-shrink: 0; letter-spacing: 0.02em; }
+  .todo-course-next.none { background: transparent; color: #ccc; font-weight: 400; }
   .todo-course-toggle { font-size: 10px; color: #aaa; flex-shrink: 0; }
   .todo-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.4; border-radius: 4px; cursor: default; }
   .todo-item:hover { background: #fafaf7; }
@@ -5779,6 +5781,27 @@
       return s.replace(/^(elisa(?:\s+penmar)?|penmar|id|me|i)\b\s*[:\-]\s*/i, '').trim();
     };
 
+    // Soonest upcoming meeting date (ISO yyyy-mm-dd) for a course, or null
+    // if none scheduled. Used to order panel groups by deadline urgency.
+    var todayIso = new Date().toISOString().slice(0, 10);
+    var nextMeetingIso = function(c) {
+      var dates = [];
+      if (c.nextMeeting && c.nextMeeting.date) dates.push(c.nextMeeting.date);
+      if (Array.isArray(c.calendarMeetings)) {
+        c.calendarMeetings.forEach(function(cm) {
+          if (cm && cm.date && !cm.past) dates.push(cm.date);
+        });
+      }
+      var future = dates.filter(function(d) { return d >= todayIso; }).sort();
+      return future.length ? future[0] : null;
+    };
+    var fmtMeetingShort = function(iso) {
+      if (!iso) return '';
+      var d = new Date(iso + 'T00:00:00');
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    };
+
     var groups = [];
     var total = 0;
     Object.keys(courseData).forEach(function(id) {
@@ -5823,13 +5846,24 @@
         var bd = b.dateIso || b.createdAt || '';
         return bd.localeCompare(ad);
       });
-      groups.push({ id: id, code: c.code || id, name: c.courseName || c.title || '', items: items });
+      var nextIso = nextMeetingIso(c);
+      groups.push({
+        id: id,
+        code: c.code || id,
+        name: c.courseName || c.title || '',
+        items: items,
+        nextMeetingIso: nextIso,
+        nextMeetingLabel: fmtMeetingShort(nextIso)
+      });
       total += items.length;
     });
 
-    // Courses with the most open items first, then alpha by code.
+    // Soonest next meeting first; courses with no scheduled meeting fall to
+    // the bottom and sort alpha by code.
     groups.sort(function(a, b) {
-      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      if (a.nextMeetingIso && b.nextMeetingIso) return a.nextMeetingIso.localeCompare(b.nextMeetingIso);
+      if (a.nextMeetingIso) return -1;
+      if (b.nextMeetingIso) return 1;
       return String(a.code).localeCompare(String(b.code));
     });
 
@@ -5850,6 +5884,11 @@
       html += '<div class="todo-course-header" onclick="toggleTodoGroup(\'' + esc(g.id) + '\')" title="Collapse/expand ' + esc(g.code) + '">';
       html += '<span class="todo-course-badge" style="background:' + color + ';">' + esc(g.code) + '</span>';
       html += '<span class="todo-course-name">' + esc(g.name) + '</span>';
+      if (g.nextMeetingLabel) {
+        html += '<span class="todo-course-next" title="Next meeting">' + esc(g.nextMeetingLabel) + '</span>';
+      } else {
+        html += '<span class="todo-course-next none" title="No meeting scheduled">—</span>';
+      }
       html += '<span class="todo-course-toggle" id="todo-group-arrow-' + esc(g.id) + '">' + (groupCollapsed ? '▸' : '▾') + '</span>';
       html += '</div>';
       html += '<div class="todo-course-body' + (groupCollapsed ? ' collapsed' : '') + '" id="todo-group-body-' + esc(g.id) + '">';
