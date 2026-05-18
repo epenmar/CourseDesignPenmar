@@ -113,8 +113,14 @@ const server = http.createServer((req, res) => {
       } else if (stdout) {
         console.log(stdout.trim());
       }
-      // 2) Granola meeting notes (runs after, overlays course entries it matches)
-      execFile(process.execPath, [GRANOLA_SCRIPT], { timeout: 45000 }, (gErr, gOut, gStderr) => {
+      // 2) Granola meeting notes (runs after, overlays course entries it matches).
+      // Timeout is generous because the script iterates every Granola note
+      // summary in the lookback window (105+ at 60-day lookback) and Granola's
+      // per-summary endpoint is the slow bottleneck. Manual runs land in ~75s;
+      // the previous 45s cap killed every server-triggered run, so Granola
+      // notes silently stopped flowing to the dashboard even though Granola
+      // itself had the data. 150s gives headroom as the note count grows.
+      execFile(process.execPath, [GRANOLA_SCRIPT], { timeout: 150000 }, (gErr, gOut, gStderr) => {
         if (gErr) {
           console.error(`[sync-server] Granola sync failed: ${gErr.message}`);
           if (gStderr) console.error(gStderr);
