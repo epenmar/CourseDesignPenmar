@@ -482,6 +482,39 @@
   .edit-btn-save { background: #8c1d40; border: none; color: #fff; }
   .edit-btn-save:hover { background: #6d1633; }
 
+  /* ===== LEFT TO-DO PANEL ===== */
+  .todo-panel { position: fixed; top: 56px; left: 0; bottom: 0; width: 320px; background: #fff; border-right: 1px solid #e0ddd5; box-shadow: 2px 0 8px rgba(0,0,0,0.04); z-index: 200; display: flex; flex-direction: column; transition: width 0.18s ease; font-family: Inter, sans-serif; }
+  .todo-panel.collapsed { width: 36px; box-shadow: none; }
+  .todo-panel-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; border-bottom: 1px solid #eee; flex-shrink: 0; min-height: 38px; }
+  .todo-panel.collapsed .todo-panel-header { padding: 10px 0; justify-content: center; border-bottom: none; }
+  .todo-panel-title { font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8c1d40; display: flex; align-items: center; gap: 8px; }
+  .todo-panel.collapsed .todo-panel-title { display: none; }
+  .todo-panel-count { background: #fef3e8; color: #8c1d40; font-size: 10px; padding: 2px 7px; border-radius: 10px; font-weight: 700; letter-spacing: 0; }
+  .todo-panel-toggle { background: none; border: none; cursor: pointer; padding: 4px 8px; font-size: 14px; color: #888; font-family: inherit; border-radius: 4px; }
+  .todo-panel-toggle:hover { background: #f5f5f0; color: #8c1d40; }
+  .todo-panel-rail { display: none; flex-direction: column; align-items: center; gap: 6px; padding-top: 4px; cursor: pointer; flex: 1; }
+  .todo-panel.collapsed .todo-panel-rail { display: flex; }
+  .todo-panel-rail-icon { font-size: 16px; color: #8c1d40; }
+  .todo-panel-rail-count { writing-mode: vertical-rl; transform: rotate(180deg); font-size: 10px; font-weight: 700; color: #666; letter-spacing: 0.04em; text-transform: uppercase; }
+  .todo-panel-body { flex: 1; overflow-y: auto; padding: 8px 4px 16px; }
+  .todo-panel.collapsed .todo-panel-body { display: none; }
+  .todo-panel-empty { padding: 24px 16px; color: #999; font-size: 12px; font-style: italic; text-align: center; }
+  .todo-course-group { margin: 6px 8px 12px; }
+  .todo-course-header { display: flex; align-items: center; gap: 6px; padding: 4px 6px; border-bottom: 1px solid #f0ede5; margin-bottom: 4px; cursor: pointer; user-select: none; }
+  .todo-course-header:hover { background: #fafaf7; }
+  .todo-course-badge { font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 10px; color: #fff; letter-spacing: 0.02em; flex-shrink: 0; }
+  .todo-course-name { font-size: 11px; color: #666; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .todo-course-toggle { font-size: 10px; color: #aaa; flex-shrink: 0; }
+  .todo-item { display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; font-size: 12px; line-height: 1.4; border-radius: 4px; cursor: default; }
+  .todo-item:hover { background: #fafaf7; }
+  .todo-item .check { flex-shrink: 0; width: 16px; height: 16px; border: 1.5px solid #c8c5bb; border-radius: 4px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 11px; color: #4caf50; background: #fff; margin-top: 1px; }
+  .todo-item .check:hover { border-color: #4caf50; }
+  .todo-item .check.done { background: #4caf50; color: #fff; border-color: #4caf50; }
+  .todo-item .text { flex: 1; color: #333; }
+  .todo-item .text.done { text-decoration: line-through; color: #aaa; }
+  .todo-item .meta { font-size: 10px; color: #999; flex-shrink: 0; padding-left: 4px; }
+  .todo-course-body.collapsed { display: none; }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="dashboard-data.js" onerror="window.SYNCED_DATA=null;"></script>
@@ -537,6 +570,23 @@
     </div>
   </div>
 </div>
+
+<aside class="todo-panel" id="todo-panel" aria-label="Course to-dos">
+  <div class="todo-panel-header">
+    <div class="todo-panel-title">
+      <span>📋 To-Dos</span>
+      <span class="todo-panel-count" id="todo-panel-count">0</span>
+    </div>
+    <button class="todo-panel-toggle" id="todo-panel-toggle" onclick="toggleTodoPanel()" title="Collapse">‹</button>
+  </div>
+  <div class="todo-panel-rail" onclick="setTodoPanelCollapsed(false)" title="Expand to-dos">
+    <span class="todo-panel-rail-icon">📋</span>
+    <span class="todo-panel-rail-count" id="todo-panel-rail-count">0 open</span>
+  </div>
+  <div class="todo-panel-body" id="todo-panel-body">
+    <div class="todo-panel-empty">Loading…</div>
+  </div>
+</aside>
 
 <div class="page">
 
@@ -3023,6 +3073,7 @@
     } catch(e) { console.warn('[airtable auto] apply failed:', e && e.message); }
     renderSummary();
     renderUpcoming();
+    try { if (typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
     try { renderSyncStalenessChip(); } catch (e) {}
     renderTable();
     // Re-render the filter/column controls so the UI reflects the fresh state.
@@ -3085,6 +3136,7 @@
         }
         renderSummary();
         renderUpcoming();
+        try { if (typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
         try { renderSyncStalenessChip(); } catch (e) {}
         renderTable();
         // Local sync's meetings come from dashboard-data.js, which can be
@@ -3120,6 +3172,7 @@
             });
             renderSummary();
             renderUpcoming();
+            try { if (typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
             try { renderSyncStalenessChip(); } catch (e) {}
             renderTable();
             // Same reason as the success path — Supabase is the canonical
@@ -3182,6 +3235,7 @@
       // Re-render the views that depend on meetings.
       if (typeof renderSummary === 'function') renderSummary();
       if (typeof renderUpcoming === 'function') renderUpcoming();
+      if (typeof renderTodoPanel === 'function') renderTodoPanel();
       if (typeof renderSyncStalenessChip === 'function') renderSyncStalenessChip();
       if (typeof renderTable === 'function') renderTable();
       // If a side panel is open, refresh it so the new meetings show up.
@@ -5625,6 +5679,202 @@
     localStorage.setItem('course_last_viewed', JSON.stringify(lv));
   }
 
+  // ===== LEFT TO-DO PANEL =====
+  function isTodoPanelCollapsed() {
+    try { return localStorage.getItem('todoPanelCollapsed') === '1'; } catch(e) { return false; }
+  }
+  function setTodoPanelCollapsed(collapsed) {
+    var panel = document.getElementById('todo-panel');
+    var toggle = document.getElementById('todo-panel-toggle');
+    if (!panel) return;
+    panel.classList.toggle('collapsed', !!collapsed);
+    if (toggle) {
+      toggle.textContent = collapsed ? '›' : '‹';
+      toggle.title = collapsed ? 'Expand' : 'Collapse';
+    }
+    try { localStorage.setItem('todoPanelCollapsed', collapsed ? '1' : '0'); } catch(e) {}
+  }
+  window.toggleTodoPanel = function() { setTodoPanelCollapsed(!isTodoPanelCollapsed()); };
+  window.setTodoPanelCollapsed = setTodoPanelCollapsed;
+
+  // Stable hue from course id so each course gets a consistent badge color.
+  function _todoCourseColor(id) {
+    var h = 0; var s = String(id || '');
+    for (var i = 0; i < s.length; i++) h = ((h << 5) - h + s.charCodeAt(i)) | 0;
+    var hue = Math.abs(h) % 360;
+    return 'hsl(' + hue + ', 55%, 42%)';
+  }
+
+  function _readTodoGroupCollapsed() {
+    try { return JSON.parse(localStorage.getItem('todoGroupCollapsed') || '{}'); }
+    catch(e) { return {}; }
+  }
+  window.toggleTodoGroup = function(courseId) {
+    var map = _readTodoGroupCollapsed();
+    map[courseId] = !map[courseId];
+    try { localStorage.setItem('todoGroupCollapsed', JSON.stringify(map)); } catch(e) {}
+    var body = document.getElementById('todo-group-body-' + courseId);
+    var arrow = document.getElementById('todo-group-arrow-' + courseId);
+    if (body) body.classList.toggle('collapsed', !!map[courseId]);
+    if (arrow) arrow.textContent = map[courseId] ? '▸' : '▾';
+  };
+
+  window.checkTodoFromPanel = function(courseId, mKey, idx, el) {
+    var state;
+    try { state = JSON.parse(localStorage.getItem('meeting_action_items_state') || '{}'); }
+    catch(e) { state = {}; }
+    var k = courseId + '::' + mKey;
+    if (!state[k]) state[k] = {};
+    state[k][idx] = true;
+    try { localStorage.setItem('meeting_action_items_state', JSON.stringify(state)); } catch(e) {}
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[todo-panel] cloud sync failed:', r.error.message); });
+    }
+    var row = el && el.closest('.todo-item');
+    if (row) {
+      row.style.transition = 'opacity 0.2s';
+      row.style.opacity = '0';
+      setTimeout(function() { renderTodoPanel(); }, 220);
+    } else {
+      renderTodoPanel();
+    }
+    var ov = document.getElementById('detail-overlay');
+    if (ov && ov._currentId === courseId && typeof renderDetail === 'function') {
+      try { renderDetail(courseId); } catch(e) {}
+    }
+  };
+
+  window.checkManualTodoFromPanel = function(courseId, itemId) {
+    if (typeof window.toggleManualActionItem === 'function') {
+      window.toggleManualActionItem(courseId, itemId);
+    }
+    renderTodoPanel();
+  };
+
+  function renderTodoPanel() {
+    var body = document.getElementById('todo-panel-body');
+    var countEl = document.getElementById('todo-panel-count');
+    var railEl = document.getElementById('todo-panel-rail-count');
+    if (!body) return;
+    var state;
+    try { state = JSON.parse(localStorage.getItem('meeting_action_items_state') || '{}'); }
+    catch(e) { state = {}; }
+    var manualMap;
+    try { manualMap = JSON.parse(localStorage.getItem('course_action_items') || '{}'); }
+    catch(e) { manualMap = {}; }
+    var collapsedGroups = _readTodoGroupCollapsed();
+    var inactiveMap = (typeof getInactiveCourses === 'function') ? getInactiveCourses() : {};
+
+    var groups = [];
+    var total = 0;
+    Object.keys(courseData).forEach(function(id) {
+      if (inactiveMap[id]) return;
+      var c = courseData[id];
+      if (!c) return;
+      var items = [];
+      (c.meetings || []).forEach(function(m) {
+        var mKey = (typeof meetingKey === 'function') ? meetingKey(m) : ((m && m.title) || '');
+        (m.actionItems || []).forEach(function(a, aIdx) {
+          if (!a) return;
+          if (a.who === 'faculty') return;
+          var stk = state[id + '::' + mKey];
+          var checked = (stk && typeof stk[aIdx] === 'boolean') ? stk[aIdx] : !!a.done;
+          if (checked) return;
+          items.push({
+            kind: 'granola',
+            text: a.text || '',
+            mKey: mKey,
+            idx: aIdx,
+            date: m.date || '',
+            dateIso: m.dateIso || '',
+            title: m.title || ''
+          });
+        });
+      });
+      (manualMap[id] || []).forEach(function(mi) {
+        if (!mi || mi.done) return;
+        items.push({
+          kind: 'manual',
+          text: mi.text || '',
+          itemId: mi.id,
+          date: '',
+          dateIso: '',
+          createdAt: mi.createdAt || ''
+        });
+      });
+      if (!items.length) return;
+      // Newest first within a course.
+      items.sort(function(a, b) {
+        var ad = a.dateIso || a.createdAt || '';
+        var bd = b.dateIso || b.createdAt || '';
+        return bd.localeCompare(ad);
+      });
+      groups.push({ id: id, code: c.code || id, name: c.courseName || c.title || '', items: items });
+      total += items.length;
+    });
+
+    // Courses with the most open items first, then alpha by code.
+    groups.sort(function(a, b) {
+      if (b.items.length !== a.items.length) return b.items.length - a.items.length;
+      return String(a.code).localeCompare(String(b.code));
+    });
+
+    if (countEl) countEl.textContent = String(total);
+    if (railEl) railEl.textContent = total + ' open';
+
+    if (!groups.length) {
+      body.innerHTML = '<div class="todo-panel-empty">No open to-dos. 🎉</div>';
+      return;
+    }
+
+    var esc = function(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); };
+    var html = '';
+    groups.forEach(function(g) {
+      var color = _todoCourseColor(g.id);
+      var groupCollapsed = !!collapsedGroups[g.id];
+      html += '<div class="todo-course-group">';
+      html += '<div class="todo-course-header" onclick="toggleTodoGroup(\'' + esc(g.id) + '\')" title="Collapse/expand ' + esc(g.code) + '">';
+      html += '<span class="todo-course-badge" style="background:' + color + ';">' + esc(g.code) + '</span>';
+      html += '<span class="todo-course-name">' + esc(g.name) + '</span>';
+      html += '<span class="todo-course-toggle" id="todo-group-arrow-' + esc(g.id) + '">' + (groupCollapsed ? '▸' : '▾') + '</span>';
+      html += '</div>';
+      html += '<div class="todo-course-body' + (groupCollapsed ? ' collapsed' : '') + '" id="todo-group-body-' + esc(g.id) + '">';
+      g.items.forEach(function(it) {
+        var meta = '';
+        if (it.kind === 'granola' && it.date) {
+          var d = it.dateIso ? new Date(it.dateIso + 'T00:00:00') : null;
+          meta = d ? d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : it.date;
+        } else if (it.kind === 'manual') {
+          meta = 'Manual';
+        }
+        if (it.kind === 'granola') {
+          html += '<div class="todo-item">'
+            + '<span class="check" onclick="event.stopPropagation(); checkTodoFromPanel(\'' + esc(g.id) + '\',\'' + esc(it.mKey).replace(/'/g,"\\'") + '\',' + it.idx + ', this)" title="Mark done"></span>'
+            + '<span class="text">' + esc(it.text) + '</span>'
+            + (meta ? '<span class="meta">' + esc(meta) + '</span>' : '')
+            + '</div>';
+        } else {
+          html += '<div class="todo-item">'
+            + '<span class="check" onclick="event.stopPropagation(); checkManualTodoFromPanel(\'' + esc(g.id) + '\',\'' + esc(it.itemId) + '\')" title="Mark done"></span>'
+            + '<span class="text">' + esc(it.text) + '</span>'
+            + (meta ? '<span class="meta">' + esc(meta) + '</span>' : '')
+            + '</div>';
+        }
+      });
+      html += '</div></div>';
+    });
+    body.innerHTML = html;
+  }
+  window.renderTodoPanel = renderTodoPanel;
+
+  // Initialize panel state from localStorage on first paint.
+  (function _initTodoPanel() {
+    setTodoPanelCollapsed(isTodoPanelCollapsed());
+    try { renderTodoPanel(); } catch(e) {}
+  })();
+
   function openDetail(courseId) {
     recordLastViewed(courseId);
     try {
@@ -5637,6 +5887,8 @@
     overlay.classList.add('open');
     overlay._currentId = courseId;
     document.getElementById('detail-panel').scrollTop = 0;
+    // Auto-collapse the left to-do panel so the course detail has full room.
+    setTodoPanelCollapsed(true);
     // Opportunistic refresh — picks up visits made since the last poll
     loadWorksheetSessions();
     // Pull live Jira status + children + worklog sync state
