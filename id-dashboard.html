@@ -514,6 +514,9 @@
   .todo-item .text.done { text-decoration: line-through; color: #aaa; }
   .todo-item .meta { font-size: 10px; color: #999; flex-shrink: 0; padding-left: 4px; }
   .todo-course-body.collapsed { display: none; }
+  .page { transition: margin-left 0.18s ease, max-width 0.18s ease; }
+  body.todo-panel-expanded .page { margin-left: 320px; margin-right: 24px; max-width: none; }
+  body.todo-panel-collapsed .page { margin-left: 36px; margin-right: 24px; max-width: none; }
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
@@ -5688,6 +5691,8 @@
     var toggle = document.getElementById('todo-panel-toggle');
     if (!panel) return;
     panel.classList.toggle('collapsed', !!collapsed);
+    document.body.classList.toggle('todo-panel-collapsed', !!collapsed);
+    document.body.classList.toggle('todo-panel-expanded', !collapsed);
     if (toggle) {
       toggle.textContent = collapsed ? '›' : '‹';
       toggle.title = collapsed ? 'Expand' : 'Collapse';
@@ -5767,6 +5772,13 @@
     var collapsedGroups = _readTodoGroupCollapsed();
     var inactiveMap = (typeof getInactiveCourses === 'function') ? getInactiveCourses() : {};
 
+    // The Granola sync writes items like "Elisa: review module 3 …" — the
+    // panel is implicitly the user's so we drop those self-referent prefixes.
+    var stripOwnerPrefix = function(t) {
+      var s = String(t || '').replace(/^[*_\s]+/, '');
+      return s.replace(/^(elisa(?:\s+penmar)?|penmar|id|me|i)\b\s*[:\-]\s*/i, '').trim();
+    };
+
     var groups = [];
     var total = 0;
     Object.keys(courseData).forEach(function(id) {
@@ -5784,7 +5796,7 @@
           if (checked) return;
           items.push({
             kind: 'granola',
-            text: a.text || '',
+            text: stripOwnerPrefix(a.text),
             mKey: mKey,
             idx: aIdx,
             date: m.date || '',
@@ -5797,7 +5809,7 @@
         if (!mi || mi.done) return;
         items.push({
           kind: 'manual',
-          text: mi.text || '',
+          text: stripOwnerPrefix(mi.text),
           itemId: mi.id,
           date: '',
           dateIso: '',
