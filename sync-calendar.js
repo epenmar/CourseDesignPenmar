@@ -491,6 +491,25 @@ async function main() {
       existing.courses[courseId] = {};
     }
     const course = existing.courses[courseId];
+    // Stamp a sensible display title on every synced course. The dashboard's
+    // renderUpcoming reads `c.title` for the "course" label on meeting cards,
+    // and sync-only courses (no static mkCourse seed) previously rendered
+    // that label as blank. Prefer the canonical code from COURSE_KEYWORDS
+    // (e.g., "MNS 521"); otherwise fall back to an uppercased version of the
+    // id with a space inserted before the number ("pop644" -> "POP 644").
+    // Only set this if not already populated — the dashboard may have set a
+    // richer human-readable title (e.g., "MNS 521 — AI Technologies") that
+    // shouldn't get overwritten.
+    if (!course.title) {
+      const kwList = COURSE_KEYWORDS[courseId];
+      if (kwList && kwList.length > 0) {
+        course.title = kwList[0];
+      } else {
+        course.title = courseId
+          .toUpperCase()
+          .replace(/^([A-Z]+?)(\d)/, '$1 $2');
+      }
+    }
     const calMeetings = courseCalendar[courseId] || [];
     const notes = courseNotes[courseId] || [];
 

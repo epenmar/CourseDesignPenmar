@@ -1006,6 +1006,43 @@
     };
   }
 
+  // Bootstrap a minimal courseData entry from a sync-only course payload —
+  // one that has no static mkCourse seed and no user_courses override.
+  // Without this, sync-only courses (e.g., POP 644, TPH 504, LSC598STP494)
+  // were being dropped at every merge site by `if (!courseData[id]) return;`,
+  // so their calendar meetings never reached the Upcoming widget.
+  // The sync now stamps a `title` on each course (see sync-calendar.js), so
+  // we have a sensible label to surface here.
+  function bootstrapCourseFromSync(id, s) {
+    s = s || {};
+    var fallback = id.toUpperCase().replace(/^([A-Z]+?)(\d)/, '$1 $2');
+    var titleStr = String(s.title || fallback);
+    var code = titleStr.split(' — ')[0];
+    return {
+      title: titleStr,
+      subtitle: 'Sync-discovered course',
+      code: code,
+      courseName: titleStr,
+      program: '—', college: '—',
+      instructor: 'TBD', initials: '?', avatarColor: '#888',
+      session: '—', phase: 'Not Started', progressLabel: '0%',
+      fillClass: fillClassFor(0),
+      lastActive: 'No activity', lastActiveStale: true,
+      status: 'Not Started', statusClass: 'status-not-started',
+      progress: 0, progressColor: progressColorFor(0),
+      qa: '—', qaShort: '—',
+      devLink: 'course-worksheet-v2.html?course=' + id,
+      instructorSlug: '',
+      driveFolder: '',
+      email: '', emailName: code,
+      id: 'Elisa Penmar',
+      modules: [],
+      milestones: [],
+      notes: null,
+      _syncBootstrapped: true
+    };
+  }
+
   const courseData = {
     mns521: mkCourse('MNS 521', 'AI Technologies', 'Dariush Navabi', 'Dariush.Navabi@asu.edu', "Spring B '27", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/1cyidt-HEfMzUBDeR7NvyJnHEsISs_RPv',
@@ -1130,8 +1167,14 @@
   // ===== MERGE SYNCED DATA INTO courseData =====
   if (synced && synced.courses) {
     Object.keys(synced.courses).forEach(id => {
-      if (courseData[id] && synced.courses[id]) {
-        const s = synced.courses[id];
+      const s = synced.courses[id];
+      if (!s) return;
+      if (!courseData[id]) {
+        // Sync-only course (no static seed, no user_courses entry). Promote
+        // it to a real card so its meetings flow through to Upcoming.
+        courseData[id] = bootstrapCourseFromSync(id, s);
+      }
+      if (courseData[id] && s) {
         if (s.notes) courseData[id].notes = s.notes;
         if (s.lastActive) courseData[id].lastActive = s.lastActive;
         if (s.lastActiveDate) {
@@ -3014,8 +3057,9 @@
       .then(function(fresh) {
         if (!fresh || !fresh.courses) return;
         Object.keys(fresh.courses).forEach(function(id) {
-          if (!courseData[id]) return;
           var s = fresh.courses[id];
+          if (!s) return;
+          if (!courseData[id]) courseData[id] = bootstrapCourseFromSync(id, s);
           if (s.notes) courseData[id].notes = s.notes;
           if (s.lastActiveDate) {
             var diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
@@ -3058,8 +3102,9 @@
           var fresh = window.SYNCED_DATA;
           if (fresh && fresh.courses) {
             Object.keys(fresh.courses).forEach(function(id) {
-              if (!courseData[id]) return;
               var sc = fresh.courses[id];
+              if (!sc) return;
+              if (!courseData[id]) courseData[id] = bootstrapCourseFromSync(id, sc);
               if (sc.notes) courseData[id].notes = sc.notes;
               if (sc.lastActiveDate) {
                 var diff = Math.floor((new Date() - new Date(sc.lastActiveDate)) / 86400000);
