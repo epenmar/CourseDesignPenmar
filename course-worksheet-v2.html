@@ -7978,6 +7978,16 @@
       if (cardsContainer) attachAllDuePickers(cardsContainer);
       if (tableContainer) attachAllDuePickers(tableContainer);
     }
+    // Grow every activity-name textarea to fit its current content so
+    // long names don't render clipped at the 22px min-height and then
+    // jump-grow when the user clicks in. Without this pass, focus on a
+    // clipped textarea triggered a sudden layout shift (the row got
+    // taller; with vertical-align:top, other cells in the same row
+    // snapped upward), which read as the table "skewing."
+    if (typeof autoGrowTextarea === 'function') {
+      if (cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+    }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
@@ -8130,6 +8140,12 @@
     if (window.RichEditor) {
       if (cardsContainer) window.RichEditor.initAll(cardsContainer);
       if (tableContainer) window.RichEditor.initAll(tableContainer);
+    }
+    // Same auto-grow pass as renderAssignmentsOverview — prevents the
+    // click-to-skew artifact on long material titles.
+    if (typeof autoGrowTextarea === 'function') {
+      if (cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
     }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
