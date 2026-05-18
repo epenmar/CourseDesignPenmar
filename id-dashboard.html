@@ -238,6 +238,16 @@
   .upcoming-meeting-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-top: 2px; display: inline-block; }
   .upcoming-meeting-tag.has-meeting { background: #e8f5e9; color: #2e7d32; }
   .upcoming-meeting-tag.no-meeting { background: #fff3e0; color: #e65100; }
+
+  /* Staleness chip in the Upcoming section header — surfaces when the
+     calendar sync stops landing so silent stale data never goes
+     unnoticed for days again. Click triggers a manual re-sync. */
+  .sync-staleness-chip { margin-left: auto; font-size: 11px; padding: 2px 8px; border-radius: 10px; cursor: pointer; font-weight: 600; border: 1px solid transparent; user-select: none; transition: background-color 0.15s, border-color 0.15s; }
+  .sync-staleness-chip.fresh   { background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9; }
+  .sync-staleness-chip.warning { background: #fff8e1; color: #6a4a00; border-color: #ffe082; }
+  .sync-staleness-chip.broken  { background: #ffebee; color: #b71c1c; border-color: #ffcdd2; }
+  .sync-staleness-chip.syncing { background: #e3f2fd; color: #0d47a1; border-color: #bbdefb; cursor: progress; }
+  .sync-staleness-chip:hover   { filter: brightness(0.95); }
   /* ===== MEETING CARDS ===== */
   .meeting-card { background: #f9f9f6; border: 1px solid #e8e5dd; border-radius: 10px; padding: 16px; margin-bottom: 10px; }
   .meeting-card-header { display: flex; align-items: center; justify-content: space-between; cursor: pointer; }
@@ -677,6 +687,7 @@
         <option value="3">3 weeks</option>
         <option value="4">4 weeks</option>
       </select>
+      <span class="sync-staleness-chip" id="sync-staleness-chip" title="Last calendar sync time. Click to trigger a fresh sync.">—</span>
     </div>
     <div class="upcoming-list" id="upcoming-list"></div>
   </div>
@@ -1263,6 +1274,60 @@
 
     return null;
   }
+
+  // Staleness chip — reads SYNCED_DATA.syncedAt and shows "Synced N ago"
+  // with a colour state so silent sync failures (cron dies, server stops,
+  // workspace path goes stale) become immediately visible. Click triggers
+  // a force-resync, same code path as the legacy sync button.
+  function renderSyncStalenessChip() {
+    var chip = document.getElementById('sync-staleness-chip');
+    if (!chip) return;
+    if (!chip._wired) {
+      chip.addEventListener('click', function() {
+        if (typeof triggerSync !== 'function') return;
+        chip.className = 'sync-staleness-chip syncing';
+        chip.textContent = 'Syncing…';
+        try { triggerSync(true); } catch (e) { console.warn('[staleness chip] triggerSync failed:', e); }
+      });
+      chip._wired = true;
+    }
+    var live = window.SYNCED_DATA;
+    var iso = live && live.syncedAt;
+    if (!iso) {
+      chip.className = 'sync-staleness-chip broken';
+      chip.textContent = 'No sync data — click to retry';
+      return;
+    }
+    var t = Date.parse(iso);
+    if (isNaN(t)) {
+      chip.className = 'sync-staleness-chip broken';
+      chip.textContent = 'Sync time unreadable';
+      return;
+    }
+    var ageMs = Date.now() - t;
+    var ageMin = Math.max(0, Math.floor(ageMs / 60000));
+    var label;
+    if (ageMin < 1) label = 'Synced just now';
+    else if (ageMin < 60) label = 'Synced ' + ageMin + ' min ago';
+    else if (ageMin < 60 * 24) {
+      var h = Math.floor(ageMin / 60);
+      label = 'Synced ' + h + ' hour' + (h === 1 ? '' : 's') + ' ago';
+    } else {
+      var d = Math.floor(ageMin / (60 * 24));
+      label = 'Synced ' + d + ' day' + (d === 1 ? '' : 's') + ' ago — sync broken';
+    }
+    var state;
+    if (ageMs < 2 * 60 * 60 * 1000) state = 'fresh';
+    else if (ageMs < 6 * 60 * 60 * 1000) state = 'warning';
+    else state = 'broken';
+    chip.className = 'sync-staleness-chip ' + state;
+    chip.textContent = label;
+    chip.title = 'Last calendar sync at ' + new Date(t).toLocaleString() +
+      '\nClick to trigger a fresh sync now.';
+  }
+  // Re-paint every minute so the chip ages live without a page refresh.
+  setInterval(function() { try { renderSyncStalenessChip(); } catch (e) {} }, 60000);
+  window.renderSyncStalenessChip = renderSyncStalenessChip;
 
   function renderUpcoming() {
     // Always read the live global — `synced` is a const captured at page
@@ -2915,6 +2980,7 @@
     } catch(e) { console.warn('[airtable auto] apply failed:', e && e.message); }
     renderSummary();
     renderUpcoming();
+    try { renderSyncStalenessChip(); } catch (e) {}
     renderTable();
     // Re-render the filter/column controls so the UI reflects the fresh state.
     try { renderColumnFilters(); } catch(e) {}
@@ -2975,6 +3041,7 @@
         }
         renderSummary();
         renderUpcoming();
+        try { renderSyncStalenessChip(); } catch (e) {}
         renderTable();
         // Local sync's meetings come from dashboard-data.js, which can be
         // stale. Re-pull from Supabase so the (multi-machine, current)
@@ -3008,6 +3075,7 @@
             });
             renderSummary();
             renderUpcoming();
+            try { renderSyncStalenessChip(); } catch (e) {}
             renderTable();
             // Same reason as the success path — Supabase is the canonical
             // source for meetings, so let it win over disk-cached data.
@@ -3069,6 +3137,7 @@
       // Re-render the views that depend on meetings.
       if (typeof renderSummary === 'function') renderSummary();
       if (typeof renderUpcoming === 'function') renderUpcoming();
+      if (typeof renderSyncStalenessChip === 'function') renderSyncStalenessChip();
       if (typeof renderTable === 'function') renderTable();
       // If a side panel is open, refresh it so the new meetings show up.
       var ov = document.getElementById('detail-overlay');
