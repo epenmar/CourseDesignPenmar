@@ -586,7 +586,7 @@
   </div>
   <div class="todo-panel-rail" onclick="setTodoPanelCollapsed(false)" title="Expand to-dos">
     <span class="todo-panel-rail-icon">📋</span>
-    <span class="todo-panel-rail-count" id="todo-panel-rail-count">0 open</span>
+    <span class="todo-panel-rail-count" id="todo-panel-rail-count">To-Do List</span>
   </div>
   <div class="todo-panel-body" id="todo-panel-body">
     <div class="todo-panel-empty">Loading…</div>
@@ -1474,9 +1474,40 @@
     const deadlineDatesByCourse = {};
     cards.forEach(d => { if (d.courseId) { (deadlineDatesByCourse[d.courseId] = deadlineDatesByCourse[d.courseId] || []).push(d.date); } });
 
-    // Add standalone calendar meetings that aren't near any milestone
+    // A meeting whose end time has already passed shouldn't appear in
+    // Upcoming. dtStartIso + durationMinutes gives a precise end; if those
+    // are missing (older sync payloads), fall back to a generous end-of-day
+    // boundary so we don't accidentally hide meetings that are still ongoing.
+    const nowMs = Date.now();
+    const isPastMeeting = (m) => {
+      if (!m || !m.date) return false;
+      if (m.date < todayStr) return true;
+      if (m.date > todayStr) return false;
+      // Same day: compare against end time when we have it
+      if (m.dtStartIso) {
+        var startMs = new Date(m.dtStartIso).getTime();
+        if (!isNaN(startMs)) {
+          var dur = (m.durationMinutes || 60) * 60000;
+          return (startMs + dur) < nowMs;
+        }
+      }
+      return false; // unknown time → keep, user can see it's "today"
+    };
+
+    // Add standalone calendar meetings that aren't near any milestone.
+    // Dedupe across courses so the same calendar event only renders once.
+    // The local sync auto-creates pseudo-courses (chs100/chs300, lsc598stp494,
+    // stp494, etc.) when it sees their codes in a meeting title — they all
+    // end up holding the same meeting, which previously produced 3-4 identical
+    // upcoming cards. We dedupe by uid when available, and by date+label
+    // otherwise (nextMeeting payloads omit uid).
+    const seenMeetings = {};
+    const dedupeKey = (m) => m.uid ? ('uid:' + m.uid) : ('dl:' + m.date + '|' + (m.label || ''));
+    const inactiveMap = (typeof getInactiveCourses === 'function') ? getInactiveCourses() : {};
     Object.keys(courseData).forEach(id => {
+      if (inactiveMap[id]) return; // hide meetings from courses the user has marked inactive
       const c = courseData[id];
+      if (!c) return;
       const allMeetings = [];
       if (c.calendarMeetings) allMeetings.push(...c.calendarMeetings);
       if (c.nextMeeting && c.nextMeeting.date) {
@@ -1485,16 +1516,16 @@
       }
       const datesForCourse = deadlineDatesByCourse[id] || [];
       allMeetings.forEach(m => {
-        if (!m.date || m.date < todayStr || m.date > cutoffStr) return;
-        // Only suppress when a deadline already exists on the exact same
-        // day for this course — previously a ±2-day window absorbed
-        // standalone meetings sitting next to (but not on) a deadline,
-        // making it look like meetings were missing from the widget.
+        if (!m.date || m.date > cutoffStr) return;
+        if (isPastMeeting(m)) return;
+        var key = dedupeKey(m);
+        if (seenMeetings[key]) return;
+        seenMeetings[key] = true;
         const sameDayDeadline = datesForCourse.indexOf(m.date) !== -1;
         if (!sameDayDeadline) {
           cards.push({
             title: m.label || 'Meeting',
-            course: c.title,
+            course: c.title || c.code || id.toUpperCase(),
             date: m.date,
             courseId: id,
             meetingInfo: { time: m.time, label: m.label },
@@ -1504,12 +1535,31 @@
       });
     });
 
-    // Sort by date. Cap high enough that a course with several meetings in
-    // the window doesn't squeeze other courses out — previously the 6-card
-    // limit meant POP 644's two May meetings pushed other May meetings off
-    // the list.
-    cards.sort((a, b) => a.date.localeCompare(b.date));
-    const upcoming = cards.slice(0, 16);
+    // Drop deadline cards whose date is today and whose attached meeting
+    // (if any) has already ended — without this, "Materials Review" at
+    // 10 AM stays in Upcoming all afternoon.
+    const filteredCards = cards.filter(c => {
+      if (c.date > todayStr) return true;
+      if (c.date < todayStr) return false; // shouldn't be here but be safe
+      if (c.meetingInfo && c.meetingInfo.time) {
+        // Try to parse the time to compare against now
+        var t = String(c.meetingInfo.time).match(/(\d{1,2}):(\d{2})\s*(AM|PM)?/i);
+        if (t) {
+          var hh = parseInt(t[1], 10);
+          var mm = parseInt(t[2], 10);
+          var ampm = (t[3] || '').toUpperCase();
+          if (ampm === 'PM' && hh !== 12) hh += 12;
+          if (ampm === 'AM' && hh === 12) hh = 0;
+          var meetingEnd = new Date();
+          meetingEnd.setHours(hh, mm + 60, 0, 0); // assume 60 min default
+          if (meetingEnd.getTime() < nowMs) return false;
+        }
+      }
+      return true;
+    });
+
+    filteredCards.sort((a, b) => a.date.localeCompare(b.date));
+    const upcoming = filteredCards.slice(0, 16);
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
@@ -3152,7 +3202,21 @@
         if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
       })
       .catch(function() {
-        // Server not running — reload dashboard-data.js from disk with cache-bust
+        // If memory already has a usable SYNCED_DATA (e.g., from an earlier
+        // successful sync in this session), keep it. Without this guard, a
+        // single transient sync failure on focus/visibilitychange would
+        // overwrite the in-memory fresh data with the on-disk dashboard-
+        // data.js, which can be days stale — the "Synced 2 min ago" widget
+        // would flip to "Synced 6 days ago — sync broken" 30 seconds later.
+        var current = window.SYNCED_DATA;
+        if (current && current.syncedAt && current.courses) {
+          var ageMs = Date.now() - new Date(current.syncedAt).getTime();
+          if (!isNaN(ageMs) && ageMs < 24 * 3600000) {
+            console.info('[sync] failed; retaining in-memory data from', current.syncedAt);
+            return;
+          }
+        }
+        // Server not running and memory is missing/stale — reload from disk
         var s = document.createElement('script');
         s.src = 'dashboard-data.js?t=' + Date.now();
         s.onload = function() {
@@ -5783,17 +5847,33 @@
 
     // Soonest upcoming meeting date (ISO yyyy-mm-dd) for a course, or null
     // if none scheduled. Used to order panel groups by deadline urgency.
+    // Today's meetings whose end time has passed don't count — otherwise a
+    // 10 AM meeting still flags as "upcoming" at 4 PM.
+    var nowMs = Date.now();
     var todayIso = new Date().toISOString().slice(0, 10);
+    var meetingStillUpcoming = function(m) {
+      if (!m || !m.date) return false;
+      if (m.date < todayIso) return false;
+      if (m.date > todayIso) return true;
+      if (m.dtStartIso) {
+        var startMs = new Date(m.dtStartIso).getTime();
+        if (!isNaN(startMs)) {
+          var dur = (m.durationMinutes || 60) * 60000;
+          return (startMs + dur) >= nowMs;
+        }
+      }
+      return true; // same day, unknown end → keep visible
+    };
     var nextMeetingIso = function(c) {
       var dates = [];
-      if (c.nextMeeting && c.nextMeeting.date) dates.push(c.nextMeeting.date);
+      if (c.nextMeeting && meetingStillUpcoming(c.nextMeeting)) dates.push(c.nextMeeting.date);
       if (Array.isArray(c.calendarMeetings)) {
         c.calendarMeetings.forEach(function(cm) {
-          if (cm && cm.date && !cm.past) dates.push(cm.date);
+          if (meetingStillUpcoming(cm)) dates.push(cm.date);
         });
       }
-      var future = dates.filter(function(d) { return d >= todayIso; }).sort();
-      return future.length ? future[0] : null;
+      dates.sort();
+      return dates.length ? dates[0] : null;
     };
     var fmtMeetingShort = function(iso) {
       if (!iso) return '';
@@ -5868,7 +5948,7 @@
     });
 
     if (countEl) countEl.textContent = String(total);
-    if (railEl) railEl.textContent = total + ' open';
+    if (railEl) railEl.textContent = 'To-Do List';
 
     if (!groups.length) {
       body.innerHTML = '<div class="todo-panel-empty">No open to-dos. 🎉</div>';
