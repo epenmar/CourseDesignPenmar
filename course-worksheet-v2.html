@@ -6454,6 +6454,23 @@
     _doSaveAllFields();
   });
 
+  // Patch A — tab-switch flush. Debounced save timers (saveAllFields,
+  // saveModuleOverview) lose unsubmitted typing if the user types and
+  // immediately switches tabs before the 500ms timer fires. beforeunload
+  // covers tab closes but not visibility changes, and Chrome aggressively
+  // throttles setTimeout on backgrounded tabs — a 500ms timer can be
+  // delayed by several seconds, during which any re-render reading
+  // localStorage's older value wipes the textarea's in-DOM new value.
+  // Flushing here on the hidden→visible transition guarantees the user's
+  // most recent typing reaches localStorage and the cloud-push pipeline.
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState !== 'hidden') return;
+    try { clearTimeout(saveTimer); } catch (e) {}
+    try { clearTimeout(modOverviewSaveTimer); } catch (e) {}
+    try { saveModuleOverviewSync(); } catch (e) {}
+    try { _doSaveAllFields(); } catch (e) {}
+  });
+
   function restoreAllFields() {
     const allData = loadField('formData');
     if (!allData) return;
@@ -16722,6 +16739,8 @@
 
   function applyRemoteModuleList(payload) {
     if (!payload || !payload.itemType || !payload.mods) return;
+    var collKey = payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials';
+    if (_isStaleRemoteBroadcast(collKey, payload.at)) return;
     var coll = payload.itemType === 'activity' ? courseActivities : courseMaterials;
     Object.keys(payload.mods).forEach(function(m) { coll[parseInt(m)] = payload.mods[m] || []; });
     try { saveField(payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials', coll); } catch(e) {}
@@ -16729,8 +16748,28 @@
     deferredItemRerender({ itemType: payload.itemType, modNum: firstMod });
   }
 
+  // Patch B helper — block stale broadcasts from overwriting a locally-
+  // newer top-level key. Payload carries `at` (sender's Date.now() at
+  // broadcast). We compare against our local __modifiedAt[<key>], which
+  // saveField stamps on every persisted write. If our local is newer,
+  // the broadcast was sent before the sender saw our change — applying
+  // it would clobber the user's work.
+  function _isStaleRemoteBroadcast(key, payloadAt) {
+    if (typeof payloadAt !== 'number') return false; // back-compat: pre-`at` broadcasts always apply
+    try {
+      var blob = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      var localMod = (blob && blob.__modifiedAt && blob.__modifiedAt[key]) || 0;
+      if (payloadAt < localMod) {
+        console.info('[live-edit] dropping stale', key, 'broadcast (remote at', payloadAt, '< local', localMod, ')');
+        return true;
+      }
+    } catch (e) {}
+    return false;
+  }
+
   function applyRemoteModuleOverview(payload) {
     if (!payload || !payload.data) return;
+    if (_isStaleRemoteBroadcast('moduleOverviewData', payload.at)) return;
     try {
       saveField('moduleOverviewData', payload.data);
       var startN = activeCourse.moduleStartZero ? 0 : 1;
@@ -16819,6 +16858,8 @@
 
   function applyRemoteItem(payload) {
     if (!payload || !payload.itemType || !payload.modNum || !payload.item) return;
+    var collKey = payload.itemType === 'activity' ? 'courseActivities' : 'courseMaterials';
+    if (_isStaleRemoteBroadcast(collKey, payload.at)) return;
     var coll = payload.itemType === 'activity' ? courseActivities : courseMaterials;
     if (!coll[payload.modNum]) coll[payload.modNum] = [];
     var arr = coll[payload.modNum];
