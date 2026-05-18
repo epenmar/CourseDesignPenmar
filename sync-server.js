@@ -34,6 +34,21 @@ const ENV = loadEnv();
 // Throttle: don't re-sync if last sync was <60s ago
 let lastSync = 0;
 
+// Auto-publish state — keeps dashboard-data.js on GitHub Pages fresh
+// without requiring a manual commit. Throttled because the cron runs
+// every dashboard page-load and we don't want one commit per visit.
+let lastPublishAt = 0;
+let publishInProgress = false;
+// Minimum gap between auto-pushes. Frequent enough to keep the
+// deployed dashboard within ~30 min of reality; sparse enough that
+// git log isn't drowned in [sync] commits.
+const PUBLISH_THROTTLE_MS = 30 * 60 * 1000;
+// Allow the user to opt out without code edits via ~/conductor/.env.
+// Any non-truthy value disables the auto-push; the local dashboard
+// still gets fresh data via the localhost:3456 path, only the
+// deployed dashboard stops auto-updating.
+const AUTO_PUBLISH = (ENV.DASHBOARD_AUTOPUBLISH || 'true').toLowerCase() !== 'false';
+
 const server = http.createServer((req, res) => {
   // CORS headers so the dashboard can fetch from localhost
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -108,6 +123,11 @@ const server = http.createServer((req, res) => {
         }
         lastSync = Date.now();
         serveData(res);
+        // Fire-and-forget: push the freshly-written dashboard-data.js to
+        // GitHub Pages so the deployed dashboard tracks reality. Runs
+        // after the response is sent so it never delays the user-facing
+        // sync. Throttled + content-aware (see publishDashboardData).
+        try { publishDashboardData(); } catch (e) { console.warn('[publish] threw:', e && e.message); }
       });
     });
   } else {
@@ -115,6 +135,104 @@ const server = http.createServer((req, res) => {
     res.end('Not found');
   }
 });
+
+// Auto-commit + push dashboard-data.js to the configured remote so the
+// GitHub-Pages-served dashboard tracks reality. Conservative defaults:
+//   - Skipped entirely when AUTO_PUBLISH is false
+//   - Throttled to PUBLISH_THROTTLE_MS so a noisy day doesn't spam commits
+//   - Aborts if the working tree has UNRELATED modifications — refuses to
+//     hijack the user's in-progress work
+//   - Skips when the only diff is the syncedAt timestamp (no real data
+//     change is worth pushing)
+//   - Pushes `HEAD:main` to match the user's existing manual workflow
+//   - Logs to sync-server.log; never blocks the response
+function publishDashboardData() {
+  if (!AUTO_PUBLISH) return;
+  if (publishInProgress) return;
+  if (Date.now() - lastPublishAt < PUBLISH_THROTTLE_MS) return;
+  publishInProgress = true;
+  const cwd = __dirname;
+  // 1. Make sure dashboard-data.js actually changed since the last commit.
+  execFile('git', ['diff', '--quiet', '--', 'dashboard-data.js'], { cwd }, (diffErr) => {
+    if (!diffErr) {
+      // exit 0 = no diff → nothing to publish
+      publishInProgress = false;
+      return;
+    }
+    // 2. Check if dashboard-data.js is the ONLY modified file. If the user
+    //    has other in-flight edits, we don't want to commit-and-push their
+    //    branch state out from under them.
+    execFile('git', ['status', '--porcelain'], { cwd }, (statusErr, statusOut) => {
+      if (statusErr) {
+        console.warn('[publish] git status failed:', statusErr.message);
+        publishInProgress = false;
+        return;
+      }
+      const lines = (statusOut || '').split('\n').map(l => l.trim()).filter(Boolean);
+      const otherModified = lines.filter(l => {
+        const path = l.replace(/^\S+\s+/, '');
+        return path !== 'dashboard-data.js' && !path.startsWith('??');
+      });
+      if (otherModified.length > 0) {
+        console.log('[publish] working tree has other modifications, skipping auto-push:',
+          otherModified.slice(0, 5).join(' | '));
+        publishInProgress = false;
+        return;
+      }
+      // 3. Skip if the only change is the syncedAt timestamp. Pushing those
+      //    is mostly noise — the staleness chip already shows freshness via
+      //    timestamp comparison, and the deployed snapshot doesn't need
+      //    every-N-min churn for purely cosmetic age refreshes.
+      execFile('git', ['diff', '--unified=0', '--', 'dashboard-data.js'], { cwd }, (dErr, dOut) => {
+        if (dErr) {
+          console.warn('[publish] git diff failed:', dErr.message);
+          publishInProgress = false;
+          return;
+        }
+        const meaningful = (dOut || '')
+          .split('\n')
+          .filter(l => (l.startsWith('+') || l.startsWith('-')) &&
+                       !l.startsWith('+++') && !l.startsWith('---') &&
+                       !/syncedAt|Last synced/.test(l));
+        if (meaningful.length === 0) {
+          publishInProgress = false;
+          return;
+        }
+        // 4. Stage, commit, and push HEAD to origin/main.
+        execFile('git', ['add', 'dashboard-data.js'], { cwd }, (addErr) => {
+          if (addErr) {
+            console.warn('[publish] git add failed:', addErr.message);
+            publishInProgress = false;
+            return;
+          }
+          const msg = '[sync] dashboard-data.js refresh';
+          execFile('git', ['commit', '-m', msg], { cwd }, (commitErr, cOut, cStderr) => {
+            if (commitErr) {
+              console.warn('[publish] git commit failed:', commitErr.message);
+              if (cStderr) console.warn(cStderr.trim());
+              publishInProgress = false;
+              return;
+            }
+            execFile('git', ['push', 'origin', 'HEAD:main'], { cwd, timeout: 30000 },
+              (pushErr, pOut, pStderr) => {
+                if (pushErr) {
+                  console.warn('[publish] git push failed:', pushErr.message);
+                  if (pStderr) console.warn(pStderr.trim());
+                  // Don't reset lastPublishAt on failure — let the throttle
+                  // window pass naturally so we don't spam attempts when
+                  // offline. Next successful sync will retry.
+                } else {
+                  console.log('[publish] pushed dashboard-data.js to origin/main');
+                  lastPublishAt = Date.now();
+                }
+                publishInProgress = false;
+              });
+          });
+        });
+      });
+    });
+  });
+}
 
 function serveData(res) {
   try {
