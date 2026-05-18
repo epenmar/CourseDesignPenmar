@@ -662,7 +662,7 @@
         <button onclick="closeIdentifyCourse()" style="background:none; border:none; color:#999; font-size:18px; cursor:pointer; padding:0 4px;">&times;</button>
       </div>
       <p style="font-size:12px; color:#666; margin-bottom:10px;">Type a full code (<code>HSC 310</code>) or just the prefix (<code>HSC</code>) to see which program and college it belongs to.</p>
-      <input type="text" id="ic-input" autocomplete="off" autofocus placeholder="e.g. HSC, TPH 501, BMI 515" oninput="runIdentifyCourse()" style="width:100%; padding:10px 12px; font-size:14px; font-family:'Inter',sans-serif; border:1px solid #e0ddd5; border-radius:8px; margin-bottom:12px;">
+      <input type="text" id="ic-input" autocomplete="off" autofocus placeholder="e.g. HSC, TPH 501, BST 605" oninput="runIdentifyCourse()" style="width:100%; padding:10px 12px; font-size:14px; font-family:'Inter',sans-serif; border:1px solid #e0ddd5; border-radius:8px; margin-bottom:12px;">
       <div id="ic-results" style="overflow-y:auto; flex:1; min-height:80px; border-top:1px solid #f0ede5; padding-top:10px;"></div>
     </div>
   </div>
@@ -1031,9 +1031,6 @@
     bst501: mkCourse('BST 501', 'Biostatistics for Research and Practice', 'Chong Lee', 'Chong.Lee@asu.edu', "Fall A '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1UpZhMoNugwOYRlAyKDlrTtUDFhFgCjMW',
       { qa: 'Jul 20, 2026', qaShort: 'Jul 20' }),
-    bst515: mkCourse('BST 515', 'Biostatistics in Medicine and Informatics', 'TBD', '', "Fall B '26", 'PH Tech MPH', 'STPH',
-      'https://drive.google.com/drive/u/0/folders/10KAcmfKbgUXRNeDZZovbywLn8AjdGhRq',
-      { qa: 'Sep 14, 2026', qaShort: 'Sep 14' }),
     bst605: mkCourse('BST 605', 'Biostatistical Data Analysis', 'Habte Tadesse Likassa', 'hlikassa@mainex1.asu.edu', "Fall A '26", 'Biostatistics MS', 'CHS',
       'https://drive.google.com/drive/u/0/folders/1TWmWxFDcvxFu7-ys8Q3lYLY1UU1JJYBA',
       { status: 'On Track', phase: 'ELOs & CLOs', lastActive: '13 days ago', lastActiveStale: false, qa: 'Jul 20, 2026', qaShort: 'Jul 20',
@@ -4041,7 +4038,6 @@
   var COURSE_JIRA_EPICS = {
     mns522:    'EDL-7828',   // MNS522-Python for Scientific Computing
     lsc598gen: 'EDL-7829',   // LSC598/STP494-Special Topics: Data Science for Genomics
-    bst515:    'EDL-7825',   // BST515/BMI515-Biostatistics in Medicine and Informatics
     bst605:    'EDL-7802',   // BST605-Biostatistical Data Analysis
     bst606:    'EDL-7797',   // BST606-Applied Clinical Trial Design and Analysis
     bst609:    'EDL-7803',   // BST609-Categorical Data Analysis in Health Sciences
