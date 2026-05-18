@@ -3329,7 +3329,33 @@
       var r = await window._sbClient.from('worksheets').select('data, updated_at').eq('course_id', courseId).maybeSingle();
       if (r.error) { console.warn('[cloud pull] error:', r.error.message); setIndicator('☁ pull error', '#c62828'); }
       else if (r.data && r.data.data && typeof r.data.data === 'object') {
-        localStorage.setItem(storageKey, JSON.stringify(r.data.data));
+        // Merge cloud into local using __modifiedAt timestamps. The previous
+        // unconditional overwrite silently lost any edit the user typed in
+        // the ~2.5s window between save-debounce and cloud-push — refresh
+        // before the push fired and the next pull would wipe the local-only
+        // edit (Module Overview MLOs were a frequent victim of this race).
+        try {
+          var localBlob = JSON.parse(localStorage.getItem(storageKey) || '{}');
+          var cloudBlob = r.data.data;
+          var mergedBlob = (typeof mergeWorksheetBlobs === 'function')
+            ? mergeWorksheetBlobs(localBlob, cloudBlob)
+            : cloudBlob;
+          localStorage.setItem(storageKey, JSON.stringify(mergedBlob));
+          // If local was newer for any key, queue a push so the cloud
+          // catches up rather than letting local-only edits sit forever.
+          var lMod = (localBlob && localBlob.__modifiedAt) || {};
+          var cMod = (cloudBlob && cloudBlob.__modifiedAt) || {};
+          var localAhead = Object.keys(lMod).some(function(k) {
+            return (lMod[k] || 0) > (cMod[k] || 0);
+          });
+          if (localAhead) {
+            window._cloudPullComplete = true;
+            if (typeof scheduleCloudPush === 'function') scheduleCloudPush();
+          }
+        } catch(e) {
+          console.warn('[cloud pull] merge failed, falling back to cloud copy:', e && e.message);
+          localStorage.setItem(storageKey, JSON.stringify(r.data.data));
+        }
         var t = r.data.updated_at ? new Date(r.data.updated_at).toLocaleTimeString() : 'now';
         console.info('[cloud pull] loaded', courseId, 'updated at', t);
         setIndicator('☁ pulled ' + t, '#2e7d32');
