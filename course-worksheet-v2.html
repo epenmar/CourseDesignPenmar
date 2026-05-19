@@ -9724,13 +9724,82 @@
   // ===== MODERN QUIZ BUILDER =====
   var quizData = {}; // keyed by container element id
 
+  // builderId looks like "act-103-tpl-quiz-quiz-builder" or
+  // "ov-act-103-tpl-quiz-quiz-builder". Extract the activity id so we can
+  // attach quizData to the activity in courseActivities.
+  function _quizActIdFromBuilderId(builderId) {
+    var m = String(builderId || '').match(/^(?:ov-)?(act-\d+)-/);
+    return m ? m[1] : null;
+  }
+  function _quizFindActivity(actId) {
+    if (!actId || typeof courseActivities !== 'object') return null;
+    var mods = Object.keys(courseActivities || {});
+    for (var i = 0; i < mods.length; i++) {
+      var modNum = parseInt(mods[i], 10);
+      var arr = courseActivities[modNum] || [];
+      for (var j = 0; j < arr.length; j++) {
+        if (arr[j] && arr[j].id === actId) return { modNum: modNum, item: arr[j] };
+      }
+    }
+    return null;
+  }
+
+  // Persist the in-memory quizData[builderId] into the owning activity's
+  // .quizQuestions field, write courseActivities to localStorage + cloud,
+  // and broadcast the activity update so collaborators see the questions
+  // in real time. Called from every quiz mutation handler.
+  function saveQuizDataForBuilder(builderId) {
+    var actId = _quizActIdFromBuilderId(builderId);
+    var loc = _quizFindActivity(actId);
+    if (!loc) return;
+    var data = quizData[builderId];
+    if (!data) return;
+    // Strip the DOM-only `num` field; recompute on render.
+    loc.item.quizQuestions = {
+      pointsPerQuestion: data.pointsPerQuestion,
+      questions: (data.questions || []).map(function(q) {
+        return {
+          text: q.text || '',
+          type: q.type || 'multiple-choice',
+          choices: (q.choices || []).map(function(c) { return { text: c.text || '', correct: !!c.correct }; }),
+          correctFeedback: q.correctFeedback || '',
+          incorrectFeedback: q.incorrectFeedback || ''
+        };
+      })
+    };
+    try { saveField('courseActivities', courseActivities); } catch (e) {}
+    if (typeof broadcastItemUpdate === 'function') {
+      try { broadcastItemUpdate('activity', loc.modNum, loc.item); } catch (e) {}
+    }
+  }
+
   function initQuizBuilder(container) {
     var builderId = container.id;
+    // Restore previously saved quizQuestions from the activity, if any.
+    var actId = _quizActIdFromBuilderId(builderId);
+    var loc = _quizFindActivity(actId);
+    var saved = loc && loc.item && loc.item.quizQuestions;
     if (!quizData[builderId]) {
-      quizData[builderId] = {
-        pointsPerQuestion: 5,
-        questions: [createEmptyQuestion(1)]
-      };
+      if (saved && Array.isArray(saved.questions) && saved.questions.length > 0) {
+        quizData[builderId] = {
+          pointsPerQuestion: saved.pointsPerQuestion || 5,
+          questions: saved.questions.map(function(q, i) {
+            return {
+              num: i + 1,
+              text: q.text || '',
+              type: q.type || 'multiple-choice',
+              choices: (q.choices || []).map(function(c) { return { text: c.text || '', correct: !!c.correct }; }),
+              correctFeedback: q.correctFeedback || '',
+              incorrectFeedback: q.incorrectFeedback || ''
+            };
+          })
+        };
+      } else {
+        quizData[builderId] = {
+          pointsPerQuestion: 5,
+          questions: [createEmptyQuestion(1)]
+        };
+      }
     }
     renderQuizBuilder(container);
   }
@@ -9759,7 +9828,7 @@
     var html = '<div class="quiz-builder">';
     html += '<div class="quiz-points-row">';
     html += '<label>Points per question:</label>';
-    html += '<input type="number" class="quiz-points-input" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1" />';
+    html += '<input type="number" class="quiz-points-input" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1; saveQuizDataForBuilder(\'' + builderId + '\')" />';
     html += '</div>';
 
     for (var q = 0; q < data.questions.length; q++) {
@@ -9832,12 +9901,14 @@
       }
       renderQuizBuilder(document.getElementById(builderId));
     }
+    saveQuizDataForBuilder(builderId);
   }
 
   function updateQuizChoice(builderId, qIdx, cIdx, value) {
     var data = quizData[builderId];
     if (!data || !data.questions[qIdx]) return;
     data.questions[qIdx].choices[cIdx].text = value;
+    saveQuizDataForBuilder(builderId);
   }
 
   function toggleQuizCorrect(builderId, qIdx, cIdx) {
@@ -9849,6 +9920,7 @@
       choices[i].correct = (i === cIdx) ? !choices[i].correct : false;
     }
     renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
   }
 
   function addQuizChoice(builderId, qIdx) {
@@ -9856,6 +9928,7 @@
     if (!data || !data.questions[qIdx]) return;
     data.questions[qIdx].choices.push({ text: '', correct: false });
     renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
   }
 
   function removeQuizChoice(builderId, qIdx, cIdx) {
@@ -9864,6 +9937,7 @@
     if (data.questions[qIdx].choices.length <= 2) return;
     data.questions[qIdx].choices.splice(cIdx, 1);
     renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
   }
 
   function addQuizQuestion(builderId) {
@@ -9871,6 +9945,7 @@
     if (!data) return;
     data.questions.push(createEmptyQuestion(data.questions.length + 1));
     renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
   }
 
   function removeQuizQuestion(builderId, qIdx) {
@@ -9878,6 +9953,7 @@
     if (!data || data.questions.length <= 1) return;
     data.questions.splice(qIdx, 1);
     renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
   }
 
   // ===== AI COURSE OVERVIEW GENERATION =====
@@ -10002,6 +10078,7 @@
           };
         });
         renderQuizBuilder(container);
+        saveQuizDataForBuilder(builderId);
       }
     } catch (err) {
       alert('AI generation failed: ' + err.message);
