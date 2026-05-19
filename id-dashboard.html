@@ -233,8 +233,6 @@
   .upcoming-info .upcoming-title { font-size: 11px; font-weight: 600; }
   .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-info .upcoming-course a:hover { text-decoration: underline; }
-  .upcoming-card.urgent { border-color: #ef9a9a; background: #fff8f8; }
-  .upcoming-card.urgent .upcoming-date-box { background: #c62828; }
   .upcoming-meeting-tag { font-size: 9px; font-weight: 600; padding: 2px 6px; border-radius: 3px; margin-top: 2px; display: inline-block; }
   .upcoming-meeting-tag.has-meeting { background: #e8f5e9; color: #2e7d32; }
   .upcoming-meeting-tag.no-meeting { background: #fff3e0; color: #e65100; }
@@ -1061,43 +1059,6 @@
     };
   }
 
-  // Bootstrap a minimal courseData entry from a sync-only course payload —
-  // one that has no static mkCourse seed and no user_courses override.
-  // Without this, sync-only courses (e.g., POP 644, TPH 504, LSC598STP494)
-  // were being dropped at every merge site by `if (!courseData[id]) return;`,
-  // so their calendar meetings never reached the Upcoming widget.
-  // The sync now stamps a `title` on each course (see sync-calendar.js), so
-  // we have a sensible label to surface here.
-  function bootstrapCourseFromSync(id, s) {
-    s = s || {};
-    var fallback = id.toUpperCase().replace(/^([A-Z]+?)(\d)/, '$1 $2');
-    var titleStr = String(s.title || fallback);
-    var code = titleStr.split(' — ')[0];
-    return {
-      title: titleStr,
-      subtitle: 'Sync-discovered course',
-      code: code,
-      courseName: titleStr,
-      program: '—', college: '—',
-      instructor: 'TBD', initials: '?', avatarColor: '#888',
-      session: '—', phase: 'Not Started', progressLabel: '0%',
-      fillClass: fillClassFor(0),
-      lastActive: 'No activity', lastActiveStale: true,
-      status: 'Not Started', statusClass: 'status-not-started',
-      progress: 0, progressColor: progressColorFor(0),
-      qa: '—', qaShort: '—',
-      devLink: 'course-worksheet-v2.html?course=' + id,
-      instructorSlug: '',
-      driveFolder: '',
-      email: '', emailName: code,
-      id: 'Elisa Penmar',
-      modules: [],
-      milestones: [],
-      notes: null,
-      _syncBootstrapped: true
-    };
-  }
-
   const courseData = {
     mns521: mkCourse('MNS 521', 'AI Technologies', 'Dariush Navabi', 'Dariush.Navabi@asu.edu', "Spring B '27", 'Bio Data Science MS', 'NCIAS',
       'https://drive.google.com/drive/u/0/folders/1cyidt-HEfMzUBDeR7NvyJnHEsISs_RPv',
@@ -1115,7 +1076,7 @@
           { name: 'Module 7', desc: 'Architecture, Eval & Responsible Design', state: 'empty', label: 'Not started' },
         ],
         milestones: [
-          { date: 'Mar 30', label: 'Assignments Review', urgent: true, statusText: 'Past due' },
+          { date: 'Mar 30', label: 'Assignments Review', statusText: 'Past due' },
           { date: 'Apr 8', label: 'Materials Review' },
           { date: 'Apr 20', label: 'Module 1 Documents' },
           { date: 'Aug 1', label: 'Final Walkthrough & QA', bold: true },
@@ -1135,7 +1096,7 @@
       'https://drive.google.com/drive/u/0/folders/1TWmWxFDcvxFu7-ys8Q3lYLY1UU1JJYBA',
       { status: 'On Track', phase: 'ELOs & CLOs', lastActive: '13 days ago', lastActiveStale: false, qa: 'Jul 20, 2026', qaShort: 'Jul 20',
         milestones: [
-          { date: 'Apr 6', label: 'ELOs and CLOs Review', urgent: true, statusText: 'Due this week' },
+          { date: 'Apr 6', label: 'ELOs and CLOs Review', statusText: 'Due this week' },
           { date: 'Apr 13', label: 'Module MLOs and Topics Review' },
           { date: 'Apr 20', label: 'Assignments Review' },
           { date: 'Apr 27', label: 'Materials Review' },
@@ -1224,11 +1185,12 @@
     Object.keys(synced.courses).forEach(id => {
       const s = synced.courses[id];
       if (!s) return;
-      if (!courseData[id]) {
-        // Sync-only course (no static seed, no user_courses entry). Promote
-        // it to a real card so its meetings flow through to Upcoming.
-        courseData[id] = bootstrapCourseFromSync(id, s);
-      }
+      // Only attach sync data to courses the user has explicitly added
+      // (static seed, Airtable import, or "+ Add Course"). The generic
+      // "XXX 100" code matcher in sync-calendar produces noisy pseudo-
+      // courses (e.g. chs100/chs300 from a "Review CHS 100 and CHS 300"
+      // meeting) — skipping unknown ids keeps them out of the table.
+      if (!courseData[id]) return;
       if (courseData[id] && s) {
         if (s.notes) courseData[id].notes = s.notes;
         if (s.lastActive) courseData[id].lastActive = s.lastActive;
@@ -1441,7 +1403,7 @@
       Object.values(courseData).forEach(c => {
         if (c.milestones) {
           c.milestones.slice(0, 2).forEach(m => {
-            raw.push({ title: m.label, course: c.title, urgent: !!m.urgent, date: m.date });
+            raw.push({ title: m.label, course: c.title, date: m.date });
           });
         }
       });
@@ -1577,7 +1539,7 @@
       } else {
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
-      return `<div class="upcoming-card${d.urgent ? ' urgent' : ''}"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
+      return `<div class="upcoming-card"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
         <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
@@ -3165,7 +3127,7 @@
         Object.keys(fresh.courses).forEach(function(id) {
           var s = fresh.courses[id];
           if (!s) return;
-          if (!courseData[id]) courseData[id] = bootstrapCourseFromSync(id, s);
+          if (!courseData[id]) return; // never auto-create courses from sync
           if (s.notes) courseData[id].notes = s.notes;
           if (s.lastActiveDate) {
             var diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
@@ -3225,7 +3187,7 @@
             Object.keys(fresh.courses).forEach(function(id) {
               var sc = fresh.courses[id];
               if (!sc) return;
-              if (!courseData[id]) courseData[id] = bootstrapCourseFromSync(id, sc);
+              if (!courseData[id]) return; // never auto-create courses from sync
               if (sc.notes) courseData[id].notes = sc.notes;
               if (sc.lastActiveDate) {
                 var diff = Math.floor((new Date() - new Date(sc.lastActiveDate)) / 86400000);
@@ -5202,10 +5164,9 @@
       if (_visibleMs.length > 0) {
         html += `<div class="detail-section"><h3>Upcoming Milestones</h3>`;
         _visibleMs.forEach(m => {
-          const dateStyle = m.urgent ? 'color:#e65100; font-weight:600;' : '';
           const labelStyle = m.bold ? 'font-weight:600;' : '';
-          const statusHtml = m.statusText ? `<span class="dt-status status-pill ${m.urgent ? 'status-at-risk' : ''}">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
-          html += `<div class="detail-timeline-item"><span class="dt-date" style="${dateStyle}">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
+          const statusHtml = m.statusText ? `<span class="dt-status status-pill">${m.statusText}</span>` : '<span class="dt-status" style="color:#999;">—</span>';
+          html += `<div class="detail-timeline-item"><span class="dt-date">${m.date}</span><span class="dt-label" style="${labelStyle}">${m.label}</span>${statusHtml}</div>`;
         });
         html += `</div>`;
       }

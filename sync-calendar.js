@@ -631,7 +631,6 @@ async function main() {
       dl.hasMeeting = true;
       dl.meetingTime = nm.time;
       dl.meetingLabel = nm.label;
-      dl.urgent = true;
       continue;
     }
 
