@@ -317,7 +317,7 @@ async function discoverEpicForCourse(courseId) {
   const escaped = variants.map(v => `"${v}"`).join(' OR ');
   const jql = `issuetype = Epic AND (summary ~ ${escaped}) ORDER BY created DESC`;
   try {
-    const r = await fetch(`${JIRA_BASE}/rest/api/3/search/jql`, {
+    const r = await fetchWithRetry(`${JIRA_BASE}/rest/api/3/search/jql`, {
       method: 'POST',
       headers: JIRA_HEADERS,
       body: JSON.stringify({ jql: jql, fields: ['summary'], maxResults: 5 })
@@ -352,8 +352,30 @@ async function persistDiscoveredEpics(overrides) {
 }
 
 // ---------- Jira ----------
+// Wrap fetch with a small retry budget so a transient TLS reset (Atlassian
+// occasionally closes the connection mid-flight) doesn't abort the whole
+// nightly run. Only retries on network-level errors, not on HTTP errors.
+async function fetchWithRetry(url, opts, attempts = 3) {
+  let lastErr;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetch(url, opts);
+    } catch (e) {
+      lastErr = e;
+      const transient = e && /ECONNRESET|ETIMEDOUT|EAI_AGAIN|fetch failed|socket hang up/i.test(
+        (e.message || '') + ' ' + ((e.cause && e.cause.message) || '')
+      );
+      if (!transient || i === attempts - 1) throw e;
+      const backoffMs = 500 * (i + 1);
+      console.warn(`[sync-jira-time] fetch failed (${e.message}) — retrying in ${backoffMs}ms`);
+      await new Promise(res => setTimeout(res, backoffMs));
+    }
+  }
+  throw lastErr;
+}
+
 async function findDesigningChild(epicKey) {
-  const r = await fetch(`${JIRA_BASE}/rest/api/3/search/jql`, {
+  const r = await fetchWithRetry(`${JIRA_BASE}/rest/api/3/search/jql`, {
     method: 'POST',
     headers: JIRA_HEADERS,
     body: JSON.stringify({
@@ -378,7 +400,7 @@ async function postWorklog(issueKey, seconds, comment) {
       content: [{ type: 'paragraph', content: [{ type: 'text', text: comment }] }]
     }
   };
-  const r = await fetch(`${JIRA_BASE}/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog`, {
+  const r = await fetchWithRetry(`${JIRA_BASE}/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog`, {
     method: 'POST',
     headers: JIRA_HEADERS,
     body: JSON.stringify(body)
@@ -520,6 +542,7 @@ async function main() {
   const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0, meetingMinutes: 0 };
   let anyMeetingUidsNewlySynced = false;
   for (const courseId of Object.keys(buckets).sort()) {
+    try {
     const bucket = buckets[courseId];
     if (!isCourseIdSyncable(courseId)) {
       // Silently skip non-portfolio / room-pattern IDs that older matchers
@@ -597,6 +620,14 @@ async function main() {
     } catch (e) {
       summary.failed++;
       console.error(`    ! ${courseId} failed:`, e.message);
+    }
+    } catch (perCourseErr) {
+      // Catches anything that escaped the inner postWorklog try/catch —
+      // e.g. discoverEpicForCourse or findDesigningChild throwing. We log
+      // and move to the next course so a transient hiccup on one course
+      // doesn't take down the entire nightly run.
+      summary.failed++;
+      console.error(`    ! ${courseId} aborted:`, (perCourseErr && perCourseErr.message) || perCourseErr);
     }
   }
 
