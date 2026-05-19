@@ -3889,9 +3889,16 @@
       var info = map[rid];
       if (!info) return;
       if (info.addedToDashboard) return;
-      if (imported[rid]) {
-        // Already on dashboard (e.g., user imported manually) — flip both flags
-        // so the banner also stops surfacing it.
+      // imported[rid] returns the course key when getImportedAirtableRecordIds
+      // detects an Airtable URL or courseData entry for this record. We only
+      // skip importing if the actual courseData entry also exists — when a
+      // course was deleted (purge bug, manual remove) but the URL stamp
+      // lingered, the previous unconditional skip prevented the importer
+      // from rebuilding the entry.
+      var existingKey = imported[rid];
+      if (existingKey && courseData[existingKey]) {
+        // Already on dashboard — flip both flags so the banner also stops
+        // surfacing it.
         info.addedToDashboard = true;
         info.seen = true;
         changed = true;
