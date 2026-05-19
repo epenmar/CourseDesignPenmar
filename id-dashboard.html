@@ -1169,10 +1169,20 @@
   const courseCommentCounts = {}; // { courseId: { total, newCount, comments } }
 
   // ===== LOAD USER-CREATED COURSES FROM LOCALSTORAGE =====
+  // List of sync-auto-created pseudo-course ids that should be deleted both
+  // from local storage and from the Supabase user_courses table. The actual
+  // purge runs inside bootDashboard after pullAllFromCloud — without that
+  // ordering the cloud pull would just resurrect them — but we still strip
+  // them from the parse-time read here so the first render doesn't show
+  // ghost rows.
+  window._PSEUDO_COURSES_TO_PURGE = ['chs100', 'chs300', 'lsc598stp494', 'stp494', 'lsc598/stp494', 'asb554(494/598?)'];
+
   (function() {
     try {
       const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      const doomedSet = new Set(window._PSEUDO_COURSES_TO_PURGE || []);
       Object.keys(saved).forEach(id => {
+        if (doomedSet.has(id)) return;
         if (!courseData[id]) {
           courseData[id] = saved[id];
         }
@@ -3038,6 +3048,29 @@
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
     }
+    // Purge sync-auto-created pseudo-courses from both local and cloud
+    // AFTER the pull, otherwise the cloud copy keeps resurrecting them on
+    // every refresh. Idempotent — a stamped flag prevents re-running.
+    try {
+      var doomed = window._PSEUDO_COURSES_TO_PURGE || [];
+      if (doomed.length && localStorage.getItem('pseudo_courses_purged_v1') !== '1') {
+        var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+        var localChanged = false;
+        doomed.forEach(function(id) {
+          if (saved[id]) { delete saved[id]; localChanged = true; }
+          delete courseData[id];
+        });
+        if (localChanged) localStorage.setItem('user_courses', JSON.stringify(saved));
+        if (window._sbClient) {
+          for (var i = 0; i < doomed.length; i++) {
+            window._sbClient.from('user_courses').delete().eq('course_id', doomed[i])
+              .then(function(r) { if (r && r.error) console.warn('[purge] cloud delete failed:', r.error.message); });
+          }
+        }
+        localStorage.setItem('pseudo_courses_purged_v1', '1');
+        console.info('[purge] removed pseudo-course entries from local + cloud:', doomed);
+      }
+    } catch(e) { console.warn('[purge] failed:', e && e.message); }
     // Re-merge user_courses into courseData after the cloud pull. The IIFE at
     // script-parse time already did this once from whatever localStorage had
     // at the moment, but the pull may have just added keys we didn't see then.
@@ -3384,6 +3417,7 @@
     saveManualActionItemsMap(all);
     input.value = '';
     renderDetail(courseId);
+    if (typeof renderTodoPanel === 'function') try { renderTodoPanel(); } catch(e) {}
   };
   window.toggleManualActionItem = function(courseId, itemId) {
     var all = readManualActionItems();
@@ -3393,6 +3427,7 @@
     item.done = !item.done;
     saveManualActionItemsMap(all);
     renderDetail(courseId);
+    if (typeof renderTodoPanel === 'function') try { renderTodoPanel(); } catch(e) {}
   };
   window.deleteManualActionItem = function(courseId, itemId) {
     var all = readManualActionItems();
@@ -3401,6 +3436,7 @@
     if (all[courseId].length === 0) delete all[courseId];
     saveManualActionItemsMap(all);
     renderDetail(courseId);
+    if (typeof renderTodoPanel === 'function') try { renderTodoPanel(); } catch(e) {}
   };
   // ===== AIRTABLE RECORD URLS (per course) =====
   // Kept as a separate dashboard_state key so edits don't collide with course_overrides.

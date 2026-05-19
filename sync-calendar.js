@@ -285,6 +285,12 @@ function genericCodeMatches(text) {
 }
 
 // ===== CALENDAR MATCHING =====
+// Only attribute a meeting to a course that's explicitly declared in
+// COURSE_KEYWORDS. The generic "XXX ###" fallback was promoting any
+// random code mentioned in a meeting title (e.g., "Review CHS 100 and
+// CHS 300" → chs100 + chs300 pseudo-courses) and bleeding those into
+// the dashboard's table and Upcoming widget. If you want a new course
+// to receive meetings, add it to COURSE_KEYWORDS above.
 function matchEventToCourses(event) {
   const text = (event.summary || '').toLowerCase() + ' ' + (event.description || '').toLowerCase();
   const matches = [];
@@ -293,12 +299,6 @@ function matchEventToCourses(event) {
       if (text.includes(kw.toLowerCase())) { matches.push(courseId); break; }
     }
   }
-  // Fallback: any generic "XXX ###" code in the title. Lets a course that
-  // isn't in COURSE_KEYWORDS still get its calendar events.
-  const sourceText = (event.summary || '') + ' ' + (event.description || '');
-  genericCodeMatches(sourceText).forEach(function(id) {
-    if (matches.indexOf(id) === -1) matches.push(id);
-  });
   return matches;
 }
 
