@@ -2836,6 +2836,16 @@
           if (!acts[i].templateData[tplType]) acts[i].templateData[tplType] = {};
           acts[i].templateData[tplType][sectionLabel] = value;
           saveActivityData();
+          // Rich-text edits inside the activity template (Overview / Materials /
+          // Instructions / How You Will Be Graded for assignments, etc.)
+          // previously persisted to local + cloud but never broadcast — a
+          // collaborator co-editing the same worksheet could not see the
+          // typing in real time. Broadcasting the whole activity object on
+          // every keystroke keeps it consistent with how name/points/etc.
+          // updates already flow.
+          if (typeof broadcastItemUpdate === 'function') {
+            try { broadcastItemUpdate('activity', parseInt(m, 10), acts[i]); } catch (e) {}
+          }
           return;
         }
       }
@@ -2858,6 +2868,11 @@
     if (!mat) return;
     mat[field] = html;
     saveActivityData();
+    // Same reason as saveTemplateField — rich-text material edits were
+    // silently local-only. Broadcast so co-editors see the typing live.
+    if (typeof broadcastItemUpdate === 'function') {
+      try { broadcastItemUpdate('material', modNum, mat); } catch (e) {}
+    }
   }
   window.saveMaterialField = saveMaterialField;
 
