@@ -34,6 +34,11 @@ const PROJECT_TO_COURSE = {
   'BST 693': 'bst693', 'BST693': 'bst693',
   'BST 515': 'bst515', 'BST515': 'bst515', 'BMI 515': 'bst515',
   'LSC 598': 'lsc598', 'LSC598': 'lsc598',
+  // LSC598/STP494 is the dashboard's slash-keyed Airtable-imported course
+  // (Special Topics: Data Science for Genomics, Fahad Mostafa). Notes
+  // tagged with any of the cross-listed codes route to that single key.
+  'LSC598/STP494': 'lsc598/stp494', 'LSC 598/STP 494': 'lsc598/stp494',
+  'STP 494': 'lsc598/stp494', 'STP494': 'lsc598/stp494',
   'TPH 501': 'tph501', 'TPH501': 'tph501',
   'TPH 502': 'tph502', 'TPH502': 'tph502',
   'TPH 550': 'tph550', 'TPH550': 'tph550',
@@ -187,12 +192,27 @@ function parseTranscriptUrl(md) {
   return m ? m[0] : null;
 }
 
+// Cross-listed courses appear in titles like "LSC598/STP494 Kick off Meeting".
+// The single-code regex would match the LSC598 half first and route notes
+// to the wrong dashboard course, so check for the compound pattern first.
+const COMPOUND_TITLE_RE = /\b(MNS|BST|BMI|LSC|STP|TPH|POP|ASB|EXW|KIN|NUR)\s*0?(\d{3})\s*\/\s*(MNS|BST|BMI|LSC|STP|TPH|POP|ASB|EXW|KIN|NUR)\s*0?(\d{3})\b/i;
+
 function courseFromProjectsOrTitle(projects, title) {
   for (const p of projects) {
     const id = PROJECT_TO_COURSE[p] || PROJECT_TO_COURSE[p.replace(/\s+/g, '')];
     if (id) return id;
   }
-  const m = String(title || '').match(TITLE_CODE_RE);
+  const titleStr = String(title || '');
+  const cm = titleStr.match(COMPOUND_TITLE_RE);
+  if (cm) {
+    // Try the compound key first ("LSC598/STP494" or "LSC 598/STP 494"),
+    // then fall through to the single-code match if no compound mapping.
+    const compactKey = `${cm[1].toUpperCase()}${cm[2]}/${cm[3].toUpperCase()}${cm[4]}`;
+    const spacedKey = `${cm[1].toUpperCase()} ${cm[2]}/${cm[3].toUpperCase()} ${cm[4]}`;
+    const id = PROJECT_TO_COURSE[compactKey] || PROJECT_TO_COURSE[spacedKey];
+    if (id) return id;
+  }
+  const m = titleStr.match(TITLE_CODE_RE);
   if (m) {
     const key = `${m[1].toUpperCase()} ${m[2]}`;
     return PROJECT_TO_COURSE[key] || null;

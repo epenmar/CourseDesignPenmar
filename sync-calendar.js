@@ -28,7 +28,9 @@ const COURSE_KEYWORDS = {
   bst609:        ['BST 609', 'BST609'],
   bst693:        ['BST 693', 'BST693'],
   lsc598:        ['LSC 598', 'LSC598', 'Geospatial', 'John Bailey'],
-  lsc598stp494:  ['LSC598/STP494', 'STP 494', 'STP494', 'Genomics', 'Fahad'],
+  // Dashboard key for the Airtable-imported course is 'lsc598/stp494' with
+  // a slash, matching the lowercase-no-spaces form of "LSC598/STP494".
+  'lsc598/stp494': ['LSC598/STP494', 'LSC 598/STP 494', 'STP 494', 'STP494', 'Genomics', 'Fahad'],
   tph501:        ['TPH 501', 'TPH501', 'Josh Anbar'],
   tph502:        ['TPH 502', 'TPH502', 'Jordan Miller'],
   tph550:        ['TPH 550', 'TPH550', 'Loughman', 'Josh Loughman', 'Susan Robinson'],
@@ -57,6 +59,8 @@ const PROJECT_TO_COURSE = {
   'BST 609': 'bst609', 'BST609': 'bst609',
   'BST 693': 'bst693', 'BST693': 'bst693',
   'LSC 598': 'lsc598', 'LSC598': 'lsc598',
+  'LSC598/STP494': 'lsc598/stp494', 'LSC 598/STP 494': 'lsc598/stp494',
+  'STP 494': 'lsc598/stp494', 'STP494': 'lsc598/stp494',
   'TPH 501': 'tph501', 'TPH501': 'tph501',
   'TPH 502': 'tph502', 'TPH502': 'tph502',
   'TPH 550': 'tph550', 'TPH550': 'tph550',
