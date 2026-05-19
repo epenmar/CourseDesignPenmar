@@ -1175,7 +1175,7 @@
   // ordering the cloud pull would just resurrect them — but we still strip
   // them from the parse-time read here so the first render doesn't show
   // ghost rows.
-  window._PSEUDO_COURSES_TO_PURGE = ['chs100', 'chs300', 'lsc598stp494', 'stp494', 'lsc598/stp494', 'asb554(494/598?)', 'bio322'];
+  window._PSEUDO_COURSES_TO_PURGE = ['chs100', 'chs300', 'lsc598stp494', 'stp494', 'lsc598/stp494', 'asb554(494/598?)', 'bio322', 'lsc598gen', 'bst515'];
 
   (function() {
     try {
@@ -3053,7 +3053,7 @@
     // every refresh. Idempotent — a stamped flag prevents re-running.
     try {
       var doomed = window._PSEUDO_COURSES_TO_PURGE || [];
-      if (doomed.length && localStorage.getItem('pseudo_courses_purged_v2') !== '1') {
+      if (doomed.length && localStorage.getItem('pseudo_courses_purged_v3') !== '1') {
         var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
         var localChanged = false;
         doomed.forEach(function(id) {
@@ -3067,7 +3067,7 @@
               .then(function(r) { if (r && r.error) console.warn('[purge] cloud delete failed:', r.error.message); });
           }
         }
-        localStorage.setItem('pseudo_courses_purged_v2', '1');
+        localStorage.setItem('pseudo_courses_purged_v3', '1');
         console.info('[purge] removed pseudo-course entries from local + cloud:', doomed);
       }
     } catch(e) { console.warn('[purge] failed:', e && e.message); }
