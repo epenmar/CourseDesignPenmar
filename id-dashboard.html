@@ -3157,30 +3157,47 @@
       .then(function(r) { return r.ok ? r.json() : Promise.reject('not ok'); })
       .then(function(fresh) {
         if (!fresh || !fresh.courses) return;
+        // Helper: only overwrite an existing array when the incoming one is
+        // actually populated. Calendar sync occasionally returns an empty
+        // array (parse error, calendar feed glitch) and the previous
+        // unconditional assignment wiped real meetings on every such pass —
+        // visually the Upcoming card would flip from full to empty as the
+        // browser raced multiple background syncs.
+        var nonEmpty = function(v) { return Array.isArray(v) ? v.length > 0 : !!v; };
         Object.keys(fresh.courses).forEach(function(id) {
           var s = fresh.courses[id];
           if (!s) return;
           if (!courseData[id]) return; // never auto-create courses from sync
-          if (s.notes) courseData[id].notes = s.notes;
+          if (nonEmpty(s.notes)) courseData[id].notes = s.notes;
           if (s.lastActiveDate) {
             var diff = Math.floor((new Date() - new Date(s.lastActiveDate)) / 86400000);
             courseData[id].lastActive = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : diff < 14 ? diff + ' days ago' : (s.lastActive || diff + ' days ago');
             courseData[id].lastActiveStale = diff > 14;
           }
-          if (s.milestones) courseData[id].milestones = s.milestones;
-          if (s.meetings) courseData[id].meetings = s.meetings;
-          if (s.actionItems) courseData[id].actionItems = s.actionItems;
-          if (s.nextMeeting) courseData[id].nextMeeting = s.nextMeeting;
-          if (s.calendarMeetings) courseData[id].calendarMeetings = s.calendarMeetings;
+          if (nonEmpty(s.milestones)) courseData[id].milestones = s.milestones;
+          if (nonEmpty(s.meetings)) courseData[id].meetings = s.meetings;
+          if (nonEmpty(s.actionItems)) courseData[id].actionItems = s.actionItems;
+          if (s.nextMeeting && s.nextMeeting.date) courseData[id].nextMeeting = s.nextMeeting;
+          if (nonEmpty(s.calendarMeetings)) courseData[id].calendarMeetings = s.calendarMeetings;
         });
-        // Always swap SYNCED_DATA so courses/meetings stay fresh; preserve
-        // upcomingDeadlines from the prior good sync if this one came back
-        // without them, so the Upcoming widget doesn't flicker when a sync
-        // returns a partial payload.
+        // Replace SYNCED_DATA carefully: keep the prior copy's syncedAt and
+        // upcomingDeadlines/courses entries when the new one is older or
+        // emptier. Without this guard the staleness chip can flip from
+        // "fresh" back to "sync broken" as a partial response lands.
         if (fresh) {
           var prior = window.SYNCED_DATA;
-          if (!fresh.upcomingDeadlines && prior && prior.upcomingDeadlines) {
+          if (!nonEmpty(fresh.upcomingDeadlines) && prior && nonEmpty(prior.upcomingDeadlines)) {
             fresh.upcomingDeadlines = prior.upcomingDeadlines;
+          }
+          // If the incoming syncedAt is older than what we already have,
+          // don't downgrade. A partial response with a stale timestamp
+          // shouldn't make the chip flip backwards.
+          if (prior && prior.syncedAt && fresh.syncedAt) {
+            var priorMs = new Date(prior.syncedAt).getTime();
+            var freshMs = new Date(fresh.syncedAt).getTime();
+            if (!isNaN(priorMs) && !isNaN(freshMs) && freshMs < priorMs) {
+              fresh.syncedAt = prior.syncedAt;
+            }
           }
           window.SYNCED_DATA = fresh;
         }
@@ -3191,9 +3208,7 @@
         renderTable();
         // Local sync's meetings come from dashboard-data.js, which can be
         // stale. Re-pull from Supabase so the (multi-machine, current)
-        // mirror wins for any course it covers. Without this, backgrounding
-        // the tab and coming back could revert the side panel from Apr 23
-        // to Apr 6 (or whatever was last serialized to dashboard-data.js).
+        // mirror wins for any course it covers.
         if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
       })
       .catch(function() {
@@ -3217,22 +3232,23 @@
         s.onload = function() {
           var fresh = window.SYNCED_DATA;
           if (fresh && fresh.courses) {
+            var nonEmpty = function(v) { return Array.isArray(v) ? v.length > 0 : !!v; };
             Object.keys(fresh.courses).forEach(function(id) {
               var sc = fresh.courses[id];
               if (!sc) return;
               if (!courseData[id]) return; // never auto-create courses from sync
-              if (sc.notes) courseData[id].notes = sc.notes;
+              if (nonEmpty(sc.notes)) courseData[id].notes = sc.notes;
               if (sc.lastActiveDate) {
                 var diff = Math.floor((new Date() - new Date(sc.lastActiveDate)) / 86400000);
                 courseData[id].lastActive = diff === 0 ? 'Today' : diff === 1 ? '1 day ago' : diff < 14 ? diff + ' days ago' : (sc.lastActive || diff + ' days ago');
                 courseData[id].lastActiveStale = diff > 14;
               }
-              if (sc.milestones) courseData[id].milestones = sc.milestones;
-              if (sc.meetings) courseData[id].meetings = sc.meetings;
-              if (sc.actionItems) courseData[id].actionItems = sc.actionItems;
-              if (sc.nextMeeting) courseData[id].nextMeeting = sc.nextMeeting;
-              if (sc.calendarMeetings) courseData[id].calendarMeetings = sc.calendarMeetings;
-              if (sc.milestoneStatus) courseData[id].milestoneStatus = sc.milestoneStatus;
+              if (nonEmpty(sc.milestones)) courseData[id].milestones = sc.milestones;
+              if (nonEmpty(sc.meetings)) courseData[id].meetings = sc.meetings;
+              if (nonEmpty(sc.actionItems)) courseData[id].actionItems = sc.actionItems;
+              if (sc.nextMeeting && sc.nextMeeting.date) courseData[id].nextMeeting = sc.nextMeeting;
+              if (nonEmpty(sc.calendarMeetings)) courseData[id].calendarMeetings = sc.calendarMeetings;
+              if (nonEmpty(sc.milestoneStatus)) courseData[id].milestoneStatus = sc.milestoneStatus;
             });
             renderSummary();
             renderUpcoming();
