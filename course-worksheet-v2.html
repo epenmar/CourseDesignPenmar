@@ -6306,7 +6306,14 @@
   // Pure merge helper so the logic is easy to reason about. For each top-level
   // key, pick the side whose __modifiedAt entry is newer. If one side is
   // missing the key, take the side that has it. __modifiedAt itself merges
-  // key-by-key using Math.max.
+  // key-by-key using Math.max — but we cap any future-dated stamp at Date.now()
+  // for comparison so a leftover restore-lock value (e.g., year 2030 from an
+  // emergency recovery script) can't permanently win against legitimate
+  // Date.now() saves.
+  function _clampStamp(t, cap) {
+    var v = +t || 0;
+    return v > cap + 86400000 ? cap - 60000 : v; // > 24h future → 1 min ago
+  }
   function mergeWorksheetBlobs(local, cloud) {
     var lMod = (local && local.__modifiedAt) || {};
     var cMod = (cloud && cloud.__modifiedAt) || {};
@@ -6314,19 +6321,26 @@
     Object.keys(local || {}).forEach(function(k) { if (k !== '__modifiedAt') keys[k] = true; });
     Object.keys(cloud || {}).forEach(function(k) { if (k !== '__modifiedAt') keys[k] = true; });
     var merged = {};
+    var nowCap = Date.now();
     Object.keys(keys).forEach(function(k) {
       var hasL = local && Object.prototype.hasOwnProperty.call(local, k);
       var hasC = cloud && Object.prototype.hasOwnProperty.call(cloud, k);
       if (hasL && !hasC) { merged[k] = local[k]; return; }
       if (hasC && !hasL) { merged[k] = cloud[k]; return; }
-      var lt = lMod[k] || 0;
-      var ct = cMod[k] || 0;
+      var lt = _clampStamp(lMod[k], nowCap);
+      var ct = _clampStamp(cMod[k], nowCap);
       merged[k] = lt >= ct ? local[k] : cloud[k];
     });
-    // Merge the __modifiedAt map itself — keep the newer timestamp per key.
+    // Merge the __modifiedAt map itself — keep the newer timestamp per key,
+    // also clamped so future-dated stamps don't survive the merge and keep
+    // blocking later edits.
     var mMod = {};
-    Object.keys(lMod).forEach(function(k) { mMod[k] = Math.max(mMod[k] || 0, lMod[k] || 0); });
-    Object.keys(cMod).forEach(function(k) { mMod[k] = Math.max(mMod[k] || 0, cMod[k] || 0); });
+    Object.keys(lMod).forEach(function(k) {
+      mMod[k] = Math.max(mMod[k] || 0, _clampStamp(lMod[k], nowCap));
+    });
+    Object.keys(cMod).forEach(function(k) {
+      mMod[k] = Math.max(mMod[k] || 0, _clampStamp(cMod[k], nowCap));
+    });
     merged.__modifiedAt = mMod;
     return merged;
   }
