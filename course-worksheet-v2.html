@@ -6360,9 +6360,41 @@
   // harmless) in case we re-introduce a banner that surfaces only when
   // the live channel has been silent.
 
+  // Keys where silently writing an empty value over previously-saved content
+  // would represent a destructive data loss — typically because a load race
+  // (visibilitychange / beforeunload firing before pullCurrentCourseFromCloud
+  // populates activeCourse, or _doSaveAllFields running with an unrendered
+  // DOM) reads zero items from the page and writes [] back. For these keys
+  // we require an explicit non-empty previous state OR an empty current state
+  // before allowing the destructive write.
+  var _SAVE_DESTRUCTIVE_KEYS = {
+    clos: true, flatElos: true, elos: true,
+    cloEloAlignment: true, eloMloAlignment: true,
+    courseActivities: true, courseMaterials: true,
+    moduleOverviewData: true
+  };
+  function _isEffectivelyEmpty(v) {
+    if (v == null) return true;
+    if (Array.isArray(v)) {
+      if (v.length === 0) return true;
+      // A 2D array of empty arrays (e.g., cloEloAlignment with no checks) is
+      // technically populated — keep it. Only completely empty arrays count.
+      return false;
+    }
+    if (typeof v === 'object') return Object.keys(v).length === 0;
+    return false;
+  }
+
   function saveField(key, value) {
     try {
       const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      // Data-loss guard: refuse to overwrite a populated destructive-key with
+      // an empty value. This is what kept wiping POP644's CLOs/ELOs/etc. on
+      // tab-hide while the page was mid-load.
+      if (_SAVE_DESTRUCTIVE_KEYS[key] && _isEffectivelyEmpty(value) && !_isEffectivelyEmpty(data[key])) {
+        console.warn('[saveField] refusing to wipe populated "' + key + '" with empty value');
+        return;
+      }
       data[key] = value;
       // Stamp the per-key modification time so the pre-push merge can decide
       // whether our value or the cloud's value is newer for this field. The
