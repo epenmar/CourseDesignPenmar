@@ -6225,6 +6225,35 @@
   // ===== LOCAL STORAGE PERSISTENCE =====
   const storageKey = 'worksheet_' + (courseId || 'default');
 
+  // One-time __modifiedAt sanitizer. Earlier restore scripts stamped
+  // __modifiedAt values at year 2030 to force the cloud copy to win over
+  // a misbehaving local cache. That worked for the immediate restore but
+  // left an aftertaste: any subsequent local edit stamps __modifiedAt at
+  // Date.now() (a 2026 value), which is OLDER than the 2030 cloud stamp,
+  // so the merge keeps choosing the stale cloud copy and the user's new
+  // edit silently vanishes. Clamp any future-dated stamp on first load
+  // so the comparison logic falls back to natural now-vs-now ordering.
+  (function _sanitizeFutureModifiedAt() {
+    try {
+      var blob = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      var mods = blob && blob.__modifiedAt;
+      if (!mods || typeof mods !== 'object') return;
+      var cap = Date.now();
+      var changed = false;
+      Object.keys(mods).forEach(function(k) {
+        var v = +mods[k];
+        if (isFinite(v) && v > cap + 86400000) { // > 24h in the future
+          mods[k] = cap - 60000; // one minute ago — older than any new edit
+          changed = true;
+        }
+      });
+      if (changed) {
+        localStorage.setItem(storageKey, JSON.stringify(blob));
+        console.info('[worksheet] sanitized future-dated __modifiedAt stamps');
+      }
+    } catch (e) {}
+  })();
+
   // Debounced cloud push — runs after 2s of quiet writes.
   // Gated on window._cloudPullComplete so stale pre-pull local data can't overwrite the cloud.
   var _cloudPushTimer = null;
