@@ -16875,10 +16875,10 @@
   }
 
   // Idle threshold: a collaborator who hasn't produced an input/focus/mouse
-  // event in this long renders as dimmed. 90 seconds is a good middle ground
-  // between Google Docs' aggressive dimming and not flapping during a
-  // brief read/scroll pause.
-  var PRESENCE_IDLE_MS = 90 * 1000;
+  // event in this long renders as dimmed. 5 minutes — long enough that a
+  // collaborator pausing to read a long passage or hop to another tab for a
+  // quick reference doesn't flicker.
+  var PRESENCE_IDLE_MS = 5 * 60 * 1000;
 
   // Re-track presence on local activity, throttled so we don't spam the
   // channel. The throttled re-track lets collaborators see us come back
