@@ -245,9 +245,13 @@
   .elo-sub-label { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; background: #ffd54f; color: #5d4037; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 7px; }
   .elo-remove-btn { background: none; border: none; color: #c62828; cursor: pointer; font-size: 14px; padding: 2px 4px; flex-shrink: 0; margin-top: 6px; opacity: 0.5; }
   .elo-remove-btn:hover { opacity: 1; }
-  .obj-reorder-btn { background: #fff; border: 1px solid #e0ddd5; color: #888; cursor: pointer; font-size: 9px; padding: 1px 4px; border-radius: 3px; line-height: 1; }
-  .obj-reorder-btn:hover:not([disabled]) { color: #8c1d40; border-color: #8c1d40; background: #fdf2f4; }
-  .obj-reorder-btn[disabled] { opacity: 0.25; cursor: not-allowed; }
+  .obj-row { transition: background 0.12s; }
+  .obj-row-dragging { opacity: 0.4; }
+  .obj-row-drop-above { box-shadow: inset 0 3px 0 #8c1d40; }
+  .obj-row-drop-below { box-shadow: inset 0 -3px 0 #8c1d40; }
+  .obj-drag-handle { color: #bbb; font-size: 14px; cursor: grab; user-select: none; flex-shrink: 0; margin-top: 8px; padding: 0 2px; }
+  .obj-drag-handle:hover { color: #8c1d40; }
+  .obj-drag-handle:active { cursor: grabbing; }
   .elo-add-btn { background: none; border: 1px dashed #ccc; border-radius: 6px; color: #8c1d40; cursor: pointer; font-size: 11px; font-weight: 600; padding: 4px 10px; align-self: flex-start; }
   .elo-add-btn:hover { background: #fdf2f4; border-color: #8c1d40; }
 
@@ -3681,24 +3685,14 @@
     renderAlignmentMatrix();
   }
 
-  function _objReorderBtns(kind, i, total) {
-    var prefix = kind === 'clo' ? 'moveClo' : 'moveElo';
-    var upDisabled = i === 0 ? ' disabled' : '';
-    var downDisabled = i === total - 1 ? ' disabled' : '';
-    return '<div style="display:flex; flex-direction:column; gap:2px; flex-shrink:0;">' +
-      '<button class="obj-reorder-btn" onclick="' + prefix + '(' + i + ',' + (i-1) + ')" title="Move up"' + upDisabled + '>▲</button>' +
-      '<button class="obj-reorder-btn" onclick="' + prefix + '(' + i + ',' + (i+1) + ')" title="Move down"' + downDisabled + '>▼</button>' +
-      '</div>';
-  }
-
   function renderCloList() {
     const container = document.getElementById('clo-list');
     if (!container) return;
     const clos = activeCourse.clos || [];
     let html = '';
     clos.forEach(function(clo, i) {
-      html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
-        _objReorderBtns('clo', i, clos.length) +
+      html += '<div class="obj-row" data-obj-kind="clo" data-obj-idx="' + i + '" style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        '<span class="obj-drag-handle" draggable="true" title="Drag to reorder">⠿</span>' +
         '<span class="clo-elo-num" style="flex-shrink:0;">' + (i+1) + '</span>' +
         '<textarea class="clo-elo-field" id="clo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveCloState()">' + escapeHtml(clo) + '</textarea>' +
         '<button class="elo-remove-btn" onclick="removeClo(' + i + ')" title="Remove CLO" style="flex-shrink:0;">×</button>' +
@@ -3706,6 +3700,7 @@
     });
     if (clos.length === 0) html = '<div style="color:#999; font-size:13px; padding:8px;">No CLOs defined yet. Click "+ Add CLO" to start.</div>';
     container.innerHTML = html;
+    _attachObjDnD(container, 'clo');
   }
 
   function renderEloList() {
@@ -3715,8 +3710,8 @@
     const elos = activeCourse.flatElos || [];
     let html = '';
     elos.forEach(function(elo, i) {
-      html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
-        _objReorderBtns('elo', i, elos.length) +
+      html += '<div class="obj-row" data-obj-kind="elo" data-obj-idx="' + i + '" style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        '<span class="obj-drag-handle" draggable="true" title="Drag to reorder">⠿</span>' +
         '<span class="clo-elo-num" style="flex-shrink:0; background:#ffc627; color:#333;">' + (i+1) + '</span>' +
         '<textarea class="clo-elo-field" id="elo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveEloState()">' + escapeHtml(elo) + '</textarea>' +
         '<button class="elo-remove-btn" onclick="removeElo(' + i + ')" title="Remove ELO" style="flex-shrink:0;">×</button>' +
@@ -3724,6 +3719,65 @@
     });
     if (elos.length === 0) html = '<div style="color:#999; font-size:13px; padding:8px;">No ELOs defined yet. Click "+ Add ELO" to start.</div>';
     container.innerHTML = html;
+    _attachObjDnD(container, 'elo');
+  }
+
+  // Wire native HTML5 drag-and-drop on the .obj-drag-handle inside each
+  // row. The handle initiates the drag; the row itself is the drop target.
+  // A maroon top/bottom border previews the insertion point.
+  function _attachObjDnD(container, kind) {
+    var draggingIdx = null;
+    container.querySelectorAll('.obj-drag-handle[draggable="true"]').forEach(function(handle) {
+      handle.addEventListener('dragstart', function(e) {
+        var row = handle.closest('.obj-row');
+        if (!row) return;
+        draggingIdx = parseInt(row.getAttribute('data-obj-idx'), 10);
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(draggingIdx)); } catch(_) {}
+        row.classList.add('obj-row-dragging');
+      });
+      handle.addEventListener('dragend', function() {
+        container.querySelectorAll('.obj-row-dragging, .obj-row-drop-above, .obj-row-drop-below').forEach(function(r) {
+          r.classList.remove('obj-row-dragging', 'obj-row-drop-above', 'obj-row-drop-below');
+        });
+        draggingIdx = null;
+      });
+    });
+    container.querySelectorAll('.obj-row').forEach(function(row) {
+      row.addEventListener('dragover', function(e) {
+        if (draggingIdx === null) return;
+        e.preventDefault();
+        try { e.dataTransfer.dropEffect = 'move'; } catch(_) {}
+        var rect = row.getBoundingClientRect();
+        var above = e.clientY < rect.top + rect.height / 2;
+        container.querySelectorAll('.obj-row-drop-above, .obj-row-drop-below').forEach(function(r) {
+          r.classList.remove('obj-row-drop-above', 'obj-row-drop-below');
+        });
+        row.classList.add(above ? 'obj-row-drop-above' : 'obj-row-drop-below');
+      });
+      row.addEventListener('dragleave', function() {
+        row.classList.remove('obj-row-drop-above', 'obj-row-drop-below');
+      });
+      row.addEventListener('drop', function(e) {
+        if (draggingIdx === null) return;
+        e.preventDefault();
+        var rect = row.getBoundingClientRect();
+        var above = e.clientY < rect.top + rect.height / 2;
+        var targetIdx = parseInt(row.getAttribute('data-obj-idx'), 10);
+        // Convert "drop above target" / "drop below target" into the final
+        // insertion index, accounting for the fact that removing the dragged
+        // item shifts indices ahead of the target.
+        var insertAt = above ? targetIdx : targetIdx + 1;
+        if (draggingIdx < insertAt) insertAt -= 1;
+        if (insertAt !== draggingIdx) {
+          if (kind === 'clo') window.moveClo(draggingIdx, insertAt);
+          else window.moveElo(draggingIdx, insertAt);
+        }
+        container.querySelectorAll('.obj-row-drop-above, .obj-row-drop-below').forEach(function(r) {
+          r.classList.remove('obj-row-drop-above', 'obj-row-drop-below');
+        });
+        draggingIdx = null;
+      });
+    });
   }
 
   // Move a CLO from one position to another. Permutes the matching row in
