@@ -245,6 +245,9 @@
   .elo-sub-label { display: inline-flex; align-items: center; justify-content: center; min-width: 24px; height: 24px; border-radius: 12px; background: #ffd54f; color: #5d4037; font-size: 10px; font-weight: 700; flex-shrink: 0; margin-top: 7px; }
   .elo-remove-btn { background: none; border: none; color: #c62828; cursor: pointer; font-size: 14px; padding: 2px 4px; flex-shrink: 0; margin-top: 6px; opacity: 0.5; }
   .elo-remove-btn:hover { opacity: 1; }
+  .obj-reorder-btn { background: #fff; border: 1px solid #e0ddd5; color: #888; cursor: pointer; font-size: 9px; padding: 1px 4px; border-radius: 3px; line-height: 1; }
+  .obj-reorder-btn:hover:not([disabled]) { color: #8c1d40; border-color: #8c1d40; background: #fdf2f4; }
+  .obj-reorder-btn[disabled] { opacity: 0.25; cursor: not-allowed; }
   .elo-add-btn { background: none; border: 1px dashed #ccc; border-radius: 6px; color: #8c1d40; cursor: pointer; font-size: 11px; font-weight: 600; padding: 4px 10px; align-self: flex-start; }
   .elo-add-btn:hover { background: #fdf2f4; border-color: #8c1d40; }
 
@@ -3678,6 +3681,16 @@
     renderAlignmentMatrix();
   }
 
+  function _objReorderBtns(kind, i, total) {
+    var prefix = kind === 'clo' ? 'moveClo' : 'moveElo';
+    var upDisabled = i === 0 ? ' disabled' : '';
+    var downDisabled = i === total - 1 ? ' disabled' : '';
+    return '<div style="display:flex; flex-direction:column; gap:2px; flex-shrink:0;">' +
+      '<button class="obj-reorder-btn" onclick="' + prefix + '(' + i + ',' + (i-1) + ')" title="Move up"' + upDisabled + '>▲</button>' +
+      '<button class="obj-reorder-btn" onclick="' + prefix + '(' + i + ',' + (i+1) + ')" title="Move down"' + downDisabled + '>▼</button>' +
+      '</div>';
+  }
+
   function renderCloList() {
     const container = document.getElementById('clo-list');
     if (!container) return;
@@ -3685,6 +3698,7 @@
     let html = '';
     clos.forEach(function(clo, i) {
       html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        _objReorderBtns('clo', i, clos.length) +
         '<span class="clo-elo-num" style="flex-shrink:0;">' + (i+1) + '</span>' +
         '<textarea class="clo-elo-field" id="clo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveCloState()">' + escapeHtml(clo) + '</textarea>' +
         '<button class="elo-remove-btn" onclick="removeClo(' + i + ')" title="Remove CLO" style="flex-shrink:0;">×</button>' +
@@ -3702,6 +3716,7 @@
     let html = '';
     elos.forEach(function(elo, i) {
       html += '<div style="display:flex; gap:8px; align-items:flex-start; margin-bottom:8px;">' +
+        _objReorderBtns('elo', i, elos.length) +
         '<span class="clo-elo-num" style="flex-shrink:0; background:#ffc627; color:#333;">' + (i+1) + '</span>' +
         '<textarea class="clo-elo-field" id="elo-' + i + '" rows="2" style="flex:1; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical;" oninput="saveEloState()">' + escapeHtml(elo) + '</textarea>' +
         '<button class="elo-remove-btn" onclick="removeElo(' + i + ')" title="Remove ELO" style="flex-shrink:0;">×</button>' +
@@ -3710,6 +3725,71 @@
     if (elos.length === 0) html = '<div style="color:#999; font-size:13px; padding:8px;">No ELOs defined yet. Click "+ Add ELO" to start.</div>';
     container.innerHTML = html;
   }
+
+  // Move a CLO from one position to another. Permutes the matching row in
+  // cloEloAlignment so each CLO's ELO checkmarks follow it.
+  window.moveClo = function(fromIdx, toIdx) {
+    var clos = activeCourse.clos || [];
+    if (toIdx < 0 || toIdx >= clos.length || fromIdx === toIdx) return;
+    // Flush any in-progress textarea edits into the data model BEFORE we
+    // mutate indexes — otherwise the next render reads stale activeCourse.clos.
+    for (var i = 0; i < clos.length; i++) {
+      var el = document.getElementById('clo-' + i);
+      if (el) clos[i] = el.value;
+    }
+    var alignment = activeCourse.cloEloAlignment || [];
+    var moved = clos.splice(fromIdx, 1)[0];
+    clos.splice(toIdx, 0, moved);
+    if (Array.isArray(alignment) && alignment.length > 0) {
+      var movedRow = alignment.splice(fromIdx, 1)[0] || [];
+      alignment.splice(toIdx, 0, movedRow);
+      activeCourse.cloEloAlignment = alignment;
+    }
+    activeCourse.clos = clos;
+    saveObjectivesState();
+    renderCloList();
+    renderAlignmentMatrix();
+  };
+
+  // Move an ELO. Permutes:
+  //  - flatElos
+  //  - each cloEloAlignment row's column ordering
+  //  - eloMloAlignment keys (numeric reindexing)
+  // so every alignment follows the ELO to its new position.
+  window.moveElo = function(fromIdx, toIdx) {
+    var elos = activeCourse.flatElos || [];
+    if (toIdx < 0 || toIdx >= elos.length || fromIdx === toIdx) return;
+    // Flush in-progress textarea edits.
+    for (var i = 0; i < elos.length; i++) {
+      var el = document.getElementById('elo-' + i);
+      if (el) elos[i] = el.value;
+    }
+    var moved = elos.splice(fromIdx, 1)[0];
+    elos.splice(toIdx, 0, moved);
+    activeCourse.flatElos = elos;
+    // Permute each CLO row's columns
+    var alignment = activeCourse.cloEloAlignment || [];
+    activeCourse.cloEloAlignment = alignment.map(function(row) {
+      var r = Array.isArray(row) ? row.slice() : [];
+      var col = r.splice(fromIdx, 1)[0] || false;
+      r.splice(toIdx, 0, !!col);
+      return r;
+    });
+    // Reindex eloMloAlignment so each ELO's tagged MLO list follows.
+    var em = activeCourse.eloMloAlignment || {};
+    var ordered = [];
+    var n = elos.length;
+    for (var k = 0; k < n; k++) ordered.push(em[k] || []);
+    var movedMlos = ordered.splice(fromIdx, 1)[0] || [];
+    ordered.splice(toIdx, 0, movedMlos);
+    var newEm = {};
+    for (var j = 0; j < n; j++) newEm[j] = ordered[j];
+    activeCourse.eloMloAlignment = newEm;
+    saveField('eloMloAlignment', newEm);
+    saveObjectivesState();
+    renderEloList();
+    renderAlignmentMatrix();
+  };
 
   function renderAlignmentMatrix() {
     const container = document.getElementById('alignment-matrix');
