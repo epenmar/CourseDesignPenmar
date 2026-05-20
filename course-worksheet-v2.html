@@ -16858,6 +16858,9 @@
   let _presenceRetryDelay = 1000;
   let _presenceRetryTimer = null;
 
+  // Last time the local user produced an input event (key, click, mouse move,
+  // focus). Used to mark idle status on the presence pill — Google Docs style.
+  var _lastLocalActivityAt = Date.now();
   function _trackPresence(identity) {
     if (!presenceChannel) return;
     try {
@@ -16865,10 +16868,42 @@
         name: identity.name,
         role: identity.role,
         page: currentViewId || 'dashboard',
-        online_at: new Date().toISOString()
+        online_at: new Date().toISOString(),
+        last_active_at: new Date(_lastLocalActivityAt).toISOString()
       });
     } catch (e) { console.warn('[presence] track failed:', e && e.message); }
   }
+
+  // Idle threshold: a collaborator who hasn't produced an input/focus/mouse
+  // event in this long renders as dimmed. 90 seconds is a good middle ground
+  // between Google Docs' aggressive dimming and not flapping during a
+  // brief read/scroll pause.
+  var PRESENCE_IDLE_MS = 90 * 1000;
+
+  // Re-track presence on local activity, throttled so we don't spam the
+  // channel. The throttled re-track lets collaborators see us come back
+  // from idle within ~10s of resuming activity.
+  var _activityRetrackTimer = null;
+  function _bumpLocalActivity() {
+    _lastLocalActivityAt = Date.now();
+    if (_activityRetrackTimer) return;
+    _activityRetrackTimer = setTimeout(function() {
+      _activityRetrackTimer = null;
+      var id = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      if (id) _trackPresence(id);
+    }, 10000);
+  }
+  ['keydown', 'mousedown', 'mousemove', 'focusin', 'touchstart'].forEach(function(ev) {
+    document.addEventListener(ev, _bumpLocalActivity, { passive: true, capture: true });
+  });
+
+  // Repaint presence on a slow timer so remote pills age into idle even when
+  // no presence-sync event fires. Supabase only pushes us a sync when state
+  // changes, so without this a collaborator who walked away an hour ago would
+  // keep rendering as active until something else triggered renderPresence.
+  setInterval(function() {
+    if (typeof renderPresence === 'function' && presenceChannel) renderPresence();
+  }, 30000);
 
   function initPresence() {
     if (!supabaseClient) return;
@@ -17456,17 +17491,39 @@
 
     bar.style.display = 'block';
     var html = '';
+    var nowMs = Date.now();
     users.forEach(function(u) {
       var isMe = identity && u.name === identity.name;
       var initials = (u.name || '?').split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
       var pillColor = userColorFor(u.name);
       var roleLabel = u.role === 'instructor' ? 'Faculty' : u.role === 'id' ? 'ID' : u.role;
       var viewName = getViewLabel(u.page);
-      var tooltip = u.name + ' (' + roleLabel + ')' + (viewName ? ' — viewing ' + viewName : '');
-      html += '<div title="' + escapeHtml(tooltip) + '" style="display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:10px; background:' + pillColor + '22; border:1px solid ' + pillColor + '88; font-size:10px; color:#fff; white-space:nowrap;">';
-      html += '<span style="display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:' + pillColor + '; color:#fff; font-size:8px; font-weight:700;">' + initials + '</span>';
-      html += '<span style="color:' + pillColor + '; font-weight:500;">' + escapeHtml(u.name.split(' ')[0]) + '</span>';
+      // Idle = no activity in PRESENCE_IDLE_MS. For the local user we use the
+      // up-to-the-second _lastLocalActivityAt; for remotes we use the
+      // last_active_at they last broadcast (might be ~10s stale by throttle).
+      var lastActiveMs = isMe ? _lastLocalActivityAt : (u.last_active_at ? new Date(u.last_active_at).getTime() : nowMs);
+      var idleMs = nowMs - lastActiveMs;
+      var isIdle = !isMe && !isNaN(idleMs) && idleMs > PRESENCE_IDLE_MS;
+      var idleLabel = '';
+      if (isIdle) {
+        var idleMin = Math.floor(idleMs / 60000);
+        idleLabel = idleMin >= 60 ? Math.floor(idleMin / 60) + 'h idle' : idleMin + 'm idle';
+      }
+      var tooltip = u.name + ' (' + roleLabel + ')' + (viewName ? ' — viewing ' + viewName : '') + (idleLabel ? ' — ' + idleLabel : '');
+      var pillStyle = 'display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:10px; background:' + pillColor + '22; border:1px solid ' + pillColor + '88; font-size:10px; color:#fff; white-space:nowrap;';
+      var avatarStyle = 'display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:' + pillColor + '; color:#fff; font-size:8px; font-weight:700;';
+      var nameStyle = 'color:' + pillColor + '; font-weight:500;';
+      if (isIdle) {
+        // Desaturate the pill: gray border + background, gray text, dimmed avatar.
+        pillStyle = 'display:inline-flex; align-items:center; gap:3px; padding:2px 6px; border-radius:10px; background:#f5f5f0; border:1px solid #d0ccc2; font-size:10px; color:#888; white-space:nowrap; opacity:0.55;';
+        avatarStyle = 'display:inline-flex; align-items:center; justify-content:center; width:16px; height:16px; border-radius:50%; background:#aaa; color:#fff; font-size:8px; font-weight:700;';
+        nameStyle = 'color:#888; font-weight:500;';
+      }
+      html += '<div title="' + escapeHtml(tooltip) + '" style="' + pillStyle + '">';
+      html += '<span style="' + avatarStyle + '">' + initials + '</span>';
+      html += '<span style="' + nameStyle + '">' + escapeHtml(u.name.split(' ')[0]) + '</span>';
       if (isMe) html += '<span style="color:#999; font-size:9px;">(you)</span>';
+      if (isIdle) html += '<span style="color:#aaa; font-size:9px;">· ' + idleLabel + '</span>';
       html += '</div>';
     });
     container.innerHTML = html;
