@@ -3758,7 +3758,12 @@
         tags.push('ELO ' + (parseInt(eloKey) + 1));
       }
     });
-    tags.sort();
+    // Sort numerically so ELO 2 sits between ELO 1 and ELO 3 — a plain
+    // .sort() ran lexicographically and placed ELO 10/11/12 between ELO 1
+    // and ELO 2 in the chip row.
+    tags.sort(function(a, b) {
+      return parseInt(a.match(/\d+/)[0], 10) - parseInt(b.match(/\d+/)[0], 10);
+    });
     return tags;
   }
 
