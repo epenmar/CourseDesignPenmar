@@ -8780,8 +8780,19 @@
         if (finalIdx > sourceList.length) finalIdx = sourceList.length;
         sourceList.splice(finalIdx, 0, item);
         saveActivityData();
-        var openA = getOpenOverviewModules('assignments-overview-cards');
-        renderAssignmentsOverview(openA);
+        // Optimistic DOM reorder so the row visibly snaps to its new
+        // position instantly. The previous full renderAssignmentsOverview
+        // rebuilt every card + re-initialized every quiz builder (~half a
+        // second for a fully-loaded course); for an intra-module reorder
+        // we just move the row element and we're done.
+        var draggedEl = document.querySelector('.activity-block[data-activity-id="' + item.id + '"]');
+        var targetEl = targetId ? document.querySelector('.activity-block[data-activity-id="' + targetId + '"]') : null;
+        if (draggedEl && targetEl && draggedEl.parentNode === targetEl.parentNode) {
+          targetEl.parentNode.insertBefore(draggedEl, insertAbove ? targetEl : targetEl.nextSibling);
+        } else {
+          var openA = getOpenOverviewModules('assignments-overview-cards');
+          renderAssignmentsOverview(openA);
+        }
       } else {
         // Move activity between modules
         var item = sourceList.splice(idx, 1)[0];
@@ -8825,8 +8836,16 @@
         if (finalIdx > sourceList.length) finalIdx = sourceList.length;
         sourceList.splice(finalIdx, 0, item);
         saveActivityData();
-        var openM = getOpenOverviewModules('materials-overview-cards');
-        renderMaterialsOverview(openM);
+        // Same optimistic DOM reorder as the assignments path — avoid the
+        // ~half-second renderMaterialsOverview rebuild for intra-module moves.
+        var draggedEl = document.querySelector('[data-material-id="' + item.id + '"]');
+        var targetEl = targetId ? document.querySelector('[data-material-id="' + targetId + '"]') : null;
+        if (draggedEl && targetEl && draggedEl.parentNode === targetEl.parentNode) {
+          targetEl.parentNode.insertBefore(draggedEl, insertAbove ? targetEl : targetEl.nextSibling);
+        } else {
+          var openM = getOpenOverviewModules('materials-overview-cards');
+          renderMaterialsOverview(openM);
+        }
       } else {
         // Move material between modules
         var item = sourceList.splice(idx, 1)[0];
@@ -12933,16 +12952,20 @@
   });
 
   // Drag-handle gating. Activity/material rows are rendered with
-  // draggable="false" by default. We flip it to "true" only when the user
-  // mousedowns on the ⠿ handle, then back to "false" on mouseup. This
-  // restricts drag-to-reorder to the handle while leaving the rest of the
-  // row freely clickable for text selection, button presses, etc.
+  // draggable="false" by default. We flip it to "true" on mousedown unless
+  // the click landed inside a control the user is interacting with (input,
+  // textarea, button, link, contenteditable, or the objectives-picker
+  // dropdown). Previously we required the click to land on the small ⠿
+  // glyph specifically, which made grabbing the row feel finicky — users
+  // would click "right next to" the handle and get nothing. Widening the
+  // hit area to the whole row except the controls lets you grab any blank
+  // pixel on the row.
   document.addEventListener('mousedown', function(e) {
     if (!e.target || !e.target.closest) return;
     var row = e.target.closest('.activity-block, .material-item, .material-block');
     if (!row) return;
-    var onHandle = e.target.closest('.act-drag-handle');
-    row.setAttribute('draggable', onHandle ? 'true' : 'false');
+    var onControl = e.target.closest('input, textarea, select, button, a, [contenteditable="true"], [contenteditable=""], .obj-picker, .obj-dropdown');
+    row.setAttribute('draggable', onControl ? 'false' : 'true');
   }, true);
   // Reset draggable back to false after any mouseup so a stale "true" can't
   // accidentally trigger a drag from a future click anywhere on the row.
