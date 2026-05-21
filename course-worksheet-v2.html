@@ -14997,7 +14997,7 @@
     var codeTitle = (val('ci-course-code') || activeCourse.code || '') +
       (val('ci-course-name') || activeCourse.name ? ': ' + (val('ci-course-name') || activeCourse.name) : '');
     html += '<div style="text-align:center; margin-bottom:8px;">';
-    html += '<h1 style="margin:0 0 12px 0; background:#fef3e8; display:inline-block; padding:4px 16px; color:#8c1d40;">' + esc(codeTitle) + '</h1>';
+    html += '<h1 style="margin:0 0 12px 0;">' + esc(codeTitle) + '</h1>';
     html += '</div>';
     // Pick a school-specific logo when one's available locally; otherwise
     // fall back to the generic ASU brand mark on the CDN. If neither
