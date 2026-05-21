@@ -14963,39 +14963,73 @@
 
     let html = '';
 
-    // ===== HEADER =====
-    html += '<div style="text-align:center; margin-bottom:24px;">';
-    html += '<h1 style="margin-bottom:4px;">' + esc(val('ci-course-code') || activeCourse.code) + '</h1>';
-    html += '<p style="font-size:16px; font-weight:600;">' + esc(val('ci-course-name') || activeCourse.name) + '</p>';
-    html += '<p style="font-size:14px; color:#666;">' + esc(val('ci-session') || activeCourse.session || '') + '</p>';
+    // ===== ASUO HEADER: title + ASU logo =====
+    // Course code + title centered, followed by the ASU logo. Mirrors the
+    // ASUO universal syllabus template's first page. The logo is the
+    // publicly hosted brand mark; if the network can't reach it (offline
+    // preview, blocked CDN, etc.), browsers render alt text instead.
+    var codeTitle = (val('ci-course-code') || activeCourse.code || '') +
+      (val('ci-course-name') || activeCourse.name ? ': ' + (val('ci-course-name') || activeCourse.name) : '');
+    html += '<div style="text-align:center; margin-bottom:8px;">';
+    html += '<h1 style="margin:0 0 12px 0; background:#fef3e8; display:inline-block; padding:4px 16px; color:#8c1d40;">' + esc(codeTitle) + '</h1>';
     html += '</div>';
+    html += '<div style="text-align:center; margin-bottom:20px;">';
+    html += '<img src="https://brand.asu.edu/sites/default/files/2024-08/asu-primary-logo-rgb-maroon-gold-300.png" alt="Arizona State University" style="max-height:90px; width:auto;" onerror="this.style.display=\'none\'; if(this.nextElementSibling){this.nextElementSibling.style.display=\'block\';}" />';
+    html += '<div style="display:none; font-size:24px; font-weight:700; color:#8c1d40;">Arizona State University</div>';
+    html += '</div>';
+    html += '<hr style="border:none; border-top:1px solid #ccc; margin-bottom:18px;" />';
 
-    // ===== COURSE DESCRIPTION =====
+    // ===== COURSE INFORMATION =====
+    html += '<h1>Course Information</h1>';
     var desc = val('course-description');
     html += '<p><strong>Course Description:</strong> ' + (desc ? esc(desc).replace(/\n/g, '<br>') : '<em>Not entered</em>') + '</p>';
-
-    var overview = val('course-overview');
-    html += '<p><strong>Course Overview:</strong> ' + (overview ? esc(overview).replace(/\n/g, '<br>') : '<em>Not entered</em>') + '</p>';
-
-    html += '<p><strong>Credit Hours:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
-
+    html += '<p><strong>Credits:</strong> ' + esc(val('ci-credits') || activeCourse.credits || '') + '</p>';
     var prereqs = val('ci-prerequisites');
-    html += '<p><strong>Enrollment Requirements:</strong> ' + (prereqs ? esc(prereqs) : '<em>Not entered</em>') + '</p>';
+    html += '<p><strong>Prerequisites:</strong> ' + (prereqs ? esc(prereqs) : '<em>Not entered</em>') + '</p>';
+
+    // ===== INSTRUCTOR CONTACT INFORMATION (ASUO format) =====
+    // Title swaps to "Course Team Contact Information" when a course-team
+    // flag is set. Otherwise default to "Instructor Contact Information".
+    var contactTitle = val('ci-contact-title-mode') === 'team' ? 'Course Team Contact Information' : 'Instructor Contact Information';
+    html += '<h1>' + esc(contactTitle) + '</h1>';
+    var iName = val('ci-instructor') || activeCourse.instructor || '';
+    var iPronouns = val('ci-pronouns');
+    var iPostNom = val('ci-post-nominal');
+    html += '<p><strong>Instructor:</strong> ' + esc(iName)
+      + (iPostNom ? ', ' + esc(iPostNom) : '')
+      + (iPronouns ? ' (' + esc(iPronouns) + ')' : '') + '</p>';
+    var iPref = val('ci-preferred-name');
+    if (iPref) html += '<p><strong>Preferred Name:</strong> ' + esc(iPref) + '</p>';
+    var iDept = val('ci-dept-title');
+    if (iDept) html += '<p><strong>Department Title and/or ASU Roles:</strong> ' + esc(iDept) + '</p>';
+
+    // Virtual Office Hours block — ASUO template separates a freeform
+    // schedule line from an optional join link + access info.
+    var officeHrs = val('ci-office-hours');
+    var vhoLink = val('ci-vho-link');
+    var vhoAccess = val('ci-vho-access');
+    html += '<p><strong>Virtual Office Hours:</strong> ' + (officeHrs ? esc(officeHrs) : '<em>Days, times, and location/by appointment</em>') + '</p>';
+    if (vhoLink) html += '<p style="margin-left:24px;"><strong>Link:</strong> <a href="' + esc(vhoLink) + '">' + esc(vhoLink) + '</a></p>';
+    if (vhoAccess) html += '<p style="margin-left:24px;"><strong>Access Information:</strong> ' + esc(vhoAccess) + '</p>';
+
+    var apptReq = val('ci-request-appt');
+    if (apptReq) html += '<p><strong>Request an appointment outside of office hours:</strong> ' + esc(apptReq) + '</p>';
+
+    var email = val('ci-email') || activeCourse.email || '';
+    html += '<p><strong>Email:</strong> ' + esc(email) + '</p>';
+    var phone = val('ci-phone');
+    if (phone) html += '<p><strong>Contact Number:</strong> ' + esc(phone) + '</p>';
+
+    html += '<p style="font-size:11px; color:#666; font-style:italic; margin-top:18px; padding-top:8px; border-top:1px dotted #ccc;"><strong>Syllabus disclaimer:</strong> Any information in this syllabus may be subject to change without advance notice. Stay informed by checking course announcements and the syllabus section of your course.</p>';
 
     html += '<p><strong>Course Access:</strong> Your ASU courses can be accessed by both <a href="http://my.asu.edu">my.asu.edu</a> and <a href="http://myasucourses.asu.edu">myasucourses.asu.edu</a>; bookmark both in the event that one site is down.</p>';
 
-    // ===== INSTRUCTOR INFORMATION =====
-    html += '<h1>Instructor Information</h1>';
-    html += '<table style="border:none; font-size:13px; margin-bottom:16px;">';
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Name:</td><td>' + esc(val('ci-instructor') || activeCourse.instructor) + '</td></tr>';
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Email address:</td><td>' + esc(val('ci-email') || activeCourse.email) + '</td></tr>';
-    var phone = val('ci-phone');
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Phone number:</td><td>' + (phone ? esc(phone) : '') + '</td></tr>';
-    var office = val('ci-office');
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office/room:</td><td>' + (office ? esc(office) : '') + '</td></tr>';
-    var officeHrs = val('ci-office-hours');
-    html += '<tr><td style="padding:2px 12px 2px 0; font-weight:600;">Office hours:</td><td>' + (officeHrs ? esc(officeHrs) : '') + '</td></tr>';
-    html += '</table>';
+    // ===== COURSE OVERVIEW (separate section per ASUO template) =====
+    var overview = val('course-overview');
+    if (overview) {
+      html += '<h1>Course Overview</h1>';
+      html += '<p>' + esc(overview).replace(/\n/g, '<br>') + '</p>';
+    }
 
     // ===== COURSE BASICS =====
     html += '<h1>Course Basics</h1>';
