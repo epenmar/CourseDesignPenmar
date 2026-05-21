@@ -14999,8 +14999,19 @@
     html += '<div style="text-align:center; margin-bottom:8px;">';
     html += '<h1 style="margin:0 0 12px 0; background:#fef3e8; display:inline-block; padding:4px 16px; color:#8c1d40;">' + esc(codeTitle) + '</h1>';
     html += '</div>';
+    // Pick a school-specific logo when one's available locally; otherwise
+    // fall back to the generic ASU brand mark on the CDN. If neither
+    // resolves, the onerror chain swaps in a plain-text "Arizona State
+    // University" line so the preview never shows a broken-image icon.
+    var collegeLogoMap = {
+      CHS:   { src: 'assets/college-logos/chs.png',        alt: 'Arizona State University — College of Health Solutions' },
+      STPH:  { src: 'assets/college-logos/stph.png',       alt: 'Arizona State University — School of Technology for Public Health' },
+      NCIAS: { src: 'assets/college-logos/ncias-smns.png', alt: 'Arizona State University — School of Mathematical and Natural Sciences' }
+    };
+    var logo = collegeLogoMap[college] || { src: 'https://brand.asu.edu/sites/default/files/2024-08/asu-primary-logo-rgb-maroon-gold-300.png', alt: 'Arizona State University' };
     html += '<div style="text-align:center; margin-bottom:20px;">';
-    html += '<img src="https://brand.asu.edu/sites/default/files/2024-08/asu-primary-logo-rgb-maroon-gold-300.png" alt="Arizona State University" style="max-height:90px; width:auto;" onerror="this.style.display=\'none\'; if(this.nextElementSibling){this.nextElementSibling.style.display=\'block\';}" />';
+    html += '<img src="' + esc(logo.src) + '" alt="' + esc(logo.alt) + '" style="max-height:110px; width:auto;" '
+      + 'onerror="this.onerror=null; this.src=\'https://brand.asu.edu/sites/default/files/2024-08/asu-primary-logo-rgb-maroon-gold-300.png\'; this.dataset.fallback=\'1\'; this.addEventListener(\'error\', function(){this.style.display=\'none\'; if(this.nextElementSibling){this.nextElementSibling.style.display=\'block\';}}, {once:true});" />';
     html += '<div style="display:none; font-size:24px; font-weight:700; color:#8c1d40;">Arizona State University</div>';
     html += '</div>';
     html += '<hr style="border:none; border-top:1px solid #ccc; margin-bottom:18px;" />';
