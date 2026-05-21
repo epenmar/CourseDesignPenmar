@@ -15022,7 +15022,16 @@
 
     html += '<p style="font-size:11px; color:#666; font-style:italic; margin-top:18px; padding-top:8px; border-top:1px dotted #ccc;"><strong>Syllabus disclaimer:</strong> Any information in this syllabus may be subject to change without advance notice. Stay informed by checking course announcements and the syllabus section of your course.</p>';
 
-    html += '<p><strong>Course Access:</strong> Your ASU courses can be accessed by both <a href="http://my.asu.edu">my.asu.edu</a> and <a href="http://myasucourses.asu.edu">myasucourses.asu.edu</a>; bookmark both in the event that one site is down.</p>';
+    // ===== COMMUNICATING WITH THE INSTRUCTOR (ASUO universal) =====
+    html += '<h1>Communicating With the Instructor</h1>';
+    html += '<h2>Community Forum</h2>';
+    html += '<p>This course uses a discussion called "Community Forum" for general questions and comments about the course. Prior to posting a question or comment, check the syllabus, announcements, and existing posts to ensure it is not redundant. You are encouraged to respond to the questions of your classmates.</p>';
+    html += '<p>Email questions of a personal or sensitive nature to your instructor. You can expect a response within 72 hours.</p>';
+    html += '<h2>Chat</h2>';
+    html += '<p>The Chat tool in Canvas allows students and the course team members to interact in real time. Use Chat only for informal course-related conversations unless your instructor informs you otherwise. Chat is not ideal for questions about assignments; instructors are <strong>not</strong> required to monitor it and conversations may be buried or lost.</p>';
+    html += '<h2>Email</h2>';
+    html += '<p>ASU email is an <a href="https://eoss.asu.edu/dos/srr/PDFS/student-email.pdf">official means of communication</a> among students, faculty, and staff. Students are expected to read and act upon email in a timely fashion. Students bear the responsibility of missed messages and should check their ASU-assigned email regularly.</p>';
+    html += '<p><strong>All instructor correspondence will be sent to your ASU email account.</strong></p>';
 
     // ===== COURSE OVERVIEW (separate section per ASUO template) =====
     var overview = val('course-overview');
@@ -15045,16 +15054,39 @@
     var cocurricular = val('mat-cocurricular');
     html += '<p><strong>Co-curricular activities:</strong> ' + (cocurricular ? esc(cocurricular).replace(/\n/g, '<br>') : '') + '</p>';
 
-    // Required Technology
-    html += '<p><strong>Required Technology</strong></p>';
-    html += '<ol style="font-size:13px;">';
-    html += '<li>Desktop or laptop computer with current/updated operating software<br><em style="font-size:12px;">Note: A smartphone, iPad, Chromebook, etc. will not be sufficient for completing your work in ' + (isCHS ? 'your courses' : 'ASU Online courses') + '. While you will be able to access course content with mobile devices, you must use a computer for all assignments, quizzes, and virtual labs.</em></li>';
-    html += '<li>Reliable broadband internet connection (DSL or cable) to stream videos.</li>';
-    html += '<li>Web browser updated to the most recent version. Chrome is preferred for Canvas.</li>';
-    html += '<li>Webcam, microphone, headset/earbuds, and speaker</li>';
-    html += '<li>Microsoft Office (<a href="https://myapps.asu.edu/app/microsoft-office-365">Microsoft 365</a> is free to currently enrolled ASU Students)</li>';
-    html += '<li><a href="http://get.adobe.com/reader/">Adobe Acrobat Reader</a> (free)</li>';
-    html += '</ol>';
+    // ===== TECHNOLOGY REQUIREMENTS (ASUO structure) =====
+    // Replaces the previous "Required Technology" lump with the ASUO
+    // template's split: Course Access / Proctoring / Hardware / Software/Other.
+    html += '<h3>Technology Requirements</h3>';
+    html += '<p>This course is fully online and requires a computer with internet access. You must have full administrative rights to download and install necessary applications. A smartphone, iPad, Chromebook, etc. will <strong>not</strong> be sufficient for completing your work in ' + (isCHS ? 'your courses' : 'ASU Online courses') + '. While you will be able to access course content with mobile devices, you must use a computer for all assignments, quizzes and exams, and virtual labs.</p>';
+
+    html += '<p><strong>Course Access:</strong> Your ASU courses can be accessed by both <a href="https://canvas.asu.edu">canvas.asu.edu</a> and <a href="https://asu.instructure.com">asu.instructure.com</a>; bookmark both in the event that one site is down.</p>';
+
+    // Proctoring — surface only when the course actually uses proctoring.
+    var proctoringRequired = val('syl-proctoring-required') || formData['syl-proctoring-required'];
+    if (proctoringRequired) {
+      html += '<p><strong>Proctoring:</strong> It is your responsibility to verify your technology meets the proctoring requirements.</p>';
+      html += '<ul style="font-size:13px;">';
+      html += '<li><a href="https://download.respondus.com/lockdown/download.php?id=535622102">LockDown Browser Computer Requirements for Installation</a> (for graded quizzes)</li>';
+      html += '<li><a href="https://honorlock.com/support/">Honorlock Minimum System Requirements</a> (for tests/exams)</li>';
+      html += '</ul>';
+    }
+
+    html += '<p><strong>Hardware</strong></p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li>Standard personal computer with major operating system (OS)</li>';
+    html += '<li>Reliable, strong Internet connection: broadband internet connection (DSL or cable) to stream videos</li>';
+    html += '<li>Webcam</li>';
+    html += '<li>Microphone, headset/earbuds, and speaker</li>';
+    html += '</ul>';
+
+    html += '<p><strong>Software/Other</strong></p>';
+    html += '<ul style="font-size:13px;">';
+    html += '<li>Web browser: <a href="https://www.google.com/chrome/">Chrome</a>, <a href="https://www.mozilla.org/firefox/">Mozilla Firefox</a>, or <a href="https://www.apple.com/safari/">Safari</a></li>';
+    html += '<li>PDF Viewer: <a href="http://get.adobe.com/reader/">Adobe Acrobat Reader</a> is free for all currently-enrolled ASU students</li>';
+    html += '<li>Microsoft Office: <a href="https://myapps.asu.edu/app/microsoft-office-365">Microsoft 365</a> is free for all currently-enrolled ASU students</li>';
+    html += '</ul>';
+
     html += '<p>Please inform the instructor if any of the above present a hardship for you. ASU may have some resources to help students in need. You have access to <a href="https://uto.asu.edu/experiencecenter">24/7 technical support</a>.</p>';
 
     // Course Objectives (CLOs)
@@ -15109,8 +15141,20 @@
     var honorsContract = formData['ci-honors-contract'];
     html += '<p><strong>Does this class have an honors contract?</strong> ' + (honorsContract ? 'Yes' : 'No') + '</p>';
 
+    // ===== COURSEWORK (ASUO universal) =====
+    html += '<h2>Coursework</h2>';
+    html += '<h3>Submitting Coursework</h3>';
+    html += '<p>All coursework, unless otherwise announced, <strong>must</strong> be submitted to the designated area of Canvas. Do <strong>not</strong> submit an assignment via email.</p>';
+    html += '<p>Coursework due dates follow Arizona Standard time. Use a <a href="http://www.thetimezoneconverter.com/">Time Converter</a> to ensure you account for the difference in Time Zones. Note: Arizona does <strong>not</strong> observe daylight savings time.</p>';
+    html += '<h3>Late or Missed Coursework</h3>';
+    var latePolicy = val('syl-late-policy');
+    if (latePolicy) html += '<p>' + esc(latePolicy).replace(/\n/g, '<br>') + '</p>';
+    html += '<p>When possible, notify the instructor before coursework is due. If an urgent situation or emergency arises and you are unable to submit coursework on time, please communicate with your advisor, success coach, and instructor as soon as possible.</p>';
+    html += '<p>Follow the appropriate University policies to request an <a href="https://eoss.asu.edu/dos/srr/PoliciesAndProcedures/Accommodation-for-Religious-Practices">accommodation for religious practices</a> or to accommodate a missed assignment <a href="https://www.asu.edu/aad/manuals/acd/acd304-02.html">due to University-sanctioned activities</a>.</p>';
+
     // ===== GRADING POLICY =====
     html += '<h2>Grading Policy</h2>';
+    html += '<p>Grades reflect your performance on coursework and, when required, adherence to due dates. Grades will typically be available within 72 hours of the due date in the Canvas Gradebook.</p>';
     var gradeRounding = val('syl-grade-rounding');
     if (gradeRounding) html += '<p>' + esc(gradeRounding).replace(/\n/g, '<br>') + '</p>';
 
