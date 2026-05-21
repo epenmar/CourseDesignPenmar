@@ -5827,38 +5827,68 @@
       }
     }
 
-    // Update sidebar Assignments Overview badge — counts modules where at
-    // least one activity is marked contentComplete. "Module has a named
-    // activity" was too weak a signal (an empty stub counted as done);
-    // requiring contentComplete makes the badge reflect faculty intent.
+    // Update sidebar Assignments Overview badge.
+    // Two tiers:
+    //   green "done"  — every module has at least one activity marked
+    //                   contentComplete (faculty has reviewed and signed off).
+    //   yellow N/M    — every module has at least one *substantive* activity
+    //                   even if not yet marked complete (name + at least one
+    //                   of: points, due date, objectives tagged, richText,
+    //                   non-empty template field). This is what was missing —
+    //                   a 30-activity course with everything filled out except
+    //                   the contentComplete checkbox was showing "—".
     var assignBadge = document.getElementById('sidebar-assign-badge');
     if (assignBadge) {
-      var modsWithCompleteActs = 0;
-      var modsMissingCompleteActs = [];
+      var _hasText = function(s) { return String(s == null ? '' : s).replace(/<[^>]+>/g, '').trim().length > 0; };
+      var _actSubstantive = function(a) {
+        if (!a || !a.name || !a.name.trim()) return false;
+        if (parseInt(a.points, 10) > 0) return true;
+        if (a.due) return true;
+        if (Array.isArray(a.objectives) && a.objectives.length > 0) return true;
+        if (_hasText(a.richText)) return true;
+        if (a.templateData) {
+          var tplKeys = Object.keys(a.templateData);
+          for (var ti = 0; ti < tplKeys.length; ti++) {
+            var section = a.templateData[tplKeys[ti]];
+            if (section && typeof section === 'object') {
+              var subKeys = Object.keys(section);
+              for (var si = 0; si < subKeys.length; si++) if (_hasText(section[subKeys[si]])) return true;
+            }
+          }
+        }
+        return false;
+      };
+      var modsWithSubst = 0, modsWithComplete = 0;
+      var modsMissingSubst = [], modsMissingComplete = [];
       var startN_a = activeCourse.moduleStartZero ? 0 : 1;
       for (var ai = 0; ai < modCount; ai++) {
         var modN = ai + startN_a;
         var acts = courseActivities[modN];
-        var has = acts && acts.length > 0 && acts.some(function(a) {
+        var hasSubst = !!(acts && acts.length > 0 && acts.some(_actSubstantive));
+        var hasComplete = !!(acts && acts.length > 0 && acts.some(function(a) {
           return a && a.name && a.name.trim() && a.contentComplete;
-        });
-        if (has) modsWithCompleteActs++;
-        else modsMissingCompleteActs.push(modN);
+        }));
+        if (hasSubst) modsWithSubst++; else modsMissingSubst.push(modN);
+        if (hasComplete) modsWithComplete++; else modsMissingComplete.push(modN);
       }
-      if (modsWithCompleteActs === modCount && modCount > 0) {
+      if (modsWithComplete === modCount && modCount > 0) {
         assignBadge.className = 'badge badge-done';
-        assignBadge.textContent = modsWithCompleteActs + '/' + modCount;
-        assignBadge.title = 'Every module has at least one completed activity.';
-      } else if (modsWithCompleteActs > 0) {
+        assignBadge.textContent = modsWithComplete + '/' + modCount;
+        assignBadge.title = 'Every module has at least one activity marked content-complete.';
+      } else if (modsWithSubst > 0) {
         assignBadge.className = 'badge badge-partial';
-        assignBadge.textContent = modsWithCompleteActs + '/' + modCount;
-        assignBadge.title = modsMissingCompleteActs.length === 1
-          ? 'Module ' + modsMissingCompleteActs[0] + ' has no completed activity yet.'
-          : 'No completed activity in: Module ' + modsMissingCompleteActs.join(', Module ');
+        assignBadge.textContent = modsWithSubst + '/' + modCount;
+        if (modsWithComplete === 0) {
+          assignBadge.title = modsMissingSubst.length === 0
+            ? modsWithSubst + ' of ' + modCount + ' modules have substantive activities; none marked content-complete yet.'
+            : 'Substantive activities in ' + modsWithSubst + ' of ' + modCount + ' modules. Missing: Module ' + modsMissingSubst.join(', Module ');
+        } else {
+          assignBadge.title = modsWithComplete + ' of ' + modCount + ' modules marked content-complete; ' + modsWithSubst + ' have substantive activities.';
+        }
       } else {
         assignBadge.className = 'badge badge-empty';
         assignBadge.textContent = '—';
-        assignBadge.title = 'No activities marked complete yet.';
+        assignBadge.title = 'No activities filled out yet.';
       }
     }
 
