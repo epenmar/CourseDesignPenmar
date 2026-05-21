@@ -2552,7 +2552,19 @@
     if (document.getElementById('materials-overview-cards')) {
       renderMaterialsOverview(getOpenOverviewModules('materials-overview-cards'));
     }
+    // Highlights live as <mark.inline-highlight> wrappers inside the rendered
+    // text nodes — every re-render of a view destroys them. Re-apply after
+    // the DOM settles so a post-pullCurrentCourseFromCloud renderAllViews
+    // (or any other caller) doesn't leave the user staring at unhighlighted
+    // text. Debounced to avoid stacking when showView re-renders the same
+    // view and then runs its own 200ms highlight pass.
+    clearTimeout(_reapplyHighlightsTimer);
+    _reapplyHighlightsTimer = setTimeout(function() {
+      try { if (typeof loadAndApplyHighlights === 'function') loadAndApplyHighlights(); } catch (e) {}
+      try { if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators(); } catch (e) {}
+    }, 220);
   }
+  var _reapplyHighlightsTimer = null;
 
   function captureUndoOnEdit(label) {
     if (!undoCapturedForCurrentEdit) {
