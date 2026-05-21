@@ -1623,12 +1623,32 @@
               <div class="field-group"><label class="field-label">Email</label><input type="text" id="ci-email" class="field-input" /></div>
             </div>
             <div class="field-row">
+              <div class="field-group"><label class="field-label">Preferred Name <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-preferred-name" class="field-input" placeholder="e.g. Professor Sparky" /></div>
+              <div class="field-group"><label class="field-label">Pronouns <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-pronouns" class="field-input" placeholder="e.g. she/her, he/him, they/them" /></div>
+            </div>
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Post-Nominal Letters <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-post-nominal" class="field-input" placeholder="e.g. PhD, MPH" /></div>
+              <div class="field-group"><label class="field-label">Department Title / ASU Roles <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-dept-title" class="field-input" placeholder="e.g. Associate Professor" /></div>
+            </div>
+            <div class="field-row">
               <div class="field-group"><label class="field-label">Instructor ASURite <span style="font-weight:400; color:#999;">(used for live Canvas shell requests)</span></label><input type="text" id="ci-instructor-asurite" class="field-input" placeholder="e.g. jdoe1" /></div>
-              <div class="field-group"><label class="field-label">Phone Number</label><input type="text" id="ci-phone" class="field-input" placeholder="(480) 965-XXXX" /></div>
+              <div class="field-group"><label class="field-label">Contact Number</label><input type="text" id="ci-phone" class="field-input" placeholder="(480) 965-XXXX" /></div>
             </div>
             <div class="field-row">
               <div class="field-group"><label class="field-label">Office / Room</label><input type="text" id="ci-office" class="field-input" /></div>
-              <div class="field-group"><label class="field-label">Office Hours</label><input type="text" id="ci-office-hours" class="field-input" /></div>
+              <div class="field-group"><label class="field-label">Virtual Office Hours <span style="font-weight:400; color:#999;">(days/times or "by appointment")</span></label><input type="text" id="ci-office-hours" class="field-input" /></div>
+            </div>
+            <div class="field-row">
+              <div class="field-group"><label class="field-label">Virtual Office Hours Link <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-vho-link" class="field-input" placeholder="https://asu.zoom.us/j/..." /></div>
+              <div class="field-group"><label class="field-label">Access Information <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-vho-access" class="field-input" placeholder="e.g. meeting ID, passcode" /></div>
+            </div>
+            <div class="field-group"><label class="field-label">Request an Appointment Outside of Office Hours <span style="font-weight:400; color:#999;">(optional)</span></label><input type="text" id="ci-request-appt" class="field-input" placeholder="e.g. To request an appointment outside of virtual office hours, please ..." /></div>
+            <div class="field-group" style="margin-top:8px;">
+              <label class="field-label">Contact Section Title</label>
+              <select id="ci-contact-title-mode" class="field-input" style="max-width:280px;">
+                <option value="instructor">Instructor Contact Information</option>
+                <option value="team">Course Team Contact Information</option>
+              </select>
             </div>
           </div>
         </div>
