@@ -14960,6 +14960,12 @@
     var college = activeCourse.college || '';
     var isCHS = (college === 'CHS');
     var isSTPN = (college === 'STPH');
+    var isNCIAS = (college === 'NCIAS');
+    // STPH's syllabus template is explicitly a copy of CHS's, so for the
+    // shared policy blocks the two get the same boilerplate. STPH-only
+    // variants (Inclusive Excellence wording, college name in Health
+    // Equity statement) are handled with isSTPN checks inline.
+    var isCHSorSTPH = isCHS || isSTPN;
 
     let html = '';
 
@@ -15359,7 +15365,7 @@
     }
 
     // ASU Policies
-    if (isCHS) {
+    if (isCHSorSTPH) {
       html += '<h1>ASU POLICIES</h1>';
       html += '<h2>ASU Online Course Policies</h2>';
       html += '<p>View the <a href="https://asuonline.asu.edu/course-policies/">ASU Online Course Policies</a>.</p>';
@@ -15373,9 +15379,79 @@
       html += '<h2>Academic Integrity</h2>';
       html += '<p>Academic honesty is expected of all students in any materials intended to be used for an academic evaluation, including, but not limited to: all examinations, papers, presentations, laboratory work, academic transactions, and records. The possible sanctions for academic integrity violations include but are not limited to, appropriate grade penalties, course failure (indicated on the transcript as a grade of E), course failure due to academic dishonesty (indicated on the transcript as a grade of XE), loss of registration privileges, disqualification, and dismissal. For more information, see the <a href="https://provost.asu.edu/academic-integrity">Academic Integrity website</a>.</p>';
       html += '<p>Plagiarism of any kind will not be tolerated. Students must take the exams independently without assistance from other students. Students may not submit papers written by persons other than themselves.</p>';
-      html += '<p>Information on the Academic Integrity procedure within the College of Health Solutions can be found in the <a href="https://catalog.asu.edu/">Academic Catalog</a>.</p>';
+      if (isCHS) {
+        html += '<p>Information on the Academic Integrity procedure within the College of Health Solutions can be found in the <a href="https://catalog.asu.edu/">Academic Catalog</a>.</p>';
+      } else {
+        html += '<p>Information on the Academic Integrity procedure within the School of Technology for Public Health can be found in the <a href="https://catalog.asu.edu/">Academic Catalog</a>.</p>';
+      }
       html += '<h2>Disruptive or Violent Behavior</h2>';
       html += '<p>In the classroom and out, students are required to conduct themselves in a manner that promotes an environment that is safe and conducive to learning and conducting other university-related business. All incidents and allegations of violent or threatening conduct by an ASU student will be reported to the ASU Police Department (ASU PD) and the Office of the Dean of Students. Such incidents will be dealt with in accordance with the policies and procedures described in Section 104-02 of the Student Services Manual.</p>';
+    } else if (isNCIAS) {
+      // NCIAS-specific policies block. Mirrors the New College syllabus
+      // template — same section headers, but each section links to the
+      // canonical ASU policy page rather than reproducing the full policy
+      // text. Sections that ARE the NCIAS-specific procedure (AIO
+      // routing, MNS-specific final-exam policy, MNS grade-grievance
+      // flow) are summarized in place since they aren't published as
+      // standalone ASU pages.
+      html += '<h1>ASU POLICIES</h1>';
+
+      html += '<h2>ASU Academic Integrity</h2>';
+      html += '<p>Academic honesty is expected of all students in all examinations, papers, laboratory work, academic transactions, and records. Students in this class must adhere to ASU’s <a href="https://provost.asu.edu/academic-integrity">Academic Integrity policy</a>. All academic integrity violations will be reported to the New College Academic Integrity Office (AIO). Sanctions may include appropriate grade penalties, course failure (E), course failure due to academic dishonesty (XE), loss of registration privileges, disqualification, and dismissal. The AIO maintains records of all violations across ASU.</p>';
+
+      // Generative AI: surface the instructor's choice from the syllabus
+      // builder, mirroring the "ONE of the following sections" instruction
+      // in the NCIAS template.
+      var aiPolicy = val('syl-ai-policy');
+      if (aiPolicy) {
+        html += '<h2>Generative AI Usage Policy</h2>';
+        html += '<p>' + esc(aiPolicy).replace(/\n/g, '<br>') + '</p>';
+      } else {
+        html += '<h2>Generative AI Usage Policy</h2>';
+        html += placeholder('Choose a generative-AI policy in the Syllabus Builder. The New College template requires the syllabus to state one of: AI not permitted, AI permitted with parameters, or AI permitted only with explicit instructor approval.');
+      }
+
+      html += '<h2>ASU Student Code of Conduct</h2>';
+      html += '<p>Students are expected to follow the <a href="https://eoss.asu.edu/dos/srr/codeofconduct">ASU Student Code of Conduct</a>, especially when communicating with peers, staff, and instructors. Violations of the student code of conduct may result in withdrawal from the class.</p>';
+
+      html += '<h2>Academic Status Reports</h2>';
+      html += '<p>This course incorporates an early-alert reporting system called <a href="https://students.asu.edu/academic-status-report">Academic Status Reports (ASRs)</a>. ASRs let you know if you are progressing well or if there are concerns related to class performance, attendance, or work quality. Notifications arrive at your ASU email and are visible on the My ASU "My Classes" box. Read any ASR you receive, follow the suggested instructions, and meet with your academic advisor if needed.</p>';
+
+      html += '<h2>Course/Instructor Evaluation</h2>';
+      html += '<p>The course/instructor evaluation for this course will typically be conducted online 7–10 days before the last official day of classes. Responses are anonymous and are not returned to the instructor until after grades have been submitted. About two weeks before the class finishes, watch for an email with "NCIAS Course/Instructor Evaluation" in the subject heading sent to your official ASU email address.</p>';
+
+      html += '<h2>Final Exam Make-up Policy</h2>';
+      html += '<p>ASU’s <a href="https://students.asu.edu/final-exam-schedule">Final Exam Schedule</a> is strictly followed. Exceptions and requests for make-up examinations can be granted by the Associate Director of the unit only for: (1) religious conflict, (2) more than three exams scheduled on the same day, or (3) two finals scheduled at the same time. Make-up exams will not be given for non-refundable airline tickets, vacation plans, work schedules, weddings, family reunions, or similar activities. In a last-minute personal or medical emergency, a passing student may request an Incomplete and complete the final within one calendar month with documentation.</p>';
+
+      html += '<h2>Incomplete</h2>';
+      html += '<p>A mark of "I" (incomplete) is given by the instructor when you are otherwise doing acceptable work but are unable to complete the course because of illness or other conditions beyond your control. The completion date is determined by the instructor but may not exceed one calendar year from the date the mark of "I" is recorded. Undergraduate "I" grades not completed within a year are converted to "E". Graduate-course "I" grades become permanent on the transcript and require re-registration. A signed Request for Grade of Incomplete must be submitted by the student and approved by the instructor and the Associate Director of the unit.</p>';
+
+      html += '<h2>Grade Grievances</h2>';
+      html += '<p>Grade appeals must be processed in the semester immediately following the issuance of the grade in dispute. Two stages — informal first, then formal:</p>';
+      html += '<ol style="font-size:13px;">';
+      html += '<li>Meet one-on-one with the instructor to discuss the grading procedure and reasoning.</li>';
+      html += '<li>If unresolved, appeal to the school grievances committee with a written rationale and a summary of the instructor meeting.</li>';
+      html += '<li>If still unresolved, appeal to the Associate Director and Director of the school.</li>';
+      html += '<li>If unresolved at the school level, confer with the Dean’s Representative in New College (Executive Director of Academic Services and Strategic Initiatives), who reviews the case and explains the formal process.</li>';
+      html += '</ol>';
+
+      html += '<h2>Policy against Threatening Behavior</h2>';
+      html += '<p>In the classroom and out, students are required to conduct themselves in a manner that promotes an environment that is safe and conducive to learning and conducting other university-related business. All incidents and allegations of violent or threatening conduct by an ASU student will be reported to the ASU Police Department and the Office of the Dean of Students per <a href="https://www.asu.edu/aad/manuals/ssm/ssm104-02.html">SSM 104-02</a>.</p>';
+
+      html += '<h2>Potentially Offensive Content</h2>';
+      html += '<p>If you find any of the content in your class offensive, please bring your concerns to the instructor immediately. If raising the issue with the instructor is problematic, these concerns should be brought to the attention of the Director and Associate Director of the unit.</p>';
+
+      html += '<h2>Respectful Communications</h2>';
+      html += '<p>ASU values dissenting opinions. We expect all written, email, verbal, and otherwise communications to be conducted with a respectful tone and in compliance with established protocols and the ASU Code of Conduct.</p>';
+
+      html += '<h2>Emergencies / Campus Power Outage</h2>';
+      html += '<p>In the event of a campus power outage or other event affecting the University’s ability to deliver classes, any decision to cancel classes will be announced through ASU’s emergency notification system. Register with <a href="https://livesafe.asu.edu/">LiveSafe</a>. Check the University website if classes may be affected.</p>';
+
+      html += '<h2>Withdrawals</h2>';
+      html += '<p>Non-attendance will NOT automatically result in being dropped from the course. It is your responsibility to be aware of your registration status. Any withdrawal transaction must be completed by the deadline date for the appropriate session at the Registrar’s office. For details, see the <a href="https://students.asu.edu/registration">University Registrar</a> and the ASU withdrawal policy.</p>';
+
+      html += '<h2>Important Dates</h2>';
+      html += '<p>Verify session start/end dates, drop deadlines, refund deadlines, withdrawal deadlines, and observed holidays on the <a href="https://registrar.asu.edu/academic-calendar">ASU Academic Calendar</a>. Specific dates for this course’s session should be reviewed before the term begins.</p>';
     } else {
       html += '<h1><a href="https://docs.google.com/document/d/1E2yI0yfGmn3CiuKdIrCp1NHN2SadR8wydwDGqpS6vVY/edit?usp=sharing">Review ASU POLICIES here</a></h1>';
     }
