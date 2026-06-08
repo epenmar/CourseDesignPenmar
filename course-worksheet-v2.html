@@ -1343,10 +1343,13 @@
             <button class="view-btn active" onclick="switchOverviewMode('module','card',this)">📋 Card View</button>
             <button class="view-btn" onclick="switchOverviewMode('module','table',this)">📊 Table View</button>
           </div>
-          <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer;">
-            <input type="checkbox" id="module-start-zero" onchange="toggleModuleStartZero(this.checked)" style="width:14px; height:14px; cursor:pointer;">
-            Start from Module 0
-          </label>
+          <div style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
+            <button id="tag-all-elos-btn" onclick="aiSuggestEloTagsAllModules(this)" style="padding:6px 14px; border:1px solid #8c1d40; border-radius:6px; background:#8c1d40; color:#fff; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;" title="Run ELO tagging across every module, then report any ELO no module covers">✨ Tag ELOs for all modules</button>
+            <label style="font-size:12px; color:#666; display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <input type="checkbox" id="module-start-zero" onchange="toggleModuleStartZero(this.checked)" style="width:14px; height:14px; cursor:pointer;">
+              Start from Module 0
+            </label>
+          </div>
         </div>
         <div id="module-overview-cards">
           <!-- Dynamically rendered module cards -->
@@ -13219,44 +13222,23 @@
     var mlos = modData.mlos || (activeCourse.modules || []).filter(function(m) { return m.num === modNum; })[0]?.mlos || [];
     if (mlos.length === 0) { alert('Add module objectives first.'); return; }
 
-    var courseName = (activeCourse.code || '') + (activeCourse.name ? ' — ' + activeCourse.name : '');
-    var moduleTopic = modData.topic || 'Module ' + modNum;
-
-    var prompt = 'You are an instructional alignment expert. Given the ELOs and module-level objectives (MLOs) below, determine which ELOs each MLO supports.\n\n';
-    prompt += 'Course: ' + courseName + '\n';
-    prompt += 'Module ' + modNum + ': ' + moduleTopic + '\n\n';
-    prompt += 'ELOs:\n';
-    elos.forEach(function(e, i) { prompt += (i + 1) + '. ' + e + '\n'; });
-    prompt += '\nMLOs:\n';
-    mlos.forEach(function(m, i) { prompt += modNum + '.' + (i + 1) + ': ' + m + '\n'; });
-    prompt += '\nReturn ONLY a JSON object where each key is an MLO id (like "' + modNum + '.1") and each value is an array of 1-based ELO numbers that the MLO supports.\n';
-    prompt += 'Example: {"' + modNum + '.1":[1,3],"' + modNum + '.2":[2]}\n';
-    prompt += 'Consider semantic alignment — an MLO supports an ELO when the skill or knowledge in the MLO directly enables or demonstrates the learning described in the ELO. Return ONLY the JSON object.';
-
     btn.disabled = true;
     var origText = btn.textContent;
     btn.textContent = '⏳ Analyzing...';
-
     try {
-      var result = await callCreateAI(prompt, '', 512);
-      var jsonMatch = result.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Could not parse AI response');
-      var mapping = JSON.parse(jsonMatch[0]);
-
-      // Apply suggestions to eloMloAlignment
-      if (!activeCourse.eloMloAlignment) activeCourse.eloMloAlignment = {};
-      Object.keys(mapping).forEach(function(mloId) {
-        var eloNums = mapping[mloId] || [];
-        eloNums.forEach(function(eloNum) {
-          var eloIdx = (eloNum - 1) + '';
-          if (!activeCourse.eloMloAlignment[eloIdx]) activeCourse.eloMloAlignment[eloIdx] = [];
-          if (activeCourse.eloMloAlignment[eloIdx].indexOf(mloId) === -1) {
-            activeCourse.eloMloAlignment[eloIdx].push(mloId);
-          }
-        });
-      });
+      var coverage = await _runEloTagPass(modNum, mlos, elos, modData);
       saveField('eloMloAlignment', activeCourse.eloMloAlignment);
       renderModuleOverviewCards();
+      // Surface broad ELOs the pass deliberately left off this module so the
+      // user can sanity-check — the "Communicate…"-style cross-cutting ELOs
+      // are the ones most often missed.
+      if (coverage && coverage.uncovered && coverage.uncovered.length) {
+        var names = coverage.uncovered.map(function(i) {
+          var t = String(elos[i] || '');
+          return 'ELO ' + (i + 1) + (t ? ' (' + t.slice(0, 40) + (t.length > 40 ? '…' : '') + ')' : '');
+        });
+        alert('ELO tags applied for Module ' + modNum + '.\n\nNo MLO in this module was tagged to:\n• ' + names.join('\n• ') + '\n\nIf one of these should apply here (broad outcomes like communication often do), add the tag manually on the relevant objective.');
+      }
     } catch (err) {
       alert('AI ELO tagging failed: ' + err.message);
     } finally {
@@ -13264,6 +13246,114 @@
       btn.textContent = origText;
     }
   }
+
+  // Core ELO-tagging pass — shared by the per-module button and the
+  // "tag all modules" / parser flows. Frames the question PER ELO so the
+  // model is forced to evaluate every ELO (including broad, cross-cutting
+  // ones) against this module's MLOs, rather than picking the obvious one
+  // or two ELOs per MLO and silently dropping the rest. Mutates
+  // activeCourse.eloMloAlignment and returns { uncovered: [eloIdx,…] } for
+  // the ELOs this module legitimately didn't touch.
+  async function _runEloTagPass(modNum, mlos, elos, modData) {
+    var courseName = (activeCourse.code || '') + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var moduleTopic = (modData && modData.topic) || 'Module ' + modNum;
+
+    var prompt = 'You are an instructional alignment expert. For the module below, decide which of THIS module\'s MLOs genuinely advance EACH Expected Learning Outcome (ELO).\n\n';
+    prompt += 'Course: ' + courseName + '\n';
+    prompt += 'Module ' + modNum + ': ' + moduleTopic + '\n\n';
+    prompt += 'Expected Learning Outcomes (course-wide):\n';
+    elos.forEach(function(e, i) { prompt += (i + 1) + '. ' + e + '\n'; });
+    prompt += '\nThis module\'s MLOs:\n';
+    mlos.forEach(function(m, i) { prompt += modNum + '.' + (i + 1) + ': ' + m + '\n'; });
+    prompt += '\nRules:\n';
+    prompt += '- Evaluate EVERY ELO. An MLO advances an ELO when its skill/knowledge directly enables or demonstrates that ELO.\n';
+    prompt += '- Broad, cross-cutting ELOs — especially communication, synthesis, and application outcomes — frequently align with MANY MLOs and are the easiest to overlook. For example, a "Communicate…" ELO aligns with MLOs whose verbs are describe, explain, interpret, present, report, or discuss. Do NOT skip these; tag every MLO that genuinely advances them.\n';
+    prompt += '- An MLO can advance several ELOs, and an ELO can be advanced by several MLOs.\n';
+    prompt += '- Only leave an ELO with an empty list if NONE of this module\'s MLOs genuinely advance it (e.g. the topic simply isn\'t covered here).\n\n';
+    prompt += 'Return ONLY a JSON object whose keys are ELO numbers (1-based, as strings) and whose values are arrays of MLO ids (like "' + modNum + '.1") that advance that ELO. Include an entry for EVERY ELO, using [] when none apply.\n';
+    prompt += 'Example for 3 ELOs: {"1":["' + modNum + '.1","' + modNum + '.2"],"2":["' + modNum + '.3"],"3":[]}';
+
+    var result = await callCreateAI(prompt, '', 1024);
+    var jsonMatch = result.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) throw new Error('Could not parse AI response');
+    var mapping = JSON.parse(jsonMatch[0]);
+
+    var validMloIds = mlos.map(function(_, i) { return modNum + '.' + (i + 1); });
+    if (!activeCourse.eloMloAlignment) activeCourse.eloMloAlignment = {};
+    var uncovered = [];
+    for (var ei = 0; ei < elos.length; ei++) {
+      var eloIdx = ei + '';
+      var mloIds = mapping[(ei + 1) + ''] || mapping[ei + 1] || [];
+      // Keep only this module's valid MLO ids.
+      mloIds = (Array.isArray(mloIds) ? mloIds : []).filter(function(id) { return validMloIds.indexOf(id) !== -1; });
+      if (!activeCourse.eloMloAlignment[eloIdx]) activeCourse.eloMloAlignment[eloIdx] = [];
+      mloIds.forEach(function(id) {
+        if (activeCourse.eloMloAlignment[eloIdx].indexOf(id) === -1) activeCourse.eloMloAlignment[eloIdx].push(id);
+      });
+      // "Uncovered" = no MLO from THIS module tags this ELO (after the pass).
+      var anyThisModule = activeCourse.eloMloAlignment[eloIdx].some(function(id) { return validMloIds.indexOf(id) !== -1; });
+      if (!anyThisModule) uncovered.push(ei);
+    }
+    return { uncovered: uncovered };
+  }
+
+  // Run the ELO-tag pass across every module that has objectives, then
+  // report any ELO that NO module ended up covering — the course-wide gap
+  // check that catches a broad outcome (e.g. "Communicate…") being skipped
+  // everywhere. Good companion to the Course Parser, which seeds the MLOs
+  // but doesn't tag ELOs.
+  window.aiSuggestEloTagsAllModules = async function(btn) {
+    var elos = activeCourse.flatElos || [];
+    if (elos.length === 0) { alert('Add ELOs first.'); return; }
+    var savedMods = loadField('moduleOverviewData') || {};
+    var startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modCount = activeCourse.moduleCount || 7;
+    var modKeys = [];
+    for (var m = startN; m < startN + modCount; m++) modKeys.push(m);
+    Object.keys(savedMods).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && modKeys.indexOf(n) === -1) modKeys.push(n); });
+    modKeys.sort(function(a, b) { return a - b; });
+
+    var targets = modKeys.filter(function(mn) {
+      var md = savedMods[mn] || {};
+      var mlos = md.mlos || (activeCourse.modules || []).filter(function(x) { return x.num === mn; })[0]?.mlos || [];
+      return mlos.length > 0;
+    });
+    if (targets.length === 0) { alert('Add module objectives first.'); return; }
+
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; }
+    var done = 0;
+    try {
+      for (var ti = 0; ti < targets.length; ti++) {
+        var mn = targets[ti];
+        if (btn) btn.textContent = '⏳ Module ' + mn + ' (' + (ti + 1) + '/' + targets.length + ')…';
+        var md = savedMods[mn] || {};
+        var mlos = md.mlos || (activeCourse.modules || []).filter(function(x) { return x.num === mn; })[0]?.mlos || [];
+        try { await _runEloTagPass(mn, mlos, elos, md); done++; }
+        catch (e) { console.warn('[elo-tag] module ' + mn + ' failed:', e && e.message); }
+      }
+      saveField('eloMloAlignment', activeCourse.eloMloAlignment);
+      renderModuleOverviewCards();
+
+      // Course-wide coverage: which ELOs have NO module tagging them at all?
+      var em = activeCourse.eloMloAlignment || {};
+      var orphans = [];
+      for (var ei = 0; ei < elos.length; ei++) {
+        if (!em[ei + ''] || em[ei + ''].length === 0) orphans.push(ei);
+      }
+      if (orphans.length) {
+        var names = orphans.map(function(i) {
+          var t = String(elos[i] || '');
+          return 'ELO ' + (i + 1) + (t ? ' (' + t.slice(0, 50) + (t.length > 50 ? '…' : '') + ')' : '');
+        });
+        alert('Tagged ELOs across ' + done + ' module(s).\n\n⚠ These ELOs are not advanced by ANY module yet:\n• ' + names.join('\n• ') + '\n\nEither a module objective is missing that should support them, or the tag needs to be added manually. Broad outcomes (communication, synthesis) usually belong on several modules.');
+      } else {
+        alert('Tagged ELOs across ' + done + ' module(s). Every ELO is now advanced by at least one module. Spot-check the tags and adjust any that look off.');
+      }
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  };
 
   async function aiSuggestAlignment() {
     const clos = (activeCourse.clos || []).filter(function(s) { return s; });
