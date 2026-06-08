@@ -15484,24 +15484,7 @@
       html += '<p>Assignments are organized by category below. Each category lists its weight toward the final grade and the individual assignments it includes.</p>';
       if (genValid && Array.isArray(gen.data.categories) && gen.data.categories.length) {
         gen.data.categories.forEach(function(cat) {
-          var weightStr = cat.weight ? ' \u2014 ' + esc(cat.weight) + ' of grade' : '';
-          var countStr = cat.count ? ' (' + cat.count + ')' : '';
-          html += '<h3 style="margin:14px 0 4px;">' + esc(cat.name || '') + countStr + weightStr + '</h3>';
-          if (cat.description) html += '<p style="margin:0 0 6px;">' + esc(cat.description).replace(/\n/g, '<br>') + '</p>';
-          var rows = Array.isArray(cat.assignments) ? cat.assignments : [];
-          if (rows.length) {
-            html += '<table style="border-collapse:collapse; width:100%; font-size:12px; margin:4px 0 8px;"><thead><tr>';
-            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:34%;">Assignment</th>';
-            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:center; width:70px;">Points</th>';
-            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Description</th>';
-            html += '</tr></thead><tbody>';
-            rows.forEach(function(row) {
-              html += '<tr><td style="padding:5px 8px; border:1px solid #ddd; vertical-align:top;">' + esc(row.name || '') + '</td>';
-              html += '<td style="padding:5px 8px; border:1px solid #ddd; text-align:center; vertical-align:top;">' + esc(row.points || '\u2014') + '</td>';
-              html += '<td style="padding:5px 8px; border:1px solid #ddd;">' + (row.detail ? esc(row.detail).replace(/\n/g, '<br>') : '<span style="color:#bbb;">\u2014</span>') + '</td></tr>';
-            });
-            html += '</tbody></table>';
-          }
+          html += _ncCategoryTableHtml(cat, esc, false);
         });
       } else if (genValid && gen.data.prose) {
         // Back-compat: an older generated payload that's still prose.
@@ -18666,6 +18649,7 @@
           category: (a.category || '').trim(),
           points: a.points || '',
           module: m,
+          mloCodes: (a.objectives || []).slice(),
           elos: elos,
           existingDesc: manualDescs[a.id] || '',
           context: tplText.slice(0, 800)
@@ -18786,7 +18770,17 @@
           (cat.assignments || []).forEach(function(row) {
             var match = g ? g.items.filter(function(it) { return it.name === row.name; })[0] : null;
             row.points = match && match.points ? match.points : '';
+            row.module = match ? match.module : '';
+            row.mloCodes = match && Array.isArray(match.mloCodes) ? match.mloCodes : [];
           });
+          // Stable display order: by module, then by name.
+          if (Array.isArray(cat.assignments)) {
+            cat.assignments.sort(function(a, b) {
+              var am = parseInt(a.module, 10); var bm = parseInt(b.module, 10);
+              if (!isNaN(am) && !isNaN(bm) && am !== bm) return am - bm;
+              return String(a.name || '').localeCompare(String(b.name || ''));
+            });
+          }
         });
         // Uncategorized activities the instructor still needs to sort.
         var uncategorized = acts.filter(function(a) { return !a.category; });
@@ -18824,6 +18818,50 @@
     if (typeof renderSyllabusChecklist === 'function') renderSyllabusChecklist();
   };
 
+  // Render one NCIAS assignment category as a section: heading (count +
+  // weight), the AI's short category description, then a table with the
+  // requested columns — Module · Assignment Title · Point Value · MLOs
+  // (just the codes). Shared by the builder block and the syllabus preview
+  // so both stay identical. `compact` tightens font sizes for the builder.
+  function _ncCategoryTableHtml(cat, esc, compact) {
+    esc = esc || function(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var fs = compact ? '12px' : '13px';
+    var headFs = compact ? '13px' : '15px';
+    var weightStr = cat.weight ? ' · ' + esc(cat.weight) + ' of grade' : '';
+    var countStr = cat.count ? ' (' + cat.count + ')' : '';
+    var html = '';
+    if (compact) {
+      html += '<div style="font-size:' + headFs + '; font-weight:700; color:#8c1d40; margin:10px 0 2px;">' + esc(cat.name || '') + countStr + weightStr + '</div>';
+    } else {
+      html += '<h3 style="margin:14px 0 4px;">' + esc(cat.name || '') + countStr + weightStr + '</h3>';
+    }
+    if (cat.description) html += '<p style="font-size:' + fs + '; color:#444; margin:0 0 6px;">' + esc(cat.description).replace(/\n/g, '<br>') + '</p>';
+    var rows = Array.isArray(cat.assignments) ? cat.assignments : [];
+    if (!rows.length) {
+      html += '<p style="font-size:' + fs + '; color:#999; font-style:italic; margin:0 0 8px;">No assignments sorted into this category yet.</p>';
+      return html;
+    }
+    var th = 'padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:left; font-size:' + fs + ';';
+    var td = 'padding:5px 8px; border:1px solid #ddd; font-size:' + fs + '; vertical-align:top;';
+    html += '<table style="border-collapse:collapse; width:100%; margin:2px 0 8px;"><thead><tr>';
+    html += '<th style="' + th + ' width:64px; text-align:center;">Module</th>';
+    html += '<th style="' + th + '">Assignment Title</th>';
+    html += '<th style="' + th + ' width:70px; text-align:center;">Point Value</th>';
+    html += '<th style="' + th + ' width:90px;">MLOs</th>';
+    html += '</tr></thead><tbody>';
+    rows.forEach(function(row) {
+      var mlos = Array.isArray(row.mloCodes) ? row.mloCodes.join(', ') : '';
+      html += '<tr>';
+      html += '<td style="' + td + ' text-align:center;">' + esc(row.module === 0 || row.module ? row.module : '—') + '</td>';
+      html += '<td style="' + td + '">' + esc(row.name || '') + '</td>';
+      html += '<td style="' + td + ' text-align:center;">' + esc(row.points || '—') + '</td>';
+      html += '<td style="' + td + '">' + (mlos ? esc(mlos) : '<span style="color:#bbb;">—</span>') + '</td>';
+      html += '</tr>';
+    });
+    html += '</tbody></table>';
+    return html;
+  }
+
   // Render the generated Assignments/Exams output INSIDE the builder so the
   // user sees the result immediately (previously it only appeared in the
   // Document Preview, which read as "nothing happened"), plus an orange
@@ -18839,18 +18877,12 @@
     html += '<button onclick="clearGeneratedAssignments()" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; text-decoration:underline; padding:0; font-family:inherit;">Clear &amp; use manual</button>';
     html += '</div>';
 
-    // Render the generated content so it's visible in the builder.
+    // Render the generated content so it's visible in the builder. Each
+    // category is its own section: a heading (weight) + a table with
+    // Module · Assignment Title · Point Value · MLOs (codes).
     if (Array.isArray(d.categories) && d.categories.length) {
       d.categories.forEach(function(cat) {
-        var weightStr = cat.weight ? ' · ' + esc(cat.weight) + ' of grade' : '';
-        var countStr = cat.count ? ' (' + cat.count + ')' : '';
-        html += '<div style="font-size:13px; font-weight:700; color:#8c1d40; margin:8px 0 2px;">' + esc(cat.name || '') + countStr + weightStr + '</div>';
-        if (cat.description) html += '<div style="font-size:12px; color:#444; margin-bottom:4px;">' + esc(cat.description) + '</div>';
-        (cat.assignments || []).forEach(function(row) {
-          html += '<div style="font-size:12px; color:#333; margin:0 0 3px 12px;">• <strong>' + esc(row.name || '') + '</strong>'
-            + (row.points ? ' <span style="color:#888;">(' + esc(row.points) + ' pts)</span>' : '')
-            + (row.detail ? ' — ' + esc(row.detail) : ' <span style="color:#c77;">— no description</span>') + '</div>';
-        });
+        html += _ncCategoryTableHtml(cat, esc, true);
       });
     } else if (d.prose) {
       String(d.prose).split(/\n\s*\n/).forEach(function(para) {
