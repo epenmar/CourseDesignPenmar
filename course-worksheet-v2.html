@@ -18466,38 +18466,66 @@
     var origText = btn ? btn.textContent : '';
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
 
-    // Build a compact activity manifest for the prompt.
+    // Per-activity manifest (CHS / STPH work item-by-item).
     var manifest = acts.map(function(a, i) {
-      return (i + 1) + '. ' + a.name + ' (' + a.type + (a.points ? ', ' + a.points + ' pts' : '') + ')'
+      return (i + 1) + '. ' + a.name + ' (' + a.type + (a.points ? ', ' + a.points + ' pts' : ', points not set') + ')'
         + (a.elos.length ? ' — aligned to ' + a.elos.join(', ') : '')
         + (a.existingDesc ? '\n   Faculty notes: ' + a.existingDesc : '')
         + (a.context ? '\n   Worksheet content: ' + a.context : '');
     }).join('\n');
-    var eloBlock = eloList.length ? eloList.map(function(e, i) { return 'ELO ' + (i + 1) + ': ' + e; }).join('\n') : '(none defined)';
 
+    // Type-grouped manifest (NCIAS enumerates by TYPE, not per assignment).
+    var typeGroups = {};
+    var typeOrder = [];
+    acts.forEach(function(a) {
+      if (!typeGroups[a.type]) { typeGroups[a.type] = { count: 0, names: [], pts: [], hasDesc: false, hasContext: false, elos: [] }; typeOrder.push(a.type); }
+      var g = typeGroups[a.type];
+      g.count++;
+      g.names.push(a.name);
+      if (a.points) g.pts.push(parseInt(a.points, 10) || 0);
+      if (a.existingDesc) g.hasDesc = true;
+      if (a.context) g.hasContext = true;
+      a.elos.forEach(function(e) { if (g.elos.indexOf(e) === -1) g.elos.push(e); });
+    });
+    var typeManifest = typeOrder.map(function(t) {
+      var g = typeGroups[t];
+      var ptsNote = g.pts.length === 0 ? 'no point values set'
+        : (g.pts.every(function(v) { return v === g.pts[0]; }) ? (g.pts[0] + ' pts each') : 'varying points');
+      return '- ' + t + ': ' + g.count + ' total (' + ptsNote + ')'
+        + (g.elos.length ? '; aligned to ' + g.elos.join(', ') : '; no ELO alignment')
+        + '; examples: ' + g.names.slice(0, 4).join('; ') + (g.names.length > 4 ? ', …' : '')
+        + (g.hasDesc || g.hasContext ? '' : '; NO faculty description or content provided');
+    }).join('\n');
+
+    var eloBlock = eloList.length ? eloList.map(function(e, i) { return 'ELO ' + (i + 1) + ': ' + e; }).join('\n') : '(none defined)';
     var courseName = (activeCourse.code || '') + (activeCourse.name ? ' — ' + activeCourse.name : '');
     var prompt, schemaInstruction;
+
+    var NO_DATES = 'CRITICAL: do NOT include any specific due dates or calendar dates — the syllabus must be reusable across sessions. ';
+    var MISSING_RULE = 'In a "missing" array, list (in plain language) the specific pieces of information NCIAS requires that are NOT present in the worksheet data — e.g. "Point weight for Quizzes", "Grading criteria for the Projects", "Format/length for written assignments", "Late/make-up policy", "Whether handwritten work is accepted". Be specific to this course. If everything needed is present, return an empty array.';
 
     if (college === 'NCIAS') {
       prompt = 'Write the "Assignments/Exams" narrative for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
-        + 'Assignments in this course:\n' + manifest + '\n\n'
-        + 'Write a clear prose enumeration that describes the TYPES of assignments and their number and frequency. '
-        + 'For each type, clarify the length and format of papers, the structure of projects, and the nature of exams, '
-        + 'and explain how the assignments correlate with the learning outcomes. Mention discipline-specific assignments '
-        + '(e.g., fieldwork, collaborative projects) where relevant. Where the worksheet provides it, address weight of '
-        + 'each assignment, grading criteria, reading assignments, rewrite/make-up acceptability, and acceptability of '
-        + 'handwritten work. CRITICAL: do NOT include any specific due dates or calendar dates — the syllabus must be '
-        + 'reusable across sessions. Use 2–4 short paragraphs.';
-      schemaInstruction = 'Return ONLY a JSON object: {"prose": "the narrative text with \\n\\n between paragraphs"}. No markdown, no other text.';
+        + 'Assignment TYPES in this course (already grouped — describe by TYPE, not individual assignment):\n' + typeManifest + '\n\n'
+        + 'New College (NCIAS) requires a prose enumeration organized by the TYPES of assignments and their number and '
+        + 'frequency. For each type, clarify the length and format of papers, the structure of projects, and the nature '
+        + 'of exams, and explain how the assignments correlate with the learning outcomes. Mention discipline-specific '
+        + 'assignments (fieldwork, collaborative projects) where relevant. Where the data provides it, address the weight '
+        + 'of each assignment type, grading criteria, reading assignments, rewrite/make-up acceptability, and acceptability '
+        + 'of handwritten work. Do NOT fabricate details that are not present — if the worksheet lacks the information, '
+        + 'omit it from the prose and instead list it in the "missing" array. ' + NO_DATES + 'Use 2–4 short paragraphs '
+        + 'organized by assignment type.\n\n' + MISSING_RULE;
+      schemaInstruction = 'Return ONLY a JSON object: {"prose": "narrative organized by assignment type, \\n\\n between paragraphs", "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else if (college === 'STPH') {
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
         + 'Assignments in this course:\n' + manifest + '\n\n'
         + 'For each major assignment or assignment type, write a 2–3 sentence description showing how that assessment '
-        + 'advances mastery of a specific ELO or CEPH competency. Reference the relevant ELO/competency text. CRITICAL: '
-        + 'do NOT include any specific due dates or calendar dates — the syllabus must be reusable across sessions.';
-      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"elo": "the ELO/competency this advances", "description": "2-3 sentence description"}]}. No markdown, no other text.';
+        + 'advances mastery of a specific ELO or CEPH competency. Reference the relevant ELO/competency text. Do NOT '
+        + 'fabricate details not present in the data. ' + NO_DATES + '\n\n'
+        + 'Also list, in a "missing" array, any assignment that lacks a description, points, or ELO alignment needed for a complete section.';
+      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"elo": "the ELO/competency this advances", "description": "2-3 sentence description"}], "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else {
       // CHS + default
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
@@ -18505,9 +18533,9 @@
         + 'Assignments in this course:\n' + manifest + '\n\n'
         + 'For each assignment or assignment type, write a concise description that clarifies the length and format of '
         + 'papers, the structure of projects, and the nature of exams, plus a general statement of how the work will be '
-        + 'assessed. CRITICAL: do NOT include any specific due dates or calendar dates — the syllabus must be reusable '
-        + 'across sessions.';
-      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"assignment": "assignment name or type", "description": "the description"}]}. No markdown, no other text.';
+        + 'assessed. Do NOT fabricate details not present in the data. ' + NO_DATES + '\n\n'
+        + 'Also list, in a "missing" array, any assignment that lacks a description or points needed for a complete section.';
+      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"assignment": "assignment name or type", "description": "the description"}], "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     }
 
     try {
@@ -18534,6 +18562,52 @@
     saveField('syl-assignments-generated', null);
     if (typeof renderSyllabusChecklist === 'function') renderSyllabusChecklist();
   };
+
+  // Render the generated Assignments/Exams output INSIDE the builder so the
+  // user sees the result immediately (previously it only appeared in the
+  // Document Preview, which read as "nothing happened"), plus an orange
+  // "still needed" callout listing what the AI flagged as missing.
+  function _renderGeneratedAssignmentsBuilderBlock() {
+    var gen = loadField('syl-assignments-generated');
+    if (!gen || gen.college !== activeCourse.college || !gen.data) return '';
+    var esc = function(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var d = gen.data;
+    var html = '<div style="border:1px solid #c8e6c9; background:#f4faf4; border-radius:8px; padding:12px 14px; margin-bottom:10px;">';
+    html += '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; margin-bottom:8px;">';
+    html += '<span style="font-size:12px; font-weight:600; color:#2e7d32;">✓ AI-generated draft (live in the syllabus preview)</span>';
+    html += '<button onclick="clearGeneratedAssignments()" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; text-decoration:underline; padding:0; font-family:inherit;">Clear &amp; use manual</button>';
+    html += '</div>';
+
+    // Render the generated content so it's visible in the builder.
+    if (d.prose) {
+      String(d.prose).split(/\n\s*\n/).forEach(function(para) {
+        var t = para.trim();
+        if (t) html += '<p style="font-size:12px; color:#333; margin:0 0 8px;">' + esc(t).replace(/\n/g, '<br>') + '</p>';
+      });
+    } else if (Array.isArray(d.items) && d.items.length) {
+      d.items.forEach(function(it) {
+        var label = it.assignment || it.elo || '';
+        html += '<p style="font-size:12px; color:#333; margin:0 0 6px;"><strong>' + esc(label) + ':</strong> ' + esc(it.description || '') + '</p>';
+      });
+    } else {
+      html += '<p style="font-size:12px; color:#888; font-style:italic;">The AI returned no description content — likely because the worksheet has no assignment details yet. See "Still needed" below.</p>';
+    }
+    html += '</div>';
+
+    // "Still needed" callout — what the AI flagged as missing for a complete
+    // section. This is the key signal when faculty haven't filled in content.
+    var missing = Array.isArray(d.missing) ? d.missing.filter(Boolean) : [];
+    if (missing.length) {
+      html += '<div style="border:1px solid #ffcc80; background:#fff8ec; border-radius:8px; padding:12px 14px; margin-bottom:10px;">';
+      html += '<div style="font-size:12px; font-weight:600; color:#e65100; margin-bottom:6px;">⚠ Still needed for a complete Assignments/Exams section</div>';
+      html += '<ul style="margin:0 0 0 16px; padding:0; font-size:12px; color:#7a4a10; line-height:1.6;">';
+      missing.forEach(function(m) { html += '<li>' + esc(m) + '</li>'; });
+      html += '</ul>';
+      html += '<div style="font-size:11px; color:#a06a30; margin-top:6px;">Add this content to the activities on the module pages (or the per-assignment notes below), then regenerate.</div>';
+      html += '</div>';
+    }
+    return html;
+  }
 
   function renderSyllabusAssignments() {
     var descs = getAssignmentDescriptions();
@@ -18640,18 +18714,13 @@
       case 'assignments-exams':
         var finalExamVal = (loadField('formData') || {})['syl-final-exam'] || '';
         var _collegeLabel = { CHS: 'College of Health Solutions', STPH: 'School of Technology for Public Health', NCIAS: 'New College' }[activeCourse.college] || 'your college';
-        var _gen = loadField('syl-assignments-generated');
-        var _genValid = _gen && _gen.college === activeCourse.college && _gen.data;
-        var _genStatus = _genValid
-          ? '<div style="font-size:11px; color:#2e7d32; margin-bottom:8px;">✓ AI-generated assignments block is active in the syllabus preview. <button onclick="clearGeneratedAssignments()" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; text-decoration:underline; padding:0; font-family:inherit;">Clear &amp; use manual descriptions</button></div>'
-          : '';
         return '<div style="padding:12px 0 4px 28px;">' +
           '<div style="font-size:12px; color:#666; margin-bottom:8px;">The Assignments/Exams section is generated from your worksheet activities in the ' + escapeHtml(_collegeLabel) + ' format. Generate a draft with AI, then edit any per-assignment notes below to refine it. Due dates are never included so the syllabus stays reusable.</div>' +
           '<div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">' +
             '<button onclick="generateSyllabusAssignments(this)" style="border:none; background:#8c1d40; color:#fff; font-size:12px; font-weight:600; padding:7px 14px; border-radius:6px; cursor:pointer; font-family:inherit;">✨ Generate with AI</button>' +
           '</div>' +
-          _genStatus +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Per-assignment notes (feed the AI and serve as a manual fallback):</div>' +
+          _renderGeneratedAssignmentsBuilderBlock() +
+          '<div style="font-size:12px; color:#666; margin:12px 0 8px;">Per-assignment notes (feed the AI and serve as a manual fallback):</div>' +
           renderSyllabusAssignments() +
           '<div style="margin-top:12px; border-top:1px solid #e0ddd5; padding-top:12px;">' +
             '<div class="field-group"><label class="field-label">Final Exam</label>' +
