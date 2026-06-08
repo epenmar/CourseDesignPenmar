@@ -16438,7 +16438,7 @@
       '- Each Topic cell is a short descriptive name for that module (do NOT combine two topics with "AND" — pick one focused topic per module).\n' +
       '- The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X").\n' +
       '- CAP EACH MODULE AT 4 MLOs MAXIMUM. If consolidating the source weeks into this module would yield more than 4 objectives, MERGE closely-related objectives into broader consolidated MLOs that preserve the underlying learning intent (e.g. combine "explain X" + "explain Y" + "explain Z" into a single "explain X, Y, and Z" objective, keeping the highest cognitive verb). Prefer 3-4 well-scoped MLOs over 5+ narrow ones.\n' +
-      '- The Learning Materials cell MUST be a <ul> with one <li> per material (textbook chapter, reading, video, etc.). Do NOT list assignments here.\n' +
+      '- Learning Materials cell: ONLY populate it when the SOURCE EXPLICITLY associates a specific reading, chapter, video, or resource with THIS module or its weeks (e.g. the source says "Week 3: read Chapter 5" and Week 3 maps to this module). When that explicit mapping exists, use a <ul> with one <li> per material. If the source only provides a generic, course-level materials list with NO week/module mapping, leave this cell EMPTY — output exactly "<em>Not specified for this module</em>". Do NOT guess, distribute, or infer which module a generic material belongs to; making up placement is worse than leaving it blank. The course-wide materials list is already captured separately. Do NOT list assignments here.\n' +
       '- Close every tag — the <table>, every <tr>, every <td>, every <ul>. Emit complete, well-formed HTML.\n' +
       '- Do NOT include <html>, <body>, <style>, markdown fences, or any other sections/tables.\n' +
       stphMloRules +
@@ -16843,8 +16843,13 @@
       return [text];
     };
     var out = [];
+    // Drop the parser's "no explicit mapping" placeholder so it never
+    // becomes a material/objective literally titled "Not specified…". The
+    // parser emits this in the Learning Materials cell when the source
+    // doesn't tie a material to a specific module.
+    var isPlaceholder = function(s) { return /^not specified/i.test((s || '').trim()) || /^none specified/i.test((s || '').trim()); };
     var pushAll = function(parts) {
-      parts.forEach(function(s) { s = stripPrefix(s); if (s) out.push(s); });
+      parts.forEach(function(s) { s = stripPrefix(s); if (s && !isPlaceholder(s)) out.push(s); });
     };
 
     var lis = cell.querySelectorAll('li');
