@@ -1175,10 +1175,12 @@
   // ordering the cloud pull would just resurrect them — but we still strip
   // them from the parse-time read here so the first render doesn't show
   // ghost rows.
-  // lsc598/stp494 (the slash key) is the legitimate Airtable-imported course
-  // and is deliberately NOT in this list — removing it earlier was a mistake.
-  // The dup variants (lsc598stp494 / stp494) stay purged.
-  window._PSEUDO_COURSES_TO_PURGE = ['chs100', 'chs300', 'lsc598stp494', 'stp494', 'asb554(494/598?)', 'bio322', 'lsc598gen', 'bst515'];
+  // The cross-listed Special Topics course is now keyed 'lsc598stp494'
+  // (no slash) everywhere — the URL-safe form mkCourse + the worksheet use.
+  // Its data was migrated off the slash key, so 'lsc598/stp494' is now the
+  // stale entry to purge; 'lsc598stp494' is the real course and must NOT be
+  // purged. 'stp494' (the bare-half dup) stays purged.
+  window._PSEUDO_COURSES_TO_PURGE = ['chs100', 'chs300', 'lsc598/stp494', 'stp494', 'asb554(494/598?)', 'bio322', 'lsc598gen', 'bst515'];
 
   (function() {
     try {
@@ -3056,7 +3058,7 @@
     // every refresh. Idempotent — a stamped flag prevents re-running.
     try {
       var doomed = window._PSEUDO_COURSES_TO_PURGE || [];
-      if (doomed.length && localStorage.getItem('pseudo_courses_purged_v4') !== '1') {
+      if (doomed.length && localStorage.getItem('pseudo_courses_purged_v5') !== '1') {
         var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
         var localChanged = false;
         doomed.forEach(function(id) {
@@ -3070,7 +3072,7 @@
               .then(function(r) { if (r && r.error) console.warn('[purge] cloud delete failed:', r.error.message); });
           }
         }
-        localStorage.setItem('pseudo_courses_purged_v4', '1');
+        localStorage.setItem('pseudo_courses_purged_v5', '1');
         console.info('[purge] removed pseudo-course entries from local + cloud:', doomed);
       }
     } catch(e) { console.warn('[purge] failed:', e && e.message); }
@@ -4005,7 +4007,12 @@
   function importAirtableCourseRecord(cand) {
     var code = cand.code || '';
     var name = cand.title || code;
-    var key = code.toLowerCase().replace(/\s+/g, '');
+    // Strip slashes as well as spaces so cross-listed codes like
+    // "LSC598/STP494" produce a URL-safe key ("lsc598stp494"). The slash
+    // variant broke the worksheet: mkCourse strips slashes but this path
+    // didn't, so the course lived under "lsc598/stp494" while the worksheet
+    // opened as "lsc598stp494" and found no data (no Drive folder, etc.).
+    var key = code.toLowerCase().replace(/[\s\/]+/g, '');
     if (!code || !key) return { ok: false, error: 'Record has no Course code' };
     if (courseData[key]) {
       // Already exists by code — stamp the record ID and backfill / normalize
@@ -4295,7 +4302,7 @@
   // add new mappings via the "Jira Epic" field in Course Info.
   var COURSE_JIRA_EPICS = {
     mns522:    'EDL-7828',   // MNS522-Python for Scientific Computing
-    'lsc598/stp494': 'EDL-7829',   // LSC598/STP494-Special Topics: Data Science for Genomics (Airtable-keyed)
+    'lsc598stp494': 'EDL-7829',   // LSC598/STP494-Special Topics: Data Science for Genomics (Airtable-keyed)
     bst605:    'EDL-7802',   // BST605-Biostatistical Data Analysis
     bst606:    'EDL-7797',   // BST606-Applied Clinical Trial Design and Analysis
     bst609:    'EDL-7803',   // BST609-Categorical Data Analysis in Health Sciences

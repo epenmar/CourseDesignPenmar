@@ -34,11 +34,11 @@ const PROJECT_TO_COURSE = {
   'BST 693': 'bst693', 'BST693': 'bst693',
   'BST 515': 'bst515', 'BST515': 'bst515', 'BMI 515': 'bst515',
   'LSC 598': 'lsc598', 'LSC598': 'lsc598',
-  // LSC598/STP494 is the dashboard's slash-keyed Airtable-imported course
-  // (Special Topics: Data Science for Genomics, Fahad Mostafa). Notes
-  // tagged with any of the cross-listed codes route to that single key.
-  'LSC598/STP494': 'lsc598/stp494', 'LSC 598/STP 494': 'lsc598/stp494',
-  'STP 494': 'lsc598/stp494', 'STP494': 'lsc598/stp494',
+  // Cross-listed Special Topics: Data Science for Genomics (Fahad Mostafa).
+  // Keyed 'lsc598stp494' (no slash) — the URL-safe form used everywhere.
+  // Notes tagged with any cross-listed code route to that single key.
+  'LSC598/STP494': 'lsc598stp494', 'LSC 598/STP 494': 'lsc598stp494',
+  'STP 494': 'lsc598stp494', 'STP494': 'lsc598stp494',
   'TPH 501': 'tph501', 'TPH501': 'tph501',
   'TPH 502': 'tph502', 'TPH502': 'tph502',
   'TPH 550': 'tph550', 'TPH550': 'tph550',
