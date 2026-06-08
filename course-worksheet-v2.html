@@ -15296,11 +15296,32 @@
     var hasManual = allActs.some(function(a) { return manualDescs[a.id]; });
 
     if (isNCIAS) {
-      // NCIAS wants a prose enumeration covering types/number/frequency,
-      // discipline-specific assignments, format, weighting, grading
-      // criteria, and how assignments correlate with learning outcomes.
-      html += '<p>Description of assignments, projects, exams and midterms \u2014 including their number and frequency, the format and structure of each, and how they correlate with the course learning outcomes.</p>';
-      if (genValid && gen.data.prose) {
+      // NCIAS: one section per assignment CATEGORY (defined + weighted),
+      // each listing its individual assignments with the required detail.
+      html += '<p>Assignments are organized by category below. Each category lists its weight toward the final grade and the individual assignments it includes.</p>';
+      if (genValid && Array.isArray(gen.data.categories) && gen.data.categories.length) {
+        gen.data.categories.forEach(function(cat) {
+          var weightStr = cat.weight ? ' \u2014 ' + esc(cat.weight) + ' of grade' : '';
+          var countStr = cat.count ? ' (' + cat.count + ')' : '';
+          html += '<h3 style="margin:14px 0 4px;">' + esc(cat.name || '') + countStr + weightStr + '</h3>';
+          if (cat.description) html += '<p style="margin:0 0 6px;">' + esc(cat.description).replace(/\n/g, '<br>') + '</p>';
+          var rows = Array.isArray(cat.assignments) ? cat.assignments : [];
+          if (rows.length) {
+            html += '<table style="border-collapse:collapse; width:100%; font-size:12px; margin:4px 0 8px;"><thead><tr>';
+            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:34%;">Assignment</th>';
+            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:center; width:70px;">Points</th>';
+            html += '<th style="padding:5px 8px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Description</th>';
+            html += '</tr></thead><tbody>';
+            rows.forEach(function(row) {
+              html += '<tr><td style="padding:5px 8px; border:1px solid #ddd; vertical-align:top;">' + esc(row.name || '') + '</td>';
+              html += '<td style="padding:5px 8px; border:1px solid #ddd; text-align:center; vertical-align:top;">' + esc(row.points || '\u2014') + '</td>';
+              html += '<td style="padding:5px 8px; border:1px solid #ddd;">' + (row.detail ? esc(row.detail).replace(/\n/g, '<br>') : '<span style="color:#bbb;">\u2014</span>') + '</td></tr>';
+            });
+            html += '</tbody></table>';
+          }
+        });
+      } else if (genValid && gen.data.prose) {
+        // Back-compat: an older generated payload that's still prose.
         String(gen.data.prose).split(/\n\s*\n/).forEach(function(para) {
           var t = para.trim();
           if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
@@ -15311,7 +15332,7 @@
           html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(manualDescs[a.id]).replace(/\n/g, '<br>') + '</p>';
         });
       } else {
-        html += placeholder('Use "Generate with AI" in the Syllabus Builder to draft the assignment narrative from your worksheet activities, or write descriptions manually.');
+        html += placeholder('Use "Generate with AI" in the Syllabus Builder to draft the categorized assignment breakdown from your worksheet activities, or write descriptions manually.');
       }
     } else if (isSTPN) {
       // STPH wants a two-column ELO/Competency \u2192 Description table, 2-3
@@ -18474,27 +18495,39 @@
         + (a.context ? '\n   Worksheet content: ' + a.context : '');
     }).join('\n');
 
-    // Type-grouped manifest (NCIAS enumerates by TYPE, not per assignment).
+    // Type-grouped manifest (NCIAS enumerates by TYPE/category, not per
+    // assignment). Each category keeps its full member list + point totals
+    // so we can compute weights deterministically after the AI returns.
     var typeGroups = {};
     var typeOrder = [];
     acts.forEach(function(a) {
-      if (!typeGroups[a.type]) { typeGroups[a.type] = { count: 0, names: [], pts: [], hasDesc: false, hasContext: false, elos: [] }; typeOrder.push(a.type); }
+      if (!typeGroups[a.type]) { typeGroups[a.type] = { count: 0, names: [], pts: [], total: 0, hasDesc: false, hasContext: false, elos: [], items: [] }; typeOrder.push(a.type); }
       var g = typeGroups[a.type];
       g.count++;
       g.names.push(a.name);
-      if (a.points) g.pts.push(parseInt(a.points, 10) || 0);
+      var p = parseInt(a.points, 10) || 0;
+      if (a.points) g.pts.push(p);
+      g.total += p;
       if (a.existingDesc) g.hasDesc = true;
       if (a.context) g.hasContext = true;
       a.elos.forEach(function(e) { if (g.elos.indexOf(e) === -1) g.elos.push(e); });
+      g.items.push(a);
     });
+    var grandTotal = typeOrder.reduce(function(s, t) { return s + typeGroups[t].total; }, 0);
+
     var typeManifest = typeOrder.map(function(t) {
       var g = typeGroups[t];
       var ptsNote = g.pts.length === 0 ? 'no point values set'
         : (g.pts.every(function(v) { return v === g.pts[0]; }) ? (g.pts[0] + ' pts each') : 'varying points');
-      return '- ' + t + ': ' + g.count + ' total (' + ptsNote + ')'
-        + (g.elos.length ? '; aligned to ' + g.elos.join(', ') : '; no ELO alignment')
-        + '; examples: ' + g.names.slice(0, 4).join('; ') + (g.names.length > 4 ? ', …' : '')
-        + (g.hasDesc || g.hasContext ? '' : '; NO faculty description or content provided');
+      var weightNote = (grandTotal > 0 && g.total > 0) ? (Math.round(g.total / grandTotal * 100) + '% of grade') : 'weight unknown (points not set)';
+      var lines = '- CATEGORY "' + t + '": ' + g.count + ' assignment(s), ' + ptsNote + ', ' + weightNote
+        + (g.elos.length ? '; aligned to ' + g.elos.join(', ') : '; no ELO alignment') + '\n';
+      g.items.forEach(function(a) {
+        lines += '    • ' + a.name + (a.points ? ' (' + a.points + ' pts)' : ' (points not set)')
+          + (a.elos.length ? ' [' + a.elos.join(', ') + ']' : '')
+          + (a.existingDesc ? ' — faculty notes: ' + a.existingDesc : (a.context ? ' — content: ' + a.context.slice(0, 200) : ' — NO description provided')) + '\n';
+      });
+      return lines;
     }).join('\n');
 
     var eloBlock = eloList.length ? eloList.map(function(e, i) { return 'ELO ' + (i + 1) + ': ' + e; }).join('\n') : '(none defined)';
@@ -18505,18 +18538,17 @@
     var MISSING_RULE = 'In a "missing" array, list (in plain language) the specific pieces of information NCIAS requires that are NOT present in the worksheet data — e.g. "Point weight for Quizzes", "Grading criteria for the Projects", "Format/length for written assignments", "Late/make-up policy", "Whether handwritten work is accepted". Be specific to this course. If everything needed is present, return an empty array.';
 
     if (college === 'NCIAS') {
-      prompt = 'Write the "Assignments/Exams" narrative for the syllabus of ' + courseName + '.\n\n'
+      prompt = 'Write the "Assignments/Exams" section for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
-        + 'Assignment TYPES in this course (already grouped — describe by TYPE, not individual assignment):\n' + typeManifest + '\n\n'
-        + 'New College (NCIAS) requires a prose enumeration organized by the TYPES of assignments and their number and '
-        + 'frequency. For each type, clarify the length and format of papers, the structure of projects, and the nature '
-        + 'of exams, and explain how the assignments correlate with the learning outcomes. Mention discipline-specific '
-        + 'assignments (fieldwork, collaborative projects) where relevant. Where the data provides it, address the weight '
-        + 'of each assignment type, grading criteria, reading assignments, rewrite/make-up acceptability, and acceptability '
-        + 'of handwritten work. Do NOT fabricate details that are not present — if the worksheet lacks the information, '
-        + 'omit it from the prose and instead list it in the "missing" array. ' + NO_DATES + 'Use 2–4 short paragraphs '
-        + 'organized by assignment type.\n\n' + MISSING_RULE;
-      schemaInstruction = 'Return ONLY a JSON object: {"prose": "narrative organized by assignment type, \\n\\n between paragraphs", "missing": ["specific item still needed", ...]}. No markdown, no other text.';
+        + 'Assignment categories in this course (each bullet is a category; the sub-bullets are its individual assignments):\n' + typeManifest + '\n\n'
+        + 'New College (NCIAS) requires the section organized by assignment CATEGORY. For EACH category, write a 1–2 '
+        + 'sentence "description" of that category (its purpose, the general format/structure, and how it correlates with '
+        + 'the learning outcomes), and for EACH individual assignment under it write a brief "detail" line clarifying the '
+        + 'length/format of the work, the structure of the project, or the nature of the exam, and the outcome(s) it '
+        + 'supports. Do NOT fabricate details not present in the data — if an assignment has no description, write its '
+        + 'detail as an empty string and surface the gap in "missing". Do NOT invent point weights — those are computed '
+        + 'separately. ' + NO_DATES + '\n\n' + MISSING_RULE;
+      schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else if (college === 'STPH') {
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
@@ -18543,6 +18575,31 @@
       var jsonMatch = raw.match(/\{[\s\S]*\}/);
       if (!jsonMatch) throw new Error('Could not parse AI response');
       var parsed = JSON.parse(jsonMatch[0]);
+
+      // For NCIAS, inject deterministically-computed point totals + weights
+      // and per-assignment points into each category, so weighting reflects
+      // the actual worksheet data rather than anything the AI guessed. Also
+      // auto-flag categories whose weight can't be computed (no points).
+      if (college === 'NCIAS' && Array.isArray(parsed.categories)) {
+        var autoMissing = [];
+        parsed.categories.forEach(function(cat) {
+          var g = typeGroups[cat.name];
+          if (!g) return;
+          cat.count = g.count;
+          cat.totalPoints = g.total;
+          cat.weight = (grandTotal > 0 && g.total > 0) ? (Math.round(g.total / grandTotal * 100) + '%') : '';
+          if (!cat.weight) autoMissing.push('Point values / weight for the "' + cat.name + '" category');
+          // Stitch actual per-assignment points onto each assignment row.
+          (cat.assignments || []).forEach(function(row) {
+            var match = g.items.filter(function(it) { return it.name === row.name; })[0];
+            row.points = match && match.points ? match.points : '';
+          });
+        });
+        parsed.missing = (Array.isArray(parsed.missing) ? parsed.missing : []).concat(
+          autoMissing.filter(function(m) { return (parsed.missing || []).indexOf(m) === -1; })
+        );
+      }
+
       saveField('syl-assignments-generated', { college: college, data: parsed });
       // Re-render the builder (shows the generated content) and, if the
       // preview is open, refresh it too.
@@ -18579,7 +18636,19 @@
     html += '</div>';
 
     // Render the generated content so it's visible in the builder.
-    if (d.prose) {
+    if (Array.isArray(d.categories) && d.categories.length) {
+      d.categories.forEach(function(cat) {
+        var weightStr = cat.weight ? ' · ' + esc(cat.weight) + ' of grade' : '';
+        var countStr = cat.count ? ' (' + cat.count + ')' : '';
+        html += '<div style="font-size:13px; font-weight:700; color:#8c1d40; margin:8px 0 2px;">' + esc(cat.name || '') + countStr + weightStr + '</div>';
+        if (cat.description) html += '<div style="font-size:12px; color:#444; margin-bottom:4px;">' + esc(cat.description) + '</div>';
+        (cat.assignments || []).forEach(function(row) {
+          html += '<div style="font-size:12px; color:#333; margin:0 0 3px 12px;">• <strong>' + esc(row.name || '') + '</strong>'
+            + (row.points ? ' <span style="color:#888;">(' + esc(row.points) + ' pts)</span>' : '')
+            + (row.detail ? ' — ' + esc(row.detail) : ' <span style="color:#c77;">— no description</span>') + '</div>';
+        });
+      });
+    } else if (d.prose) {
       String(d.prose).split(/\n\s*\n/).forEach(function(para) {
         var t = para.trim();
         if (t) html += '<p style="font-size:12px; color:#333; margin:0 0 8px;">' + esc(t).replace(/\n/g, '<br>') + '</p>';
