@@ -961,6 +961,22 @@
 </head>
 <body>
 
+<!-- Loading overlay — shown from first paint, hidden once the cloud pull
+     completes and fields are restored. Inline styles so it renders before
+     the stylesheet/scripts finish loading; otherwise the user sees a blank
+     worksheet for the 2-3s the Supabase pull takes and fears data loss. -->
+<div id="worksheet-loading" style="position:fixed; inset:0; z-index:99999; background:#fbfaf7; display:flex; flex-direction:column; align-items:center; justify-content:center; font-family:'Inter',-apple-system,sans-serif; transition:opacity 0.35s ease;">
+  <div style="font-size:22px; font-weight:700; letter-spacing:0.04em; color:#8c1d40; margin-bottom:6px;">COURSE<span style="color:#ffc627;">COMPOSE</span></div>
+  <div style="width:180px; height:4px; background:#eee4e8; border-radius:2px; overflow:hidden; margin:14px 0 12px;">
+    <div style="width:40%; height:100%; background:#8c1d40; border-radius:2px; animation:wlBar 1.1s ease-in-out infinite;"></div>
+  </div>
+  <div style="font-size:13px; color:#8a7f86;">Loading your worksheet — your work is safe.</div>
+</div>
+<style>
+  @keyframes wlBar { 0%{transform:translateX(-100%);} 50%{transform:translateX(150%);} 100%{transform:translateX(360%);} }
+  #worksheet-loading.hide { opacity:0; pointer-events:none; }
+</style>
+
 <div class="app">
   <!-- SIDEBAR -->
   <div class="sidebar">
@@ -3643,8 +3659,23 @@
       if (typeof restoreAllFields === 'function') restoreAllFields();
       calculateProgress();
       updateChecklistBadge();
+      hideWorksheetLoading();
     }, 300);
   });
+
+  // Fade out and remove the loading overlay. Idempotent — safe to call from
+  // both the normal load path and the safety timeout below.
+  function hideWorksheetLoading() {
+    var el = document.getElementById('worksheet-loading');
+    if (!el || el._hidden) return;
+    el._hidden = true;
+    el.classList.add('hide');
+    setTimeout(function() { if (el && el.parentNode) el.parentNode.removeChild(el); }, 400);
+  }
+  // Safety net: if the cloud pull hangs or a render throws before the normal
+  // hide fires, never trap the user behind the overlay forever. 8s is well
+  // past the typical 2-3s pull but short enough not to feel stuck.
+  setTimeout(hideWorksheetLoading, 8000);
 
   // ===== OBJECTIVES: MIGRATION, RENDER, AND CRUD =====
 
