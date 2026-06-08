@@ -5548,6 +5548,44 @@
     });
     saveField('assignmentWeights', weights);
     updateWeightTotal();
+    // The assignments-overview category dropdowns read from these rows, so
+    // re-render the overview if it's open to pick up renamed/added categories.
+    if (currentViewId === 'assignments-overview') {
+      try {
+        var openA = getOpenOverviewModules('assignments-overview-cards');
+        renderAssignmentsOverview(openA);
+      } catch (e) {}
+    }
+  }
+
+  // The list of weighting-category names defined in the Assignment Weighting
+  // callout. Used to populate the per-activity category dropdowns and to
+  // group the NCIAS syllabus assignments section.
+  function getWeightCategoryNames() {
+    var weights = loadField('assignmentWeights') || [];
+    return weights.map(function(w) { return (w.category || '').trim(); }).filter(Boolean);
+  }
+
+  // Build the per-activity weighting-category <select>. options come from the
+  // Assignment Weighting callout. A stale value not in the current list is
+  // preserved as its own option so reassigning categories never silently
+  // drops an activity's selection.
+  function buildCategoryPickerHtml(act, modNum, opts) {
+    opts = opts || {};
+    var cats = getWeightCategoryNames();
+    var current = act.category || '';
+    var style = opts.style || 'font-size:11px; padding:2px 4px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; max-width:100%; width:100%; color:#555;';
+    var html = '<select class="activity-input act-category-select" data-managed="true" data-field="category" data-activity-id="' + act.id + '" data-module-num="' + modNum + '" onchange="syncOverviewActivity(this)" title="Assignment weighting category" style="' + style + '">';
+    html += '<option value="">— Category —</option>';
+    var seen = false;
+    cats.forEach(function(c) {
+      var sel = (current === c) ? ' selected' : '';
+      if (sel) seen = true;
+      html += '<option value="' + escapeHtml(c) + '"' + sel + '>' + escapeHtml(c) + '</option>';
+    });
+    if (current && !seen) html += '<option value="' + escapeHtml(current) + '" selected>' + escapeHtml(current) + ' (removed)</option>';
+    html += '</select>';
+    return html;
   }
 
   function updateWeightTotal() {
@@ -8241,13 +8279,14 @@
         html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
       } else {
         // Activity header row — matches the per-row grid template below.
-        html += '<div style="display:grid; grid-template-columns:24px 28px 2fr 3fr 80px 100px auto 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
+        html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px auto 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
         html += '<div></div>';
         html += '<div></div>';
         html += '<div class="activity-header">Objectives</div>';
         html += '<div class="activity-header">Activity</div>';
         html += '<div class="activity-header">Points</div>';
         html += '<div class="activity-header">Due</div>';
+        html += '<div class="activity-header">Category</div>';
         html += '<div></div>';
         html += '<div></div>';
         html += '</div>';
@@ -8255,7 +8294,7 @@
           var act = acts[i];
           html += '<div class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
-          html += '<div style="display:grid; grid-template-columns:24px 28px 2fr 3fr 80px 100px auto 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
+          html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px auto 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           html += '<span class="link-badge-slot" style="display:flex; align-items:center; min-width:0;"></span>';
           // Objectives picker (interactive)
@@ -8263,6 +8302,7 @@
           html += '<textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Activity name..." style="resize:none; overflow:hidden; min-height:22px; line-height:1.3; white-space:pre-wrap;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.name) + '</textarea>';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; font-size:11px; line-height:1.3;" oninput="syncOverviewActivity(this)" value="' + escapeHtml(act.due) + '">';
+          html += buildCategoryPickerHtml(act, m);
           html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.activity-block\').querySelector(\'.overview-content-body\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\'; refreshContentIndicator(\'ov-' + act.id + '\');">▸ Content</button>';
           html += '<button class="btn-tiny-x" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button>';
           html += '</div>';
@@ -8289,7 +8329,7 @@
       thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewActivities()">🗑 Delete selected</button>';
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'assignments\')">Clear</button>';
       thtml += '</div>';
-      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:60px;">Mod</th><th style="width:160px;">Objectives</th><th>Activity</th><th style="width:90px;">Content</th><th style="width:60px;">Points</th><th style="width:90px;">Due</th><th style="width:24px;"></th></tr></thead>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:50px;">Mod</th><th style="width:150px;">Objectives</th><th>Activity</th><th style="width:80px;">Content</th><th style="width:55px;">Points</th><th style="width:80px;">Due</th><th style="width:120px;">Category</th><th style="width:24px;"></th></tr></thead>';
       for (var _ti = 0; _ti < modNumList.length; _ti++) {
         var m = modNumList[_ti];
         var mod = modules[m - _asn] || null;
@@ -8305,13 +8345,14 @@
           thtml += '<td style="text-align:center;"><button class="content-chip" data-content-chip="' + act.id + '" data-content-kind="activity" data-content-mod="' + m + '" onclick="openContentPopup(\'' + act.id + '\',\'activity\',' + m + ')">+ Content</button></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; font-size:10px; line-height:1.3; text-align:center;" value="' + escapeHtml(act.due) + '"></td>';
+          thtml += '<td>' + buildCategoryPickerHtml(act, m, { style: 'font-size:11px; padding:2px 4px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; width:100%; color:#555;' }) + '</td>';
           thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (acts.length === 0) {
-          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="6" style="color:#999; font-style:italic;">No activities</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="7" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
-        thtml += '<tr><td></td><td></td><td colspan="6"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="7"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -8510,7 +8551,9 @@
     if (field === 'name') act.name = el.value;
     else if (field === 'points') act.points = el.value;
     else if (field === 'due') act.due = el.value;
+    else if (field === 'category') act.category = el.value;
     saveActivityData();
+    if (typeof broadcastItemUpdate === 'function') { try { broadcastItemUpdate('activity', modNum, act); } catch (e) {} }
   }
 
   // ===== DUE DATE PICKER =====
@@ -18473,6 +18516,7 @@
         acts.push({
           name: a.name.trim(),
           type: _humanizeActType(a.contentType || a.type),
+          category: (a.category || '').trim(),
           points: a.points || '',
           module: m,
           elos: elos,
@@ -18495,33 +18539,37 @@
         + (a.context ? '\n   Worksheet content: ' + a.context : '');
     }).join('\n');
 
-    // Type-grouped manifest (NCIAS enumerates by TYPE/category, not per
-    // assignment). Each category keeps its full member list + point totals
-    // so we can compute weights deterministically after the AI returns.
-    var typeGroups = {};
-    var typeOrder = [];
-    acts.forEach(function(a) {
-      if (!typeGroups[a.type]) { typeGroups[a.type] = { count: 0, names: [], pts: [], total: 0, hasDesc: false, hasContext: false, elos: [], items: [] }; typeOrder.push(a.type); }
-      var g = typeGroups[a.type];
-      g.count++;
-      g.names.push(a.name);
-      var p = parseInt(a.points, 10) || 0;
-      if (a.points) g.pts.push(p);
-      g.total += p;
-      if (a.existingDesc) g.hasDesc = true;
-      if (a.context) g.hasContext = true;
-      a.elos.forEach(function(e) { if (g.elos.indexOf(e) === -1) g.elos.push(e); });
-      g.items.push(a);
+    // NCIAS groups by the WEIGHTING CATEGORY each activity is assigned to
+    // (set via the per-activity dropdown in the assignments overview), with
+    // the weight pulled straight from the Assignment Weighting callout.
+    // Categories are seeded from the callout so empty defined categories
+    // still appear (and get flagged), and an "Uncategorized" bucket catches
+    // activities the user hasn't sorted yet.
+    var weightDefs = loadField('assignmentWeights') || [];
+    var categoryWeight = {};
+    var categoryGroups = {};
+    var categoryOrder = [];
+    weightDefs.forEach(function(w) {
+      var name = (w.category || '').trim();
+      if (!name) return;
+      categoryWeight[name] = (w.weight === 0 || w.weight) ? (w.weight + '%') : '';
+      if (!categoryGroups[name]) { categoryGroups[name] = { items: [], total: 0, elos: [] }; categoryOrder.push(name); }
     });
-    var grandTotal = typeOrder.reduce(function(s, t) { return s + typeGroups[t].total; }, 0);
-
-    var typeManifest = typeOrder.map(function(t) {
-      var g = typeGroups[t];
-      var ptsNote = g.pts.length === 0 ? 'no point values set'
-        : (g.pts.every(function(v) { return v === g.pts[0]; }) ? (g.pts[0] + ' pts each') : 'varying points');
-      var weightNote = (grandTotal > 0 && g.total > 0) ? (Math.round(g.total / grandTotal * 100) + '% of grade') : 'weight unknown (points not set)';
-      var lines = '- CATEGORY "' + t + '": ' + g.count + ' assignment(s), ' + ptsNote + ', ' + weightNote
-        + (g.elos.length ? '; aligned to ' + g.elos.join(', ') : '; no ELO alignment') + '\n';
+    acts.forEach(function(a) {
+      var name = a.category || 'Uncategorized';
+      if (!categoryGroups[name]) { categoryGroups[name] = { items: [], total: 0, elos: [] }; categoryOrder.push(name); }
+      var g = categoryGroups[name];
+      g.items.push(a);
+      g.total += (parseInt(a.points, 10) || 0);
+      a.elos.forEach(function(e) { if (g.elos.indexOf(e) === -1) g.elos.push(e); });
+    });
+    // Drop defined-but-empty categories from the prompt — they only matter
+    // for the "missing" flagging below.
+    var categoryManifest = categoryOrder.filter(function(c) { return categoryGroups[c].items.length > 0; }).map(function(c) {
+      var g = categoryGroups[c];
+      var w = categoryWeight[c];
+      var lines = '- CATEGORY "' + c + '"' + (w ? ' (' + w + ' of grade)' : ' (weight not set in the weighting callout)')
+        + ': ' + g.items.length + ' assignment(s)' + (g.elos.length ? '; aligned to ' + g.elos.join(', ') : '') + '\n';
       g.items.forEach(function(a) {
         lines += '    • ' + a.name + (a.points ? ' (' + a.points + ' pts)' : ' (points not set)')
           + (a.elos.length ? ' [' + a.elos.join(', ') + ']' : '')
@@ -18540,14 +18588,14 @@
     if (college === 'NCIAS') {
       prompt = 'Write the "Assignments/Exams" section for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
-        + 'Assignment categories in this course (each bullet is a category; the sub-bullets are its individual assignments):\n' + typeManifest + '\n\n'
-        + 'New College (NCIAS) requires the section organized by assignment CATEGORY. For EACH category, write a 1–2 '
-        + 'sentence "description" of that category (its purpose, the general format/structure, and how it correlates with '
-        + 'the learning outcomes), and for EACH individual assignment under it write a brief "detail" line clarifying the '
-        + 'length/format of the work, the structure of the project, or the nature of the exam, and the outcome(s) it '
-        + 'supports. Do NOT fabricate details not present in the data — if an assignment has no description, write its '
-        + 'detail as an empty string and surface the gap in "missing". Do NOT invent point weights — those are computed '
-        + 'separately. ' + NO_DATES + '\n\n' + MISSING_RULE;
+        + 'Assignment categories in this course (each bullet is a weighting category; the sub-bullets are the individual assignments the instructor sorted into it):\n' + (categoryManifest || '(no activities sorted into categories yet)') + '\n\n'
+        + 'New College (NCIAS) requires the section organized by assignment CATEGORY exactly as given above. For EACH '
+        + 'category, write a 1–2 sentence "description" of that category (its purpose, the general format/structure, and '
+        + 'how it correlates with the learning outcomes), and for EACH individual assignment under it write a brief '
+        + '"detail" line clarifying the length/format of the work, the structure of the project, or the nature of the '
+        + 'exam, and the outcome(s) it supports. Do NOT fabricate details not present in the data — if an assignment has '
+        + 'no description, write its detail as an empty string and surface the gap in "missing". Keep the category names '
+        + 'and assignment names EXACTLY as given. Do NOT invent point weights — those are injected separately. ' + NO_DATES + '\n\n' + MISSING_RULE;
       schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else if (college === 'STPH') {
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
@@ -18576,24 +18624,33 @@
       if (!jsonMatch) throw new Error('Could not parse AI response');
       var parsed = JSON.parse(jsonMatch[0]);
 
-      // For NCIAS, inject deterministically-computed point totals + weights
-      // and per-assignment points into each category, so weighting reflects
-      // the actual worksheet data rather than anything the AI guessed. Also
-      // auto-flag categories whose weight can't be computed (no points).
+      // For NCIAS, inject the weight from the Assignment Weighting callout and
+      // the actual per-assignment points, so the section reflects the user's
+      // declared weighting rather than anything the AI guessed. Also auto-flag
+      // categories with no weight defined, defined categories with no
+      // assignments, and any activities not yet sorted into a category.
       if (college === 'NCIAS' && Array.isArray(parsed.categories)) {
         var autoMissing = [];
         parsed.categories.forEach(function(cat) {
-          var g = typeGroups[cat.name];
-          if (!g) return;
-          cat.count = g.count;
-          cat.totalPoints = g.total;
-          cat.weight = (grandTotal > 0 && g.total > 0) ? (Math.round(g.total / grandTotal * 100) + '%') : '';
-          if (!cat.weight) autoMissing.push('Point values / weight for the "' + cat.name + '" category');
-          // Stitch actual per-assignment points onto each assignment row.
+          var g = categoryGroups[cat.name];
+          cat.weight = categoryWeight[cat.name] || '';
+          cat.count = g ? g.items.length : 0;
+          if (cat.name !== 'Uncategorized' && !cat.weight) autoMissing.push('Weight (%) for the "' + cat.name + '" category in the Assignment Weighting callout');
           (cat.assignments || []).forEach(function(row) {
-            var match = g.items.filter(function(it) { return it.name === row.name; })[0];
+            var match = g ? g.items.filter(function(it) { return it.name === row.name; })[0] : null;
             row.points = match && match.points ? match.points : '';
           });
+        });
+        // Uncategorized activities the instructor still needs to sort.
+        var uncategorized = acts.filter(function(a) { return !a.category; });
+        if (uncategorized.length) {
+          autoMissing.push(uncategorized.length + ' assignment(s) not yet assigned to a weighting category: ' + uncategorized.map(function(a) { return a.name; }).join(', '));
+        }
+        // Defined-but-empty categories.
+        categoryOrder.forEach(function(c) {
+          if (c !== 'Uncategorized' && categoryGroups[c].items.length === 0) {
+            autoMissing.push('No assignments assigned to the defined "' + c + '" category');
+          }
         });
         parsed.missing = (Array.isArray(parsed.missing) ? parsed.missing : []).concat(
           autoMissing.filter(function(m) { return (parsed.missing || []).indexOf(m) === -1; })
