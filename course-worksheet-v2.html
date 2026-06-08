@@ -2309,7 +2309,17 @@
       const saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
       Object.keys(saved).forEach(id => {
         if (!worksheetCourses[id] && saved[id]._worksheet) {
-          worksheetCourses[id] = saved[id]._worksheet;
+          var ws = saved[id]._worksheet;
+          // Backfill empty worksheet fields from the top-level dashboard
+          // course object. Airtable-imported courses can have the canonical
+          // driveFolder / instructor / email at the top level while the
+          // _worksheet copy is blank (the import created _worksheet before
+          // those values existed), which left the worksheet with no Drive
+          // link even though the dashboard side panel showed one.
+          ['driveFolder', 'instructor', 'email', 'session', 'sessionShort', 'program', 'college'].forEach(function(k) {
+            if ((ws[k] === undefined || ws[k] === '' || ws[k] === null) && saved[id][k]) ws[k] = saved[id][k];
+          });
+          worksheetCourses[id] = ws;
         }
       });
     } catch(e) {}
@@ -3445,9 +3455,15 @@
           var ws = cfg._worksheet || cfg;
           // Hydrate fields that the worksheet uses to render but that may be
           // missing from the local fallback. Don't blow away values the
-          // hardcoded map already supplied.
+          // hardcoded map already supplied. For each field prefer the
+          // _worksheet copy but fall back to the top-level dashboard course
+          // object — Airtable imports can leave _worksheet.driveFolder blank
+          // while the canonical link sits at the top level.
           ['driveFolder','instructor','email','session','sessionShort','code','name','fullTitle','program','college','id','users','sessionValue','qaDate','milestoneDates','moduleCount']
-            .forEach(function(k) { if (!activeCourse[k] && ws[k]) activeCourse[k] = ws[k]; });
+            .forEach(function(k) {
+              var val = (ws[k] !== undefined && ws[k] !== '' && ws[k] !== null) ? ws[k] : cfg[k];
+              if (!activeCourse[k] && val) activeCourse[k] = val;
+            });
           // Also write to localStorage user_courses so subsequent loads have it
           // synchronously available (no flash of empty Drive link on reload).
           try {
