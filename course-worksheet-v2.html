@@ -4424,6 +4424,13 @@
         issues.push({ severity: 'critical', type: 'ELO not addressed', message: 'ELO ' + (eloIdx+1) + ' has no MLOs mapped to it', detail: elo });
       } else {
         stats.elosCovered++;
+        // An ELO advanced by only ONE MLO is thinly supported — the whole
+        // outcome rests on a single objective. Flag it so the designer can
+        // decide whether that's intentional or a tagging gap (broad ELOs
+        // like communication usually warrant several MLOs).
+        if (linkedMlos.length === 1) {
+          issues.push({ severity: 'minor', type: 'ELO thinly supported', message: 'ELO ' + (eloIdx+1) + ' is mapped to only one MLO (' + linkedMlos[0] + ')', detail: elo });
+        }
       }
 
       linkedMlos.forEach(function(mloId) {
