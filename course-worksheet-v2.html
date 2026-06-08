@@ -18494,7 +18494,8 @@
     };
 
     var acts = [];
-    for (var m = startN; m < startN + modCount; m++) {
+    var _genModKeys = Object.keys(courseActivities || {}).map(function(k) { return parseInt(k, 10); }).filter(function(n) { return !isNaN(n); }).sort(function(a, b) { return a - b; });
+    _genModKeys.forEach(function(m) {
       (courseActivities[m] || []).forEach(function(a) {
         if (!a.name || !a.name.trim()) return;
         var elos = [];
@@ -18524,7 +18525,7 @@
           context: tplText.slice(0, 800)
         });
       });
-    }
+    });
 
     if (acts.length === 0) { alert('Add assignments on the module pages first.'); return; }
 
@@ -18737,12 +18738,18 @@
 
   function renderSyllabusAssignments() {
     var descs = getAssignmentDescriptions();
-    var _startN = activeCourse.moduleStartZero ? 0 : 1;
-    var modCount = activeCourse.moduleCount || 7;
     var html = '';
     var hasAny = false;
 
-    for (var m = _startN; m < _startN + modCount; m++) {
+    // Iterate EVERY module key that actually holds activities, sorted
+    // numerically — rather than a fixed _startN..modCount range. BST605 et
+    // al. use moduleStartZero (Module 0) and a saved moduleCount that may
+    // not be restored onto activeCourse at the moment the syllabus builder
+    // renders; the fixed range could then miss modules and show a blank
+    // section even though courseActivities is fully populated.
+    var modKeys = Object.keys(courseActivities || {}).map(function(k) { return parseInt(k, 10); }).filter(function(n) { return !isNaN(n); }).sort(function(a, b) { return a - b; });
+    for (var mi = 0; mi < modKeys.length; mi++) {
+      var m = modKeys[mi];
       var acts = courseActivities[m] || [];
       if (acts.length === 0) continue;
       acts.forEach(function(act) {
