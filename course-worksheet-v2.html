@@ -1008,9 +1008,6 @@
       <div class="nav-item active" onclick="showView('dashboard')">
         <span class="icon">📊</span> Dashboard &amp; Timeline
       </div>
-      <div class="nav-item" onclick="showView('course-parser')">
-        <span class="icon">🪄</span> Course Parser
-      </div>
       <div class="nav-item" onclick="showView('course-info')">
         <span class="icon">📋</span> Course Info
         <span class="badge badge-empty" id="sidebar-info-badge">—</span>
@@ -1053,13 +1050,20 @@
       <div class="nav-section-label">Module View</div>
       <div id="sidebar-module-list"></div>
 
-      <!-- Build section sits AFTER Module View so the workflow order in
-           the sidebar matches the order the user actually moves through:
-           configure → design → drill into each module → finally hand off. -->
-      <div class="nav-section-label">Build</div>
-      <div class="nav-item" onclick="showView('canvas-plan')">
-        <span class="icon">🧱</span> Canvas Plan
-        <span class="badge badge-empty" id="sidebar-plan-badge">—</span>
+      <!-- ID Tools — instructional-designer-only utilities. Hidden entirely
+           for faculty / reviewer sessions (see _applyIdToolsVisibility).
+           The Course Parser seeds a course from a source syllabus; the
+           Canvas Plan is the build/handoff artifact — both are ID work,
+           not faculty-facing. -->
+      <div id="nav-id-tools" style="display:none;">
+        <div class="nav-section-label">ID Tools</div>
+        <div class="nav-item" onclick="showView('course-parser')">
+          <span class="icon">🪄</span> Course Parser
+        </div>
+        <div class="nav-item" onclick="showView('canvas-plan')">
+          <span class="icon">🧱</span> Canvas Plan
+          <span class="badge badge-empty" id="sidebar-plan-badge">—</span>
+        </div>
       </div>
     </div>
 
@@ -3674,6 +3678,9 @@
     // the cloud pull is still in-flight, so DOM inputs get populated from pre-pull
     // localStorage. Re-run restoreAllFields now that the pull has completed and
     // localStorage is fresh, then calculate progress.
+    // Show/hide the ID Tools section based on who's viewing (ID vs faculty).
+    try { _applyIdToolsVisibility(); } catch (e) {}
+
     setTimeout(function() {
       if (typeof restoreAllFields === 'function') restoreAllFields();
       calculateProgress();
@@ -7471,6 +7478,12 @@
   }
 
   function showView(viewId) {
+    // ID-only views (Course Parser, Canvas Plan) are off-limits to faculty
+    // and reviewers — bounce them to the dashboard if they reach one via a
+    // #hash or stale link.
+    if (typeof _ID_ONLY_VIEWS !== 'undefined' && _ID_ONLY_VIEWS[viewId] && typeof _isIdUser === 'function' && !_isIdUser()) {
+      viewId = 'dashboard';
+    }
     // Flush any pending debounced saves before switching views
     clearTimeout(saveTimer);
     clearTimeout(modOverviewSaveTimer);
@@ -10755,6 +10768,21 @@
     var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
     return !!(identity && identity.role === 'id');
   }
+
+  // Show the ID Tools sidebar section (Course Parser + Canvas Plan) only to
+  // instructional designers. Faculty / reviewer sessions never see it. Also
+  // bounce them off those views if they reach them via a #hash, so hiding
+  // the nav isn't merely cosmetic.
+  var _ID_ONLY_VIEWS = { 'course-parser': true, 'canvas-plan': true };
+  function _applyIdToolsVisibility() {
+    var isId = _isIdUser();
+    var el = document.getElementById('nav-id-tools');
+    if (el) el.style.display = isId ? '' : 'none';
+    if (!isId && typeof currentViewId !== 'undefined' && _ID_ONLY_VIEWS[currentViewId]) {
+      try { showView('dashboard'); } catch (e) {}
+    }
+  }
+  window._applyIdToolsVisibility = _applyIdToolsVisibility;
 
   // Reuses the same `meetings` table the dashboard syncs into via
   // granola-sync. Returns [] on any failure — AI fill still works,
@@ -18334,6 +18362,7 @@
     if (!name) return;
     localStorage.setItem('comment_identity', JSON.stringify({ name, role }));
     document.getElementById('comment-identity-modal').style.display = 'none';
+    if (typeof _applyIdToolsVisibility === 'function') { try { _applyIdToolsVisibility(); } catch (e) {} }
     if (currentCommentSection) openCommentPanel(currentCommentSection);
     else if (pendingHighlight) startHighlightComment();
   }
