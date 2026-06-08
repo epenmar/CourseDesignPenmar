@@ -15244,37 +15244,113 @@
     html += '<p>All assignments, unless otherwise announced, MUST be submitted to the designated area of Canvas. Do not submit an assignment via email.</p>';
     html += '<p>Assignment due dates/times follow Arizona Standard Time. View the <a href="http://www.thetimezoneconverter.com/">Time Converter</a> to account for the difference in Time Zones. Note: Arizona does not observe daylight savings time.</p>';
 
-    // Assignment summary table
     var allActs = [];
     for (var m = startNum; m < startNum + modCount; m++) {
       (courseActivities[m] || []).forEach(function(a) { if (a.name && a.name.trim()) allActs.push(a); });
     }
+
+    // Summary table \u2014 grouped by assignment type to match the CHS/STPH
+    // template's 4-column layout (Assignment | Number | Point Value Per |
+    // Total Points). No due-date column by design \u2014 instructors reuse a
+    // syllabus across sessions, so dates would force a scrub every term.
     if (allActs.length > 0) {
+      var typeGroups = {};
+      var typeOrder = [];
+      allActs.forEach(function(a) {
+        var label = _humanizeActType(a.contentType || a.type);
+        if (!typeGroups[label]) { typeGroups[label] = { count: 0, perVals: [], total: 0 }; typeOrder.push(label); }
+        var p = parseInt(a.points, 10) || 0;
+        typeGroups[label].count++;
+        typeGroups[label].perVals.push(p);
+        typeGroups[label].total += p;
+      });
       html += '<table style="border-collapse:collapse; width:100%; font-size:12px; margin:12px 0;"><thead><tr>';
       html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Assignment</th>';
-      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Points</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Number</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Point Value Per</th>';
+      html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:center;">Total Points</th>';
       html += '</tr></thead><tbody>';
-      var totalPts = 0;
-      allActs.forEach(function(a) {
-        var pts = parseInt(a.points) || 0;
-        totalPts += pts;
-        html += '<tr><td style="padding:4px 6px; border:1px solid #ddd;">' + esc(a.name) + '</td>';
-        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + esc(a.points || '\u2014') + '</td></tr>';
+      var grandTotal = 0;
+      typeOrder.forEach(function(label) {
+        var g = typeGroups[label];
+        grandTotal += g.total;
+        var allSame = g.perVals.every(function(v) { return v === g.perVals[0]; });
+        var perDisplay = allSame ? String(g.perVals[0]) : 'Varies';
+        html += '<tr><td style="padding:4px 6px; border:1px solid #ddd;">' + esc(label) + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + g.count + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + esc(perDisplay) + '</td>';
+        html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + g.total + '</td></tr>';
       });
       html += '<tr style="font-weight:600;"><td style="padding:4px 6px; border:1px solid #ddd;">Total</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + totalPts + '</td></tr>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;"></td><td style="padding:4px 6px; border:1px solid #ddd;"></td>';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center;">' + grandTotal + '</td></tr>';
       html += '</tbody></table>';
     }
 
-    // Assignment descriptions
-    var descs = getAssignmentDescriptions();
-    var hasDescs = false;
-    allActs.forEach(function(a) { if (descs[a.id]) hasDescs = true; });
-    if (hasDescs) {
-      allActs.forEach(function(a) {
-        if (!descs[a.id]) return;
-        html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(descs[a.id]).replace(/\n/g, '<br>') + '</p>';
-      });
+    // ===== ASSIGNMENT DESCRIPTIONS (college-specific, AI-generatable) =====
+    // Prefer the AI-generated block when present and built for this college;
+    // otherwise fall back to the per-activity manual descriptions.
+    var gen = loadField('syl-assignments-generated');
+    var genValid = gen && gen.college === college && gen.data;
+    var manualDescs = getAssignmentDescriptions();
+    var hasManual = allActs.some(function(a) { return manualDescs[a.id]; });
+
+    if (isNCIAS) {
+      // NCIAS wants a prose enumeration covering types/number/frequency,
+      // discipline-specific assignments, format, weighting, grading
+      // criteria, and how assignments correlate with learning outcomes.
+      html += '<p>Description of assignments, projects, exams and midterms \u2014 including their number and frequency, the format and structure of each, and how they correlate with the course learning outcomes.</p>';
+      if (genValid && gen.data.prose) {
+        String(gen.data.prose).split(/\n\s*\n/).forEach(function(para) {
+          var t = para.trim();
+          if (t) html += '<p>' + esc(t).replace(/\n/g, '<br>') + '</p>';
+        });
+      } else if (hasManual) {
+        allActs.forEach(function(a) {
+          if (!manualDescs[a.id]) return;
+          html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(manualDescs[a.id]).replace(/\n/g, '<br>') + '</p>';
+        });
+      } else {
+        html += placeholder('Use "Generate with AI" in the Syllabus Builder to draft the assignment narrative from your worksheet activities, or write descriptions manually.');
+      }
+    } else if (isSTPN) {
+      // STPH wants a two-column ELO/Competency \u2192 Description table, 2-3
+      // sentences each, showing how each assessment advances mastery.
+      html += '<p>Description of assignments, projects, exams and midterms, showing how each assessment advances mastery of the Expected Learning Outcomes or CEPH competencies.</p>';
+      if (genValid && Array.isArray(gen.data.items) && gen.data.items.length) {
+        html += '<table style="border-collapse:collapse; width:100%; font-size:12px; margin:8px 0;"><thead><tr>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left; width:32%;">ELO/Competency</th>';
+        html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0; text-align:left;">Description</th>';
+        html += '</tr></thead><tbody>';
+        gen.data.items.forEach(function(it) {
+          html += '<tr><td style="padding:6px; border:1px solid #ddd; vertical-align:top;">' + esc(it.elo || it.assignment || '') + '</td>';
+          html += '<td style="padding:6px; border:1px solid #ddd;">' + esc(it.description || '').replace(/\n/g, '<br>') + '</td></tr>';
+        });
+        html += '</tbody></table>';
+      } else if (hasManual) {
+        allActs.forEach(function(a) {
+          if (!manualDescs[a.id]) return;
+          html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(manualDescs[a.id]).replace(/\n/g, '<br>') + '</p>';
+        });
+      } else {
+        html += placeholder('Use "Generate with AI" in the Syllabus Builder to draft the ELO/Competency \u2192 Description table from your worksheet activities, or write descriptions manually.');
+      }
+    } else {
+      // CHS + default: "Assignment Name/Type: DESCRIPTION" list. Descriptions
+      // clarify length/format of papers, structure of projects, nature of exams.
+      html += '<p>Description of assignments, projects, exams and midterms, including a general statement about how student work will be assessed. Descriptions should clarify items such as length and format of papers, structure of projects, and nature of exams.</p>';
+      if (genValid && Array.isArray(gen.data.items) && gen.data.items.length) {
+        gen.data.items.forEach(function(it) {
+          html += '<p><strong>' + esc(it.assignment || it.elo || '') + ':</strong> ' + esc(it.description || '').replace(/\n/g, '<br>') + '</p>';
+        });
+      } else if (hasManual) {
+        allActs.forEach(function(a) {
+          if (!manualDescs[a.id]) return;
+          html += '<p><strong>' + esc(a.name) + ':</strong> ' + esc(manualDescs[a.id]).replace(/\n/g, '<br>') + '</p>';
+        });
+      } else {
+        html += placeholder('Use "Generate with AI" in the Syllabus Builder to draft assignment descriptions from your worksheet activities, or write descriptions manually.');
+      }
     }
 
     // Final exam
@@ -18310,6 +18386,155 @@
     saveField('assignmentDescriptions', descs);
   }
 
+  // Humanize an activity contentType into the plural label used in the
+  // syllabus assignment summary table (quiz → Quizzes, assignment →
+  // Assignments, etc.). Unknown types get a naive pluralization.
+  function _humanizeActType(t) {
+    var map = {
+      quiz: 'Quizzes', assignment: 'Assignments', discussion: 'Discussions',
+      exam: 'Exams', midterm: 'Midterms', 'final-exam': 'Final Exams',
+      project: 'Projects', paper: 'Papers', lab: 'Labs',
+      presentation: 'Presentations', reflection: 'Reflections',
+      'peer-review': 'Peer Reviews', journal: 'Journals', essay: 'Essays',
+      homework: 'Homework', worksheet: 'Worksheets', portfolio: 'Portfolios'
+    };
+    var key = String(t || 'assignment').toLowerCase().trim();
+    if (map[key]) return map[key];
+    var word = key.charAt(0).toUpperCase() + key.slice(1);
+    return /s$/.test(word) ? word : word + 's';
+  }
+
+  // ===== AI-GENERATE THE ASSIGNMENTS/EXAMS DESCRIPTION BLOCK =====
+  // Drafts the college-appropriate assignment description content from the
+  // worksheet's activities. Stores a structured result in
+  // 'syl-assignments-generated' that renderSyllabusPreview consumes:
+  //   CHS / default → { college, data: { items: [{assignment, description}] } }
+  //   STPH          → { college, data: { items: [{elo, description}] } }
+  //   NCIAS         → { college, data: { prose: "..." } }
+  async function generateSyllabusAssignments(btn) {
+    var college = activeCourse.college || '';
+    var startN = activeCourse.moduleStartZero ? 0 : 1;
+    var modCount = activeCourse.moduleCount || 7;
+    var eloList = (loadField('flatElos') || activeCourse.flatElos || []).map(function(e) { return typeof e === 'string' ? e : (e.text || ''); });
+    var manualDescs = getAssignmentDescriptions();
+
+    // Resolve an activity's tagged objective ids (e.g. "1.2") to the ELO
+    // numbers they map to, so the AI can correlate assessments to outcomes.
+    var eloMlo = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
+    var mloToElo = function(mloId) {
+      var hits = [];
+      Object.keys(eloMlo).forEach(function(eloIdx) {
+        if ((eloMlo[eloIdx] || []).indexOf(mloId) !== -1) hits.push('ELO ' + (parseInt(eloIdx, 10) + 1));
+      });
+      return hits;
+    };
+
+    var acts = [];
+    for (var m = startN; m < startN + modCount; m++) {
+      (courseActivities[m] || []).forEach(function(a) {
+        if (!a.name || !a.name.trim()) return;
+        var elos = [];
+        (a.objectives || []).forEach(function(id) { mloToElo(id).forEach(function(e) { if (elos.indexOf(e) === -1) elos.push(e); }); });
+        // Pull any template text the faculty already wrote (Overview /
+        // Instructions / etc.) as raw context for the AI.
+        var tplText = '';
+        if (a.templateData) {
+          Object.keys(a.templateData).forEach(function(tk) {
+            var section = a.templateData[tk];
+            if (section && typeof section === 'object') {
+              Object.keys(section).forEach(function(sk) {
+                var t = String(section[sk] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+                if (t) tplText += sk + ': ' + t + '\n';
+              });
+            }
+          });
+        }
+        acts.push({
+          name: a.name.trim(),
+          type: _humanizeActType(a.contentType || a.type),
+          points: a.points || '',
+          module: m,
+          elos: elos,
+          existingDesc: manualDescs[a.id] || '',
+          context: tplText.slice(0, 800)
+        });
+      });
+    }
+
+    if (acts.length === 0) { alert('Add assignments on the module pages first.'); return; }
+
+    var origText = btn ? btn.textContent : '';
+    if (btn) { btn.disabled = true; btn.textContent = '⏳ Generating…'; }
+
+    // Build a compact activity manifest for the prompt.
+    var manifest = acts.map(function(a, i) {
+      return (i + 1) + '. ' + a.name + ' (' + a.type + (a.points ? ', ' + a.points + ' pts' : '') + ')'
+        + (a.elos.length ? ' — aligned to ' + a.elos.join(', ') : '')
+        + (a.existingDesc ? '\n   Faculty notes: ' + a.existingDesc : '')
+        + (a.context ? '\n   Worksheet content: ' + a.context : '');
+    }).join('\n');
+    var eloBlock = eloList.length ? eloList.map(function(e, i) { return 'ELO ' + (i + 1) + ': ' + e; }).join('\n') : '(none defined)';
+
+    var courseName = (activeCourse.code || '') + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var prompt, schemaInstruction;
+
+    if (college === 'NCIAS') {
+      prompt = 'Write the "Assignments/Exams" narrative for the syllabus of ' + courseName + '.\n\n'
+        + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
+        + 'Assignments in this course:\n' + manifest + '\n\n'
+        + 'Write a clear prose enumeration that describes the TYPES of assignments and their number and frequency. '
+        + 'For each type, clarify the length and format of papers, the structure of projects, and the nature of exams, '
+        + 'and explain how the assignments correlate with the learning outcomes. Mention discipline-specific assignments '
+        + '(e.g., fieldwork, collaborative projects) where relevant. Where the worksheet provides it, address weight of '
+        + 'each assignment, grading criteria, reading assignments, rewrite/make-up acceptability, and acceptability of '
+        + 'handwritten work. CRITICAL: do NOT include any specific due dates or calendar dates — the syllabus must be '
+        + 'reusable across sessions. Use 2–4 short paragraphs.';
+      schemaInstruction = 'Return ONLY a JSON object: {"prose": "the narrative text with \\n\\n between paragraphs"}. No markdown, no other text.';
+    } else if (college === 'STPH') {
+      prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
+        + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
+        + 'Assignments in this course:\n' + manifest + '\n\n'
+        + 'For each major assignment or assignment type, write a 2–3 sentence description showing how that assessment '
+        + 'advances mastery of a specific ELO or CEPH competency. Reference the relevant ELO/competency text. CRITICAL: '
+        + 'do NOT include any specific due dates or calendar dates — the syllabus must be reusable across sessions.';
+      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"elo": "the ELO/competency this advances", "description": "2-3 sentence description"}]}. No markdown, no other text.';
+    } else {
+      // CHS + default
+      prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
+        + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
+        + 'Assignments in this course:\n' + manifest + '\n\n'
+        + 'For each assignment or assignment type, write a concise description that clarifies the length and format of '
+        + 'papers, the structure of projects, and the nature of exams, plus a general statement of how the work will be '
+        + 'assessed. CRITICAL: do NOT include any specific due dates or calendar dates — the syllabus must be reusable '
+        + 'across sessions.';
+      schemaInstruction = 'Return ONLY a JSON object: {"items": [{"assignment": "assignment name or type", "description": "the description"}]}. No markdown, no other text.';
+    }
+
+    try {
+      var raw = (await callCreateAI(prompt + '\n\n' + schemaInstruction, 'You are an instructional designer writing ASU Online syllabus content. Never invent due dates.', 2048)).trim();
+      var jsonMatch = raw.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new Error('Could not parse AI response');
+      var parsed = JSON.parse(jsonMatch[0]);
+      saveField('syl-assignments-generated', { college: college, data: parsed });
+      // Re-render the builder (shows the generated content) and, if the
+      // preview is open, refresh it too.
+      if (typeof renderSyllabusChecklist === 'function') renderSyllabusChecklist();
+      if (currentViewId === 'preview' && typeof renderPreview === 'function') renderPreview();
+    } catch (err) {
+      alert('AI generation failed: ' + (err && err.message ? err.message : err));
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+    }
+  }
+  window.generateSyllabusAssignments = generateSyllabusAssignments;
+
+  // Clear the AI-generated assignments block so the builder falls back to
+  // manual descriptions.
+  window.clearGeneratedAssignments = function() {
+    saveField('syl-assignments-generated', null);
+    if (typeof renderSyllabusChecklist === 'function') renderSyllabusChecklist();
+  };
+
   function renderSyllabusAssignments() {
     var descs = getAssignmentDescriptions();
     var _startN = activeCourse.moduleStartZero ? 0 : 1;
@@ -18414,8 +18639,19 @@
 
       case 'assignments-exams':
         var finalExamVal = (loadField('formData') || {})['syl-final-exam'] || '';
+        var _collegeLabel = { CHS: 'College of Health Solutions', STPH: 'School of Technology for Public Health', NCIAS: 'New College' }[activeCourse.college] || 'your college';
+        var _gen = loadField('syl-assignments-generated');
+        var _genValid = _gen && _gen.college === activeCourse.college && _gen.data;
+        var _genStatus = _genValid
+          ? '<div style="font-size:11px; color:#2e7d32; margin-bottom:8px;">✓ AI-generated assignments block is active in the syllabus preview. <button onclick="clearGeneratedAssignments()" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; text-decoration:underline; padding:0; font-family:inherit;">Clear &amp; use manual descriptions</button></div>'
+          : '';
         return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Describe how each assignment advances mastery of ELOs or CEPH competencies (2-3 sentences each).</div>' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">The Assignments/Exams section is generated from your worksheet activities in the ' + escapeHtml(_collegeLabel) + ' format. Generate a draft with AI, then edit any per-assignment notes below to refine it. Due dates are never included so the syllabus stays reusable.</div>' +
+          '<div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">' +
+            '<button onclick="generateSyllabusAssignments(this)" style="border:none; background:#8c1d40; color:#fff; font-size:12px; font-weight:600; padding:7px 14px; border-radius:6px; cursor:pointer; font-family:inherit;">✨ Generate with AI</button>' +
+          '</div>' +
+          _genStatus +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Per-assignment notes (feed the AI and serve as a manual fallback):</div>' +
           renderSyllabusAssignments() +
           '<div style="margin-top:12px; border-top:1px solid #e0ddd5; padding-top:12px;">' +
             '<div class="field-group"><label class="field-label">Final Exam</label>' +
