@@ -15574,11 +15574,29 @@
     if (isNCIAS) {
       html += '<h2>Course Itinerary</h2>';
       var itinGen = loadField('syl-assignments-generated');
-      var cadence = (itinGen && itinGen.college === 'NCIAS' && itinGen.data && itinGen.data.cadence) ? itinGen.data.cadence : '';
-      if (cadence) {
-        html += '<p>' + esc(cadence).replace(/\n/g, '<br>') + '</p>';
+      var itinerary = (itinGen && itinGen.college === 'NCIAS' && itinGen.data && (itinGen.data.itinerary || itinGen.data.cadence)) ? (itinGen.data.itinerary || itinGen.data.cadence) : '';
+      if (itinerary) {
+        html += '<p>' + esc(itinerary).replace(/\n/g, '<br>') + '</p>';
       } else {
-        html += placeholder('Generate the Assignments/Exams section with AI to populate a description of the submission cadence here.');
+        // Deterministic baseline from the actual course structure so the
+        // published syllabus never shows an authoring instruction. Counts
+        // real modules with topics/objectives and the assignment types seen.
+        var _nMods = 0, _typeSet = {};
+        for (var _im = startNum; _im < startNum + modCount; _im++) {
+          var _md = savedMods[_im] || {};
+          var _hasMlo = (_md.mlos || []).some(function(s) { return s && s.trim(); });
+          var _hasActs = (courseActivities[_im] || []).some(function(a) { return a.name && a.name.trim(); });
+          if (_hasMlo || _hasActs) _nMods++;
+          (courseActivities[_im] || []).forEach(function(a) { if (a.name && a.name.trim()) _typeSet[_humanizeActType(a.contentType || a.type)] = true; });
+        }
+        var _types = Object.keys(_typeSet);
+        var _typesPhrase = _types.length
+          ? _types.slice(0, -1).join(', ') + (_types.length > 1 ? ', and ' : '') + _types[_types.length - 1]
+          : 'readings, discussions, and assignments';
+        html += '<p>This online, asynchronous course is organized into ' + (_nMods || modCount) + ' modules. '
+          + 'Across the term you will work through ' + esc(_typesPhrase.toLowerCase()) + ', with readings, discussions, '
+          + 'assignments, and any exams distributed across the modules as shown in the schedule below. Plan to engage '
+          + 'with each module’s materials and submit its associated work before moving on to the next.</p>';
       }
     } else {
       html += '<h2>Course Schedule</h2>';
@@ -18744,11 +18762,13 @@
         + 'exam, and the outcome(s) it supports. Do NOT fabricate details not present in the data — if an assignment has '
         + 'no description, write its detail as an empty string and surface the gap in "missing". Keep the category names '
         + 'and assignment names EXACTLY as given. Do NOT invent point weights — those are injected separately. ' + NO_DATES + '\n\n'
-        + 'Also write a "cadence" field: 1–2 sentences describing the RHYTHM of when work is submitted across the term '
-        + '(e.g. "Discussions and quizzes are due each module, while the larger project milestones are submitted at the '
-        + 'midpoint and end of the course."). Infer the cadence from how the assignment types are distributed across the '
-        + 'modules. Describe the pattern only — NEVER state specific calendar dates.\n\n' + MISSING_RULE;
-      schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "cadence": "1-2 sentences describing the submission rhythm (no dates)", "missing": ["specific item still needed", ...]}. No markdown, no other text.';
+        + 'Also write an "itinerary" field: a short narrative (2–4 sentences) for the New College "Course Itinerary" '
+        + 'section. It MUST cover all three of: (1) the STRUCTURE of the course — that it is online/asynchronous and '
+        + 'organized into the modules listed; (2) the TIMELINE/cadence for readings, discussions, assignments, and exams '
+        + '— the rhythm of when each type of work happens across the term, inferred from how the assignment types are '
+        + 'distributed across the modules; and (3) the general WEEKLY pattern students can expect. Describe the pattern '
+        + 'only — NEVER state specific calendar dates.\n\n' + MISSING_RULE;
+      schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "itinerary": "2-4 sentence narrative covering course structure, the reading/discussion/assignment/exam timeline, and the weekly pattern (no dates)", "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else if (college === 'STPH') {
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
