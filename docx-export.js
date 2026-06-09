@@ -759,7 +759,10 @@
           '<w:name w:val="heading 1"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>' +
           '<w:pPr>' +
             '<w:keepNext/>' +
-            '<w:spacing w:after="60" w:before="240" w:line="312" w:lineRule="auto"/>' +
+            // before=600 (~30pt) gives a clear gap above each major section
+            // heading (e.g. "Class Expectations"), matching the roomier
+            // preview spacing.
+            '<w:spacing w:after="60" w:before="600" w:line="312" w:lineRule="auto"/>' +
             '<w:ind w:left="0" w:right="0" w:firstLine="0"/>' +
             '<w:jc w:val="center"/>' +
             '<w:outlineLvl w:val="0"/>' +
@@ -778,7 +781,9 @@
           '<w:name w:val="heading 2"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/>' +
           '<w:pPr>' +
             '<w:keepNext/>' +
-            '<w:spacing w:after="90" w:before="360"/>' +
+            // before=480 (~24pt) — a clear break above each maroon section
+            // sub-heading, matching the preview's bumped h2 spacing.
+            '<w:spacing w:after="90" w:before="480"/>' +
             '<w:ind w:left="0" w:right="0" w:firstLine="0"/>' +
             '<w:outlineLvl w:val="1"/>' +
           '</w:pPr>' +
