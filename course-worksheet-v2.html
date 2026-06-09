@@ -326,9 +326,10 @@
 
   /* ===== DOC PREVIEW ===== */
   .doc-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 12px; padding: 40px; max-width: 800px; margin: 0 auto; box-shadow: 0 4px 20px rgba(0,0,0,0.06); overflow-x: hidden; }
-  .doc-preview h1 { font-size: 24px; color: #8c1d40; margin-bottom: 4px; }
+  .doc-preview h1 { font-size: 24px; color: #8c1d40; margin-top: 44px; margin-bottom: 4px; }
+  .doc-preview h1:first-child { margin-top: 0; }
   .doc-preview .doc-subtitle { font-size: 14px; color: #666; margin-bottom: 24px; }
-  .doc-preview h2 { font-size: 18px; color: #8c1d40; margin-top: 28px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #ffc627; }
+  .doc-preview h2 { font-size: 18px; color: #8c1d40; margin-top: 32px; margin-bottom: 12px; padding-bottom: 6px; border-bottom: 2px solid #ffc627; }
   .doc-preview h3 { font-size: 15px; margin-top: 20px; margin-bottom: 8px; }
   .doc-preview p { font-size: 14px; line-height: 1.6; margin-bottom: 8px; }
   .doc-preview .placeholder { color: #ccc; font-style: italic; }
@@ -15626,7 +15627,10 @@
       html += '<tr>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; font-weight:600;">' + m + '</td>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (topic ? esc(topic) : '') + '</td>';
-      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (actNames.length > 0 ? actNames.join(', ') : '') + '</td>';
+      var actCell = actNames.length > 0
+        ? '<ul style="margin:0; padding-left:16px;">' + actNames.map(function(n) { return '<li style="margin-bottom:2px;">' + n + '</li>'; }).join('') + '</ul>'
+        : '';
+      html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + actCell + '</td>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '') + '</td>';
       html += '</tr>';
     }
