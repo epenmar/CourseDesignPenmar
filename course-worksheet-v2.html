@@ -1067,7 +1067,7 @@
     </div>
 
     <div class="progress-section">
-      <div class="progress-label"><span class="progress-info-wrap"><span class="progress-info-icon">i</span><span class="progress-info-tooltip"><strong style="color:#ffc627;">How progress is calculated</strong><br>Course Info — 5%<br>Course Context — 5%<br>ELOs &amp; CLOs — 10%<br>Module MLOs — 15%<br>Assignments — 20%<br>Materials — 20%<br>Module Content — 20%<br>Alignment Map — 5%<br><span style="color:#aaa; font-size:10px; margin-top:4px; display:block;">Timeline milestones don't count toward completion.</span></span>Overall Progress</span><span id="sidebar-progress-pct">0%</span></div>
+      <div class="progress-label"><span class="progress-info-wrap"><span class="progress-info-icon">i</span><span class="progress-info-tooltip" style="width:290px;"><strong style="color:#ffc627;">How progress is calculated</strong><br><strong>Getting Started — 10%</strong><br><span style="color:#bbb; font-size:10px;">ELOs 2.5 · CLOs 2.5 · Course Info 2.5 · Context 2.5</span><br><strong>Module Overview — 10%</strong><br><span style="color:#bbb; font-size:10px;">≥2 MLOs per module 7 · ELO-tagged MLOs 3</span><br><strong>Assignments — 50%</strong><br><span style="color:#bbb; font-size:10px;">objective tags 5 · categorized 5 · ≥1 named per module 10 · content per assignment 30</span><br><strong>Materials — 30%</strong><br><span style="color:#bbb; font-size:10px;">≥2 materials per module 10 · content type 5 · MLO tags 5 · content in a material 10</span><br><span style="color:#aaa; font-size:10px; margin-top:4px; display:block;">The final 1% is held for the course-mapping review sign-off, so a course reads 100% only after review. Timeline milestones don't count.</span></span>Overall Progress</span><span id="sidebar-progress-pct">0%</span></div>
       <div class="progress-bar"><div class="progress-fill" id="sidebar-progress-bar" style="width:0%"></div></div>
     </div>
 
@@ -3306,7 +3306,8 @@
   function buildMaterialBlockHtml(mat, moduleNum) {
     const id = mat.id;
     const types = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
-    let typeOptions = '';
+    // Leading blank option so the content type is an explicit choice.
+    let typeOptions = '<option value=""' + (!mat.type ? ' selected' : '') + '>— Select type —</option>';
     for (let i = 0; i < types.length; i++) {
       typeOptions += '<option' + (mat.type === types[i] ? ' selected' : '') + '>' + types[i] + '</option>';
     }
@@ -5677,131 +5678,126 @@
     // Skip while the initial cloud pull is in-flight; otherwise we'd compute from
     // pre-pull DOM and overwrite the cloud's correct completionPct.
     if (!window._cloudPullComplete) return;
-    // Weighted progress: each section contributes a fixed % of the total
-    // Course Info: 5%, Course Context: 5%, ELOs & CLOs: 10%, Module MLOs: 15%,
-    // Assignments: 20%, Materials: 20%, Module Content Pages: 20%, Alignment Map: 5%
-    // Timeline milestones do NOT count.
+    // ===== WEIGHTED PROGRESS (section shares sum to 100) =====
+    //   Getting Started   10  (ELOs 2.5 + CLOs 2.5 + Course Info 2.5 + Context 2.5)
+    //   Module Overview   10  (≥2 MLOs/module 7 + ELO-tagged MLOs 3)
+    //   Assignments       50  (objective tags 5 + categorized 5 +
+    //                          ≥1 named/module 10 + content per assignment 30)
+    //   Materials         30  (≥2 materials/module 10 + content type 5 +
+    //                          MLO tags 5 + content in ≥1 material/module 10)
+    // The summed section work is then scaled to 99% and the final 1% is held
+    // for the course-mapping review sign-off, so a course can't read 100%
+    // until it has been reviewed. Timeline milestones do NOT count.
 
-    var weightedPct = 0;
-
-    // 1. Course Info (5%) — fraction of filled text fields
-    var courseInfoFields = document.querySelectorAll('#view-course-info .field-input');
-    var infoFilled = 0, infoTotal = 0;
-    courseInfoFields.forEach(function(f) {
-      if (f.closest('.comment-thread-panel') || f.closest('#comment-identity-modal')) return;
-      infoTotal++;
-      if (f.value && f.value.trim()) infoFilled++;
-    });
-    // Check manual completion button
-    var courseInfoBtn = document.getElementById('btn-complete-course-info');
-    var manuallyComplete = courseInfoBtn && courseInfoBtn.classList.contains('completed');
-    if (manuallyComplete) {
-      weightedPct += 5;
-    } else if (infoTotal > 0) {
-      weightedPct += 5 * (infoFilled / infoTotal);
-    }
-
-    // 2. Course Context Q&A (5%) — fraction of filled context textareas
-    var ctxFields = document.querySelectorAll('#view-additional textarea.field-input');
-    var ctxFilled = 0, ctxTotal = 0;
-    ctxFields.forEach(function(f) {
-      ctxTotal++;
-      if (f.value && f.value.trim()) ctxFilled++;
-    });
-    if (ctxTotal > 0) weightedPct += 5 * (ctxFilled / ctxTotal);
-
-    // 3. ELOs & CLOs (10%) — 5% for having any ELOs, 5% for having any CLOs
-    // Use saved objectives from localStorage (user's actual work), not hardcoded config
-    var savedFlatElos = loadField('flatElos');
-    var savedClos = loadField('clos');
-    var eloList = savedFlatElos || activeCourse.flatElos || [];
-    var realElos = eloList.filter(function(e) { return e && typeof e === 'string' && e.trim(); });
-    var cloList = savedClos || activeCourse.clos || [];
-    var realClos = cloList.filter(function(c) { return c && typeof c === 'string' && c.trim(); });
-    if (realElos.length > 0) weightedPct += 5;
-    if (realClos.length > 0) weightedPct += 5;
-
-    // 4. Module MLOs (15%) — each module scores up to 1.0:
-    //    0.75 for having MLOs defined, 0.25 for all MLOs tagged with at least one ELO
-    // Use moduleOverviewData from localStorage (user's actual saved data), not hardcoded config
-    // Half credit until the user clicks "MLOs reviewed" — Parse-with-AI drafts
-    // shouldn't read as "done" before a human passes over them.
     var savedModOverview = loadField('moduleOverviewData') || {};
     var modCount = activeCourse.moduleCount || (activeCourse.modules || []).length || 7;
-    var moduleScore = 0;
-    var modsWithMlos = 0;
     var alignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
-    // Honour the moduleStartZero flag so Module 0 isn't silently skipped
-    // (and a phantom Module modCount isn't checked instead) — same pattern
-    // the sidebar badges use further down this function.
     var _pStart = activeCourse.moduleStartZero ? 0 : 1;
     var _pEnd = _pStart + modCount;
-    for (var i = _pStart; i < _pEnd; i++) {
-      var modData = savedModOverview[i] || {};
-      var mlos = modData.mlos || [];
-      var hasMlos = mlos.length > 0 && mlos.some(function(m) { return m && m.trim(); });
-      if (hasMlos) {
-        modsWithMlos++;
-        moduleScore += 0.75;
-        // Check if all non-empty MLOs in this module have at least one ELO tag
-        var nonEmptyMlos = mlos.filter(function(m) { return m && m.trim(); });
-        var allTagged = nonEmptyMlos.length > 0;
-        for (var mi = 0; mi < mlos.length; mi++) {
-          if (!mlos[mi] || !mlos[mi].trim()) continue;
-          var mloId = i + '.' + (mi + 1);
-          var hasTag = Object.keys(alignment).some(function(eloKey) {
-            return alignment[eloKey] && alignment[eloKey].indexOf(mloId) !== -1;
-          });
-          if (!hasTag) { allTagged = false; break; }
-        }
-        if (allTagged) moduleScore += 0.25;
-      }
-    }
-    var mlosReviewed = !!loadField('mlosReviewed');
-    var mlosMultiplier = mlosReviewed ? 1 : 0.5;
-    if (modCount > 0) weightedPct += 15 * (moduleScore / modCount) * mlosMultiplier;
+    var frac = function(num, den) { return den > 0 ? (num / den) : 0; };
+    // Does any ELO row tag this MLO id?
+    var _mloHasEloTag = function(mloId) {
+      return Object.keys(alignment).some(function(k) { return alignment[k] && alignment[k].indexOf(mloId) !== -1; });
+    };
 
-    // 5. Assignments (20%) — fraction of modules that have at least one named activity
-    // Half credit until the user clicks "Assignments reviewed" (same rationale).
+    var sectionPct = 0;
+
+    // ===== GETTING STARTED (10) =====
+    // ELOs 2.5 + CLOs 2.5
+    var eloList = (loadField('flatElos') || activeCourse.flatElos || []).filter(function(e) { return e && typeof e === 'string' && e.trim(); });
+    var cloList = (loadField('clos') || activeCourse.clos || []).filter(function(c) { return c && typeof c === 'string' && c.trim(); });
+    var realElos = eloList, realClos = cloList; // names the sidebar badges below use
+    if (eloList.length > 0) sectionPct += 2.5;
+    if (cloList.length > 0) sectionPct += 2.5;
+    // Course Info 2.5 (filled field fraction; manual-complete = full)
+    var courseInfoFields = document.querySelectorAll('#view-course-info .field-input');
+    var giInfoFilled = 0, giInfoTotal = 0;
+    courseInfoFields.forEach(function(f) {
+      if (f.closest('.comment-thread-panel') || f.closest('#comment-identity-modal')) return;
+      giInfoTotal++;
+      if (f.value && f.value.trim()) giInfoFilled++;
+    });
+    var courseInfoBtn = document.getElementById('btn-complete-course-info');
+    var infoManualComplete = courseInfoBtn && courseInfoBtn.classList.contains('completed');
+    sectionPct += 2.5 * (infoManualComplete ? 1 : frac(giInfoFilled, giInfoTotal));
+    // Course Context 2.5 (filled answer fraction)
+    var ctxFields = document.querySelectorAll('#view-additional textarea.field-input');
+    var ctxFilled = 0, ctxTotal = 0;
+    ctxFields.forEach(function(f) { ctxTotal++; if (f.value && f.value.trim()) ctxFilled++; });
+    sectionPct += 2.5 * frac(ctxFilled, ctxTotal);
+
+    // ===== MODULE OVERVIEW (10) =====
+    // 7 — modules with at least 2 MLOs; 3 — fraction of MLOs with an ELO tag.
+    var modsWith2Mlos = 0, modsWithMlos = 0;
+    var totalMlos = 0, mlosTagged = 0;
+    var moduleScore = 0; // 0..modCount, for the sidebar Module Overview badge
+    for (var i = _pStart; i < _pEnd; i++) {
+      var mlos = ((savedModOverview[i] || {}).mlos || []).filter(function(m) { return m && m.trim(); });
+      if (mlos.length > 0) modsWithMlos++;
+      if (mlos.length >= 2) modsWith2Mlos++;
+      var modTagged = 0;
+      for (var mi = 0; mi < mlos.length; mi++) {
+        totalMlos++;
+        if (_mloHasEloTag(i + '.' + (mi + 1))) { mlosTagged++; modTagged++; }
+      }
+      // Mirror the 7/3 weighting at module granularity for the badge.
+      moduleScore += (mlos.length >= 2 ? 0.7 : 0) + 0.3 * frac(modTagged, mlos.length);
+    }
+    sectionPct += 7 * frac(modsWith2Mlos, modCount);
+    sectionPct += 3 * frac(mlosTagged, totalMlos);
+
+    // ===== ASSIGNMENTS (50) =====
+    // Per-activity fractions over all NAMED activities, plus the per-module
+    // "≥1 named activity" coverage.
+    var actNamedTotal = 0, actWithObj = 0, actWithCat = 0, actWithContent = 0;
     var modsWithActs = 0;
     for (var ai = _pStart; ai < _pEnd; ai++) {
-      var acts = courseActivities[ai];
-      if (acts && acts.length > 0 && acts.some(function(a) { return a.name && a.name.trim(); })) modsWithActs++;
+      var acts = (courseActivities[ai] || []).filter(function(a) { return a.name && a.name.trim(); });
+      if (acts.length > 0) modsWithActs++;
+      acts.forEach(function(a) {
+        actNamedTotal++;
+        if (Array.isArray(a.objectives) && a.objectives.length > 0) actWithObj++;
+        if (a.category && String(a.category).trim()) actWithCat++;
+        if (typeof _hasAnyAttachedContent === 'function' && _hasAnyAttachedContent(a, 'activity')) actWithContent++;
+      });
     }
-    var assignmentsReviewed = !!loadField('assignmentsReviewed');
-    var assignmentsMultiplier = assignmentsReviewed ? 1 : 0.5;
-    if (modCount > 0) weightedPct += 20 * (modsWithActs / modCount) * assignmentsMultiplier;
+    sectionPct += 5 * frac(actWithObj, actNamedTotal);
+    sectionPct += 5 * frac(actWithCat, actNamedTotal);
+    sectionPct += 10 * frac(modsWithActs, modCount);
+    sectionPct += 30 * frac(actWithContent, actNamedTotal);
 
-    // 6. Materials (20%) — fraction of modules that have at least one titled material
-    var modsWithMats = 0;
-    for (var mi = _pStart; mi < _pEnd; mi++) {
-      var mats = courseMaterials[mi];
-      if (mats && mats.length > 0 && mats.some(function(m) { return m.title && m.title.trim(); })) modsWithMats++;
+    // ===== MATERIALS (30) =====
+    var matTotal = 0, matWithType = 0, matWithMlo = 0;
+    var modsWith2Mats = 0, modsWithMats = 0, modsWithMatContent = 0;
+    for (var mmi = _pStart; mmi < _pEnd; mmi++) {
+      var mats = (courseMaterials[mmi] || []).filter(function(m) { return m.title && m.title.trim(); });
+      if (mats.length > 0) modsWithMats++;
+      if (mats.length >= 2) modsWith2Mats++;
+      var modHasMatContent = false;
+      mats.forEach(function(m) {
+        matTotal++;
+        if (m.type && String(m.type).trim()) matWithType++;
+        if (Array.isArray(m.objectives) && m.objectives.length > 0) matWithMlo++;
+        if (typeof _hasAnyAttachedContent === 'function' && _hasAnyAttachedContent(m, 'material')) modHasMatContent = true;
+      });
+      if (modHasMatContent) modsWithMatContent++;
     }
-    if (modCount > 0) weightedPct += 20 * (modsWithMats / modCount);
+    sectionPct += 10 * frac(modsWith2Mats, modCount);
+    sectionPct += 5 * frac(matWithType, matTotal);
+    sectionPct += 5 * frac(matWithMlo, matTotal);
+    sectionPct += 10 * frac(modsWithMatContent, modCount);
 
-    // 7. Module Content Pages (20%) — fraction of modules that have content beyond just MLOs
-    //    A module page counts as "started" if it has MLOs AND (activities OR materials)
-    //    Uses savedModOverview (from localStorage) not hardcoded config
-    var modsWithContent = 0;
-    for (var ci = _pStart; ci < _pEnd; ci++) {
-      var cModData = savedModOverview[ci] || {};
-      var cMlos = cModData.mlos || [];
-      var cHasMlos = cMlos.length > 0 && cMlos.some(function(m) { return m && m.trim(); });
-      var hasActs = courseActivities[ci] && courseActivities[ci].length > 0 && courseActivities[ci].some(function(a) { return a.name && a.name.trim(); });
-      var hasMats = courseMaterials[ci] && courseMaterials[ci].length > 0 && courseMaterials[ci].some(function(m) { return m.title && m.title.trim(); });
-      if (cHasMlos && (hasActs || hasMats)) modsWithContent++;
-    }
-    if (modCount > 0) weightedPct += 20 * (modsWithContent / modCount);
-
-    // 8. Course Alignment Map (5%) — done only if faculty approved
-    var mappingApproved = loadField('courseMappingApproved');
-    if (mappingApproved) weightedPct += 5;
+    // ===== REVIEW (final 1%) =====
+    // Section work scales to 99%; the last point is the course-mapping
+    // review sign-off so nothing reads 100% before it's been reviewed.
+    var reviewed = !!loadField('courseMappingApproved');
+    var weightedPct = sectionPct * 0.99 + (reviewed ? 1 : 0);
 
     var pct = Math.round(weightedPct);
     if (persist) saveField('completionPct', pct);
 
-    // Recompute modulesStarted for badge updates below
+    // Downstream sidebar badges reference these.
+    var modsWithContent = modsWithMatContent; // retained name for any later use
     var modulesStarted = modsWithMlos;
 
     // Update sidebar progress
@@ -8432,7 +8428,12 @@
     var matTypes = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
 
     function buildTypeOptions(selected) {
-      return matTypes.map(function(t) { return '<option' + (t === selected ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+      // Leading blank option so a material's content type is an explicit
+      // choice (counts toward progress) rather than silently defaulting.
+      var blankSel = (!selected) ? ' selected' : '';
+      var opts = '<option value=""' + blankSel + '>— Select type —</option>';
+      opts += matTypes.map(function(t) { return '<option' + (t === selected ? ' selected' : '') + '>' + t + '</option>'; }).join('');
+      return opts;
     }
 
     // Card view
@@ -8764,7 +8765,7 @@
     var openModules = getOpenOverviewModules('materials-overview-cards');
     openModules[modNum] = true;
     materialCount++;
-    var newMat = { id: 'mat-' + materialCount, type: 'Reading', title: '', links: [], richText: '', objectives: [] };
+    var newMat = { id: 'mat-' + materialCount, type: '', title: '', links: [], richText: '', objectives: [] };
     if (!courseMaterials[modNum]) courseMaterials[modNum] = [];
     courseMaterials[modNum].push(newMat);
     saveActivityData();
@@ -13474,7 +13475,7 @@
   function addMaterial() {
     materialCount++;
     const id = 'mat-' + materialCount;
-    const newMat = { id: id, type: 'Reading', title: '', links: [], richText: '' };
+    const newMat = { id: id, type: '', title: '', links: [], richText: '', objectives: [] };
     if (!courseMaterials[currentModuleNum]) courseMaterials[currentModuleNum] = [];
     courseMaterials[currentModuleNum].push(newMat);
     saveActivityData();
