@@ -18824,8 +18824,30 @@
   // requested columns — Module · Assignment Title · Point Value · MLOs
   // (just the codes). Shared by the builder block and the syllabus preview
   // so both stay identical. `compact` tightens font sizes for the builder.
+  // Live name → {module, mloCodes} index built from the actual course
+  // activities. The generated payload's module/MLOs can be stale (generated
+  // before those fields were injected) or missing (the AI tweaked the
+  // assignment name so the post-parse name match failed). Module and MLOs
+  // are deterministic course data, so we resolve them live at render time
+  // rather than trusting the stored row.
+  function _activityNameIndex() {
+    var idx = {};
+    var norm = function(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+    Object.keys(courseActivities || {}).forEach(function(k) {
+      var mod = parseInt(k, 10);
+      (courseActivities[k] || []).forEach(function(a) {
+        if (a && a.name && a.name.trim()) {
+          idx[norm(a.name)] = { module: isNaN(mod) ? '' : mod, mloCodes: Array.isArray(a.objectives) ? a.objectives.slice() : [] };
+        }
+      });
+    });
+    return idx;
+  }
+
   function _ncCategoryTableHtml(cat, esc, compact) {
     esc = esc || function(s) { return String(s == null ? '' : s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); };
+    var nameIdx = _activityNameIndex();
+    var _normName = function(s) { return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
     var fs = compact ? '12px' : '13px';
     var headFs = compact ? '13px' : '15px';
     var weightStr = cat.weight ? ' · ' + esc(cat.weight) + ' of grade' : '';
@@ -18851,9 +18873,14 @@
     html += '<th style="' + th + ' width:90px;">MLOs</th>';
     html += '</tr></thead><tbody>';
     rows.forEach(function(row) {
-      var mlos = Array.isArray(row.mloCodes) ? row.mloCodes.join(', ') : '';
+      // Resolve module + MLO codes live from the matching course activity;
+      // fall back to whatever the stored row carried.
+      var live = nameIdx[_normName(row.name)] || {};
+      var module = (live.module === 0 || live.module) ? live.module : (row.module === 0 || row.module ? row.module : '');
+      var mloArr = (live.mloCodes && live.mloCodes.length) ? live.mloCodes : (Array.isArray(row.mloCodes) ? row.mloCodes : []);
+      var mlos = mloArr.join(', ');
       html += '<tr>';
-      html += '<td style="' + td + ' text-align:center;">' + esc(row.module === 0 || row.module ? row.module : '—') + '</td>';
+      html += '<td style="' + td + ' text-align:center;">' + esc(module === 0 || module ? module : '—') + '</td>';
       html += '<td style="' + td + '">' + esc(row.name || '') + '</td>';
       html += '<td style="' + td + ' text-align:center;">' + esc(row.points || '—') + '</td>';
       html += '<td style="' + td + '">' + (mlos ? esc(mlos) : '<span style="color:#bbb;">—</span>') + '</td>';
