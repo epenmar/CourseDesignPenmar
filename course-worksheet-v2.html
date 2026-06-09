@@ -2180,7 +2180,7 @@
         { id: 'objectives', label: 'Expected Learning Outcomes', linkedSection: 'objectives' },
         { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
-        { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' }
+        { id: 'course-schedule', label: 'Course Itinerary', linkedSection: 'module-overview' }
       ]
     },
     _default: {
@@ -15565,8 +15565,24 @@
       }
     }
 
-    // ===== COURSE SCHEDULE =====
-    html += '<h2>Course Schedule</h2>';
+    // ===== COURSE SCHEDULE / ITINERARY =====
+    // NCIAS calls this the "Course Itinerary" and expects a description of
+    // the submission cadence (the rhythm of when work is due across the
+    // term) ahead of the schedule grid. The cadence text is AI-generated
+    // as part of the Assignments/Exams pass and describes the pattern only,
+    // never specific dates.
+    if (isNCIAS) {
+      html += '<h2>Course Itinerary</h2>';
+      var itinGen = loadField('syl-assignments-generated');
+      var cadence = (itinGen && itinGen.college === 'NCIAS' && itinGen.data && itinGen.data.cadence) ? itinGen.data.cadence : '';
+      if (cadence) {
+        html += '<p>' + esc(cadence).replace(/\n/g, '<br>') + '</p>';
+      } else {
+        html += placeholder('Generate the Assignments/Exams section with AI to populate a description of the submission cadence here.');
+      }
+    } else {
+      html += '<h2>Course Schedule</h2>';
+    }
     html += '<table style="border-collapse:collapse; width:100%; font-size:12px;"><thead><tr>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Week</th>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Topic/Module</th>';
@@ -18727,8 +18743,12 @@
         + '"detail" line clarifying the length/format of the work, the structure of the project, or the nature of the '
         + 'exam, and the outcome(s) it supports. Do NOT fabricate details not present in the data — if an assignment has '
         + 'no description, write its detail as an empty string and surface the gap in "missing". Keep the category names '
-        + 'and assignment names EXACTLY as given. Do NOT invent point weights — those are injected separately. ' + NO_DATES + '\n\n' + MISSING_RULE;
-      schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "missing": ["specific item still needed", ...]}. No markdown, no other text.';
+        + 'and assignment names EXACTLY as given. Do NOT invent point weights — those are injected separately. ' + NO_DATES + '\n\n'
+        + 'Also write a "cadence" field: 1–2 sentences describing the RHYTHM of when work is submitted across the term '
+        + '(e.g. "Discussions and quizzes are due each module, while the larger project milestones are submitted at the '
+        + 'midpoint and end of the course."). Infer the cadence from how the assignment types are distributed across the '
+        + 'modules. Describe the pattern only — NEVER state specific calendar dates.\n\n' + MISSING_RULE;
+      schemaInstruction = 'Return ONLY a JSON object: {"categories": [{"name": "category name exactly as given", "description": "1-2 sentence category description", "assignments": [{"name": "assignment name exactly as given", "detail": "brief detail or empty string"}]}], "cadence": "1-2 sentences describing the submission rhythm (no dates)", "missing": ["specific item still needed", ...]}. No markdown, no other text.';
     } else if (college === 'STPH') {
       prompt = 'Write the "Assignments/Exams" descriptions for the syllabus of ' + courseName + '.\n\n'
         + 'Expected Learning Outcomes:\n' + eloBlock + '\n\n'
@@ -18936,7 +18956,7 @@
       html += '<ul style="margin:0 0 0 16px; padding:0; font-size:12px; color:#7a4a10; line-height:1.6;">';
       missing.forEach(function(m) { html += '<li>' + esc(m) + '</li>'; });
       html += '</ul>';
-      html += '<div style="font-size:11px; color:#a06a30; margin-top:6px;">Add this content to the activities on the module pages (or the per-assignment notes below), then regenerate.</div>';
+      html += '<div style="font-size:11px; color:#a06a30; margin-top:6px;">Add this content to the activities on the module pages, then regenerate.</div>';
       html += '</div>';
     }
     return html;
@@ -19054,13 +19074,11 @@
         var finalExamVal = (loadField('formData') || {})['syl-final-exam'] || '';
         var _collegeLabel = { CHS: 'College of Health Solutions', STPH: 'School of Technology for Public Health', NCIAS: 'New College' }[activeCourse.college] || 'your college';
         return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">The Assignments/Exams section is generated from your worksheet activities in the ' + escapeHtml(_collegeLabel) + ' format. Generate a draft with AI, then edit any per-assignment notes below to refine it. Due dates are never included so the syllabus stays reusable.</div>' +
+          '<div style="font-size:12px; color:#666; margin-bottom:8px;">The Assignments/Exams section is generated from your worksheet activities in the ' + escapeHtml(_collegeLabel) + ' format. Generate a draft with AI — it reads each activity\'s name, points, category, objectives, and attached content. Due dates are never included so the syllabus stays reusable.</div>' +
           '<div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">' +
             '<button onclick="generateSyllabusAssignments(this)" style="border:none; background:#8c1d40; color:#fff; font-size:12px; font-weight:600; padding:7px 14px; border-radius:6px; cursor:pointer; font-family:inherit;">✨ Generate with AI</button>' +
           '</div>' +
           _renderGeneratedAssignmentsBuilderBlock() +
-          '<div style="font-size:12px; color:#666; margin:12px 0 8px;">Per-assignment notes (feed the AI and serve as a manual fallback):</div>' +
-          renderSyllabusAssignments() +
           '<div style="margin-top:12px; border-top:1px solid #e0ddd5; padding-top:12px;">' +
             '<div class="field-group"><label class="field-label">Final Exam</label>' +
             '<textarea id="syl-final-exam" class="field-input" style="min-height:60px; font-size:12px;" placeholder="Describe how the final exam (if any) will be conducted..." oninput="saveAllFields()">' + escapeHtml(finalExamVal) + '</textarea></div>' +
