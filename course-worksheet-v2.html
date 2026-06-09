@@ -15615,15 +15615,33 @@
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">Assignments</th>';
     html += '<th style="padding:6px; border:1px solid #ddd; background:#f5f5f0;">' + eloColLabel + '</th>';
     html += '</tr></thead><tbody>';
+    // ELO column lists ELOs, not MLOs. Each activity is tagged with MLO ids
+    // (e.g. "1.2"); resolve those to the ELOs they map to via eloMloAlignment
+    // (keyed by ELO index → list of MLO ids).
+    var schedAlignment = activeCourse.eloMloAlignment || loadField('eloMloAlignment') || {};
+    var _mloToEloNums = function(mloId) {
+      var nums = [];
+      Object.keys(schedAlignment).forEach(function(k) {
+        if ((schedAlignment[k] || []).indexOf(mloId) !== -1) {
+          var n = parseInt(k, 10) + 1;
+          if (nums.indexOf(n) === -1) nums.push(n);
+        }
+      });
+      return nums;
+    };
     for (var m = startNum; m < startNum + modCount; m++) {
       var mod = savedMods[m] || {};
       var topic = mod.topic || '';
       var acts = schedActs[m] || schedActs[String(m)] || [];
       var actNames = acts.filter(function(a) { return a.name && a.name.trim(); }).map(function(a) { return esc(a.name); });
-      var eloRefs = [];
+      var eloRefNums = [];
       acts.forEach(function(a) {
-        (a.objectives || []).forEach(function(id) { if (eloRefs.indexOf(id) === -1) eloRefs.push(id); });
+        (a.objectives || []).forEach(function(mloId) {
+          _mloToEloNums(mloId).forEach(function(n) { if (eloRefNums.indexOf(n) === -1) eloRefNums.push(n); });
+        });
       });
+      eloRefNums.sort(function(a, b) { return a - b; });
+      var eloRefs = eloRefNums.map(function(n) { return 'ELO ' + n; });
       html += '<tr>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd; text-align:center; font-weight:600;">' + m + '</td>';
       html += '<td style="padding:4px 6px; border:1px solid #ddd;">' + (topic ? esc(topic) : '') + '</td>';
