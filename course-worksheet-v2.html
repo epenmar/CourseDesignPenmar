@@ -1176,18 +1176,7 @@
             </div>
 
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
-              <label style="font-size:12px; font-weight:600; color:#666;">Shift remaining dates:</label>
-              <div style="display:flex; align-items:center; gap:4px;">
-                <button class="btn-sm" onclick="pushDates(-1)" title="Pull 1 week earlier" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">← 1 wk</button>
-                <button class="btn-sm" onclick="pushDates(1)" title="Push 1 week later" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">1 wk →</button>
-                <button class="btn-sm" onclick="pushDates(2)" title="Push 2 weeks later" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">2 wks →</button>
-              </div>
-              <span style="color:#ccc;">|</span>
-              <div style="display:flex; align-items:center; gap:4px;">
-                <input type="number" id="push-custom" value="1" min="1" max="52" style="width:48px; padding:4px 6px; font-size:13px; border:1px solid #ddd; border-radius:4px; text-align:center;" />
-                <button class="btn-sm" onclick="pushDates(parseInt(document.getElementById('push-custom').value)||1)" style="padding:4px 10px; font-size:13px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px;">Push →</button>
-              </div>
-              <span style="color:#ccc;">|</span>
+              <span style="font-size:12px; color:#888;">Use the <strong>Shift ▾</strong> menu on any milestone row to push that date — or that date and everything after it.</span>
               <button class="btn-sm" onclick="resetTimelineDates()" title="Reset to auto-calculated dates" style="padding:4px 10px; font-size:12px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#999;">↺ Reset</button>
             </div>
 
@@ -6444,7 +6433,12 @@
         <td>
           <div style="display:flex; align-items:center; gap:6px;">
             <input type="date" class="date-input" value="${dateVal}" onchange="saveTimelineDate(${i}, this.value)" />
-            <button type="button" class="ms-push-btn" title="Push this milestone and everything after it back by 1 week" onclick="pushDatesFrom(${i}, 1)" style="padding:2px 6px; font-size:11px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#666;">+1 wk →</button>
+            <select class="ms-shift-select" title="Shift this milestone" onchange="onMilestoneShift(${i}, this)" style="padding:2px 4px; font-size:11px; cursor:pointer; border:1px solid #ddd; background:#fff; border-radius:4px; color:#666;">
+              <option value="">Shift ▾</option>
+              <option value="this1">This date +1 wk</option>
+              <option value="after1">This + all after +1 wk</option>
+              <option value="after2">This + all after +2 wks</option>
+            </select>
           </div>
         </td>
         <td style="font-size:12px; color:${statusColor}"><label style="display:flex; align-items:center; gap:4px; cursor:pointer;"><input type="checkbox" data-managed="true"${checkedAttr} onchange="toggleMilestoneComplete(${i}, this.checked)" style="width:14px; height:14px; cursor:pointer;">${statusLabel}</label></td>
@@ -6841,6 +6835,31 @@
     saveField('timelineDates', saved);
     recalcTimeline();
   }
+
+  // Shift ONLY this one milestone's date by N weeks (later dates untouched).
+  function shiftOneMilestone(idx, weeks) {
+    captureUndoState('shift milestone ' + (weeks > 0 ? '+' : '') + weeks + ' wk');
+    var dateInputs = document.querySelectorAll('#timeline-body .date-input');
+    var input = dateInputs[idx];
+    if (!input || !input.value) return;
+    var d = new Date(input.value + 'T00:00:00');
+    if (isNaN(d.getTime())) return;
+    d.setTime(d.getTime() + weeks * 7 * 86400000);
+    var saved = loadField('timelineDates') || {};
+    saved[idx] = fmt(d);
+    saveField('timelineDates', saved);
+    recalcTimeline();
+  }
+
+  // Per-row shift dropdown handler. Reads the chosen action, resets the
+  // select, and applies it.
+  window.onMilestoneShift = function(idx, sel) {
+    var v = sel.value;
+    sel.value = '';
+    if (v === 'this1') shiftOneMilestone(idx, 1);
+    else if (v === 'after1') pushDatesFrom(idx, 1);
+    else if (v === 'after2') pushDatesFrom(idx, 2);
+  };
 
   // Reset all date overrides and recalculate from session
   function resetTimelineDates() {
