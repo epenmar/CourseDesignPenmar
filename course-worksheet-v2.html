@@ -19682,7 +19682,8 @@
   }
 
   function navigateToCommentInContext(sectionId, commentId) {
-    closeCommentPanel();
+    // Keep the comment panel open — "View in context" should take the user to
+    // the highlighted location while the comment stays visible beside it.
     navigateToSection(sectionId);
     // After navigation and highlight re-application, scroll to the highlighted element
     setTimeout(function() {
