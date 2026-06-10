@@ -15153,9 +15153,17 @@
       const title = 'Module ' + m + ': ' + modTopic;
       html += '<h3>' + esc(title) + '</h3>';
 
-      const mlos = mod ? (mod.mlos || []) : [];
-      const savedMlos = loadField('module_mlos_' + m);
-      const finalMlos = (savedMlos || mlos).filter(function(s) { return s && String(s).trim(); });
+      // MLOs: moduleOverviewData (persisted, canonical) is the source of truth.
+      // activeCourse.modules[i].mlos is only hydrated once the viewer opens an
+      // overview card this session — so reading it first blanked the Module
+      // Objectives column (and, for STPH, the whole module) for any module the
+      // viewer hadn't touched: every module for a reviewer, who never opens the
+      // overview pages. Mirror gatherWorksheetContext(), which reads it the same way.
+      const inMemMlos = mod ? (mod.mlos || []) : [];
+      const savedMlos = (prevSavedMod.mlos && prevSavedMod.mlos.length)
+        ? prevSavedMod.mlos
+        : (loadField('module_mlos_' + m) || inMemMlos);
+      const finalMlos = (savedMlos || []).filter(function(s) { return s && String(s).trim(); });
       const acts = courseActivities[m] || [];
       const mats = courseMaterials[m] || [];
 
