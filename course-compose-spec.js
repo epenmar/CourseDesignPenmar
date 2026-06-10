@@ -26,7 +26,7 @@
 //       driveFolder, textbook, moduleCount, moduleStartZero
 //     },
 //
-//     courseContext: { ctx-audience, ctx-outcomes, … },
+//     courseContext: { ctx-audience, ctx-prereqs, ctx-role, … ctx-support },
 //
 //     objectives: {
 //       clos:  [<string>, …],
@@ -246,9 +246,11 @@
       });
     }
 
-    // Course-context Q&A captures (audience, prereqs, struggles, etc.).
+    // Course Context & Design Notes captures (audience, fit, learning goals,
+    // design vision/pacing, constraints, assets/support). Order matches the
+    // worksheet's view-additional grouping and the parser's contextFieldIds.
     var formData = loadField('formData') || {};
-    var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
+    var contextFieldIds = ['ctx-audience', 'ctx-prereqs', 'ctx-role', 'ctx-current', 'ctx-outcomes', 'ctx-skills', 'ctx-vision', 'ctx-early', 'ctx-pacing', 'ctx-standards', 'ctx-technology', 'ctx-struggles', 'ctx-existing', 'ctx-support'];
     var courseContext = {};
     contextFieldIds.forEach(function(id) { if (formData[id]) courseContext[id] = formData[id]; });
 

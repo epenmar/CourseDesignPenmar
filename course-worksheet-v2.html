@@ -1018,7 +1018,7 @@
         <span class="badge badge-empty" id="sidebar-textbook-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('additional')">
-        <span class="icon">🧩</span> Course Context Q&amp;A
+        <span class="icon">🧩</span> Course Context &amp; Design Notes
         <span class="badge badge-empty" id="sidebar-context-badge">—</span>
       </div>
       <div class="nav-item" onclick="showView('syllabus-checklist')">
@@ -1812,17 +1812,32 @@
 
       <!-- ===== ADDITIONAL Q&A ===== -->
       <div id="view-additional" style="display:none;">
-        <h1 style="font-size:22px; margin-bottom:4px;">Course Context &amp; Questions</h1>
-        <p style="color:#666; font-size:13px; margin-bottom:24px;">Help the instructional design team understand your course context.</p>
+        <h1 style="font-size:22px; margin-bottom:4px;">Course Context and Design Notes</h1>
+        <p style="color:#666; font-size:13px; margin-bottom:24px;">Context and design intent for this course — captured here, surfaced in the worksheet, and auto-filled by the Course Parser when you run a syllabus or kickoff transcript. Grouped by theme; nothing is required.</p>
         <div class="card"><div class="card-body">
-          <div class="field-group"><label class="field-label">What is the intended audience for this course?</label><textarea class="field-input auto-expand" id="ctx-audience" placeholder="Describe the target students..."></textarea></div>
-          <div class="field-group"><label class="field-label">What will students need to do by the end of the course?</label><textarea class="field-input auto-expand" id="ctx-outcomes" placeholder="Key outcomes and skills..."></textarea></div>
-          <div class="field-group"><label class="field-label">Are there external standards or accreditations we need to align with or be conscious of?</label><textarea class="field-input auto-expand" id="ctx-standards" placeholder="Accreditation, competency frameworks, etc."></textarea></div>
-          <div class="field-group"><label class="field-label">How is this course currently being taught or supported?</label><textarea class="field-input auto-expand" id="ctx-current" placeholder="Existing offerings, formats, etc."></textarea></div>
-          <div class="field-group"><label class="field-label">Which courses will students take prior to this course?</label><textarea class="field-input auto-expand" id="ctx-prereqs" placeholder="Prerequisites, typical sequencing..."></textarea></div>
-          <div class="field-group"><label class="field-label">Where do you anticipate students may struggle?</label><textarea class="field-input auto-expand" id="ctx-struggles" placeholder="Known challenge areas..."></textarea></div>
-          <div class="field-group"><label class="field-label">What access or technology limitations should we expect?</label><textarea class="field-input auto-expand" id="ctx-technology" placeholder="Tools, platforms, access issues..."></textarea></div>
-          <div class="field-group"><label class="field-label">Is there an existing i-course or course shell we can review?</label><textarea class="field-input auto-expand" id="ctx-existing" placeholder="Links or references to existing materials..."></textarea></div>
+          <h3 style="margin:0 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:#8c1d40;">Audience &amp; Fit</h3>
+          <div class="field-group"><label class="field-label">Who is the intended audience for this course?</label><textarea class="field-input auto-expand" id="ctx-audience"></textarea></div>
+          <div class="field-group"><label class="field-label">What prior knowledge or courses should students already have?</label><textarea class="field-input auto-expand" id="ctx-prereqs"></textarea></div>
+          <div class="field-group"><label class="field-label">How does this course fit into the program or degree pathway?</label><textarea class="field-input auto-expand" id="ctx-role"></textarea></div>
+          <div class="field-group"><label class="field-label">How is this course currently being taught or supported?</label><textarea class="field-input auto-expand" id="ctx-current"></textarea></div>
+
+          <h3 style="margin:20px 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:#8c1d40;">Learning Goals</h3>
+          <div class="field-group"><label class="field-label">What should students be able to do by the end of the course?</label><textarea class="field-input auto-expand" id="ctx-outcomes"></textarea></div>
+          <div class="field-group"><label class="field-label">What key skills will students learn and actively apply?</label><textarea class="field-input auto-expand" id="ctx-skills"></textarea></div>
+
+          <h3 style="margin:20px 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:#8c1d40;">Design Vision &amp; Pacing</h3>
+          <div class="field-group"><label class="field-label">Imagine no budget or time limits — what is the ideal learning experience?</label><textarea class="field-input auto-expand" id="ctx-vision"></textarea></div>
+          <div class="field-group"><label class="field-label">What should students feel or understand in the first 1–2 weeks?</label><textarea class="field-input auto-expand" id="ctx-early"></textarea></div>
+          <div class="field-group"><label class="field-label">At what point do students begin applying what they're learning?</label><textarea class="field-input auto-expand" id="ctx-pacing"></textarea></div>
+
+          <h3 style="margin:20px 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:#8c1d40;">Constraints &amp; Risks</h3>
+          <div class="field-group"><label class="field-label">External standards, accreditation, or non-negotiables (required assessment types, technologies, etc.)?</label><textarea class="field-input auto-expand" id="ctx-standards"></textarea></div>
+          <div class="field-group"><label class="field-label">What access or technology limitations should we expect?</label><textarea class="field-input auto-expand" id="ctx-technology"></textarea></div>
+          <div class="field-group"><label class="field-label">Where do you anticipate students may struggle?</label><textarea class="field-input auto-expand" id="ctx-struggles"></textarea></div>
+
+          <h3 style="margin:20px 0 8px; font-size:14px; text-transform:uppercase; letter-spacing:0.05em; color:#8c1d40;">Existing Assets &amp; Support</h3>
+          <div class="field-group"><label class="field-label">Is there an existing course shell or materials we can review? (links welcome)</label><textarea class="field-input auto-expand" id="ctx-existing"></textarea></div>
+          <div class="field-group"><label class="field-label">What feels most difficult about this design, or where do you most want support? <span style="font-weight:400; color:#999;">(worksheet-only — not shown in the syllabus)</span></label><textarea class="field-input auto-expand" id="ctx-support"></textarea></div>
         </div></div>
 
         <div class="card" style="margin-top:20px;">
@@ -9614,7 +9629,7 @@
       { id: 'dashboard', label: 'Dashboard & Timeline', action: "showView('dashboard')" },
       { id: 'course-info', label: 'Course Info', action: "showView('course-info')" },
       { id: 'materials', label: 'Textbooks & Materials', action: "showView('materials')" },
-      { id: 'additional', label: 'Course Context Q&A', action: "showView('additional')" },
+      { id: 'additional', label: 'Course Context & Design Notes', action: "showView('additional')" },
       { id: 'objectives', label: 'ELOs & CLOs', action: "showView('objectives')" },
       { id: 'module-overview', label: 'Module Overview', action: "showView('module-overview')" },
       { id: 'assignments-overview', label: 'Assignments Overview', action: "showView('assignments-overview')" },
@@ -16075,10 +16090,13 @@
     if (b.course.driveFolder) lines.push('- **Drive folder:** ' + b.course.driveFolder);
     lines.push('');
     var ctxLabels = {
-      'ctx-audience': 'Audience', 'ctx-outcomes': 'Desired outcomes',
-      'ctx-standards': 'Standards', 'ctx-current': 'Current course state',
-      'ctx-prereqs': 'Prerequisite knowledge', 'ctx-struggles': 'Common struggles',
-      'ctx-technology': 'Technology', 'ctx-existing': 'Existing assets'
+      'ctx-audience': 'Audience', 'ctx-prereqs': 'Prerequisite knowledge',
+      'ctx-role': 'Role in program / pathway', 'ctx-current': 'Current course state',
+      'ctx-outcomes': 'Desired outcomes', 'ctx-skills': 'Skills (learn & apply)',
+      'ctx-vision': 'Ideal learning experience', 'ctx-early': 'First 1–2 weeks intent',
+      'ctx-pacing': 'When application begins', 'ctx-standards': 'Standards / non-negotiables',
+      'ctx-technology': 'Technology', 'ctx-struggles': 'Common struggles',
+      'ctx-existing': 'Existing assets', 'ctx-support': 'Faculty support needs'
     };
     var ctxKeys = Object.keys(b.courseContext);
     if (ctxKeys.length) {
@@ -16576,7 +16594,7 @@
       '3. <h2>Textbooks &amp; Required Materials</h2> followed by a <ul> of required texts/resources (one <li> each, formatted as "Title, Author, Edition, Publisher"). If none are named in the source, output <p>None specified in the source.</p> instead.\n' +
       '4. <h2>Course Learning Outcomes</h2> followed by a <ul> of 3-6 course-level outcomes (CLOs) that describe what students will achieve by the end of the course. Use clear, measurable verbs.\n' +
       '5. <h2>Enduring Learning Outcomes</h2> followed by a <ul> of 3-6 program-level (ELO) outcomes that tie the course to broader program goals. These are higher-level than CLOs.\n' +
-      '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these eight prompts (in this exact order): (1) Intended audience (2) What students will need to do by the end of the course (3) External standards or accreditations to align with (4) How the course is currently being taught or supported (5) Prerequisite courses students will have taken (6) Where students may struggle (7) Access or technology limitations (8) Existing i-course or course shell to review. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
+      '6. <h2>Course Context</h2> followed by a <dl> with one <dt>Question</dt><dd>Answer</dd> pair for each of these fourteen prompts (in this exact order): (1) Intended audience (2) Prior knowledge or prerequisite courses students should already have (3) How this course fits into the program or degree pathway (4) How the course is currently being taught or supported (5) What students will be able to do by the end of the course (6) Key skills students will learn and actively apply (7) The ideal learning experience if there were no budget or time limits (8) What students should feel or understand in the first 1-2 weeks (9) At what point students begin applying what they are learning (10) External standards, accreditation, or non-negotiables (11) Access or technology limitations (12) Where students may struggle (13) Existing course shell or materials to review (14) The faculty\\\'s biggest course-design challenge or where they most want support. Use the <dt> text verbatim. For each <dd>, give a concise answer grounded in the source (1-3 sentences). These context questions are especially likely to be answered in a kickoff/meeting transcript — extract what the instructor actually said. If the source does not provide enough information for a question, output <dd><em>Not specified in the source.</em></dd>.\n' +
       '7. <h2>Grading Policy</h2> followed by: (a) a <p> describing any grade rounding policy mentioned in the source (or <p><em>Not specified in the source.</em></p> if none); (b) a <table> with columns "Letter Grade", "Min %", "Max %", one <tr> per letter grade defined in the source. Include every non-standard code mentioned — in particular ASU codes like EN (failing, never participated) and EU (failing, did not complete) — and in their Min/Max cells put a dash or explanation (e.g. "—" / "Never participated"). If the source does not define a grade scale, output a single <tr><td colspan="3"><em>Not specified in the source.</em></td></tr>.\n' +
       '8. <h2>Restructuring Notes</h2> followed by a <ul> of brief notes explaining any topics that were combined, split, or reordered.\n\n' +
       '=== SOURCE ===\n' + raw;
@@ -17078,7 +17096,8 @@
     var cloItems = cpSectionItems(propEl, function(t) { return t.indexOf('course learning') !== -1 || (/\bclo/.test(t)); });
     var eloItems = cpSectionItems(propEl, function(t) { return t.indexOf('enduring') !== -1 || (/\belo/.test(t)); });
 
-    // Course Context Q&A: 8 <dd> answers in order (ignore placeholder "Not specified...").
+    // Course Context & Design Notes: 14 <dd> answers in order (ignore placeholder "Not specified...").
+    // The order here MUST match the metadata prompt's fourteen Course Context questions.
     var contextNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('course context') !== -1 || (t.indexOf('context') !== -1 && t.indexOf('question') !== -1); });
     var contextAnswers = [];
     contextNodes.forEach(function(n) {
@@ -17088,7 +17107,7 @@
         contextAnswers.push(txt);
       });
     });
-    var contextFieldIds = ['ctx-audience', 'ctx-outcomes', 'ctx-standards', 'ctx-current', 'ctx-prereqs', 'ctx-struggles', 'ctx-technology', 'ctx-existing'];
+    var contextFieldIds = ['ctx-audience', 'ctx-prereqs', 'ctx-role', 'ctx-current', 'ctx-outcomes', 'ctx-skills', 'ctx-vision', 'ctx-early', 'ctx-pacing', 'ctx-standards', 'ctx-technology', 'ctx-struggles', 'ctx-existing', 'ctx-support'];
 
     // Grading Policy: grade rounding paragraph + <table> of letter-grade rows.
     var gradingNodes = cpSectionAfter(propEl, function(t) { return t.indexOf('grading policy') !== -1 || (t.indexOf('grad') !== -1 && t.indexOf('scale') !== -1); });
@@ -17382,7 +17401,7 @@
         row('Enduring Learning Outcomes', verify.elos),
         row('Module-level materials', verify.materials),
         row('Assignments', verify.activities),
-        row('Course Context Q&A answers', verify.context),
+        row('Course Context & Design Notes answers', verify.context),
         row('Grade scale rows', verify.grading),
         '</div>',
         (missingAny ? '<div style="margin-top:10px; padding:8px 10px; background:#fff8e1; border-left:3px solid #ffb300; font-size:12px; color:#795548;">Missing sections? Re-run <strong>🪄 Parse with AI</strong> — the prompt was recently updated to also generate Course Overview, Textbooks, CLOs, and ELOs. Older proposals only contained modules + assignments.</div>' : ''),
@@ -20605,7 +20624,7 @@
   function _frViewLabel(view) {
     var labels = {
       'dashboard': 'Dashboard', 'course-info': 'Course Info',
-      'materials': 'Textbooks & Materials', 'additional': 'Course Context Q&A',
+      'materials': 'Textbooks & Materials', 'additional': 'Course Context & Design Notes',
       'objectives': 'ELOs & CLOs', 'syllabus': 'Syllabus Builder',
       'course-mapping': 'Course Mapping', 'module-overview': 'Module Overview',
       'assignments-overview': 'Assignments Overview',
