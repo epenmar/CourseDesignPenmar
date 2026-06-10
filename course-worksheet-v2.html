@@ -907,6 +907,19 @@
 
   @media (max-width: 900px) { .sidebar { display: none; } .main-content { padding: 16px 20px 60px; } }
 
+  /* ===== REVIEWER MODE =====
+     An invited reviewer (?role=reviewer) gets a focused, read-only view: the
+     Document Preview only, no navigation sidebar, no editing chrome. They can
+     still switch between the Course Development Document and the Syllabus,
+     select text to leave comments, and download the document. Navigation is
+     locked to the preview in showView(); these rules hide the rest. */
+  body.reviewer-mode .sidebar { display: none; }
+  body.reviewer-mode .undo-redo-bar { display: none; }
+  body.reviewer-mode .reviewer-hide { display: none !important; }
+  body.reviewer-mode .breadcrumb { color: #8c1d40; font-weight: 600; }
+  body.reviewer-mode #reviewer-comments-btn { display: inline-flex !important; align-items: center; gap: 6px; }
+  body.reviewer-mode #reviewer-comments-btn:hover { background: #6d1633; }
+
   /* ===== COMMENTS SYSTEM ===== */
   .comment-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; font-size: 11px; color: #888; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
   .comment-btn:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
@@ -1955,10 +1968,10 @@
         </div>
         <div class="view-toggle">
           <button class="view-btn active">📄 Document Preview</button>
-          <button class="view-btn" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
+          <button class="view-btn reviewer-hide" onclick="exportToGoogleDrive()">⬇ Export to Google Drive</button>
           <button class="view-btn" onclick="downloadDocument()">💾 Download Document</button>
-          <button class="view-btn" onclick="downloadCourseBriefJson()" title="Structured JSON snapshot of the worksheet — handoff/import format for build tools (CanvasCurate)">🧾 Course Brief (.json)</button>
-          <button class="view-btn" onclick="downloadCourseBriefMarkdown()" title="Readable Markdown snapshot of the worksheet — share with anyone">📝 Course Brief (.md)</button>
+          <button class="view-btn reviewer-hide" onclick="downloadCourseBriefJson()" title="Structured JSON snapshot of the worksheet — handoff/import format for build tools (CanvasCurate)">🧾 Course Brief (.json)</button>
+          <button class="view-btn reviewer-hide" onclick="downloadCourseBriefMarkdown()" title="Readable Markdown snapshot of the worksheet — share with anyone">📝 Course Brief (.md)</button>
         </div>
         <div class="doc-preview" id="doc-preview-content"></div>
       </div>
@@ -2075,6 +2088,13 @@
 
 <!-- ===== HIGHLIGHT TOOLTIP ===== -->
 <div class="highlight-tooltip" id="highlight-tooltip" onclick="startHighlightComment()">💬 Comment</div>
+
+<!-- ===== REVIEWER COMMENTS BUTTON =====
+     The "all comments" button normally lives in the sidebar, which reviewers
+     don't see. This floating button gives them the same panel. Hidden for
+     everyone else; shown via the body.reviewer-mode rule. -->
+<button id="reviewer-comments-btn" onclick="openAllCommentsPanel()" title="All comments on this document"
+  style="display:none; position:fixed; bottom:20px; right:20px; z-index:140; background:#8c1d40; color:#fff; border:none; border-radius:24px; padding:10px 18px; font-size:14px; font-weight:600; font-family:'Inter',sans-serif; cursor:pointer; box-shadow:0 4px 14px rgba(0,0,0,0.2);">💬 Comments</button>
 
 <!-- ===== COMMENT IDENTITY MODAL ===== -->
 <div id="comment-identity-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:200; align-items:center; justify-content:center;">
@@ -3482,6 +3502,11 @@
     urlIdentity = { name: derivedName, role: roleParam || 'instructor' };
   }
 
+  // Reviewer sessions get a focused, sidebar-less Document Preview. Stamp the
+  // body class now (document.body already exists at this point in the page) so
+  // the sidebar never flashes before DOMContentLoaded locks the view to preview.
+  try { if (urlIdentity && urlIdentity.role === 'reviewer') document.body.classList.add('reviewer-mode'); } catch (e) {}
+
   // Pull latest cloud copy for this course (so instructor/reviewer in a fresh browser sees up-to-date content)
   async function pullCurrentCourseFromCloud() {
     function setIndicator(msg, color) {
@@ -3604,6 +3629,12 @@
     // they navigate away and back.
     if (typeof renderAllViews === 'function') {
       try { renderAllViews(); } catch(e) { console.warn('[post-pull render]', e && e.message); }
+    }
+    // renderAllViews() doesn't touch the Document Preview, so a session that
+    // landed there before the pull (notably a reviewer, whose only view is the
+    // preview) would be left with pre-pull/empty content. Re-render it now.
+    if (typeof currentViewId !== 'undefined' && currentViewId === 'preview' && typeof renderPreview === 'function') {
+      try { renderPreview(); } catch(e) { console.warn('[post-pull preview]', e && e.message); }
     }
 
     // Sidebar course name
@@ -6701,6 +6732,10 @@
   function scheduleCloudPush() {
     if (!window._sbClient || !courseId) return;
     if (!window._cloudPullComplete) { console.info('[cloud push] skipped (pull not complete)'); return; }
+    // Reviewers are read-only — never let an incidental field save (e.g. the
+    // preview's doc-type toggle) push the worksheet blob back to the cloud.
+    // Their comments go through a separate Supabase table and are unaffected.
+    if (typeof _isReviewer === 'function' && _isReviewer()) { return; }
     clearTimeout(_cloudPushTimer);
     _cloudPushTimer = setTimeout(function() {
       mergeAndPushWorksheet();
@@ -7648,6 +7683,11 @@
     if (typeof _ID_ONLY_VIEWS !== 'undefined' && _ID_ONLY_VIEWS[viewId] && typeof _isIdUser === 'function' && !_isIdUser()) {
       viewId = 'dashboard';
     }
+    // Reviewers are locked to the Document Preview — any navigation attempt
+    // (stale #hash, comment-jump, sidebar — which is hidden anyway) lands here.
+    if (typeof _isReviewer === 'function' && _isReviewer()) {
+      viewId = 'preview';
+    }
     // Flush any pending debounced saves before switching views
     clearTimeout(saveTimer);
     clearTimeout(modOverviewSaveTimer);
@@ -7671,8 +7711,11 @@
       if (navEl) navEl.classList.add('active');
     }
     const names = {'dashboard':'Getting Started / Dashboard','course-parser':'ID Tools / Course Parser','syllabus-checklist':'ID Tools / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'ID Tools / Course Context & Design Notes','materials':'Getting Started / Textbooks','preview':'Document Preview','canvas-plan':'ID Tools / Canvas Plan'};
-    // Show back-to-dashboard link on all non-dashboard views
-    if (viewId !== 'dashboard') {
+    // Show back-to-dashboard link on all non-dashboard views — except for
+    // reviewers, who have no dashboard to return to (just a plain title).
+    if (typeof _isReviewer === 'function' && _isReviewer()) {
+      document.getElementById('breadcrumb').textContent = 'Document Review';
+    } else if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
     } else {
       document.getElementById('breadcrumb').innerHTML = names[viewId] || viewId;
@@ -10938,6 +10981,24 @@
     var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
     return !!(identity && identity.role === 'id');
   }
+
+  // True when this session is an invited reviewer (?role=reviewer). Reviewers
+  // get a read-only Document Preview with no sidebar — see _applyReviewerMode()
+  // and the navigation lock at the top of showView().
+  function _isReviewer() {
+    var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    return !!(identity && identity.role === 'reviewer');
+  }
+
+  // Put a reviewer into the focused preview: stamp the body class (drives the
+  // reviewer-mode CSS) and force the Document Preview view. The showView() guard
+  // keeps every later navigation attempt pinned to the preview.
+  function _applyReviewerMode() {
+    if (!_isReviewer()) return;
+    document.body.classList.add('reviewer-mode');
+    try { showView('preview'); } catch (e) {}
+  }
+  window._applyReviewerMode = _applyReviewerMode;
 
   // Show the ID Tools sidebar section (Course Context & Design Notes, Syllabus
   // Builder, Course Parser, Canvas Plan) only to instructional designers.
@@ -20636,14 +20697,22 @@
 
   // Initialize comments after DOM is ready
   document.addEventListener('DOMContentLoaded', function() {
-    // Restore view from URL hash on page load
-    var hashView = window.location.hash.replace('#', '');
-    if (hashView) {
-      var modMatch = hashView.match(/^module-(\d+)$/);
-      if (modMatch) {
-        showModule(parseInt(modMatch[1]));
-      } else if (document.getElementById('view-' + hashView)) {
-        showView(hashView);
+    // Reviewers are locked to the Document Preview — apply this instead of the
+    // hash restore so a stale #course-info link can't flash another view. The
+    // rest of this handler (comment buttons, highlights) still runs so they can
+    // read and leave comments.
+    if (typeof _isReviewer === 'function' && _isReviewer()) {
+      try { _applyReviewerMode(); } catch (e) {}
+    } else {
+      // Restore view from URL hash on page load
+      var hashView = window.location.hash.replace('#', '');
+      if (hashView) {
+        var modMatch = hashView.match(/^module-(\d+)$/);
+        if (modMatch) {
+          showModule(parseInt(modMatch[1]));
+        } else if (document.getElementById('view-' + hashView)) {
+          showView(hashView);
+        }
       }
     }
     // Update booking link from profile
