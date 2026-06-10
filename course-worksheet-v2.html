@@ -1170,6 +1170,9 @@
                 </label>
                 <div style="font-size:11px; color:#999; margin-top:4px;">If unchecked, timeline will not include June–August work weeks.</div>
               </div>
+              <div class="field-group" style="margin-bottom:0; flex:0 0 auto;">
+                <button class="btn-sm" onclick="generateTimeline()" title="Build the development timeline from the selected session launch date" style="padding:8px 16px; font-size:13px; font-weight:600; cursor:pointer; border:none; background:#8c1d40; color:#fff; border-radius:6px;">✨ Generate Timeline</button>
+              </div>
             </div>
 
             <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
@@ -6202,6 +6205,21 @@
       } catch (e) { /* sidebar badge is non-critical; never block on it */ }
     }, 500);
   }
+
+  // Populate the development timeline from the selected session. Forces a
+  // fresh backward-design recompute (clearing any stale per-milestone
+  // overrides) so the button always yields a complete, current schedule.
+  window.generateTimeline = function() {
+    var sel = document.getElementById('session-select');
+    if (!sel || !sel.value) {
+      alert('Select a target session launch above first — the timeline is calculated backward from it.');
+      if (sel) { sel.focus(); try { sel.style.borderColor = '#c62828'; setTimeout(function(){ sel.style.borderColor = ''; }, 1500); } catch(e) {} }
+      return;
+    }
+    // Wipe saved overrides so "Generate" gives the clean auto-calculated set.
+    saveField('timelineDates', {});
+    recalcTimeline({ forceRecompute: true });
+  };
 
   function recalcTimeline(opts) {
     opts = opts || {};
