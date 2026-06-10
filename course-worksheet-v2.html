@@ -1120,7 +1120,7 @@
       <!-- ===== DASHBOARD ===== -->
       <div id="view-dashboard">
         <h1 style="font-size:24px; margin-bottom:4px;">MNS 521 — AI Technologies</h1>
-        <p style="color:#666; font-size:14px; margin-bottom:24px;">Summer 2026 Session B &bull; Instructional Designer: Elisa Penmar</p>
+        <p style="color:#666; font-size:14px; margin-bottom:24px;">Summer 2026 Session B &bull; Faculty: —</p>
 
         <div class="dashboard-grid">
           <div class="dash-card">
@@ -3532,7 +3532,7 @@
     const dashH1 = document.querySelector('#view-dashboard h1');
     if (dashH1) dashH1.textContent = activeCourse.fullTitle;
     const dashP = document.querySelector('#view-dashboard > p');
-    if (dashP) dashP.innerHTML = activeCourse.sessionShort + ' &bull; Instructional Designer: ' + activeCourse.id;
+    if (dashP) dashP.innerHTML = activeCourse.sessionShort + ' &bull; Faculty: ' + (activeCourse.instructor || 'TBD');
 
     // Page title
     document.title = activeCourse.code + ' — CourseCompose';
