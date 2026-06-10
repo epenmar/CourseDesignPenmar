@@ -1017,10 +1017,6 @@
         <span class="icon">📚</span> Textbooks &amp; Materials
         <span class="badge badge-empty" id="sidebar-textbook-badge">—</span>
       </div>
-      <div class="nav-item" onclick="showView('syllabus-checklist')">
-        <span class="icon">✅</span> Syllabus Builder
-        <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
-      </div>
       <div class="nav-item" onclick="showView('objectives')">
         <span class="icon">🎯</span> ELOs &amp; CLOs
         <span class="badge badge-empty" id="sidebar-obj-badge">—</span>
@@ -1050,14 +1046,21 @@
       <!-- ID Tools — instructional-designer-only utilities. Hidden entirely
            for faculty / reviewer sessions (see _applyIdToolsVisibility).
            Course Context & Design Notes captures intake/design intent (incl.
-           the worksheet-only support field); the Course Parser seeds a course
-           from a source syllabus or kickoff transcript; the Canvas Plan is the
-           build/handoff artifact — all ID work, not faculty-facing. -->
+           the worksheet-only support field); the Syllabus Builder is the
+           college-specific syllabus assembly + requirements checklist (its
+           policies are edited in faculty-facing Course Info and shown here
+           read-only); the Course Parser seeds a course from a source syllabus
+           or kickoff transcript; the Canvas Plan is the build/handoff
+           artifact — all ID work, not faculty-facing. -->
       <div id="nav-id-tools" style="display:none;">
         <div class="nav-section-label">ID Tools</div>
         <div class="nav-item" onclick="showView('additional')">
           <span class="icon">🧩</span> Course Context &amp; Design Notes
           <span class="badge badge-empty" id="sidebar-context-badge">—</span>
+        </div>
+        <div class="nav-item" onclick="showView('syllabus-checklist')">
+          <span class="icon">✅</span> Syllabus Builder
+          <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
         </div>
         <div class="nav-item" onclick="showView('course-parser')">
           <span class="icon">🪄</span> Course Parser
@@ -1691,6 +1694,74 @@
             </div>
           </div>
         </div>
+
+        <!-- ===== COURSE POLICIES =====
+             Faculty-facing home for the syllabus policies. The Syllabus
+             Builder (ID-only) shows these read-only and links back here, so
+             these inputs are the single editable source. Field IDs match the
+             syl-* keys the syllabus preview/export already read. -->
+        <h2 style="font-size:16px; margin:28px 0 4px; color:#8c1d40;">Course Policies</h2>
+        <p style="color:#666; font-size:13px; margin-bottom:16px;">These appear in the syllabus. Fill in what applies to your course.</p>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Grading Policy</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">The grade scale and rounding rule shown in the syllabus. Delete any rows your course doesn't use.</div>
+            <div class="field-group"><label class="field-label">Grade Rounding Policy</label>
+              <textarea id="syl-grade-rounding" class="field-input" style="min-height:40px;" placeholder="e.g., Grades are not rounded. / Grades ending in .5 or higher are rounded up." oninput="saveAllFields()"></textarea></div>
+            <div id="ci-grading-table-host"></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Late/Missing Work Policy</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="field-group"><label class="field-label">Make-up Work / Late Submission Policy</label>
+              <textarea id="syl-late-policy" class="field-input" style="min-height:80px;" placeholder="Describe your policies for late submissions and make-up work..." oninput="saveAllFields()"></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Generative AI Usage Policy</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">Pick a policy type to pre-fill standard language, then customize. Many colleges require the syllabus to state one of these.</div>
+            <div class="field-group"><label class="field-label">AI Policy Type</label>
+              <select id="syl-ai-policy-choice" class="field-input" style="max-width:360px;" onchange="prefillAiPolicy(this.value); saveAllFields();">
+                <option value="">— Select a policy —</option>
+                <option value="permitted">Generally Permitted with Guidelines</option>
+                <option value="some">Permitted Under Some Circumstances</option>
+                <option value="none">No Generative AI Use Permitted</option>
+              </select></div>
+            <div class="field-group"><label class="field-label">Policy Text (editable)</label>
+              <textarea id="syl-ai-policy" class="field-input" style="min-height:100px;" placeholder="Select a policy above to pre-fill, then customize..." oninput="saveAllFields()"></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Classroom Behavior Policy</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">Expectations for classroom behavior, respectful communication, use of electronics, and recording devices.</div>
+            <div class="field-group"><textarea id="syl-classroom-behavior" class="field-input" style="min-height:80px;" placeholder="Add a statement regarding expectation of classroom behavior..." oninput="saveAllFields()"></textarea></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-header" onclick="toggleCard(this)">
+            <div class="card-title"><span class="status-dot dot-partial"></span> Attendance Policy</div>
+            <span class="card-toggle open">▾</span>
+          </div>
+          <div class="card-body">
+            <div class="step-hint">Include consequences, advance-notification expectations, and how students obtain missed information.</div>
+            <div class="field-group"><textarea id="syl-attendance" class="field-input" style="min-height:80px;" placeholder="Add a statement regarding the absence policy for this course..." oninput="saveAllFields()"></textarea></div>
+          </div>
+        </div>
         <button class="btn-mark-complete" id="btn-complete-course-info" onclick="toggleSectionComplete('course-info', this)">
           <span class="complete-icon">○</span> Mark as Complete
         </button>
@@ -2154,12 +2225,12 @@
         { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives',
           hint: 'STPH requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).'
         },
-        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
+        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'course-info' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
-        { id: 'late-policy', label: 'Late/Missing Work Policy' },
+        { id: 'late-policy', label: 'Late/Missing Work Policy', linkedSection: 'course-info' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' },
-        { id: 'classroom-behavior', label: 'Classroom Behavior Policy' },
-        { id: 'attendance', label: 'Attendance Policy' }
+        { id: 'classroom-behavior', label: 'Classroom Behavior Policy', linkedSection: 'course-info' },
+        { id: 'attendance', label: 'Attendance Policy', linkedSection: 'course-info' }
       ]
     },
     CHS: {
@@ -2171,13 +2242,13 @@
         { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives',
           hint: 'CHS requires a distinction between Course Objectives (topics) and Expected Learning Outcomes (measurable skills).'
         },
-        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
+        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'course-info' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
-        { id: 'late-policy', label: 'Late/Missing Work Policy' },
-        { id: 'ai-policy', label: 'Generative AI Usage Policy', hint: 'CHS requires one of three AI policy statements.' },
+        { id: 'late-policy', label: 'Late/Missing Work Policy', linkedSection: 'course-info' },
+        { id: 'ai-policy', label: 'Generative AI Usage Policy', linkedSection: 'course-info', hint: 'CHS requires one of three AI policy statements.' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' },
-        { id: 'classroom-behavior', label: 'Classroom Behavior Policy' },
-        { id: 'attendance', label: 'Attendance Policy' }
+        { id: 'classroom-behavior', label: 'Classroom Behavior Policy', linkedSection: 'course-info' },
+        { id: 'attendance', label: 'Attendance Policy', linkedSection: 'course-info' }
       ]
     },
     NCIAS: {
@@ -2187,7 +2258,7 @@
         { id: 'instructor-info', label: 'Instructor Information', linkedSection: 'course-info' },
         { id: 'textbook-info', label: 'Textbook/Materials Information', linkedSection: 'materials' },
         { id: 'objectives', label: 'Expected Learning Outcomes', linkedSection: 'objectives' },
-        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
+        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'course-info' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
         { id: 'course-schedule', label: 'Course Itinerary', linkedSection: 'module-overview' }
       ]
@@ -2199,7 +2270,7 @@
         { id: 'instructor-info', label: 'Instructor Information', linkedSection: 'course-info' },
         { id: 'textbook-info', label: 'Textbook/Materials Information', linkedSection: 'materials' },
         { id: 'objectives', label: 'Course Objectives & Expected Learning Outcomes', linkedSection: 'objectives' },
-        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'assignments-overview' },
+        { id: 'grading-policy', label: 'Grading Policy', linkedSection: 'course-info' },
         { id: 'assignments-exams', label: 'Assignments/Exams', linkedSection: 'assignments-overview' },
         { id: 'course-schedule', label: 'Course Schedule', linkedSection: 'module-overview' }
       ]
@@ -5723,6 +5794,9 @@
     var giInfoFilled = 0, giInfoTotal = 0;
     courseInfoFields.forEach(function(f) {
       if (f.closest('.comment-thread-panel') || f.closest('#comment-identity-modal')) return;
+      // Course Policies (syl-*) carry their own completeness via the Syllabus
+      // Builder checklist — don't let them dilute the Course Info fraction.
+      if (f.id && f.id.indexOf('syl-') === 0) return;
       giInfoTotal++;
       if (f.value && f.value.trim()) giInfoFilled++;
     });
@@ -7596,7 +7670,7 @@
       var navEl = document.querySelector('.nav-item[onclick*="showView(\'' + navTarget + '\')"]');
       if (navEl) navEl.classList.add('active');
     }
-    const names = {'dashboard':'Getting Started / Dashboard','course-parser':'Getting Started / Course Parser','syllabus-checklist':'Getting Started / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'Getting Started / Course Context','materials':'Getting Started / Textbooks','preview':'Document Preview','canvas-plan':'Build / Canvas Plan'};
+    const names = {'dashboard':'Getting Started / Dashboard','course-parser':'ID Tools / Course Parser','syllabus-checklist':'ID Tools / Syllabus Builder','module':'Module View','module-overview':'Course Design / Module Overview','assignments-overview':'Course Design / Assignments Overview','materials-overview':'Course Design / Materials Overview','course-mapping':'Course Design / Course Mapping','course-info':'Getting Started / Course Info','objectives':'Getting Started / ELOs & CLOs','additional':'ID Tools / Course Context & Design Notes','materials':'Getting Started / Textbooks','preview':'Document Preview','canvas-plan':'ID Tools / Canvas Plan'};
     // Show back-to-dashboard link on all non-dashboard views
     if (viewId !== 'dashboard') {
       document.getElementById('breadcrumb').innerHTML = '<a href="#" onclick="event.preventDefault(); showView(\'dashboard\')" style="color:#8c1d40; text-decoration:none;">← Dashboard</a> &nbsp;/&nbsp; ' + (names[viewId] || viewId);
@@ -7610,6 +7684,7 @@
     renderPageNav(viewId);
     // Render overview content when navigating to overview views
     if (viewId === 'syllabus-checklist') renderSyllabusChecklist();
+    if (viewId === 'course-info') renderCourseInfoGradingTable();
     if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); }
     if (viewId === 'materials-overview') renderMaterialsOverview();
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
@@ -10864,11 +10939,11 @@
     return !!(identity && identity.role === 'id');
   }
 
-  // Show the ID Tools sidebar section (Course Context & Design Notes, Course
-  // Parser, Canvas Plan) only to instructional designers. Faculty / reviewer
-  // sessions never see it. Also bounce them off those views if they reach them
-  // via a #hash, so hiding the nav isn't merely cosmetic.
-  var _ID_ONLY_VIEWS = { 'course-parser': true, 'canvas-plan': true, 'additional': true };
+  // Show the ID Tools sidebar section (Course Context & Design Notes, Syllabus
+  // Builder, Course Parser, Canvas Plan) only to instructional designers.
+  // Faculty / reviewer sessions never see it. Also bounce them off those views
+  // if they reach them via a #hash, so hiding the nav isn't merely cosmetic.
+  var _ID_ONLY_VIEWS = { 'course-parser': true, 'canvas-plan': true, 'additional': true, 'syllabus-checklist': true };
   function _applyIdToolsVisibility() {
     var isId = _isIdUser();
     var el = document.getElementById('nav-id-tools');
@@ -18740,6 +18815,46 @@
     return html;
   }
 
+  // The editable grading scale lives in Course Info; the Syllabus Builder
+  // shows it read-only. Re-render whichever hosts are currently mounted.
+  function renderCourseInfoGradingTable() {
+    var host = document.getElementById('ci-grading-table-host');
+    if (host) host.innerHTML = renderGradingTable();
+  }
+  function _rerenderGradingHosts() {
+    renderCourseInfoGradingTable();
+    if (document.getElementById('checklist-items') && typeof currentViewId !== 'undefined' && currentViewId === 'syllabus-checklist') {
+      renderSyllabusChecklist();
+    }
+  }
+
+  // ---- Read-only policy previews for the (ID-only) Syllabus Builder ----
+  // These policies are edited in Course Info; the checklist shows them
+  // read-only with a jump-back button so there are no duplicate field IDs.
+  function _gotoCourseInfoBtn(label) {
+    return '<button onclick="showView(\'course-info\')" style="border:1px solid #e0ddd5; background:#fafaf7; color:#8c1d40; font-size:11px; padding:4px 12px; border-radius:4px; cursor:pointer; font-family:inherit; margin-top:8px;">' + escapeHtml(label || 'Edit in Course Info →') + '</button>';
+  }
+  function _policyReadonlyPreview(fieldId, emptyHint) {
+    var v = (loadField('formData') || {})[fieldId] || '';
+    var body = v
+      ? '<div style="white-space:pre-wrap; font-size:12px; color:#444; line-height:1.6;">' + escapeHtml(v) + '</div>'
+      : '<div style="font-size:12px; color:#999; font-style:italic;">' + escapeHtml(emptyHint || 'Not set yet.') + '</div>';
+    return '<div style="padding:12px 0 4px 28px;">' + body + _gotoCourseInfoBtn() + '</div>';
+  }
+  function _gradingReadonlyPreview() {
+    var fd = loadField('formData') || {};
+    var rounding = fd['syl-grade-rounding'] || '';
+    var rows = getGradingPolicy();
+    var html = '<div style="padding:12px 0 4px 28px;">';
+    if (rounding) html += '<p style="font-size:12px; color:#444; margin:0 0 8px;"><strong>Rounding:</strong> ' + escapeHtml(rounding) + '</p>';
+    html += '<table style="width:100%; border-collapse:collapse; font-size:12px; margin-bottom:8px;"><thead><tr style="background:#f5f4f0;"><th style="padding:5px 8px; text-align:left; border:1px solid #e0ddd5;">Letter Grade</th><th style="padding:5px 8px; text-align:left; border:1px solid #e0ddd5;">Min %</th><th style="padding:5px 8px; text-align:left; border:1px solid #e0ddd5;">Max %</th></tr></thead><tbody>';
+    rows.forEach(function(r) { html += '<tr><td style="padding:4px 8px; border:1px solid #e0ddd5; font-weight:600;">' + escapeHtml(r.letter) + '</td><td style="padding:4px 8px; border:1px solid #e0ddd5;">' + escapeHtml(r.min) + '</td><td style="padding:4px 8px; border:1px solid #e0ddd5;">' + escapeHtml(r.max) + '</td></tr>'; });
+    html += '</tbody></table>';
+    html += _gotoCourseInfoBtn('Edit grading policy in Course Info →');
+    html += '</div>';
+    return html;
+  }
+
   function updateGradeRow(idx, field, value) {
     var rows = getGradingPolicy();
     if (rows[idx]) { rows[idx][field] = value; saveGradingPolicy(rows); }
@@ -18749,14 +18864,14 @@
     var rows = getGradingPolicy();
     rows.push({ letter: '', min: '', max: '' });
     saveGradingPolicy(rows);
-    renderSyllabusChecklist();
+    _rerenderGradingHosts();
   }
 
   function deleteGradeRow(idx) {
     var rows = getGradingPolicy();
     rows.splice(idx, 1);
     saveGradingPolicy(rows);
-    renderSyllabusChecklist();
+    _rerenderGradingHosts();
   }
 
   // ---- Assignment Descriptions for Syllabus ----
@@ -19236,15 +19351,7 @@
         return html;
 
       case 'grading-policy':
-        var gradeRoundVal = (loadField('formData') || {})['syl-grade-rounding'] || '';
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div class="field-group" style="margin-bottom:12px;">' +
-            '<label class="field-label">Grade Rounding Policy</label>' +
-            '<textarea id="syl-grade-rounding" class="field-input" style="min-height:40px; font-size:12px;" placeholder="e.g., Grades are not rounded. / Grades ending in .5 or higher are rounded up." oninput="saveAllFields()">' + escapeHtml(gradeRoundVal) + '</textarea>' +
-          '</div>' +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">Edit the grading scale below. Delete rows your course does not use.</div>' +
-          renderGradingTable() +
-          '</div>';
+        return _gradingReadonlyPreview();
 
       case 'assignments-exams':
         var finalExamVal = (loadField('formData') || {})['syl-final-exam'] || '';
@@ -19262,27 +19369,10 @@
           '</div>';
 
       case 'late-policy':
-        var latePolicyVal = (loadField('formData') || {})['syl-late-policy'] || '';
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div class="field-group"><label class="field-label">Make-up Work / Late Submission Policy</label>' +
-          '<textarea id="syl-late-policy" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Describe your policies for late submissions and make-up work..." oninput="saveAllFields()">' + escapeHtml(latePolicyVal) + '</textarea></div>' +
-          '</div>';
+        return _policyReadonlyPreview('syl-late-policy', 'No late / make-up work policy set yet.');
 
       case 'ai-policy':
-        var aiPolicyVal = (loadField('formData') || {})['syl-ai-policy'] || '';
-        var aiPolicyChoice = (loadField('formData') || {})['syl-ai-policy-choice'] || '';
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:8px;">CHS requires one of three AI policy statements. Select the appropriate policy and customize if needed.</div>' +
-          '<div class="field-group"><label class="field-label">AI Policy Type</label>' +
-          '<select id="syl-ai-policy-choice" class="field-input" style="font-size:12px;" onchange="prefillAiPolicy(this.value); saveAllFields();">' +
-            '<option value=""' + (aiPolicyChoice === '' ? ' selected' : '') + '>— Select a policy —</option>' +
-            '<option value="permitted"' + (aiPolicyChoice === 'permitted' ? ' selected' : '') + '>Generally Permitted with Guidelines</option>' +
-            '<option value="some"' + (aiPolicyChoice === 'some' ? ' selected' : '') + '>Permitted Under Some Circumstances</option>' +
-            '<option value="none"' + (aiPolicyChoice === 'none' ? ' selected' : '') + '>No Generative AI Use Permitted</option>' +
-          '</select></div>' +
-          '<div class="field-group"><label class="field-label">Policy Text (editable)</label>' +
-          '<textarea id="syl-ai-policy" class="field-input" style="min-height:100px; font-size:12px;" placeholder="Select a policy above to pre-fill, then customize..." oninput="saveAllFields()">' + escapeHtml(aiPolicyVal) + '</textarea></div>' +
-          '</div>';
+        return _policyReadonlyPreview('syl-ai-policy', 'No generative-AI usage policy set yet.');
 
       case 'course-schedule':
         var savedMods = loadField('moduleOverviewData') || {};
@@ -19338,18 +19428,10 @@
         return html;
 
       case 'classroom-behavior':
-        var behaviorVal = (loadField('formData') || {})['syl-classroom-behavior'] || '';
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:6px;">Expectations for classroom behavior, respectful communication, use of electronics, and recording devices.</div>' +
-          '<div class="field-group"><textarea id="syl-classroom-behavior" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Add a statement regarding expectation of classroom behavior..." oninput="saveAllFields()">' + escapeHtml(behaviorVal) + '</textarea></div>' +
-          '</div>';
+        return _policyReadonlyPreview('syl-classroom-behavior', 'No classroom behavior policy set yet.');
 
       case 'attendance':
-        var attendanceVal = (loadField('formData') || {})['syl-attendance'] || '';
-        return '<div style="padding:12px 0 4px 28px;">' +
-          '<div style="font-size:12px; color:#666; margin-bottom:6px;">Include consequences, advance notification expectations, and how students obtain missed information.</div>' +
-          '<div class="field-group"><textarea id="syl-attendance" class="field-input" style="min-height:80px; font-size:12px;" placeholder="Add a statement regarding the absence policy for this course..." oninput="saveAllFields()">' + escapeHtml(attendanceVal) + '</textarea></div>' +
-          '</div>';
+        return _policyReadonlyPreview('syl-attendance', 'No attendance policy set yet.');
 
       default:
         return '';
