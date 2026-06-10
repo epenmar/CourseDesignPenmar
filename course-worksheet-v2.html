@@ -6211,14 +6211,35 @@
   // overrides) so the button always yields a complete, current schedule.
   window.generateTimeline = function() {
     var sel = document.getElementById('session-select');
+    // If the dropdown is blank but the course already knows its session,
+    // apply it (the option may not have matched on load).
+    if (sel && !sel.value && activeCourse && activeCourse.sessionValue) {
+      var opt = sel.querySelector('option[value="' + activeCourse.sessionValue + '"]');
+      if (!opt) {
+        opt = document.createElement('option');
+        opt.value = activeCourse.sessionValue;
+        opt.textContent = activeCourse.session || activeCourse.sessionValue;
+        sel.appendChild(opt);
+      }
+      sel.value = activeCourse.sessionValue;
+    }
+    var body = document.getElementById('timeline-body');
     if (!sel || !sel.value) {
-      alert('Select a target session launch above first — the timeline is calculated backward from it.');
-      if (sel) { sel.focus(); try { sel.style.borderColor = '#c62828'; setTimeout(function(){ sel.style.borderColor = ''; }, 1500); } catch(e) {} }
+      // No anchor date — the timeline is calculated backward from the
+      // session launch, so we can't build it. Give inline feedback rather
+      // than an easily-missed alert.
+      if (body) body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#c62828;">Pick a target <strong>Session Launch</strong> above, then click Generate Timeline.</td></tr>';
+      if (sel) { sel.focus(); try { sel.style.outline = '2px solid #c62828'; setTimeout(function(){ sel.style.outline = ''; }, 1800); } catch(e) {} }
       return;
     }
     // Wipe saved overrides so "Generate" gives the clean auto-calculated set.
     saveField('timelineDates', {});
-    recalcTimeline({ forceRecompute: true });
+    try {
+      recalcTimeline({ forceRecompute: true });
+    } catch (e) {
+      console.error('[generateTimeline] recalc failed:', e);
+      if (body) body.innerHTML = '<tr><td colspan="3" style="text-align:center; padding:20px; color:#c62828;">Could not build the timeline: ' + (e && e.message ? e.message : e) + '</td></tr>';
+    }
   };
 
   function recalcTimeline(opts) {
