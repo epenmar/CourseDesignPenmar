@@ -34,7 +34,21 @@
   .todo ul { margin: 0; padding-left: 18px; }
   .todo li { margin-bottom: 4px; }
   .meta { font-size: 12px; color: #888; margin-top: 28px; padding-top: 14px; border-top: 1px solid #eeece6; }
+  /* Per-card editing */
+  .contact-card { position: relative; }
+  .card-actions { margin-top: 8px; display: flex; gap: 6px; }
+  .card-actions button { font-size: 11px; font-family: inherit; padding: 3px 10px; border-radius: 5px; cursor: pointer; border: 1px solid #e0ddd5; background: #fafaf7; color: #8c1d40; }
+  .card-actions button:hover { background: #fdf2f4; border-color: #8c1d40; }
+  .card-actions .cc-save { background: #8c1d40; color: #fff; border-color: #8c1d40; }
+  .card-actions .cc-save:hover { background: #6d1633; }
+  .card-actions .cc-del { color: #c62828; border-color: #f0d0d0; }
+  .card-actions .cc-del:hover { background: #fdecec; border-color: #c62828; }
+  .card-content.cc-editing { outline: 2px solid #ffc627; outline-offset: 4px; border-radius: 4px; background: #fffdf5; padding: 4px; }
+  .cc-add-btn { font-size: 12px; font-family: inherit; padding: 5px 12px; border-radius: 6px; cursor: pointer; border: 1px dashed #c9b9bf; background: #fff; color: #8c1d40; margin-top: 4px; }
+  .cc-add-btn:hover { background: #fdf2f4; border-color: #8c1d40; }
 </style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="supabase-config.js"></script>
 </head>
 <body>
 
@@ -262,7 +276,113 @@
   </div>
 </section>
 
-<p class="meta">Compiled from Granola meeting notes and Obsidian records. Last updated 2026-05-14. Static for now — a future update will pull live from a Supabase contacts table populated by Granola sync.</p>
+<p class="meta">Compiled from Granola meeting notes and Obsidian records. Click <strong>✏️ Edit</strong> on any card to update it — edits save to the cloud and sync across your devices.</p>
+
+<script>
+(function () {
+  var sb = null;
+  try {
+    if (window.supabase && window.SUPABASE_URL) sb = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY);
+  } catch (e) { console.warn('[contacts] supabase init failed:', e && e.message); }
+
+  var STORE_KEY = 'contacts_overrides';
+  function loadLocal() { try { return JSON.parse(localStorage.getItem(STORE_KEY) || '{}'); } catch (e) { return {}; } }
+  function saveLocal(m) { try { localStorage.setItem(STORE_KEY, JSON.stringify(m)); } catch (e) {} }
+  function pushCloud(m) {
+    if (!sb) return;
+    sb.from('dashboard_state').upsert({ key: STORE_KEY, data: m }, { onConflict: 'key' })
+      .then(function (r) { if (r && r.error) console.warn('[contacts] cloud save failed:', r.error.message); });
+  }
+
+  var overrides = loadLocal();
+
+  // Stable per-card id from the ORIGINAL (static) name text, so an edited
+  // name doesn't change the id and overrides survive reordering / future
+  // additions. Dedupe identical names with a numeric suffix.
+  var usedIds = {};
+  function cardId(card, idx) {
+    var nameEl = card.querySelector('.name');
+    var base = nameEl ? nameEl.textContent.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') : '';
+    if (!base) base = 'card-' + idx;
+    var id = base, n = 2;
+    while (usedIds[id]) { id = base + '-' + n; n++; }
+    usedIds[id] = true;
+    return id;
+  }
+
+  function setActions(card, id, editing) {
+    var actions = card.querySelector('.card-actions');
+    if (!actions) { actions = document.createElement('div'); actions.className = 'card-actions'; card.appendChild(actions); }
+    if (editing) {
+      actions.innerHTML =
+        '<button class="cc-save" onclick="ccSave(\'' + id + '\')">💾 Save</button>' +
+        '<button class="cc-cancel" onclick="ccCancel(\'' + id + '\')">Cancel</button>';
+    } else {
+      actions.innerHTML = '<button class="cc-edit" onclick="ccEdit(\'' + id + '\')">✏️ Edit</button>';
+    }
+  }
+
+  function initCard(card, idx) {
+    var id = cardId(card, idx);
+    card.setAttribute('data-card-id', id);
+    // Wrap the existing name/role/reach into an editable content block.
+    var content = document.createElement('div');
+    content.className = 'card-content';
+    while (card.firstChild) content.appendChild(card.firstChild);
+    card.appendChild(content);
+    if (overrides[id] != null) content.innerHTML = overrides[id];
+    setActions(card, id, false);
+  }
+
+  document.querySelectorAll('.contact-card').forEach(initCard);
+
+  // After parse-time apply, pull the cloud copy and re-apply (cloud wins).
+  if (sb) {
+    sb.from('dashboard_state').select('data').eq('key', STORE_KEY).maybeSingle().then(function (r) {
+      if (r && r.data && r.data.data && typeof r.data.data === 'object') {
+        overrides = Object.assign({}, overrides, r.data.data);
+        saveLocal(overrides);
+        document.querySelectorAll('.contact-card').forEach(function (card) {
+          var id = card.getAttribute('data-card-id');
+          var content = card.querySelector('.card-content');
+          if (content && overrides[id] != null && !content.classList.contains('cc-editing')) content.innerHTML = overrides[id];
+        });
+      }
+    });
+  }
+
+  window.ccEdit = function (id) {
+    var card = document.querySelector('[data-card-id="' + id + '"]');
+    if (!card) return;
+    var content = card.querySelector('.card-content');
+    card._ccBackup = content.innerHTML;
+    content.setAttribute('contenteditable', 'true');
+    content.classList.add('cc-editing');
+    content.focus();
+    setActions(card, id, true);
+  };
+
+  window.ccSave = function (id) {
+    var card = document.querySelector('[data-card-id="' + id + '"]');
+    var content = card.querySelector('.card-content');
+    content.removeAttribute('contenteditable');
+    content.classList.remove('cc-editing');
+    overrides[id] = content.innerHTML;
+    saveLocal(overrides);
+    pushCloud(overrides);
+    setActions(card, id, false);
+  };
+
+  window.ccCancel = function (id) {
+    var card = document.querySelector('[data-card-id="' + id + '"]');
+    var content = card.querySelector('.card-content');
+    if (card._ccBackup != null) content.innerHTML = card._ccBackup;
+    content.removeAttribute('contenteditable');
+    content.classList.remove('cc-editing');
+    setActions(card, id, false);
+  };
+})();
+</script>
 
 </body>
 </html>
