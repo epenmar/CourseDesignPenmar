@@ -1248,10 +1248,16 @@
             <div class="cp-or-divider">or paste directly</div>
             <textarea id="cp-input" rows="8" data-no-autogrow="1" style="width:100%; max-height:260px; font-family:'Inter',sans-serif; font-size:13px; padding:10px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical; overflow-y:auto;" placeholder="Paste course content here (topics, objectives, assignments, textbooks, etc.)"></textarea>
             <div style="display:flex; gap:12px; align-items:center; margin-top:10px; flex-wrap:wrap;">
+              <label style="font-size:12px; color:#666;">Source type:
+                <select id="cp-source-type" onchange="cpOnSourceTypeChange(this.value)" style="margin-left:4px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:4px; font-family:inherit; font-size:12px;">
+                  <option value="syllabus">Syllabus / course plan</option>
+                  <option value="transcript">Meeting transcript</option>
+                </select>
+              </label>
               <label style="font-size:12px; color:#666;">Target modules:
                 <input type="number" id="cp-target-modules" value="7" min="3" max="15" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
               </label>
-              <label style="font-size:12px; color:#666;">Source weeks:
+              <label id="cp-source-weeks-label" style="font-size:12px; color:#666;">Source weeks:
                 <input type="number" id="cp-source-weeks" value="15" min="1" max="30" style="width:50px; padding:4px 6px; margin-left:4px; border:1px solid #e0ddd5; border-radius:4px;" />
               </label>
               <button id="cp-parse-btn" onclick="runCourseParserAI()" style="background:#8c1d40; color:#fff; border:none; padding:8px 16px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">🪄 Parse with AI</button>
@@ -16511,6 +16517,16 @@
     throw new Error('Unsupported mime: ' + mime);
   }
 
+  // Source-type toggle: hide the "Source weeks" field for transcripts (a
+  // conversation has no week count) and relabel the parse button.
+  window.cpOnSourceTypeChange = function(v) {
+    var weeksLabel = document.getElementById('cp-source-weeks-label');
+    var btn = document.getElementById('cp-parse-btn');
+    var isT = v === 'transcript';
+    if (weeksLabel) weeksLabel.style.display = isT ? 'none' : '';
+    if (btn) btn.textContent = isT ? '🪄 Extract from transcript' : '🪄 Parse with AI';
+  };
+
   async function runCourseParserAI() {
     var input = document.getElementById('cp-input');
     var btn = document.getElementById('cp-parse-btn');
@@ -16519,6 +16535,14 @@
     if (!raw) { if (status) status.textContent = 'Paste source content first.'; return; }
     var targetModules = parseInt((document.getElementById('cp-target-modules') || {}).value, 10) || 7;
     var sourceWeeks = parseInt((document.getElementById('cp-source-weeks') || {}).value, 10) || 15;
+    var sourceType = (document.getElementById('cp-source-type') || {}).value || 'syllabus';
+    var isTranscript = sourceType === 'transcript';
+    // Strong framing prepended to every pass so the model treats a raw
+    // meeting transcript as a source to EXTRACT from (not a finished
+    // syllabus to restructure), and never fabricates undiscussed content.
+    var transcriptNote = isTranscript
+      ? 'IMPORTANT — THE SOURCE IS A MEETING TRANSCRIPT: The text below is a raw transcript of a course-planning conversation (instructional designer + faculty), not a finished syllabus. Extract ONLY the course-design information and decisions that were actually discussed. Do NOT invent objectives, assignments, modules, readings, textbooks, grading, or policies the participants did not mention — where the transcript is silent, use the specified "Not specified" placeholder. If the participants implied a structure (e.g. a module count, a sequence of topics, specific assignments), use exactly what they described. Speaker labels, filler, and tangents in the transcript are not course content.\n\n'
+      : '';
 
     console.log('[runCourseParserAI] source size:', raw.length, 'chars (' + Math.round(raw.length / 1024) + ' KB)');
     if (raw.length > 400000) {
@@ -16530,7 +16554,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '⏳ Parsing…'; }
     if (status) { status.textContent = 'Claude is mapping ' + sourceWeeks + ' weeks to ' + targetModules + ' modules… (source: ' + Math.round(raw.length / 1024) + ' KB)'; status.style.color = '#888'; }
 
-    var systemPrompt = 'You are an instructional designer at ASU Online. You restructure multi-week courses into module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>, <dl>, <dt>, <dd>. You MUST output every section listed in the instructions, in order, even if the source does not mention the relevant information — emit the heading and then placeholder values rather than skipping the section. Do NOT include <html>, <body>, <style>, or markdown fences.';
+    var systemPrompt = 'You are an instructional designer at ASU Online. You ' + (isTranscript ? 'extract course-design information from meeting transcripts and organize it into' : 'restructure multi-week courses into') + ' module-based formats for the standard ASU Online ' + targetModules + '-module structure. Preserve all learning objectives and group tightly coupled topics together. Output clean, well-structured HTML suitable for inline display in a contenteditable div — use <h2>, <h3>, <table>, <ul>, <ol>, <p>, <strong>, <em>, <dl>, <dt>, <dd>. You MUST output every section listed in the instructions, in order, even if the source does not mention the relevant information — emit the heading and then placeholder values rather than skipping the section.' + (isTranscript ? ' Never fabricate course content the transcript did not contain; use the "Not specified" placeholder for anything not actually discussed.' : '') + ' Do NOT include <html>, <body>, <style>, or markdown fences.';
 
     var weeksPerModule = Math.floor(sourceWeeks / targetModules);
     var extraWeeks = sourceWeeks - (targetModules * weeksPerModule);
@@ -16542,8 +16566,10 @@
     //   1. metadata — short sections (info, overview, textbooks, CLOs, ELOs, context, notes)
     //   2. structure — only the module-structure table (needs full budget for all rows)
     //   3. assignments — the assignment-mapping table (also needs its own budget)
-    var metadataQuery =
-      'For this ' + sourceWeeks + '-week course (to be restructured into ' + targetModules + ' modules), extract the metadata sections. Do NOT output a module structure table or an assignment table in this response.\n\n' +
+    var metadataQuery = transcriptNote +
+      (isTranscript
+        ? 'From the meeting transcript below, extract the course metadata sections that were discussed. Do NOT output a module structure table or an assignment table in this response.\n\n'
+        : 'For this ' + sourceWeeks + '-week course (to be restructured into ' + targetModules + ' modules), extract the metadata sections. Do NOT output a module structure table or an assignment table in this response.\n\n') +
       'Return exactly these sections in order as HTML:\n' +
       '1. <h2>Course &amp; Instructor Info</h2> followed by a <dl> with one <dt>Label</dt><dd>Value</dd> pair for each of these eleven fields (in this exact order, using the <dt> text verbatim): Course Code, Course Name, Credits, Prerequisites, Session, Instructor Name, Instructor Email, Instructor Phone, Office / Room, Office Hours, Course Description. Pull values directly from the source — do not invent. For any field not mentioned in the source, output <dd><em>Not specified in the source.</em></dd>. Course Description should be the official catalog description if present (1-3 sentences), distinct from the Course Overview below.\n' +
       '2. <h2>Course Overview</h2> followed by a <p> with a 2-4 sentence description of the course (audience, main themes, what students will be able to do).\n' +
@@ -16573,14 +16599,18 @@
         + '- This means the MLO count per module should roughly match the number of major assignments that module contains.\n';
     }
 
-    var structureQuery =
-      'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n' +
+    var structureQuery = transcriptNote +
+      (isTranscript
+        ? 'Based ONLY on what the transcript discusses, propose the module structure. If the participants named a module count or specific modules/topics, use exactly those (you may output fewer than ' + targetModules + ' modules if that is what was discussed). If they discussed topics but no explicit module split, group them into up to ' + targetModules + ' modules. Leave MLOs and Learning Materials blank (the "Not specified" placeholder) for any module whose objectives/readings were not discussed — do NOT invent them.\n\n'
+        : 'Restructure this ' + sourceWeeks + '-week course into a ' + targetModules + '-module format. Cadence: ' + cadenceHint + '.\n\n') +
       'Return ONLY this single section as HTML:\n' +
       '<h2>Proposed Module Structure</h2> followed by a <table> with columns: Module, Weeks Covered, Topic, Module Learning Objectives, Learning Materials.\n\n' +
       'Requirements:\n' +
-      '- You MUST output exactly ' + targetModules + ' rows — one per proposed module, numbered 1 through ' + targetModules + '. Do NOT merge modules. Do NOT stop early.\n' +
+      (isTranscript
+        ? '- Output one row per module the transcript actually supports — use the number the participants specified, or up to ' + targetModules + ' if they only listed topics. Do NOT pad with empty invented modules to reach ' + targetModules + '.\n'
+        : '- You MUST output exactly ' + targetModules + ' rows — one per proposed module, numbered 1 through ' + targetModules + '. Do NOT merge modules. Do NOT stop early.\n') +
       '- Each Topic cell is a short descriptive name for that module (do NOT combine two topics with "AND" — pick one focused topic per module).\n' +
-      '- The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X").\n' +
+      '- The Module Learning Objectives cell MUST be an inline <ul> with one <li> per objective; each <li> starts with the numbered prefix (e.g. "1.1 Analyze X").' + (isTranscript ? ' If the transcript did not discuss objectives for a module, output "<em>Not specified for this module</em>" instead of inventing MLOs.' : '') + '\n' +
       '- CAP EACH MODULE AT 4 MLOs MAXIMUM. If consolidating the source weeks into this module would yield more than 4 objectives, MERGE closely-related objectives into broader consolidated MLOs that preserve the underlying learning intent (e.g. combine "explain X" + "explain Y" + "explain Z" into a single "explain X, Y, and Z" objective, keeping the highest cognitive verb). Prefer 3-4 well-scoped MLOs over 5+ narrow ones.\n' +
       '- Learning Materials cell: ONLY populate it when the SOURCE EXPLICITLY associates a specific reading, chapter, video, or resource with THIS module or its weeks (e.g. the source says "Week 3: read Chapter 5" and Week 3 maps to this module). When that explicit mapping exists, use a <ul> with one <li> per material. If the source only provides a generic, course-level materials list with NO week/module mapping, leave this cell EMPTY — output exactly "<em>Not specified for this module</em>". Do NOT guess, distribute, or infer which module a generic material belongs to; making up placement is worse than leaving it blank. The course-wide materials list is already captured separately. Do NOT list assignments here.\n' +
       '- Close every tag — the <table>, every <tr>, every <td>, every <ul>. Emit complete, well-formed HTML.\n' +
@@ -16618,8 +16648,11 @@
         });
       }
 
-      return 'TARGET MODULE COUNT: ' + targetModules + '. The only valid values for the Module column are: ' + allowedStr + '. Any other number is INVALID and will be rejected.\n\n' +
-      'The source course has ' + sourceWeeks + ' weeks but is being consolidated into ' + targetModules + ' modules. Extract EVERY assignment/activity from the SOURCE and place it into one of the ' + targetModules + ' target modules defined in the PROPOSED MODULE STRUCTURE below.\n\n' +
+      return transcriptNote +
+      'TARGET MODULE COUNT: ' + targetModules + '. The only valid values for the Module column are: ' + allowedStr + '. Any other number is INVALID and will be rejected.\n\n' +
+      (isTranscript
+        ? 'Extract ONLY the assignments/activities the transcript actually discusses and place each into one of the modules defined in the PROPOSED MODULE STRUCTURE below. Do NOT invent assignments the participants did not mention. If no assignments were discussed, output a table with a single row whose Activity cell is "<em>Not specified in the transcript</em>".\n\n'
+        : 'The source course has ' + sourceWeeks + ' weeks but is being consolidated into ' + targetModules + ' modules. Extract EVERY assignment/activity from the SOURCE and place it into one of the ' + targetModules + ' target modules defined in the PROPOSED MODULE STRUCTURE below.\n\n') +
       '=== PROPOSED MODULE STRUCTURE (authoritative — use these module numbers and these MLO numbers) ===\n' + structureHtml + '\n' +
       cephBlock +
       '\nReturn ONLY a single section as HTML:\n' +
@@ -16834,12 +16867,12 @@
       var metadataResult = await tryCall(metadataQuery, 4096);
       var metadataHtml = sanitizeFragment(stripFences(metadataResult));
 
-      if (status) { status.textContent = 'Step 2/3 — Claude is proposing all ' + targetModules + ' module rows…'; status.style.color = '#888'; }
+      if (status) { status.textContent = isTranscript ? 'Step 2/3 — extracting the module structure discussed…' : 'Step 2/3 — Claude is proposing all ' + targetModules + ' module rows…'; status.style.color = '#888'; }
       var structureResult = await tryCall(structureQuery, 4096);
       var structureHtml = sanitizeFragment(stripFences(structureResult));
       var structureRowCount = countStructureModules(structureHtml);
 
-      if (status) { status.textContent = 'Step 3/3 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
+      if (status) { status.textContent = isTranscript ? 'Step 3/3 — extracting the assignments discussed…' : 'Step 3/3 — Claude is mapping assignments across all ' + targetModules + ' modules…'; status.style.color = '#888'; }
       var assignResult = await tryCall(buildAssignmentsQuery(structureHtml), 4096);
       var assignRawStr = stripFences(assignResult);
       // Detect truncation before sanitizeFragment auto-closes the partial table.
@@ -16849,7 +16882,9 @@
       var assignHtml = clampResult.html;
       // Inject placeholder rows for any target module left empty, using topic + first MLO
       // pulled from the structure table so the placeholder is at least contextually aligned.
-      if (clampResult.missingModules && clampResult.missingModules.length) {
+      // Skipped for transcripts: fewer modules than the target is expected
+      // (we only build what the meeting actually covered), so don't pad.
+      if (!isTranscript && clampResult.missingModules && clampResult.missingModules.length) {
         var fillResult = fillMissingModuleRows(assignHtml, clampResult.missingModules, structureHtml);
         assignHtml = fillResult.html;
         clampResult.placeholdersAdded = fillResult.added;
@@ -16865,7 +16900,9 @@
       var propModLabel = document.getElementById('cp-prop-modules');
       if (propModLabel) propModLabel.textContent = targetModules;
       var warnings = [];
-      if (structureRowCount && structureRowCount !== targetModules) {
+      // For transcripts, a row count other than the target is expected (we
+      // only build what the meeting covered), so don't flag it.
+      if (!isTranscript && structureRowCount && structureRowCount !== targetModules) {
         warnings.push('structure returned ' + structureRowCount + ' module rows (expected ' + targetModules + ')');
       }
       if (truncatedAssignments) {
