@@ -1017,10 +1017,6 @@
         <span class="icon">📚</span> Textbooks &amp; Materials
         <span class="badge badge-empty" id="sidebar-textbook-badge">—</span>
       </div>
-      <div class="nav-item" onclick="showView('additional')">
-        <span class="icon">🧩</span> Course Context &amp; Design Notes
-        <span class="badge badge-empty" id="sidebar-context-badge">—</span>
-      </div>
       <div class="nav-item" onclick="showView('syllabus-checklist')">
         <span class="icon">✅</span> Syllabus Builder
         <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
@@ -1053,11 +1049,16 @@
 
       <!-- ID Tools — instructional-designer-only utilities. Hidden entirely
            for faculty / reviewer sessions (see _applyIdToolsVisibility).
-           The Course Parser seeds a course from a source syllabus; the
-           Canvas Plan is the build/handoff artifact — both are ID work,
-           not faculty-facing. -->
+           Course Context & Design Notes captures intake/design intent (incl.
+           the worksheet-only support field); the Course Parser seeds a course
+           from a source syllabus or kickoff transcript; the Canvas Plan is the
+           build/handoff artifact — all ID work, not faculty-facing. -->
       <div id="nav-id-tools" style="display:none;">
         <div class="nav-section-label">ID Tools</div>
+        <div class="nav-item" onclick="showView('additional')">
+          <span class="icon">🧩</span> Course Context &amp; Design Notes
+          <span class="badge badge-empty" id="sidebar-context-badge">—</span>
+        </div>
         <div class="nav-item" onclick="showView('course-parser')">
           <span class="icon">🪄</span> Course Parser
         </div>
@@ -10863,11 +10864,11 @@
     return !!(identity && identity.role === 'id');
   }
 
-  // Show the ID Tools sidebar section (Course Parser + Canvas Plan) only to
-  // instructional designers. Faculty / reviewer sessions never see it. Also
-  // bounce them off those views if they reach them via a #hash, so hiding
-  // the nav isn't merely cosmetic.
-  var _ID_ONLY_VIEWS = { 'course-parser': true, 'canvas-plan': true };
+  // Show the ID Tools sidebar section (Course Context & Design Notes, Course
+  // Parser, Canvas Plan) only to instructional designers. Faculty / reviewer
+  // sessions never see it. Also bounce them off those views if they reach them
+  // via a #hash, so hiding the nav isn't merely cosmetic.
+  var _ID_ONLY_VIEWS = { 'course-parser': true, 'canvas-plan': true, 'additional': true };
   function _applyIdToolsVisibility() {
     var isId = _isIdUser();
     var el = document.getElementById('nav-id-tools');
