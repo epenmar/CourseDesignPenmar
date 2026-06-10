@@ -6359,15 +6359,13 @@
       unmatchedMeetings = syncedCourse.calendarMeetings.slice();
     }
 
-    // Apply calendar meeting dates to milestones (only if user hasn't manually set a date)
-    if (milestoneStatus) {
-      for (let i = 0; i < milestoneStatus.length && i < dates.length; i++) {
-        const ms = milestoneStatus[i];
-        if (ms && ms.meetingDate && !savedDates[String(i)]) {
-          dates[i] = new Date(ms.meetingDate + 'T00:00:00');
-        }
-      }
-    }
+    // NOTE: calendar meetings used to overwrite a milestone's TARGET DATE
+    // (dates[i] = meeting date). Because the keyword matcher could attach a
+    // meeting whose real date sat far from the milestone's calculated slot,
+    // this scrambled the column out of sequence (e.g. a Module 4 meeting in
+    // October landing above the calculated August modules). Meetings are now
+    // surfaced only as a status badge ("📅 Meeting …") in the Status column;
+    // the date column stays the clean, sequential calculated/overridden plan.
 
     // Load manually completed milestones and meeting assignments
     const manualComplete = loadField('milestoneManualComplete') || {};
