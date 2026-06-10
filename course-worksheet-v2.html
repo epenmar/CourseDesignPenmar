@@ -3638,12 +3638,9 @@
     if (typeof renderAllViews === 'function') {
       try { renderAllViews(); } catch(e) { console.warn('[post-pull render]', e && e.message); }
     }
-    // renderAllViews() doesn't touch the Document Preview, so a session that
-    // landed there before the pull (notably a reviewer, whose only view is the
-    // preview) would be left with pre-pull/empty content. Re-render it now.
-    if (typeof currentViewId !== 'undefined' && currentViewId === 'preview' && typeof renderPreview === 'function') {
-      try { renderPreview(); } catch(e) { console.warn('[post-pull preview]', e && e.message); }
-    }
+    // NOTE: the Document Preview is re-rendered at the very end of this handler
+    // (in the setTimeout below), AFTER clos/flatElos and module data finish
+    // hydrating — rendering it here would catch the COs/ELOs still empty.
 
     // Sidebar course name
     const sidebarName = document.querySelector('.sidebar-header .course-name');
@@ -3802,6 +3799,15 @@
 
     setTimeout(function() {
       if (typeof restoreAllFields === 'function') restoreAllFields();
+      // Now that the pull, objective/module hydration, and restoreAllFields
+      // have all run, re-render the Document Preview if it's the active view
+      // (the reviewer's only view). Earlier renders during load caught COs,
+      // ELOs, and module data before they finished hydrating from the cloud
+      // pull — that's why a reviewer saw empty objectives and modules 2-7.
+      // Render before hideWorksheetLoading() so the overlay lifts on full content.
+      if (typeof currentViewId !== 'undefined' && currentViewId === 'preview' && typeof renderPreview === 'function') {
+        try { renderPreview(); } catch(e) { console.warn('[post-load preview]', e && e.message); }
+      }
       calculateProgress();
       updateChecklistBadge();
       hideWorksheetLoading();
@@ -15070,7 +15076,11 @@
     // splits into two subsections: a standard list under "Students will
     // learn / understand", and a "CEPH considerations" list pulling from
     // window.CEPH_REQUIRED_ASSESSMENTS for this course.
-    const clos = activeCourse.clos || [];
+    // Read objectives from the persisted source first — activeCourse.clos /
+    // .flatElos are in-memory caches hydrated during load, and reading them
+    // directly raced the cloud pull for reviewers (empty COs/ELOs). loadField
+    // is the canonical store the rest of the app already falls back to.
+    const clos = loadField('clos') || activeCourse.clos || [];
     const isStphCourse = (typeof _isStphCourse === 'function') && _isStphCourse();
     const cephKey = String(courseId || '').toLowerCase().replace(/\s+/g, '');
     const cephEntry = (isStphCourse && window.CEPH_REQUIRED_ASSESSMENTS)
@@ -15108,8 +15118,8 @@
       html += '</ul>';
     }
 
-    // ELOs
-    const elos = activeCourse.flatElos || [];
+    // ELOs — persisted source first (see COs note above).
+    const elos = loadField('flatElos') || activeCourse.flatElos || [];
     html += '<h2>Expected Learning Outcomes (ELOs)</h2>';
     if (elos.length > 0) {
       html += '<ol>';
