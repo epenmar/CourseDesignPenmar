@@ -6295,6 +6295,18 @@
       }
     }
 
+    // Snap every auto-calculated milestone to the Monday of its week, so the
+    // generated timeline lands on Mondays instead of the launch-date weekday
+    // (Wednesday for most ASU sessions). User-set overrides below keep their
+    // exact chosen date. Re-run the +1-week spread afterward so two dates
+    // can't collapse onto the same Monday.
+    for (let i = 0; i < totalMilestones; i++) dates[i] = mondayBefore(dates[i]);
+    for (let i = 1; i < totalMilestones; i++) {
+      var minMon = new Date(dates[i - 1]); minMon.setDate(minMon.getDate() + 7);
+      if (!summerOk) { while (inSummer(minMon)) minMon.setDate(minMon.getDate() + 7); }
+      if (dates[i] < minMon) dates[i] = new Date(minMon);
+    }
+
     // Apply saved date overrides from localStorage — except when the caller
     // asked for a full recompute (e.g. the summer-availability toggle was flipped).
     const savedDates = forceRecompute ? {} : (loadField('timelineDates') || {});
