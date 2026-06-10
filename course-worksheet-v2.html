@@ -19913,8 +19913,9 @@
     const isDeleted = !!c.deleted_at;
 
     let highlightBadge = '';
-    if (!isThread && c.highlight_text) {
-      const truncated = c.highlight_text.length > 60 ? c.highlight_text.substring(0, 60) + '...' : c.highlight_text;
+    const hlDisplay = commentHighlightDisplay(c);
+    if (!isThread && hlDisplay) {
+      const truncated = hlDisplay.length > 60 ? hlDisplay.substring(0, 60) + '...' : hlDisplay;
       highlightBadge = '<div class="comment-quote" style="margin-bottom:6px;margin-top:0;padding:4px 8px;font-size:11px;cursor:pointer;" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">"' + escapeHtml(truncated) + '"</div>';
     }
 
@@ -19939,6 +19940,28 @@
     '</div>';
   }
 
+  // The text to show as a comment's "Highlighted text" quote. Some field
+  // comments were saved with highlight_text duplicated from the comment body
+  // (the in-field selection wasn't captured at creation, or the field was
+  // rewritten afterward), so the quote read as a copy of the comment. When we
+  // detect that, fall back to the commented field's live content — the true
+  // context that the field-level highlight actually marks.
+  function commentHighlightDisplay(c) {
+    var ht = (c && c.highlight_text) || '';
+    if (!ht) return '';
+    if (ht.trim() === ((c.content || '').trim())) {
+      var anchor = c.highlight_anchor;
+      if (typeof anchor === 'string') { try { anchor = JSON.parse(anchor); } catch (e) { anchor = null; } }
+      if (anchor && anchor.isField && anchor.containerSelector) {
+        try {
+          var el = document.querySelector(anchor.containerSelector);
+          if (el && typeof el.value === 'string' && el.value.trim()) return el.value.trim();
+        } catch (e) {}
+      }
+    }
+    return ht;
+  }
+
   function renderComments(comments, isThread) {
     const msgContainer = document.getElementById('comment-messages');
 
@@ -19961,8 +19984,9 @@
     let html = '';
 
     // For thread view, show the highlight quote from the root comment
-    if (isThread && comments.length > 0 && comments[0].highlight_text) {
-      html += '<div class="comment-quote"><span class="quote-label">Highlighted text</span>"' + escapeHtml(comments[0].highlight_text) + '"</div>';
+    const rootHlDisplay = comments.length > 0 ? commentHighlightDisplay(comments[0]) : '';
+    if (isThread && rootHlDisplay) {
+      html += '<div class="comment-quote"><span class="quote-label">Highlighted text</span>"' + escapeHtml(rootHlDisplay) + '"</div>';
     } else {
       html += quoteHtml;
     }
