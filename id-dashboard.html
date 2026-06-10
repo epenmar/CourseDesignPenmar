@@ -4259,8 +4259,14 @@
           .select('course_id, identity_name, identity_role, total_ms, session_count, last_visit');
       }
       if (r.error) { console.warn('[sessions] load failed:', r.error.message); return; }
+      // Drop known test-reviewer sessions ("Me", "Jk") so they don't surface in
+      // the Reviewers list, the Activity table, or Jira time sync. These were
+      // created while testing the reviewer link, not real reviewers.
+      var TEST_REVIEWER_NAMES = { 'me': true, 'jk': true };
       var bucket = {};
       (r.data || []).forEach(function(row) {
+        var nm = (row.identity_name || '').trim().toLowerCase();
+        if ((row.identity_role || '').toLowerCase() === 'reviewer' && TEST_REVIEWER_NAMES[nm]) return;
         if (!bucket[row.course_id]) bucket[row.course_id] = [];
         bucket[row.course_id].push(row);
       });
