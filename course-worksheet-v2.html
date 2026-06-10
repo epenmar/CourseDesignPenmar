@@ -6260,13 +6260,20 @@
     const launch = new Date(launchStr + 'T00:00:00');
     const summerOk = document.getElementById('summer-toggle').checked;
 
-    // Fixed dates — check for user overrides first, then config, then defaults
-    const savedQa = loadField('fixedDate_qa');
-    const savedLive = loadField('fixedDate_live');
-    const qaDate = savedQa ? new Date(savedQa + 'T00:00:00') :
-      (activeCourse.qaDate ? new Date(activeCourse.qaDate + 'T00:00:00') : (function() { const d = new Date(launch); d.setDate(d.getDate() - 28); return d; })());
-    const liveDate = savedLive ? new Date(savedLive + 'T00:00:00') :
-      (function() { const d = new Date(launch); d.setDate(d.getDate() - 3); return d; })();
+    // Parse a stored/config date string into a valid Date, or null if it's
+    // missing/malformed — so a junk value (empty, "undefined", a partial
+    // date) doesn't produce an Invalid Date that later throws "Invalid time
+    // value" when formatted and blanks the whole timeline.
+    var _validDate = function(s) {
+      if (!s || typeof s !== 'string') return null;
+      var d = new Date(s + 'T00:00:00');
+      return isNaN(d.getTime()) ? null : d;
+    };
+    var _shiftDays = function(base, n) { var d = new Date(base); d.setDate(d.getDate() + n); return d; };
+
+    // Fixed dates — user override → config → backward-design default off launch.
+    const qaDate = _validDate(loadField('fixedDate_qa')) || _validDate(activeCourse.qaDate) || _shiftDays(launch, -28);
+    const liveDate = _validDate(loadField('fixedDate_live')) || _shiftDays(launch, -3);
 
     // Always backward-compute from the QA date so the schedule reflects the
     // current session + summer setting. The previous behavior preferred a
@@ -6310,8 +6317,9 @@
     const savedDates = forceRecompute ? {} : (loadField('timelineDates') || {});
     for (const [idx, val] of Object.entries(savedDates)) {
       const i = parseInt(idx);
-      if (i >= 0 && i < totalMilestones && val) {
-        dates[i] = new Date(val + 'T00:00:00');
+      if (i >= 0 && i < totalMilestones) {
+        var ov = _validDate(val);
+        if (ov) dates[i] = ov; // ignore malformed saved overrides
       }
     }
 
@@ -6540,6 +6548,7 @@
   }
 
   function prettyDate(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return '';
     return 'Wk of ' + (d.getMonth() + 1) + '/' + d.getDate();
   }
 
@@ -6552,6 +6561,7 @@
   }
 
   function fmt(d) {
+    if (!(d instanceof Date) || isNaN(d.getTime())) return '';
     return d.toISOString().split('T')[0];
   }
 
