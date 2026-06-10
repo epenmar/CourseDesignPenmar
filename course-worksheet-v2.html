@@ -3405,7 +3405,7 @@
   // ===== MATERIAL BLOCK HTML GENERATOR =====
   function buildMaterialBlockHtml(mat, moduleNum) {
     const id = mat.id;
-    const types = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
+    const types = ['Reading', 'Video', 'Audio', 'Slides', 'Resource', 'Interactive', 'Other'];
     // Leading blank option so the content type is an explicit choice.
     let typeOptions = '<option value=""' + (!mat.type ? ' selected' : '') + '>— Select type —</option>';
     for (let i = 0; i < types.length; i++) {
@@ -8661,7 +8661,7 @@
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
     var matSavedMods = loadField('moduleOverviewData') || {};
-    var matTypes = ['Reading', 'Video', 'Audio', 'Interactive', 'Other'];
+    var matTypes = ['Reading', 'Video', 'Audio', 'Slides', 'Resource', 'Interactive', 'Other'];
 
     function buildTypeOptions(selected) {
       // Leading blank option so a material's content type is an explicit
