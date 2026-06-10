@@ -15414,10 +15414,15 @@
           html += '<tr style="' + rowBg + '">';
           html += '<td style="padding:4px 6px; border:1px solid #ddd; font-weight:600; color:#8c1d40; white-space:nowrap;">MLO ' + esc(mloId) + '</td>';
           html += '<td style="padding:4px 6px; border:1px solid #ddd; color:#555;">' + esc(mloText.substring(0, 120)) + (mloText.length > 120 ? '…' : '') + '</td>';
+          // Bullet multiple activities in one cell (matches Module Design).
+          // Same literal "• " + hanging-indent paragraph the .docx export
+          // already renders correctly there; a single activity stays inline.
           html += '<td style="padding:4px 6px; border:1px solid #ddd;">'
-            + (acts.length > 0
-                ? acts.map(esc).join(', ')
-                : '<span style="color:#c0392b; font-style:italic;">No activities tagged</span>')
+            + (acts.length > 1
+                ? acts.map(function(a) { return '<p style="margin:0 0 2px 0; padding-left:12pt; text-indent:-10pt; line-height:1.4;">• ' + esc(a) + '</p>'; }).join('')
+                : (acts.length === 1
+                    ? esc(acts[0])
+                    : '<span style="color:#c0392b; font-style:italic;">No activities tagged</span>'))
             + '</td>';
           html += '</tr>';
         });
