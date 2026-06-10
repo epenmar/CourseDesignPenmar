@@ -3529,9 +3529,17 @@
         try {
           var localBlob = JSON.parse(localStorage.getItem(storageKey) || '{}');
           var cloudBlob = r.data.data;
-          var mergedBlob = (typeof mergeWorksheetBlobs === 'function')
-            ? mergeWorksheetBlobs(localBlob, cloudBlob)
-            : cloudBlob;
+          // Reviewers are read-only and have no local edits worth preserving.
+          // Take the cloud copy verbatim — never merge — so a stale/empty local
+          // blob (e.g. an earlier session that cached an empty moduleOverviewData
+          // with a newer timestamp) can't win the merge and blank out the
+          // preview. This also heals any localStorage already corrupted that way.
+          var isReviewerSession = (typeof _isReviewer === 'function' && _isReviewer());
+          var mergedBlob = isReviewerSession
+            ? cloudBlob
+            : ((typeof mergeWorksheetBlobs === 'function')
+                ? mergeWorksheetBlobs(localBlob, cloudBlob)
+                : cloudBlob);
           localStorage.setItem(storageKey, JSON.stringify(mergedBlob));
           // If local was newer for any key, queue a push so the cloud
           // catches up rather than letting local-only edits sit forever.
@@ -6858,6 +6866,15 @@
   }
 
   function saveField(key, value) {
+    // Reviewers are strictly read-only. Their forced early showView('preview')
+    // fires saveModuleOverviewSync()/_doSaveAllFields() while the cloud fetch is
+    // still in flight; on a fresh browser that wrote an empty moduleOverviewData
+    // ({}) with a *current* timestamp, which then beat the populated cloud copy
+    // in the pre-merge (newer-wins) and wiped modules 2-7 from their preview.
+    // Suppressing all worksheet writes for reviewers keeps the pulled cloud copy
+    // intact. The pull persists via direct setItem (not saveField) and comments
+    // go through Supabase, so nothing a reviewer needs is affected.
+    if (typeof _isReviewer === 'function' && _isReviewer()) return;
     try {
       const data = JSON.parse(localStorage.getItem(storageKey) || '{}');
       // Data-loss guard: refuse to overwrite a populated destructive-key with
