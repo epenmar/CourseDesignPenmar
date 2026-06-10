@@ -15419,7 +15419,7 @@
           // already renders correctly there; a single activity stays inline.
           html += '<td style="padding:4px 6px; border:1px solid #ddd;">'
             + (acts.length > 1
-                ? acts.map(function(a) { return '<p style="margin:0 0 2px 0; padding-left:12pt; text-indent:-10pt; line-height:1.4;">• ' + esc(a) + '</p>'; }).join('')
+                ? acts.map(function(a) { return '<p style="margin:0 0 2px 0; padding-left:12pt; text-indent:-10pt; line-height:1.4; font-size:11px;">• ' + esc(a) + '</p>'; }).join('')
                 : (acts.length === 1
                     ? esc(acts[0])
                     : '<span style="color:#c0392b; font-style:italic;">No activities tagged</span>'))
