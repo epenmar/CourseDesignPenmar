@@ -2831,6 +2831,13 @@
     if (typeof refreshAllContentIndicators === 'function') {
       try { refreshAllContentIndicators(); } catch(e) {}
     }
+    // Keep the CEPH required-assessments alert's live coverage (which
+    // assignments are tagged to each competency) in sync on every tag change.
+    // Cheap + idempotent: no-ops off STPH courses or when the host is absent,
+    // and it only rewrites its own host so an open objective picker is untouched.
+    if (typeof _renderCephAssessmentAlert === 'function') {
+      try { _renderCephAssessmentAlert(); } catch(e) {}
+    }
   }
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
@@ -8442,6 +8449,28 @@
       + '<span class="ceph-alert-meta">' + escapeHtml(entry.courseLabel) + ' · ' + summary.join(' + ') + ' competencies</span>'
       + '</summary>';
     html += '<div class="ceph-alert-body">';
+    // Map each competency (framework + id) to the assignments the faculty has
+    // actually tagged with it, so the requirement list reflects live coverage.
+    // Scanned from courseActivities; keyed "CEPH 12" / "UOEEE 1" (variant-
+    // agnostic so a tag and its required row still match).
+    var cephTaggedByComp = {};
+    var _cStartNum = activeCourse.moduleStartZero ? 0 : 1;
+    var _cModCount = activeCourse.moduleCount || 7;
+    for (var _cm = _cStartNum; _cm < _cStartNum + _cModCount; _cm++) {
+      (courseActivities[_cm] || []).forEach(function(act) {
+        (act.objectives || []).forEach(function(objId) {
+          if (!_isCephTag(objId)) return;
+          var p = _parseCephTag(objId);
+          if (!p) return;
+          var ck = p.fw + ' ' + p.cId;
+          if (!cephTaggedByComp[ck]) cephTaggedByComp[ck] = [];
+          var nm = (act.name || '').trim() || '(untitled assignment)';
+          if (!cephTaggedByComp[ck].some(function(x) { return x.name === nm && x.mod === _cm; })) {
+            cephTaggedByComp[ck].push({ name: nm, mod: _cm });
+          }
+        });
+      });
+    }
     // Group by (module + assignment title) so an assignment that
     // satisfies multiple competencies (e.g., TPH 501 Module 8 covers
     // both CEPH 2 and CEPH 3) collapses into a single visual block
@@ -8480,10 +8509,19 @@
       g.items.forEach(function(it) {
         var competencyText = (texts[it.fw] && texts[it.fw][it.cId]) || '';
         var competencyTag = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
+        var tagged = cephTaggedByComp[it.fw + ' ' + it.cId] || [];
         html += '<div class="ceph-alert-row">';
         html += '<div class="ceph-alert-tag">' + escapeHtml(competencyTag) + '</div>';
         html += '<div class="ceph-alert-rowtext">';
         html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
+        // Live coverage: assignments the faculty has tagged with this competency.
+        if (tagged.length) {
+          html += '<div style="margin-top:3px; font-size:11px; color:#2d7d46;">✓ Tagged: '
+            + tagged.map(function(t) { return '<strong>' + escapeHtml(t.name) + '</strong> · Module ' + escapeHtml(String(t.mod)); }).join('; ')
+            + '</div>';
+        } else {
+          html += '<div style="margin-top:3px; font-size:11px; color:#c0392b; font-style:italic;">Not yet tagged to an assignment</div>';
+        }
         html += '</div>';
         html += '</div>';
       });
