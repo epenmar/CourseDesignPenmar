@@ -19770,38 +19770,67 @@
   }
 
   // ===== COLLEGE-DEFAULT COURSE POLICIES =====
-  // Default starter text for the Course Info policy fields, drawn from the ASU
-  // Online syllabus template. Keyed by college so a school with different
-  // standard language can override just its entry; everything falls back to
-  // _default. The faculty can edit or clear any of these after they're seeded.
+  // Default starter text for the Course Info policy fields, taken from each
+  // college's syllabus template (see syllabus-templates/ for the sources).
+  // Keyed by activeCourse.college; any field a college omits falls back to
+  // _default (the generic ASU Online template). STPH and CHS share language —
+  // the STPH template was drafted by CHS. The faculty can edit or clear any of
+  // these after they're seeded.
   var COLLEGE_POLICY_DEFAULTS = {
     _default: {
       'syl-late-policy': 'When possible, notify the instructor before coursework is due. If an urgent situation or emergency arises and you are unable to submit coursework on time, please communicate with your advisor, success coach, and instructor as soon as possible.\n\nFollow the appropriate University policies to request an accommodation for religious practices or to accommodate a missed assignment due to University-sanctioned activities.',
       'syl-classroom-behavior': 'An instructor may withdraw a student from a course with a mark of "W" or "E" or employ other interventions when the student\'s behavior disrupts the educational process (see SSM 201–10).\n\nIf you identify something as unacceptable classroom behavior (e.g., in Canvas, Ed Discussion, Zoom, etc.), please notify your instructor immediately or as soon as possible.\n\nOur classroom community rules are to:\n• Be professional\n• Be positive\n• Be polite\n• Be proactive',
       'syl-attendance': 'There are no required or mandatory attendance events in this online course. Different types of Zoom meetings hosted by any course team member do not take attendance.\n\nExcused absences do not relieve students of responsibility for any part of the coursework required during the period of absence. If exceptions for graded coursework deadlines need to be made for known excused absences, please reach out to your instructor by the end of the second week of the course. Review availability windows and due dates for coursework and schedule accordingly.'
+    },
+    STPH: {
+      'syl-late-policy': 'Notify the instructor BEFORE an assignment is due if an urgent situation arises and you are unable to submit the assignment on time.',
+      'syl-classroom-behavior': 'Disruptive and violent behavior is not tolerated. Read more about this policy in the ASU Policies section.',
+      'syl-attendance': 'Some absences are excused in accordance with ASU policy. They include accommodations for religious practices, University-sanctioned activities, and death of a family member. Read more about university-excused absences in the ASU Policies section.'
+    },
+    CHS: {
+      'syl-late-policy': 'Notify the instructor BEFORE an assignment is due if an urgent situation arises and you are unable to submit the assignment on time.',
+      'syl-classroom-behavior': 'Disruptive and violent behavior is not tolerated. Read more about this policy in the ASU Policies section.',
+      'syl-attendance': 'Some absences are excused in accordance with ASU policy. They include accommodations for religious practices, University-sanctioned activities, and death of a family member. Read more about university-excused absences in the ASU Policies section.'
+    },
+    NCIAS: {
+      // No standard late-policy text in the NCIAS template — falls back to _default.
+      'syl-classroom-behavior': 'In the classroom and out, students are required to conduct themselves in a manner that promotes an environment that is safe and conducive to learning and conducting other university-related business. All incidents and allegations of violent or threatening conduct by an ASU student will be reported to the ASU Police Department (ASU PD) and the Office of the Dean of Students. Such incidents will be dealt with in accordance with the policies and procedures described in Section 104-02 of the Student Services Manual.',
+      'syl-attendance': 'In addition to the instructor\'s general policy on absences and missed work, excused absences and conditions for making up work include Accommodation of Religious Practices and Missed Classes Due to University-Sanctioned Activities. Students must notify their instructors of these absences as early as possible in the semester.\n\nNon-attendance will NOT automatically result in being dropped from the course. It is the student\'s responsibility to be aware of their registration status.'
     }
   };
 
-  // Seed empty policy fields with the college's default text the first time a
-  // course loads. Tracked by a one-shot flag so re-running never clobbers
-  // edits — or an intentional clear — the faculty made afterward.
+  // Seed the Course Info policy fields with the college's default text.
+  // - First load (not yet seeded): fill any empty field, then set the flag.
+  // - Later loads: never re-fill an empty field (respects an intentional clear),
+  //   but DO upgrade a field still holding an unedited default from a different
+  //   college (e.g. a course seeded with the generic text before per-college
+  //   text existed) to the correct college default. User-written text is never
+  //   touched — only values that exactly match one of our known defaults.
   function applyCollegePolicyDefaults() {
     try {
-      if (loadField('policyDefaultsApplied')) return;
       var college = (activeCourse && activeCourse.college) || '';
-      var defaults = COLLEGE_POLICY_DEFAULTS[college] || COLLEGE_POLICY_DEFAULTS._default;
+      var defaults = Object.assign({}, COLLEGE_POLICY_DEFAULTS._default, COLLEGE_POLICY_DEFAULTS[college] || {});
+      var known = {};
+      Object.keys(COLLEGE_POLICY_DEFAULTS).forEach(function(k) {
+        var g = COLLEGE_POLICY_DEFAULTS[k];
+        Object.keys(g).forEach(function(fid) { known[g[fid]] = true; });
+      });
+      var seeded = !!loadField('policyDefaultsApplied');
       var fd = loadField('formData') || {};
       Object.keys(defaults).forEach(function(id) {
-        var existing = (fd[id] != null ? String(fd[id]) : '');
+        var desired = defaults[id];
+        if (!desired) return;
         var el = document.getElementById(id);
-        if (el && el.value && el.value.trim()) existing = el.value;
-        if (!existing.trim() && defaults[id]) {
-          if (typeof setFieldValue === 'function') setFieldValue(id, defaults[id]);
-          else if (el) { el.value = defaults[id]; }
+        var cur = (el && el.value) ? el.value : (fd[id] != null ? String(fd[id]) : '');
+        var isEmpty = !cur.trim();
+        var isUneditedDefault = !isEmpty && !!known[cur] && cur !== desired;
+        if ((!seeded && isEmpty) || isUneditedDefault) {
+          if (typeof setFieldValue === 'function') setFieldValue(id, desired);
+          else if (el) { el.value = desired; }
           if (el && typeof autoResize === 'function') autoResize(el);
         }
       });
-      saveField('policyDefaultsApplied', true);
+      if (!seeded) saveField('policyDefaultsApplied', true);
     } catch (e) { console.warn('[policy defaults]', e && e.message); }
   }
 

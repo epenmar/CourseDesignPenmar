@@ -2,3 +2,6 @@
 scripts/backups/
 sync-server.log
 *.log
+# Reference-only: college syllabus templates used to source policy defaults.
+# Kept local (not committed) so internal ASU docs aren't served by GitHub Pages.
+syllabus-templates/
