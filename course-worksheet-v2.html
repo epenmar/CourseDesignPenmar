@@ -1864,7 +1864,18 @@
           <div class="card" style="padding:16px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h4 style="margin:0; font-size:14px;">Expected Learning Outcomes (ELOs)</h4>
-              <button class="elo-add-btn" onclick="addElo()">+ Add ELO</button>
+              <div style="display:flex; gap:6px;">
+                <button class="elo-add-btn" onclick="toggleBatchObjectives('elo')" title="Paste several objectives at once" style="background:#fafaf7;">📋 Paste batch</button>
+                <button class="elo-add-btn" onclick="addElo()">+ Add ELO</button>
+              </div>
+            </div>
+            <div id="elo-batch-panel" style="display:none; margin-bottom:12px; padding:12px; background:#fafaf7; border:1px solid #e0ddd5; border-radius:8px;">
+              <div style="font-size:12px; color:#666; margin-bottom:6px;">Paste one objective per line (or a numbered/bulleted list — markers are stripped automatically). Each becomes its own ELO.</div>
+              <textarea id="elo-batch-input" rows="5" style="width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical; box-sizing:border-box;" placeholder="1. Evaluate landmark public health law cases&#10;2. Analyze constitutional frameworks&#10;..."></textarea>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="elo-add-btn" onclick="commitBatchObjectives('elo')">Add objectives</button>
+                <button class="elo-remove-btn" style="width:auto; padding:6px 12px; border-radius:6px;" onclick="toggleBatchObjectives('elo')">Cancel</button>
+              </div>
             </div>
             <div id="elo-list"></div>
           </div>
@@ -1874,7 +1885,18 @@
           <div class="card" style="padding:16px; margin-bottom:16px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
               <h4 style="margin:0; font-size:14px;">Course Objectives (COs)</h4>
-              <button class="elo-add-btn" onclick="addClo()">+ Add CO</button>
+              <div style="display:flex; gap:6px;">
+                <button class="elo-add-btn" onclick="toggleBatchObjectives('clo')" title="Paste several objectives at once" style="background:#fafaf7;">📋 Paste batch</button>
+                <button class="elo-add-btn" onclick="addClo()">+ Add CO</button>
+              </div>
+            </div>
+            <div id="clo-batch-panel" style="display:none; margin-bottom:12px; padding:12px; background:#fafaf7; border:1px solid #e0ddd5; border-radius:8px;">
+              <div style="font-size:12px; color:#666; margin-bottom:6px;">Paste one objective per line (or a numbered/bulleted list — markers are stripped automatically). Each becomes its own CO.</div>
+              <textarea id="clo-batch-input" rows="5" style="width:100%; padding:8px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-family:Inter,sans-serif; resize:vertical; box-sizing:border-box;" placeholder="1. Apply core public health frameworks&#10;2. ...&#10;..."></textarea>
+              <div style="display:flex; gap:8px; margin-top:8px;">
+                <button class="elo-add-btn" onclick="commitBatchObjectives('clo')">Add objectives</button>
+                <button class="elo-remove-btn" style="width:auto; padding:6px 12px; border-radius:6px;" onclick="toggleBatchObjectives('clo')">Cancel</button>
+              </div>
             </div>
             <div id="clo-list"></div>
           </div>
@@ -13442,6 +13464,65 @@
     renderCloList();
     renderAlignmentMatrix();
     setTimeout(function() { var el = document.getElementById('clo-' + (activeCourse.clos.length - 1)); if (el) el.focus(); }, 50);
+  }
+
+  // ===== BATCH-ADD OBJECTIVES (paste several at once) =====
+  function toggleBatchObjectives(kind) {
+    var panel = document.getElementById(kind + '-batch-panel');
+    if (!panel) return;
+    var show = panel.style.display === 'none' || !panel.style.display;
+    panel.style.display = show ? 'block' : 'none';
+    if (show) { var ta = document.getElementById(kind + '-batch-input'); if (ta) { ta.value = ''; ta.focus(); } }
+  }
+
+  // Split pasted text into individual objectives. Handles plain one-per-line
+  // text and numbered/bulleted lists (markers stripped; lines that wrap under
+  // a marker are joined back onto that item).
+  function _parseObjectivesBatch(raw) {
+    if (!raw || !raw.trim()) return [];
+    var lines = raw.split(/\r?\n/);
+    var markerRe = /^\s*(?:\(?\d+[\.\)]|[-*•‣◦·▪►–])\s+/;
+    var hasMarkers = lines.filter(function(l) { return l.trim(); }).some(function(l) { return markerRe.test(l); });
+    var items = [];
+    if (hasMarkers) {
+      var cur = null;
+      lines.forEach(function(l) {
+        if (!l.trim()) return;
+        if (markerRe.test(l)) {
+          if (cur != null) items.push(cur);
+          cur = l.replace(markerRe, '').trim();
+        } else {
+          cur = (cur == null ? l.trim() : cur + ' ' + l.trim());
+        }
+      });
+      if (cur != null) items.push(cur);
+    } else {
+      items = lines.map(function(l) { return l.trim(); }).filter(Boolean);
+    }
+    return items.map(function(s) { return s.trim(); }).filter(Boolean);
+  }
+
+  function commitBatchObjectives(kind) {
+    var ta = document.getElementById(kind + '-batch-input');
+    if (!ta) return;
+    var items = _parseObjectivesBatch(ta.value);
+    if (!items.length) { alert('No objectives found — paste one per line, then try again.'); return; }
+    captureUndoState('batch add ' + (kind === 'elo' ? 'ELOs' : 'COs'));
+    if (kind === 'elo') {
+      saveEloState();
+      migrateToDecoupledObjectives();
+      if (!activeCourse.flatElos) activeCourse.flatElos = [];
+      items.forEach(function(t) { activeCourse.flatElos.push(t); });
+      renderEloList();
+    } else {
+      saveCloState();
+      if (!activeCourse.clos) activeCourse.clos = [];
+      items.forEach(function(t) { activeCourse.clos.push(t); });
+      renderCloList();
+    }
+    saveObjectivesState();
+    renderAlignmentMatrix();
+    toggleBatchObjectives(kind);
   }
 
   function removeClo(idx) {
