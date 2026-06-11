@@ -524,8 +524,16 @@
   /* One assignment-group per row in the alert: the assignment title +
      module pill on top, the competencies the assignment satisfies
      stacked below. Sorted by module number, not by competency. */
-  .ceph-group { margin-top: 10px; padding: 8px 10px; background: #fff; border: 1px solid #ffe082; border-radius: 6px; }
+  .ceph-group { margin-top: 10px; padding: 8px 10px; background: #fff; border: 1px solid #ffe082; border-radius: 6px; display: flex; align-items: stretch; gap: 10px; }
   .ceph-group:first-child { margin-top: 4px; }
+  /* Coverage square to the left of each requirement card: green when every
+     competency in the card is tagged to an assignment, amber when some are,
+     red outline when none. Hover for the tagged assignment names. */
+  .ceph-status-square { flex-shrink: 0; width: 18px; height: 18px; border-radius: 3px; box-sizing: border-box; margin-top: 2px; cursor: default; }
+  .ceph-status-square.tagged   { background: #2d7d46; border: 1px solid #2d7d46; }
+  .ceph-status-square.partial  { background: #f0ad4e; border: 1px solid #d98e2b; }
+  .ceph-status-square.untagged { background: #fff; border: 2px solid #e0a3a3; }
+  .ceph-group-main { flex: 1; min-width: 0; }
   .ceph-group-head { display: flex; align-items: flex-start; gap: 12px; }
   .ceph-group-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #2a2a2a; line-height: 1.4; }
   .ceph-group-mod {
@@ -4383,8 +4391,11 @@
 
     // One row per ELO
     elos.forEach(function(elo, i) {
-      html += '<tr><td style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:11px; white-space:nowrap; position:sticky; left:0; z-index:2; box-shadow:2px 0 3px -1px rgba(0,0,0,0.08);" title="' + escapeHtml(elo) + '">ELO ' + (i+1) + '</td>';
       var eloMlos = alignment[i + ''] || [];
+      // Count only mappings to MLOs that still exist, so the parenthetical
+      // matches the checkmarks actually drawn across the row.
+      var eloTagCount = allMlos.filter(function(m) { return eloMlos.indexOf(m.id) !== -1; }).length;
+      html += '<tr><td style="padding:6px 8px; border:1px solid #e0ddd5; background:#f5f5f0; font-weight:600; color:#8c1d40; font-size:11px; white-space:nowrap; position:sticky; left:0; z-index:2; box-shadow:2px 0 3px -1px rgba(0,0,0,0.08);" title="' + escapeHtml(elo) + '">ELO ' + (i+1) + ' <span style="font-weight:400; color:' + (eloTagCount ? '#888' : '#c0392b') + ';">(' + eloTagCount + ')</span></td>';
       lastMod = 0;
       allMlos.forEach(function(mlo) {
         var checked = eloMlos.indexOf(mlo.id) !== -1;
@@ -8500,7 +8511,26 @@
     groupOrder.forEach(function(k) {
       var g = groups[k];
       var modLabel = (g.mod == null || g.mod === '') ? 'TBD' : ('Module ' + g.mod);
+      // Coverage square to the left of the card: green when every competency
+      // in it is tagged to an assignment, amber when some are, red outline when
+      // none. The faculty's tagged assignment names live in the square tooltip.
+      var totalComps = g.items.length;
+      var taggedComps = 0;
+      var tipLines = [];
+      g.items.forEach(function(it) {
+        var tg = cephTaggedByComp[it.fw + ' ' + it.cId] || [];
+        var tagName = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
+        if (tg.length) {
+          taggedComps++;
+          tipLines.push(tagName + ' → ' + tg.map(function(t) { return t.name + ' · Module ' + t.mod; }).join(', '));
+        } else {
+          tipLines.push(tagName + ' → not yet tagged');
+        }
+      });
+      var coverClass = taggedComps === 0 ? 'untagged' : (taggedComps === totalComps ? 'tagged' : 'partial');
       html += '<div class="ceph-group">';
+      html += '<div class="ceph-status-square ' + coverClass + '" title="' + escapeHtml(tipLines.join('\n')) + '"></div>';
+      html += '<div class="ceph-group-main">';
       html += '<div class="ceph-group-head">';
       html += '<div class="ceph-group-title">' + escapeHtml(g.title || '(untitled)') + '</div>';
       html += '<div class="ceph-group-mod">' + escapeHtml(modLabel) + '</div>';
@@ -8509,24 +8539,16 @@
       g.items.forEach(function(it) {
         var competencyText = (texts[it.fw] && texts[it.fw][it.cId]) || '';
         var competencyTag = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
-        var tagged = cephTaggedByComp[it.fw + ' ' + it.cId] || [];
         html += '<div class="ceph-alert-row">';
         html += '<div class="ceph-alert-tag">' + escapeHtml(competencyTag) + '</div>';
         html += '<div class="ceph-alert-rowtext">';
         html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
-        // Live coverage: assignments the faculty has tagged with this competency.
-        if (tagged.length) {
-          html += '<div style="margin-top:3px; font-size:11px; color:#2d7d46;">✓ Tagged: '
-            + tagged.map(function(t) { return '<strong>' + escapeHtml(t.name) + '</strong> · Module ' + escapeHtml(String(t.mod)); }).join('; ')
-            + '</div>';
-        } else {
-          html += '<div style="margin-top:3px; font-size:11px; color:#c0392b; font-style:italic;">Not yet tagged to an assignment</div>';
-        }
         html += '</div>';
         html += '</div>';
       });
-      html += '</div>';
-      html += '</div>';
+      html += '</div>'; // ceph-group-comps
+      html += '</div>'; // ceph-group-main
+      html += '</div>'; // ceph-group
     });
     html += '</div></details></div>';
     host.innerHTML = html;
