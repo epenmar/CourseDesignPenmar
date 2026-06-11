@@ -3799,6 +3799,9 @@
 
     setTimeout(function() {
       if (typeof restoreAllFields === 'function') restoreAllFields();
+      // Seed college-default policy text into empty Course Info policy fields
+      // (one-shot per course). After restore so it only fills genuinely-empty ones.
+      if (typeof applyCollegePolicyDefaults === 'function') applyCollegePolicyDefaults();
       // Now that the pull, objective/module hydration, and restoreAllFields
       // have all run, re-render the Document Preview if it's the active view
       // (the reviewer's only view). Earlier renders during load caught COs,
@@ -19645,6 +19648,42 @@
     };
     var ta = document.getElementById('syl-ai-policy');
     if (ta && texts[choice]) { ta.value = texts[choice]; autoResize(ta); }
+  }
+
+  // ===== COLLEGE-DEFAULT COURSE POLICIES =====
+  // Default starter text for the Course Info policy fields, drawn from the ASU
+  // Online syllabus template. Keyed by college so a school with different
+  // standard language can override just its entry; everything falls back to
+  // _default. The faculty can edit or clear any of these after they're seeded.
+  var COLLEGE_POLICY_DEFAULTS = {
+    _default: {
+      'syl-late-policy': 'When possible, notify the instructor before coursework is due. If an urgent situation or emergency arises and you are unable to submit coursework on time, please communicate with your advisor, success coach, and instructor as soon as possible.\n\nFollow the appropriate University policies to request an accommodation for religious practices or to accommodate a missed assignment due to University-sanctioned activities.',
+      'syl-classroom-behavior': 'An instructor may withdraw a student from a course with a mark of "W" or "E" or employ other interventions when the student\'s behavior disrupts the educational process (see SSM 201–10).\n\nIf you identify something as unacceptable classroom behavior (e.g., in Canvas, Ed Discussion, Zoom, etc.), please notify your instructor immediately or as soon as possible.\n\nOur classroom community rules are to:\n• Be professional\n• Be positive\n• Be polite\n• Be proactive',
+      'syl-attendance': 'There are no required or mandatory attendance events in this online course. Different types of Zoom meetings hosted by any course team member do not take attendance.\n\nExcused absences do not relieve students of responsibility for any part of the coursework required during the period of absence. If exceptions for graded coursework deadlines need to be made for known excused absences, please reach out to your instructor by the end of the second week of the course. Review availability windows and due dates for coursework and schedule accordingly.'
+    }
+  };
+
+  // Seed empty policy fields with the college's default text the first time a
+  // course loads. Tracked by a one-shot flag so re-running never clobbers
+  // edits — or an intentional clear — the faculty made afterward.
+  function applyCollegePolicyDefaults() {
+    try {
+      if (loadField('policyDefaultsApplied')) return;
+      var college = (activeCourse && activeCourse.college) || '';
+      var defaults = COLLEGE_POLICY_DEFAULTS[college] || COLLEGE_POLICY_DEFAULTS._default;
+      var fd = loadField('formData') || {};
+      Object.keys(defaults).forEach(function(id) {
+        var existing = (fd[id] != null ? String(fd[id]) : '');
+        var el = document.getElementById(id);
+        if (el && el.value && el.value.trim()) existing = el.value;
+        if (!existing.trim() && defaults[id]) {
+          if (typeof setFieldValue === 'function') setFieldValue(id, defaults[id]);
+          else if (el) { el.value = defaults[id]; }
+          if (el && typeof autoResize === 'function') autoResize(el);
+        }
+      });
+      saveField('policyDefaultsApplied', true);
+    } catch (e) { console.warn('[policy defaults]', e && e.message); }
   }
 
   function toggleSyllabusExpand(itemId, event) {
