@@ -6856,6 +6856,16 @@
       var hasC = cloud && Object.prototype.hasOwnProperty.call(cloud, k);
       if (hasL && !hasC) { merged[k] = local[k]; return; }
       if (hasC && !hasL) { merged[k] = cloud[k]; return; }
+      // For data-loss-prone keys (CLOs/ELOs/modules/activities/…), never let an
+      // EMPTY value win over a populated one, no matter the timestamp. Pure
+      // newest-wins let a stale tab sitting on an empty in-memory state keep
+      // re-stamping [] and clobbering a good copy (the POP644 re-wipe). When one
+      // side is populated and the other empty, the populated side always wins.
+      if (typeof _SAVE_DESTRUCTIVE_KEYS !== 'undefined' && _SAVE_DESTRUCTIVE_KEYS[k] && typeof _isEffectivelyEmpty === 'function') {
+        var lEmpty = _isEffectivelyEmpty(local[k]);
+        var cEmpty = _isEffectivelyEmpty(cloud[k]);
+        if (lEmpty !== cEmpty) { merged[k] = lEmpty ? cloud[k] : local[k]; return; }
+      }
       var lt = _clampStamp(lMod[k], nowCap);
       var ct = _clampStamp(cMod[k], nowCap);
       merged[k] = lt >= ct ? local[k] : cloud[k];
