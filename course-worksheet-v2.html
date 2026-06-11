@@ -6933,6 +6933,16 @@
         console.warn('[saveField] refusing to wipe populated "' + key + '" with empty value');
         return;
       }
+      // Second data-loss guard: never write an EMPTY destructive-key before the
+      // cloud pull has completed. On a fresh browser localStorage is empty, so
+      // the guard above can't fire — but an empty save here lands a *current*
+      // timestamp that then beats the populated cloud copy in the pre-push
+      // merge (newer-wins) and pushes the wipe back to everyone. Until the pull
+      // hydrates real data, we have nothing worth persisting empty over.
+      if (_SAVE_DESTRUCTIVE_KEYS[key] && _isEffectivelyEmpty(value) && !window._cloudPullComplete) {
+        console.warn('[saveField] suppressing empty "' + key + '" write before cloud pull completed');
+        return;
+      }
       data[key] = value;
       // Stamp the per-key modification time so the pre-push merge can decide
       // whether our value or the cloud's value is newer for this field. The
