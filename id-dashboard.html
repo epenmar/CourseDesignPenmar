@@ -6511,7 +6511,26 @@
       });
       var data = await r.json();
       if (r.ok && data.ok) {
-        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Logged ' + human + ' to ' + targetKey + ' ✓'; }
+        // If the user wrote a note, save it to Development Notes flagged as
+        // posted to Jira (as a worklog), so it shows there with the Jira chip.
+        var savedNote = false;
+        if (note.trim()) {
+          var all = readPrivateNotes();
+          var list = all[courseId] || [];
+          list.push({
+            id: 'pn_' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
+            text: '⏱ ' + human + ' — ' + note.trim(),
+            createdAt: new Date().toISOString(),
+            targets: ['jira'],
+            jira: { status: 'posted', epicKey: targetKey, worklogId: data.id, postedAt: new Date().toISOString(), kind: 'worklog' }
+          });
+          all[courseId] = list;
+          savePrivateNotesMap(all);
+          savedNote = true;
+        }
+        if (savedNote && typeof renderDetail === 'function') renderDetail(courseId);
+        var okMsg = document.getElementById('jira-status-msg-' + courseId);
+        if (okMsg) { okMsg.className = 'jira-status-msg ok'; okMsg.textContent = 'Logged ' + human + ' to ' + targetKey + ' ✓' + (savedNote ? ' · saved to Development Notes' : ''); }
       } else {
         if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || 'Unknown'); }
       }
