@@ -977,7 +977,10 @@
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
   .has-field-comment { box-shadow: inset 0 -3px 0 #ffc627; border-left: 3px solid #ffc627 !important; background: #fffde6 !important; }
   .has-field-comment:hover { box-shadow: inset 0 -3px 0 #ffc627, 0 0 0 1px rgba(255,198,39,0.4); }
-  .has-section-comment { border-left: 3px solid #ffc627 !important; }
+  /* A collapsed card/accordion that contains a comment highlights its title in
+     yellow; opening it reveals the actual inline/field highlight inside. The
+     old whole-section left-margin line is gone. */
+  .has-collapsed-comment { background: #fff3b0 !important; border-radius: 4px; box-shadow: 0 0 0 3px #fff3b0; }
   .comment-history-toggle.active { background: #8c1d40 !important; color: #fff !important; border-color: #8c1d40 !important; }
   .highlight-tooltip { position: absolute; z-index: 150; background: #8c1d40; color: #fff; padding: 6px 14px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.2); white-space: nowrap; display: none; font-family: 'Inter', sans-serif; }
   .highlight-tooltip::after { content: ''; position: absolute; top: 100%; left: 50%; transform: translateX(-50%); border: 6px solid transparent; border-top-color: #8c1d40; }
@@ -9578,6 +9581,9 @@
       }, 20);
     }
     saveAccordionStates();
+    // Move comment highlights between the card title (collapsed) and the actual
+    // commented element (expanded). Defer a tick so layout reflects the toggle.
+    if (typeof applyCollapsedCommentHeaders === 'function') setTimeout(applyCollapsedCommentHeaders, 30);
   }
 
   function toggleAI() {
@@ -20121,14 +20127,28 @@
         if (sel) mark = document.querySelector(sel);
       }
       if (mark) {
-        mark.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        // Open any collapsed card / closed <details> around the target so the
+        // highlighted comment is actually visible, then refresh title proxies.
+        var anc = mark;
+        while (anc && anc !== document.body) {
+          if (anc.tagName === 'DETAILS' && !anc.open) anc.open = true;
+          if (anc.classList && anc.classList.contains('card-body') && anc.classList.contains('collapsed')) {
+            anc.classList.remove('collapsed');
+            var hdr = anc.previousElementSibling;
+            var tg = (hdr && hdr.querySelector) ? hdr.querySelector('.card-toggle') : null;
+            if (tg) tg.classList.add('open');
+          }
+          anc = anc.parentElement;
+        }
+        if (typeof applyCollapsedCommentHeaders === 'function') applyCollapsedCommentHeaders();
+        mark.scrollIntoView({ behavior: 'smooth', block: 'center' });
         // Flash the element so the user knows where the comment lives.
         var prev = mark.style.boxShadow;
         mark.style.transition = 'box-shadow 0.3s, background 0.3s';
         mark.style.boxShadow = '0 0 0 3px rgba(255, 224, 102, 0.9)';
         setTimeout(function() { mark.style.boxShadow = prev || ''; }, 1800);
       }
-    }, 500);
+    }, 300);
   }
 
   // Human-readable label for a section_id. Module sections come through as 'module-1', etc.
@@ -20770,21 +20790,41 @@
         } catch(e) {}
       });
 
-      // Apply section-level highlight (yellow left border on the section's card/container)
-      if (hasUnresolved) {
-        var selector = sectionViewMap[sectionId];
-        if (selector) {
-          document.querySelectorAll(selector).forEach(function(el) {
-            el.classList.add('has-section-comment');
-          });
-        }
-        // Module-specific sections (module-1, module-2, etc.)
-        var modMatch = sectionId.match(/^module-(\d+)$/);
-        if (modMatch) {
-          var modCard = document.querySelector('#view-module .card, [data-module-num="' + modMatch[1] + '"]');
-          if (modCard) modCard.classList.add('has-section-comment');
-        }
+    });
+
+    // Removed the whole-section left-margin line. Instead, surface comments by
+    // highlighting the title of any collapsed card/accordion that contains one.
+    applyCollapsedCommentHeaders();
+  }
+
+  // Walk up from a commented element to the nearest COLLAPSED container
+  // (card-body.collapsed or a closed <details>) and return its clickable
+  // title/summary, or null if nothing above it is collapsed (i.e. the comment
+  // is already visible).
+  function _collapsedHeaderFor(el) {
+    var node = el && el.parentElement;
+    while (node && node !== document.body) {
+      if (node.classList && node.classList.contains('card-body') && node.classList.contains('collapsed')) {
+        var card = node.closest('.card');
+        return card ? (card.querySelector('.card-title') || card.querySelector('.card-header')) : null;
       }
+      if (node.tagName === 'DETAILS' && !node.open) {
+        return node.querySelector('summary');
+      }
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  // Highlight the title of every collapsed card/accordion that hides a comment.
+  // Runs after the field/inline highlight passes and on every card/details toggle.
+  function applyCollapsedCommentHeaders() {
+    document.querySelectorAll('.has-collapsed-comment').forEach(function(el) { el.classList.remove('has-collapsed-comment'); });
+    document.querySelectorAll('.has-field-comment, .inline-highlight').forEach(function(m) {
+      if (m.classList.contains('resolved')) return;
+      if (m.offsetParent !== null) return; // already visible — no title proxy needed
+      var header = _collapsedHeaderFor(m);
+      if (header) header.classList.add('has-collapsed-comment');
     });
   }
 
@@ -21117,7 +21157,17 @@
         }
       });
     } catch(e) { console.error('Failed to load highlights:', e); }
+    // Inline highlights inside a collapsed card show via its title until opened.
+    if (typeof applyCollapsedCommentHeaders === 'function') applyCollapsedCommentHeaders();
   }
+
+  // Any <details> open/close (e.g. the CEPH required-assessments accordion)
+  // should move a contained comment's highlight between its summary and body.
+  document.addEventListener('toggle', function(e) {
+    if (e.target && e.target.tagName === 'DETAILS' && typeof applyCollapsedCommentHeaders === 'function') {
+      setTimeout(applyCollapsedCommentHeaders, 20);
+    }
+  }, true);
 
   // ===== COMMENT BUTTON (global, in sidebar header) =====
   function injectCommentButtons() {
