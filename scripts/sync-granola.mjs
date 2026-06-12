@@ -289,8 +289,16 @@ function parseNote(detail) {
     // Strip leading markdown bold/italic so "**Faculty member**: …"
     // classifies on the inner text.
     const naked = text.replace(/^[*_]+/, '').replace(/^[*_]+:/, ':');
+    // Some notes mark the owner with a TRAILING parenthetical ("... (Elisa)" /
+    // "... (professor)") instead of a leading "Name:" prefix. Honor that first:
+    // "(Elisa)" is the ID; any other short name/role is the faculty member.
+    const trail = text.match(/\(([^)]{1,40})\)\s*$/);
+    const owner = trail ? trail[1].trim().toLowerCase() : '';
     let who = 'faculty';
-    if (ID_PREFIXES.test(naked)) who = 'id';
+    if (/^(elisa(?:\s+penmar)?|penmar|id|me)$/.test(owner)) who = 'id';
+    else if (owner && /^(professor|prof|faculty|instructor|teacher)$/.test(owner)) who = 'faculty';
+    else if (owner && /^[a-z][a-z.'-]*(?:\s+[a-z][a-z.'-]*){0,2}$/.test(owner)) who = 'faculty';
+    else if (ID_PREFIXES.test(naked)) who = 'id';
     else if (/^(faculty|instructor)\b/i.test(naked)) who = 'faculty';
     else if (FACULTY_PREFIX.test(naked)) who = 'faculty';
     return { text, done, who };
