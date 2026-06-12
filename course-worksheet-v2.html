@@ -8983,8 +8983,16 @@
     if (!entry) { host.innerHTML = ''; return; }
     var items = entry.items || [];
     if (items.length === 0) { host.innerHTML = ''; return; }
-    var cephCount = items.filter(function(i) { return i.fw === 'CEPH'; }).length;
-    var uoeeeCount = items.filter(function(i) { return i.fw === 'UOEEE'; }).length;
+    // Count DISTINCT competencies (the list is organized by competency, so a
+    // competency listed against two assignments/variants counts once).
+    var _seenCeph = {}, _seenUoeee = {};
+    items.forEach(function(i) {
+      var k = i.fw + ' ' + i.cId;
+      if (i.fw === 'CEPH') _seenCeph[k] = 1;
+      else if (i.fw === 'UOEEE') _seenUoeee[k] = 1;
+    });
+    var cephCount = Object.keys(_seenCeph).length;
+    var uoeeeCount = Object.keys(_seenUoeee).length;
     var summary = [];
     if (cephCount) summary.push(cephCount + ' CEPH');
     if (uoeeeCount) summary.push(uoeeeCount + ' UOEEE');
@@ -9019,58 +9027,45 @@
         });
       });
     }
-    // Group by (module + assignment title) so an assignment that
-    // satisfies multiple competencies (e.g., TPH 501 Module 8 covers
-    // both CEPH 2 and CEPH 3) collapses into a single visual block
-    // with the competencies stacked underneath. Sort the groups by
-    // module number ascending so the alert reads in module order, not
-    // competency order.
-    var groupBy = function(it) { return String(it.mod == null ? '' : it.mod) + '|' + (it.title || ''); };
-    var groups = {};
-    var groupOrder = [];
+    // Organize by COMPETENCY (not by the assignment each requirement came
+    // from): one block per CEPH/UOEEE competency, with the assignment(s) the
+    // faculty has actually tagged to it shown in the coverage box. A
+    // competency that the mapping lists against more than one assignment
+    // collapses to a single block; the per-mapping suggested placement is kept
+    // as a hint when nothing is tagged yet.
+    var compOrder = [];
+    var compMap = {};
     items.forEach(function(it) {
-      var k = groupBy(it);
-      if (!groups[k]) {
-        groups[k] = { mod: it.mod, title: it.title, items: [] };
-        groupOrder.push(k);
+      var ck = it.fw + ' ' + it.cId;
+      if (!compMap[ck]) {
+        compMap[ck] = { fw: it.fw, cId: it.cId, variants: {}, suggested: [] };
+        compOrder.push(ck);
       }
-      groups[k].items.push(it);
+      if (it.variant) compMap[ck].variants[it.variant] = true;
+      if (it.title) {
+        var sug = (it.mod != null && it.mod !== '' ? 'M' + it.mod + ' ' : '') + it.title;
+        if (compMap[ck].suggested.indexOf(sug) === -1) compMap[ck].suggested.push(sug);
+      }
     });
-    var _modSortKey = function(m) {
-      if (m == null) return Number.MAX_SAFE_INTEGER;
-      var s = String(m);
-      var match = s.match(/(\d+)/);
-      return match ? parseInt(match[1], 10) : Number.MAX_SAFE_INTEGER;
-    };
-    groupOrder.sort(function(a, b) {
-      return _modSortKey(groups[a].mod) - _modSortKey(groups[b].mod);
+    var _cIdNum = function(c) { var m = String(c == null ? '' : c).match(/\d+/); return m ? parseInt(m[0], 10) : Number.MAX_SAFE_INTEGER; };
+    compOrder.sort(function(a, b) {
+      var pa = compMap[a], pb = compMap[b];
+      if (pa.fw !== pb.fw) return pa.fw < pb.fw ? -1 : 1; // CEPH before UOEEE
+      return _cIdNum(pa.cId) - _cIdNum(pb.cId);
     });
-    groupOrder.forEach(function(k) {
-      var g = groups[k];
-      var modLabel = (g.mod == null || g.mod === '') ? 'TBD' : ('Module ' + g.mod);
-      // Coverage box (~1/5 width) to the left of the card, naming the
-      // assignment(s) the faculty tagged to this card's competencies: green when
-      // all are covered, amber when some, red when none.
-      var totalComps = g.items.length;
-      var taggedComps = 0;
-      var groupTagged = [];
-      var _seenTag = {};
-      g.items.forEach(function(it) {
-        var tg = cephTaggedByComp[it.fw + ' ' + it.cId] || [];
-        if (tg.length) {
-          taggedComps++;
-          tg.forEach(function(t) {
-            var kkey = t.name + '|' + t.mod;
-            if (!_seenTag[kkey]) { _seenTag[kkey] = true; groupTagged.push(t); }
-          });
-        }
-      });
-      var coverClass = taggedComps === 0 ? 'untagged' : (taggedComps === totalComps ? 'tagged' : 'partial');
+    compOrder.forEach(function(ck) {
+      var c = compMap[ck];
+      var competencyText = (texts[c.fw] && texts[c.fw][c.cId]) || '';
+      // Show the variant suffix only when there's exactly one (e.g. CEPH 19
+      // appears as both "writing" and "oral" — leave that one as plain CEPH 19).
+      var _vks = Object.keys(c.variants);
+      var competencyTag = c.fw + ' ' + c.cId + (_vks.length === 1 ? ' · ' + _vks[0] : '');
+      var tagged = cephTaggedByComp[ck] || [];
+      var coverClass = tagged.length ? 'tagged' : 'untagged';
       var boxHtml = '<div class="ceph-coverage-box ' + coverClass + '">';
-      if (groupTagged.length) {
+      if (tagged.length) {
         boxHtml += '<div class="ceph-cov-label">✓ Assessed by</div>';
-        // Bold only the module number; the assignment title stays unbolded.
-        boxHtml += groupTagged.map(function(t) {
+        boxHtml += tagged.slice().sort(function(a, b) { return (a.mod || 0) - (b.mod || 0); }).map(function(t) {
           return '<div class="ceph-cov-name"><strong>M' + escapeHtml(String(t.mod)) + '</strong> ' + escapeHtml(t.name) + '</div>';
         }).join('');
       } else {
@@ -9082,20 +9077,17 @@
       // this keeps comment re-anchoring matching the real content, not the box.
       html += '<div class="ceph-group-main">';
       html += '<div class="ceph-group-head">';
-      html += '<div class="ceph-group-title">' + escapeHtml(g.title || '(untitled)') + '</div>';
-      html += '<div class="ceph-group-mod">' + escapeHtml(modLabel) + '</div>';
+      html += '<div class="ceph-group-title">' + escapeHtml(competencyTag) + '</div>';
       html += '</div>';
       html += '<div class="ceph-group-comps">';
-      g.items.forEach(function(it) {
-        var competencyText = (texts[it.fw] && texts[it.fw][it.cId]) || '';
-        var competencyTag = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
-        html += '<div class="ceph-alert-row">';
-        html += '<div class="ceph-alert-tag">' + escapeHtml(competencyTag) + '</div>';
-        html += '<div class="ceph-alert-rowtext">';
-        html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
-        html += '</div>';
-        html += '</div>';
-      });
+      html += '<div class="ceph-alert-row">';
+      html += '<div class="ceph-alert-rowtext">';
+      html += '<div class="ceph-alert-competency">' + escapeHtml(competencyText) + '</div>';
+      if (!tagged.length && c.suggested.length) {
+        html += '<div class="ceph-alert-suggested" style="font-size:11px; color:#8a5a12; margin-top:3px;">Suggested placement: ' + escapeHtml(c.suggested.join('; ')) + '</div>';
+      }
+      html += '</div>';
+      html += '</div>';
       html += '</div>'; // ceph-group-comps
       html += '</div>'; // ceph-group-main
       html += boxHtml;  // box last in DOM, visually left via order:-1
