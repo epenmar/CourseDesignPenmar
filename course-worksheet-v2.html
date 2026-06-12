@@ -3465,6 +3465,7 @@
             '</div>' +
           '</div>' +
           '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>' +
+          '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>' +
         '</div>' +
       '</div>' +
     '</div>';
@@ -3518,6 +3519,7 @@
           '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + id + '" data-module-num="' + moduleNum + '" data-field="richText" data-placeholder="Enter or paste content here. For example, lecture notes, reading guides, study questions..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div>' +
         '</div>' +
         '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-assignments"></div></div>' +
+        '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>' +
       '</div>' +
       '</div>' +
     '</div>';
@@ -8555,6 +8557,8 @@
     html += '</div></div>';
     html += '</div>'; // template body
     html += '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>';
+    // Bottom collapse so the user can close the callout without scrolling up.
+    html += '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>';
     html += '</div></div>'; // content-attach-inner + content-attach
     html += '</div></div>'; // overview-content-body + overview-act-content
     return html;
@@ -9033,6 +9037,7 @@
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-template">';
           html += '<div class="rich-editor" data-managed="true" data-editor-type="material" data-material-id="' + mat.id + '" data-module-num="' + m + '" data-field="richText" data-placeholder="Enter or paste content here..." data-initial="' + escapeHtml(mat.richText || '') + '" style="min-height:120px;"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-linked"><div id="' + ovMatId + '-linked-assignments"></div></div>';
+          html += '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>';
           html += '</div></div></div>';
         }
       }
@@ -13370,6 +13375,25 @@
     body.classList.toggle('open');
     btn.textContent = body.classList.contains('open') ? (openLabel || '▾ Content') : (closedLabel || '▸ Content');
     refreshContentIndicator(prefix);
+  };
+
+  // Close the content callout from a button at its BOTTOM, so the user doesn't
+  // have to scroll back up to the "▾ Content" toggle. Resets the matching
+  // expand toggle's label and (in the popup) closes the popup instead.
+  window.collapseContentFrom = function(el) {
+    var body = el && el.closest ? el.closest('.overview-content-body') : null;
+    if (!body) return;
+    if (body.closest('#content-popup-body') && typeof closeContentPopup === 'function') { closeContentPopup(); return; }
+    body.classList.remove('open');
+    var blk = body.closest('.activity-block, .material-item, .material-block, [data-activity-id], [data-material-id]');
+    var exp = blk ? blk.querySelector('.overview-act-expand') : null;
+    if (!exp && body.previousElementSibling && body.previousElementSibling.querySelector) {
+      exp = body.previousElementSibling.querySelector('.overview-act-expand');
+    }
+    if (exp) exp.textContent = '▸ Content';
+    var pid = (body.id || '').replace(/^attach-/, '').replace(/^mat-attach-/, '');
+    if (pid && typeof refreshContentIndicator === 'function') { try { refreshContentIndicator(pid); } catch (e) {} }
+    if (body.scrollIntoView) body.scrollIntoView({ block: 'nearest' });
   };
 
   function refreshContentIndicator(prefix) {
