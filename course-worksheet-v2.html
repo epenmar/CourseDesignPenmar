@@ -926,6 +926,13 @@
   .dash-card h3 { font-size: 14px; font-weight: 600; margin-bottom: 12px; color: #8c1d40; }
   .dash-stat { font-size: 32px; font-weight: 700; }
   .dash-stat-label { font-size: 12px; color: #666; }
+  /* Upcoming-meeting card at the top of the dashboard/timeline. */
+  #upcoming-meeting-card { margin-bottom: 20px; }
+  .upcoming-meeting-card { display: flex; align-items: center; gap: 14px; background: #eef4fb; border: 1px solid #bcd4ec; border-left: 4px solid #1565c0; border-radius: 10px; padding: 14px 18px; }
+  .upcoming-meeting-card .umc-icon { font-size: 24px; line-height: 1; }
+  .upcoming-meeting-card .umc-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: #1565c0; margin-bottom: 2px; }
+  .upcoming-meeting-card .umc-title { font-size: 15px; font-weight: 600; color: #1a2a3a; }
+  .upcoming-meeting-card .umc-when { font-size: 13px; color: #555; margin-top: 1px; }
 
   /* ===== PREV / NEXT NAV ===== */
   .page-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 40px; padding-top: 20px; border-top: 1px solid #e0ddd5; }
@@ -1174,6 +1181,9 @@
         <h1 style="font-size:24px; margin-bottom:4px;">MNS 521 — AI Technologies</h1>
         <p style="color:#666; font-size:14px; margin-bottom:24px;">Summer 2026 Session B &bull; Faculty: —</p>
 
+        <!-- Upcoming meeting card (populated by renderUpcomingMeetingCard) -->
+        <div id="upcoming-meeting-card" style="display:none;"></div>
+
         <div class="dashboard-grid">
           <div class="dash-card">
             <h3>Completion</h3>
@@ -1230,7 +1240,6 @@
               <span style="font-size:12px; color:#888;">Use the shift menu to easily adjust dates.</span>
             </div>
 
-            <div id="meeting-assign-box" style="display:none;"></div>
             <table class="timeline-table" id="timeline-table">
               <thead>
                 <tr>
@@ -6645,6 +6654,7 @@
     if (!sel) {
       // No session — show TBD message
       document.getElementById('timeline-body').innerHTML = '<tr><td colspan="3" style="text-align:center; padding:24px; color:#999; font-style:italic;">No session assigned yet. Select a target session above to generate a timeline.</td></tr>';
+      try { renderUpcomingMeetingCard(); } catch (e) {}
       return;
     }
     // Convert any pre-existing "Week N <Day>" due strings to real dates anchored
@@ -6739,96 +6749,24 @@
     const syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
     const milestoneStatus = syncedCourse ? (syncedCourse.milestoneStatus || []).slice() : null;
 
-    // Match calendar meetings to milestones by keyword (fuzzy: strip plurals, check stems)
-    function stemWord(w) { return w.replace(/s$/, ''); }
-    function fuzzyWordMatch(word, text) {
-      var s = stemWord(word);
-      return text.includes(word) || text.includes(s) || text.split(/\s+/).some(function(tw) { return stemWord(tw) === s; });
-    }
-    var unmatchedMeetings = [];
-    if (milestoneStatus && syncedCourse.calendarMeetings) {
-      const calMtgs = syncedCourse.calendarMeetings;
-      const msLabels = milestones.map(m => m.label.toLowerCase().replace(/[^a-z0-9 ]/g, '').split(/\s+/).filter(function(w) { return w.length > 2; }));
-      // Flat set of stemmed milestone words — used for "loose match" (at least one keyword overlap).
-      const allMilestoneStems = {};
-      msLabels.forEach(function(words) { words.forEach(function(w) { allMilestoneStems[stemWord(w)] = true; }); });
-      calMtgs.forEach(function(cm) {
-        const cmLower = (cm.label || '').toLowerCase().replace(/[^a-z0-9 ]/g, '');
-        var handled = false; // meeting fully matches SOME milestone — don't surface regardless of that milestone's status
-        for (let k = 0; k < msLabels.length; k++) {
-          if (msLabels[k].length === 0) continue;
-          const matched = msLabels[k].every(function(w) { return fuzzyWordMatch(w, cmLower); });
-          if (!matched) continue;
-          handled = true;
-          // Only attach if the milestone slot is still empty — don't overwrite an existing assignment.
-          if (!milestoneStatus[k] || milestoneStatus[k].status === 'pending') {
-            const d = new Date(cm.date + 'T00:00:00');
-            const mo = d.toLocaleDateString('en-US', {month:'short'});
-            const day = d.getDate();
-            milestoneStatus[k] = { status: 'meeting', meetingDate: cm.date, meetingLabel: mo + ' ' + day + ' at ' + (cm.time || '') };
-          }
-          break;
-        }
-        if (handled) return;
-        // Only surface meetings that loosely relate to a milestone (share at least one keyword).
-        // Generic course check-ins (e.g. bare course code) are skipped — the user can ignore remaining noise manually.
-        const cmWords = cmLower.split(/\s+/).filter(function(w) { return w.length > 2; });
-        const looselyRelated = cmWords.some(function(w) { return allMilestoneStems[stemWord(w)]; });
-        if (looselyRelated) unmatchedMeetings.push(cm);
-      });
-    } else if (syncedCourse && syncedCourse.calendarMeetings) {
-      unmatchedMeetings = syncedCourse.calendarMeetings.slice();
-    }
-
-    // NOTE: calendar meetings used to overwrite a milestone's TARGET DATE
-    // (dates[i] = meeting date). Because the keyword matcher could attach a
-    // meeting whose real date sat far from the milestone's calculated slot,
-    // this scrambled the column out of sequence (e.g. a Module 4 meeting in
-    // October landing above the calculated August modules). Meetings are now
-    // surfaced only as a status badge ("📅 Meeting …") in the Status column;
-    // the date column stays the clean, sequential calculated/overridden plan.
-
-    // Load manually completed milestones and meeting assignments
+    // Meeting-to-milestone matching/assignment was removed — calendar meetings
+    // no longer attach to milestones or set a "📅 Meeting" status. The next
+    // meeting is shown in its own card at the top of the page
+    // (renderUpcomingMeetingCard). The Status column now reflects only
+    // done / current / pending.
     const manualComplete = loadField('milestoneManualComplete') || {};
-    const meetingAssignments = loadField('meetingAssignments') || {};
-
-    // Remove assigned meetings from unmatched list
-    Object.keys(meetingAssignments).forEach(function(k) {
-      var a = meetingAssignments[k];
-      unmatchedMeetings = unmatchedMeetings.filter(function(cm) {
-        return cm.date !== a.date || (cm.label || '') !== a.label;
-      });
-    });
-
-    // Drop meetings the user has explicitly dismissed.
-    const ignoredMeetings = loadField('ignoredMeetings') || [];
-    if (ignoredMeetings.length > 0) {
-      const ignoredSet = {};
-      ignoredMeetings.forEach(function(m) { ignoredSet[(m.date || '') + '|' + (m.label || '')] = true; });
-      unmatchedMeetings = unmatchedMeetings.filter(function(cm) {
-        return !ignoredSet[(cm.date || '') + '|' + (cm.label || '')];
-      });
-    }
 
     for (let i = 0; i < milestones.length; i++) {
       const isManualDone = manualComplete[i] === true;
       const rowClass = (isManualDone || i < completed) ? 'done' : (i === completed ? 'current' : '');
       let statusLabel, statusColor;
       const ms = milestoneStatus && milestoneStatus[i];
-      const ma = meetingAssignments[String(i)];
       if (isManualDone) {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
       } else if (ms && ms.status === 'done') {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
-      } else if (ma) {
-        var mad = new Date(ma.date + 'T00:00:00');
-        statusLabel = '📅 Meeting ' + mad.toLocaleDateString('en-US', {month:'short'}) + ' ' + mad.getDate() + (ma.time ? ' at ' + ma.time : '');
-        statusColor = '#1565c0';
-      } else if (ms && ms.status === 'meeting') {
-        statusLabel = '📅 Meeting ' + ms.meetingLabel;
-        statusColor = '#1565c0';
       } else if (i < completed) {
         statusLabel = '✓ Done';
         statusColor = '#4caf50';
@@ -6899,64 +6837,50 @@
       <td></td></tr>`;
 
     tbody.innerHTML = html;
+    renderUpcomingMeetingCard();
+  }
 
-    // Render unmatched meeting notification box
-    var assignBox = document.getElementById('meeting-assign-box');
-    if (assignBox) {
-      if (unmatchedMeetings.length > 0) {
-        var boxHtml = '';
-        unmatchedMeetings.forEach(function(cm, idx) {
-          var d = new Date(cm.date + 'T00:00:00');
-          var mtgPretty = d.toLocaleDateString('en-US', {month:'short', day:'numeric'}) + (cm.time ? ' at ' + cm.time : '');
-          var escLabel = (cm.label || 'Meeting').replace(/'/g, "\\'");
-          boxHtml += '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;' + (idx > 0 ? ' margin-top:8px; padding-top:8px; border-top:1px solid #bbdefb;' : '') + '">' +
-            '<span style="font-size:13px; flex:1; min-width:200px;">📅 <strong>' + (cm.label || 'Meeting') + '</strong> — ' + mtgPretty + '</span>' +
-            '<select onchange="assignMeetingToMilestone(this.value, \'' + cm.date + '\', \'' + (cm.time || '') + '\', \'' + escLabel + '\')" ' +
-            'style="padding:4px 8px; border:1px solid #90caf9; border-radius:4px; font-size:12px; font-family:Inter,sans-serif; background:#fff; cursor:pointer;">' +
-            '<option value="">Assign to milestone...</option>';
-          milestones.forEach(function(m, mi) {
-            boxHtml += '<option value="' + mi + '">' + m.label + '</option>';
-          });
-          boxHtml += '</select>' +
-            '<button onclick="ignoreMeetingSuggestion(\'' + cm.date + '\', \'' + escLabel + '\')" ' +
-            'title="Dismiss this suggestion" ' +
-            'style="border:1px solid #90caf9; background:#fff; color:#1565c0; border-radius:4px; font-size:12px; padding:4px 8px; cursor:pointer;">Ignore</button>' +
-            '</div>';
-        });
-        assignBox.innerHTML = boxHtml;
-        assignBox.style.display = 'block';
-        assignBox.style.cssText = 'display:block; background:#e3f2fd; border:1px solid #90caf9; border-radius:8px; padding:12px 16px; margin-bottom:12px;';
-      } else {
-        assignBox.style.display = 'none';
-        assignBox.innerHTML = '';
-      }
+  // Upcoming-meeting card shown at the top of the dashboard/timeline. Sources
+  // the soonest future meeting from the synced calendar (calendarMeetings +
+  // nextMeeting) for this course. Hidden when nothing is scheduled ahead.
+  function renderUpcomingMeetingCard() {
+    var host = document.getElementById('upcoming-meeting-card');
+    if (!host) return;
+    var syncedCourse = (window.SYNCED_DATA && window.SYNCED_DATA.courses) ? window.SYNCED_DATA.courses[courseId] : null;
+    var candidates = [];
+    if (syncedCourse) {
+      (syncedCourse.calendarMeetings || []).forEach(function(m) {
+        if (m && m.date) candidates.push({ date: m.date, time: m.time || '', label: m.label || 'Meeting' });
+      });
+      var nm = syncedCourse.nextMeeting;
+      if (nm && nm.date) candidates.push({ date: nm.date, time: nm.time || '', label: nm.label || nm.title || 'Meeting' });
     }
+    var todayStr = new Date().toISOString().split('T')[0];
+    var seen = {};
+    var future = candidates.filter(function(m) {
+      if (m.date < todayStr) return false;
+      var k = m.date + '|' + m.label;
+      if (seen[k]) return false;
+      seen[k] = true;
+      return true;
+    }).sort(function(a, b) {
+      if (a.date !== b.date) return a.date < b.date ? -1 : 1;
+      return (a.time || '').localeCompare(b.time || '');
+    });
+    if (future.length === 0) { host.style.display = 'none'; host.innerHTML = ''; return; }
+    var m = future[0];
+    var d = new Date(m.date + 'T00:00:00');
+    var when = d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }) + (m.time ? ' at ' + m.time : '');
+    host.style.display = 'block';
+    host.innerHTML = '<div class="upcoming-meeting-card">'
+      + '<div class="umc-icon">📅</div>'
+      + '<div class="umc-body">'
+      + '<div class="umc-label">Upcoming Meeting</div>'
+      + '<div class="umc-title">' + escapeHtml(m.label) + '</div>'
+      + '<div class="umc-when">' + escapeHtml(when) + '</div>'
+      + '</div></div>';
   }
-
-  function assignMeetingToMilestone(milestoneIdx, meetingDate, meetingTime, meetingLabel) {
-    if (milestoneIdx === '') return;
-    var idx = parseInt(milestoneIdx);
-    var courseId = activeCourse.id || new URLSearchParams(window.location.search).get('course');
-    // Save the meeting date as the milestone's target date
-    var savedDates = loadField('timelineDates') || {};
-    savedDates[String(idx)] = meetingDate;
-    saveField('timelineDates', savedDates);
-    // Save meeting assignment so it shows as a meeting status
-    var assignments = loadField('meetingAssignments') || {};
-    assignments[String(idx)] = { date: meetingDate, time: meetingTime, label: meetingLabel };
-    saveField('meetingAssignments', assignments);
-    recalcTimeline();
-  }
-
-  function ignoreMeetingSuggestion(meetingDate, meetingLabel) {
-    var ignored = loadField('ignoredMeetings') || [];
-    var already = ignored.some(function(m) { return m.date === meetingDate && (m.label || '') === meetingLabel; });
-    if (!already) {
-      ignored.push({ date: meetingDate, label: meetingLabel });
-      saveField('ignoredMeetings', ignored);
-    }
-    recalcTimeline();
-  }
+  window.renderUpcomingMeetingCard = renderUpcomingMeetingCard;
 
   function prettyDate(d) {
     if (!(d instanceof Date) || isNaN(d.getTime())) return '';
