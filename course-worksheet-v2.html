@@ -811,6 +811,15 @@
   .content-attach-inner.open { display: block; }
   .drive-folder-link { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: #fff; border: 1px solid #e0ddd5; border-radius: 6px; font-size: 11px; font-weight: 600; color: #1a73e8; text-decoration: none; margin-bottom: 10px; transition: all 0.15s; }
   .drive-folder-link:hover { background: #e8f0fe; border-color: #1a73e8; }
+  /* New content-callout top action row + consolidated Attach menu. */
+  .content-top-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+  .content-action-btn { padding: 6px 14px; border: 1px solid #e0ddd5; border-radius: 8px; background: #fff; color: #8c1d40; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; display: inline-flex; align-items: center; gap: 5px; transition: all 0.15s; }
+  .content-action-btn:hover { border-color: #8c1d40; background: #fdf3f6; }
+  .content-action-btn[disabled] { opacity: 0.6; cursor: default; }
+  .attach-menu { display: none; margin-bottom: 12px; padding: 12px; border: 1px dashed #d6d2c5; border-radius: 8px; background: #fafaf7; }
+  .attach-menu.open { display: block; }
+  .attach-menu .attach-section + .attach-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid #ece9df; }
+  .attach-menu .attach-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8c1d40; margin-bottom: 6px; }
   .content-attach-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; }
   .content-attach-tab { flex: 1; padding: 7px 10px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; background: #fff; color: #666; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; border-right: 1px solid #e0ddd5; }
   .content-attach-tab:last-child { border-right: none; }
@@ -8484,14 +8493,20 @@
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
     html += _buildContentCompleteBarHtml(id);
+    // Top action row — the template is the main page; AI Generate + Import sit
+    // above it, and Upload/Link/Materials are the "attach" tabs below.
+    html += '<div class="content-top-actions">';
+    html += '<button class="content-action-btn" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>';
+    html += '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + act.id + '\',' + moduleNum + ')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>';
+    html += '</div>';
     html += '<div class="content-attach-tabs">';
-    html += '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
+    html += '<button class="content-attach-tab active" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
+    html += '<button class="content-attach-tab" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
     html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
-    html += '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
     html += '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>';
     html += '</div>';
     // Upload tab
-    html += '<div class="content-attach-body" id="' + id + '-upload">';
+    html += '<div class="content-attach-body hidden" id="' + id + '-upload">';
     html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">';
     html += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
     html += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
@@ -8504,8 +8519,8 @@
     html += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />';
     html += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>';
     html += '</div><div id="' + id + '-link-list"></div></div>';
-    // Template tab with dropdown selector
-    html += '<div class="content-attach-body hidden" id="' + id + '-template">';
+    // Template tab with dropdown selector — shown by default (front and center).
+    html += '<div class="content-attach-body" id="' + id + '-template">';
     html += '<div class="template-type-selector">';
     html += '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>';
     html += '<button class="template-type-btn' + (activeType === 'assignment' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'assignment\',this)">Assignment</button>';
@@ -10567,6 +10582,126 @@
     header.nextElementSibling.classList.toggle('open');
   }
 
+  // ===== CONTENT CALLOUT: ATTACH MENU + DOC IMPORT =====
+  // Template sections per content type — used by the AI document import.
+  var TEMPLATE_SECTIONS = {
+    discussion: ['Overview', 'Discussion Prompt', 'Peer Reply Requirements', 'Materials', 'How You Will Be Graded'],
+    assignment: ['Overview', 'Instructions', 'Materials', 'How You Will Be Graded'],
+    blank: ['Content']
+  };
+
+  // The template type currently shown for a content callout (prefix = ov-<id>).
+  function _activeTplTypeFor(prefix) {
+    var types = ['discussion', 'assignment', 'quiz', 'blank'];
+    for (var i = 0; i < types.length; i++) {
+      var el = document.getElementById(prefix + '-tpl-' + types[i]);
+      if (el && !el.classList.contains('hidden')) return types[i];
+    }
+    return 'assignment';
+  }
+
+  // Toggle the consolidated "+ Attach" dropdown (Upload / Link / Materials).
+  function toggleAttachMenu(prefix) {
+    var menu = document.getElementById(prefix + '-attach-menu');
+    if (menu) menu.classList.toggle('open');
+  }
+
+  // Lazy-load a script from CDN once; resolves when window[globalName] exists.
+  function _loadScriptOnce(src, globalName) {
+    return new Promise(function (resolve, reject) {
+      if (window[globalName]) return resolve(window[globalName]);
+      var existing = document.querySelector('script[data-lib="' + globalName + '"]');
+      if (existing) { existing.addEventListener('load', function () { resolve(window[globalName]); }); return; }
+      var s = document.createElement('script');
+      s.src = src; s.async = true; s.setAttribute('data-lib', globalName);
+      s.onload = function () { resolve(window[globalName]); };
+      s.onerror = function () { reject(new Error('Could not load ' + globalName)); };
+      document.head.appendChild(s);
+    });
+  }
+
+  // Extract text/markdown from an uploaded doc. .md/.txt read directly; .docx
+  // via mammoth (keeps basic structure as HTML→text); .pdf via pdf.js.
+  async function _extractDocText(file) {
+    var name = (file.name || '').toLowerCase();
+    if (/\.(md|markdown|txt)$/.test(name)) return await file.text();
+    if (/\.docx$/.test(name)) {
+      await _loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', 'mammoth');
+      var buf = await file.arrayBuffer();
+      var res = await window.mammoth.convertToHtml({ arrayBuffer: buf });
+      // Strip tags but keep paragraph/list breaks so the AI sees structure.
+      var tmp = document.createElement('div'); tmp.innerHTML = res.value || '';
+      return (tmp.innerText || tmp.textContent || '').trim();
+    }
+    if (/\.pdf$/.test(name)) {
+      var pdfjs = await _loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
+      pdfjs = window.pdfjsLib;
+      pdfjs.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      var data = new Uint8Array(await file.arrayBuffer());
+      var pdf = await pdfjs.getDocument({ data: data }).promise;
+      var out = [];
+      for (var p = 1; p <= pdf.numPages; p++) {
+        var page = await pdf.getPage(p);
+        var tc = await page.getTextContent();
+        out.push(tc.items.map(function (it) { return it.str; }).join(' '));
+      }
+      return out.join('\n\n').trim();
+    }
+    if (/\.doc$/.test(name)) throw new Error('Legacy .doc isn\'t supported — please save as .docx, PDF, or Markdown and try again.');
+    throw new Error('Unsupported file type. Use .docx, .pdf, or .md.');
+  }
+
+  // Import a faculty instructions document into the active template via AI.
+  async function importDocToTemplate(actId, moduleNum) {
+    var prefix = 'ov-' + actId;
+    var type = _activeTplTypeFor(prefix);
+    if (type === 'quiz') { alert('Import populates the Discussion / Assignment / Blank templates — switch off the Quiz template first.'); return; }
+    var sections = TEMPLATE_SECTIONS[type] || TEMPLATE_SECTIONS.assignment;
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.docx,.pdf,.md,.markdown,.txt';
+    inp.onchange = async function () {
+      var file = inp.files && inp.files[0];
+      if (!file) return;
+      var importBtn = document.querySelector('[data-import-btn="' + prefix + '"]');
+      var origLabel = importBtn ? importBtn.textContent : null;
+      if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Reading…'; }
+      try {
+        var docText = await _extractDocText(file);
+        if (!docText || !docText.trim()) throw new Error('No readable text found in that file.');
+        if (importBtn) importBtn.textContent = '⏳ AI sorting…';
+        var prompt = 'A faculty member uploaded the document below describing a course ' + type + '. '
+          + 'Organize its content into these syllabus/page sections (use the section names verbatim as JSON keys): '
+          + sections.join(', ') + '. '
+          + 'Preserve basic formatting using Markdown (bold, bullet/numbered lists, paragraphs). '
+          + 'Use ONLY information present in the document — do not invent details, and never add due dates. '
+          + 'If a section has no relevant content, use an empty string.\n\n'
+          + 'Return ONLY a JSON object mapping each section name to its content. No markdown fences, no other text.\n\n'
+          + '=== DOCUMENT ===\n' + docText.slice(0, 12000);
+        var raw = (await callCreateAI(prompt, 'You are an instructional designer importing an assignment document into a course template. Never invent due dates.', 4096)).trim();
+        var jsonMatch = raw.match(/\{[\s\S]*\}/);
+        var jsonStr = jsonMatch ? jsonMatch[0] : (raw.indexOf('{') !== -1 ? raw.slice(raw.indexOf('{')) : null);
+        if (!jsonStr) throw new Error('AI returned no usable content.');
+        var parsed = _lenientJsonParse(jsonStr);
+        var filled = 0;
+        sections.forEach(function (sec) {
+          var v = parsed[sec];
+          if (typeof v === 'string' && v.trim()) { saveTemplateField(actId, type, sec, v.trim()); filled++; }
+        });
+        if (!filled) throw new Error('The AI could not map the document to template sections.');
+        // Re-render so the populated fields show.
+        if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
+        else if (typeof renderModuleDetail === 'function' && currentViewId === 'module') renderModuleDetail(currentModuleNum);
+        alert('Imported "' + file.name + '" into ' + filled + ' template section' + (filled === 1 ? '' : 's') + '. Review and edit as needed.');
+      } catch (e) {
+        alert('Import failed: ' + (e && e.message ? e.message : e));
+      } finally {
+        if (importBtn) { importBtn.disabled = false; if (origLabel) importBtn.textContent = origLabel; }
+      }
+    };
+    inp.click();
+  }
+
   // ===== CONTENT ATTACHMENT TABS =====
   function switchAttachTab(prefix, tab, btn) {
     // Deactivate all tabs in this set
@@ -10606,7 +10741,8 @@
       var info = _itemForContentPrefix(prefix);
       if (!info || !info.item || !info.item.lastContentTab) return;
       var tab = info.item.lastContentTab;
-      if (tab === 'upload') return; // already the default; nothing to do
+      // (No default-tab shortcut here: the HTML default differs per render site,
+      // so rely on the "already active" guard below to skip the no-op swap.)
       // Match the tab button by data-tab-key — robust against any
       // onclick-string changes and against the substring-collision
       // between 'link' and 'linked' that the previous matcher had.
