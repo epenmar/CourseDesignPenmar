@@ -7639,12 +7639,28 @@
     provider: 'aws'
   };
 
+  // Remove em-dashes from generated/imported text. The instructor never wants
+  // them in course content, and external source docs are full of them. An
+  // em-dash (— U+2014) or horizontal bar (U+2015) is replaced with a comma so
+  // the sentence still reads; en-dashes (– U+2013, used for ranges like
+  // "20–30") are intentionally left alone.
+  function _stripEmDashes(s) {
+    if (typeof s !== 'string') return s;
+    return s
+      .replace(/\s*[—―]\s*/g, ', ')
+      .replace(/,\s*,/g, ',')
+      .replace(/\s+([,.;:!?])/g, '$1');
+  }
+
+  // Global AI style rule appended to every system prompt.
+  var AI_STYLE_RULE = 'Style rule: never use em-dashes (the "—" character) anywhere in your output. Use commas, parentheses, or separate sentences instead. If a source document contains em-dashes, rewrite those spots without them.';
+
   async function callCreateAI(query, systemPrompt, maxTokens, timeoutMs) {
     maxTokens = maxTokens || 1024;
     timeoutMs = timeoutMs || 90000;
     var payload = {
       query: query,
-      systemPrompt: systemPrompt || '',
+      systemPrompt: ((systemPrompt || '') + '\n\n' + AI_STYLE_RULE).trim(),
       maxTokens: maxTokens,
       model: CREATE_AI_CONFIG.model,
       provider: CREATE_AI_CONFIG.provider,
@@ -7667,7 +7683,9 @@
           throw new Error('HTTP ' + response.status + (errBody ? ': ' + errBody : ''));
         }
         var data = await response.json();
-        return data.response;
+        // Safety net — strip any em-dashes the model emitted despite the
+        // style rule. Safe on JSON responses too (only touches string text).
+        return _stripEmDashes(data.response);
       } finally { if (timer) clearTimeout(timer); }
     }
 
@@ -10971,9 +10989,11 @@
       await _loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js', 'mammoth');
       var buf = await file.arrayBuffer();
       var res = await window.mammoth.convertToHtml({ arrayBuffer: buf });
-      // Strip tags but keep paragraph/list breaks so the AI sees structure.
-      var tmp = document.createElement('div'); tmp.innerHTML = res.value || '';
-      return (tmp.innerText || tmp.textContent || '').trim();
+      // Return mammoth's semantic HTML (paragraphs, <strong>, <em>, lists,
+      // headings) so the AI can faithfully reproduce the source's structure
+      // and emphasis instead of a flattened wall of text. Drop embedded
+      // images — mammoth inlines them as huge base64 data URIs.
+      return String(res.value || '').replace(/<img[^>]*>/gi, '').trim();
     }
     if (/\.pdf$/.test(name)) {
       var pdfjs = await _loadScriptOnce('https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js', 'pdfjsLib');
@@ -11017,10 +11037,13 @@
         var prompt = 'A faculty member uploaded the document below describing a course ' + type + '. '
           + 'Organize its content into these syllabus/page sections (use the section names verbatim as JSON keys): '
           + sections.join(', ') + '. '
-          + 'Preserve basic formatting using Markdown (bold, bullet/numbered lists, paragraphs). '
+          + 'Format each section value as clean HTML for a rich-text editor: wrap every paragraph in <p>...</p>, use <strong> for bold and <em> for italics, and <ul>/<ol> with <li> for lists. '
+          + 'Preserve the document\'s structure — put each distinct prompt, question, requirement, or list item in its OWN <p> or <li> so the content stays visually separated. Do NOT run multiple prompts or items together in one block of text. '
+          + 'If the source labels items (e.g. "Prompt 1", "Part A"), keep that label in <strong> at the start of its paragraph. '
+          + 'Do NOT use Markdown syntax (no **bold**, *italics*, # headings, or "- " bullets as plain text) — use the HTML tags above. '
           + 'Use ONLY information present in the document — do not invent details, and never add due dates. '
           + 'If a section has no relevant content, use an empty string.\n\n'
-          + 'Return ONLY a JSON object mapping each section name to its content. No markdown fences, no other text.\n\n'
+          + 'Return ONLY a JSON object mapping each section name to its HTML content. No code fences, no other text.\n\n'
           + '=== DOCUMENT ===\n' + docText.slice(0, 12000);
         var raw = (await callCreateAI(prompt, 'You are an instructional designer importing an assignment document into a course template. Never invent due dates.', 4096)).trim();
         var jsonMatch = raw.match(/\{[\s\S]*\}/);
