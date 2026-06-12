@@ -358,6 +358,8 @@
   .jira-status-current { font-size: 12px; font-weight: 600; color: #444; background: #f5f3ee; border: 1px solid #e0ddd5; padding: 3px 10px; border-radius: 10px; }
   .jira-status-dropdown { font-size: 12px; font-family: 'Inter', sans-serif; padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; color: #444; cursor: pointer; }
   .jira-status-dropdown:focus { outline: none; border-color: #8c1d40; }
+  .jira-phase-select { font-size: 12px; font-family: 'Inter', sans-serif; padding: 4px 8px; border: 1px solid #bbd4f7; border-radius: 6px; background: #f4f8ff; color: #1565c0; cursor: pointer; font-weight: 600; }
+  .jira-phase-select:focus { outline: none; border-color: #1565c0; }
   .jira-status-msg { font-size: 11px; color: #888; font-style: italic; }
   .jira-status-msg.err { color: #c62828; font-style: normal; font-weight: 600; }
   .jira-status-msg.ok { color: #2e7d32; font-style: normal; font-weight: 600; }
@@ -4411,6 +4413,89 @@
     saveJiraEpicOverridesMap(map);
   }
 
+  // ===== JIRA PHASE OVERRIDE (which child task time logs to) =====
+  // Time defaults to the "Designing" sub-task (CourseCompose = design work).
+  // When a course shifts into Build, the user picks the matching child task and
+  // time routes there instead. Stored per course (cloud-mirrored like Epics).
+  function readJiraPhaseOverrides() {
+    try { return JSON.parse(localStorage.getItem('course_jira_phases') || '{}'); }
+    catch(e) { return {}; }
+  }
+  function saveJiraPhaseOverridesMap(map) {
+    localStorage.setItem('course_jira_phases', JSON.stringify(map));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'course_jira_phases', data: map }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[jiraPhases] cloud sync failed:', r.error.message); });
+    }
+  }
+  function getCourseJiraPhase(courseId) {
+    if (!courseId) return '';
+    var overrides = readJiraPhaseOverrides();
+    return overrides[courseId] || '';
+  }
+  function setCourseJiraPhase(courseId, childKey) {
+    var map = readJiraPhaseOverrides();
+    var trimmed = (childKey || '').trim().toUpperCase();
+    if (trimmed) map[courseId] = trimmed; else delete map[courseId];
+    saveJiraPhaseOverridesMap(map);
+  }
+  // The child task time logs to: the saved override if set, else the Designing
+  // sub-task, else null (caller falls back to the Epic).
+  function pickTimeTargetKey(courseId) {
+    var cached = (window._jiraStatusCache || {})[courseId];
+    var children = (cached && cached.children) || [];
+    var override = getCourseJiraPhase(courseId);
+    if (override) {
+      var byKey = children.find(function(c) { return c.key === override; });
+      if (byKey) return byKey.key;
+      // Override saved but children not fetched yet — trust the saved key.
+      if (/^[A-Z][A-Z0-9_]+-\d+$/.test(override)) return override;
+    }
+    var designing = children.find(function(c) { return /\bdesigning\b/i.test(c.summary || ''); });
+    return designing ? designing.key : null;
+  }
+  // Human label (the child's summary) for the current time target.
+  function timeTargetLabel(courseId) {
+    var cached = (window._jiraStatusCache || {})[courseId];
+    var children = (cached && cached.children) || [];
+    var key = pickTimeTargetKey(courseId);
+    var child = children.find(function(c) { return c.key === key; });
+    return child ? (child.summary || 'sub-task') : 'Designing';
+  }
+  // Build the phase <select> for a course's Jira row. Lists the Epic's child
+  // tasks (+ the Epic itself) so the user can route time to the right phase.
+  function _jiraPhaseSelectHtml(courseId) {
+    var cached = (window._jiraStatusCache || {})[courseId];
+    var children = (cached && cached.children) || [];
+    var epicKey = getCourseJiraEpic(courseId);
+    var target = pickTimeTargetKey(courseId) || epicKey;
+    var open = '<select class="jira-phase-select" id="jira-phase-' + courseId + '" title="Which Jira task time logs to (Sync time + Add time)" onchange="setJiraPhaseFromSelect(\'' + courseId + '\', this.value)">';
+    if (!children.length) {
+      return open + '<option value="">Logs to: Designing (default)</option></select>';
+    }
+    var opts = children.map(function(c) {
+      var sel = (c.key === target) ? ' selected' : '';
+      return '<option value="' + c.key + '"' + sel + '>Logs to: ' + String(c.summary || c.key).replace(/</g, '&lt;') + '</option>';
+    }).join('');
+    if (epicKey) {
+      opts += '<option value="' + epicKey + '"' + (target === epicKey ? ' selected' : '') + '>Logs to: Epic (' + epicKey + ')</option>';
+    }
+    return open + opts + '</select>';
+  }
+  window.setJiraPhaseFromSelect = function(courseId, childKey) {
+    setCourseJiraPhase(courseId, childKey);
+    var cached = (window._jiraStatusCache || {})[courseId];
+    var child = ((cached && cached.children) || []).find(function(c) { return c.key === childKey; });
+    var label = child ? child.summary : childKey;
+    var msgEl = document.getElementById('jira-status-msg-' + courseId);
+    if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Time will now log to ' + label + '.'; }
+  };
+  function _refreshJiraPhaseSelect(courseId) {
+    var el = document.getElementById('jira-phase-' + courseId);
+    if (el) el.outerHTML = _jiraPhaseSelectHtml(courseId);
+  }
+
   // ===== AIRTABLE COMMENTS (mirror) =====
   // Comments live on Airtable. We pull them via the proxy and cache in memory
   // + localStorage so the side panel renders instantly between fetches. Users
@@ -5033,8 +5118,9 @@
         <a class="jira-status-epic" href="${epicLink}" target="_blank" title="Open in Jira">${jiraEpic} ↗</a>
         <span class="jira-status-current" id="jira-current-${id}">${currentTxt}</span>
         <select class="jira-status-dropdown" id="jira-transitions-${id}" onchange="applyJiraTransition('${id}','${jiraEpic}', this.value)" ${dropdownDisabled}>${transitionsOpts}</select>
-        <button class="jira-worklog-btn" id="jira-worklog-btn-${id}" onclick="syncJiraWorklog('${id}','${jiraEpic}')" title="Push unsynced worksheet time as a Jira worklog on the Epic">Sync time ⇢ Jira</button>
-        <button class="jira-worklog-btn" id="jira-addtime-btn-${id}" onclick="addManualJiraTime('${id}','${jiraEpic}')" title="Manually log time you spent (offline work, calls, etc.) as a Jira worklog">+ Add time</button>
+        ${_jiraPhaseSelectHtml(id)}
+        <button class="jira-worklog-btn" id="jira-worklog-btn-${id}" onclick="syncJiraWorklog('${id}','${jiraEpic}')" title="Push unsynced worksheet time to the selected Jira task">Sync time ⇢ Jira</button>
+        <button class="jira-worklog-btn" id="jira-addtime-btn-${id}" onclick="addManualJiraTime('${id}','${jiraEpic}')" title="Manually log time you spent (offline work, calls, etc.) to the selected Jira task">+ Add time</button>
       </div>
       <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
       <div class="jira-children" id="jira-children-${id}">${(cached && cached.childrenHtml) || ''}</div>`;
@@ -6206,6 +6292,9 @@
         dropdownEl.disabled = cacheEntry.transitions.length === 0;
       }
       if (childrenEl) childrenEl.innerHTML = cacheEntry.childrenHtml;
+      // Now that children are loaded, populate the phase selector with the
+      // real child tasks (it rendered as a placeholder before this fetch).
+      _refreshJiraPhaseSelect(courseId);
     } catch (e) {
       window._jiraStatusCache[courseId] = {
         error: e.name === 'AbortError' ? 'Sync-server offline' : 'Sync-server error'
@@ -6301,13 +6390,13 @@
     var msgEl = document.getElementById('jira-status-msg-' + courseId);
     var btnEl = document.getElementById('jira-worklog-btn-' + courseId);
 
-    // Prefer the Designing child task; fall back to the Epic only if the
-    // Jira cache hasn't loaded yet or there's no Designing child.
-    var targetKey = pickDesignTargetKey(courseId);
+    // Use the selected phase (default Designing); fall back to the Epic only
+    // if the Jira cache hasn't loaded yet or there's no matching child.
+    var targetKey = pickTimeTargetKey(courseId);
     if (!targetKey) {
       // Jira status may not have finished loading yet — give it a quick chance.
       await loadJiraStatus(courseId);
-      targetKey = pickDesignTargetKey(courseId);
+      targetKey = pickTimeTargetKey(courseId);
     }
     var usingFallback = !targetKey;
     if (!targetKey) targetKey = epic;
@@ -6326,8 +6415,8 @@
     var seconds = Math.floor(unsyncedMs / 1000);
     var mins = Math.round(seconds / 60);
     var confirmTarget = usingFallback
-      ? targetKey + ' (Epic — no Designing sub-task found)'
-      : targetKey + ' (Designing)';
+      ? targetKey + ' (Epic — no matching sub-task found)'
+      : targetKey + ' (' + timeTargetLabel(courseId) + ')';
     if (!confirm('Log ' + mins + ' minute' + (mins === 1 ? '' : 's') + ' as a worklog on ' + confirmTarget + '?')) return;
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Syncing…'; }
     if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Posting worklog to ' + targetKey + '…'; }
@@ -6394,9 +6483,9 @@
     }
     var note = prompt('Optional note (what you worked on):', '');
     if (note == null) note = ''; // cancel on the note = just omit it, keep the time
-    // Pick the Designing child task; fall back to the Epic.
-    var targetKey = pickDesignTargetKey(courseId);
-    if (!targetKey) { await loadJiraStatus(courseId); targetKey = pickDesignTargetKey(courseId); }
+    // Use the selected phase (default Designing); fall back to the Epic.
+    var targetKey = pickTimeTargetKey(courseId);
+    if (!targetKey) { await loadJiraStatus(courseId); targetKey = pickTimeTargetKey(courseId); }
     var usingFallback = !targetKey;
     if (!targetKey) targetKey = epic;
     if (!targetKey) {
@@ -6406,7 +6495,7 @@
     }
     var mins = Math.round(seconds / 60);
     var human = mins >= 60 ? (Math.floor(mins / 60) + 'h' + (mins % 60 ? ' ' + (mins % 60) + 'm' : '')) : (mins + 'm');
-    var confirmTarget = usingFallback ? targetKey + ' (Epic — no Designing sub-task found)' : targetKey + ' (Designing)';
+    var confirmTarget = usingFallback ? targetKey + ' (Epic — no matching sub-task found)' : targetKey + ' (' + timeTargetLabel(courseId) + ')';
     if (!confirm('Log ' + human + ' as a manual worklog on ' + confirmTarget + '?')) return;
     var btnEl = document.getElementById('jira-addtime-btn-' + courseId);
     if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Logging…'; }
