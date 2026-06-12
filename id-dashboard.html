@@ -976,6 +976,29 @@
 <script>
   // ===== COURSE DATA =====
   // ===== MERGE SYNCED DATA =====
+  // Restore the last good live-sync snapshot from localStorage. The committed
+  // dashboard-data.js is only refreshed when someone runs the sync AND
+  // redeploys, so it can be days stale. On a hard refresh the in-memory live
+  // data is gone and the page would otherwise fall back to that stale file —
+  // which is why the Upcoming card kept emptying after a refresh. Caching each
+  // successful sync (see triggerSync) and restoring the newer one here keeps
+  // calendar items across hard refreshes; the async triggerSync() then
+  // refreshes them. Gated on syncedAt so a fresh redeploy still wins, and
+  // ignored past a week so a long-dead cache can't mask a real update.
+  (function _restoreSyncedCache() {
+    try {
+      var raw = localStorage.getItem('dashboard_synced_cache');
+      if (!raw) return;
+      var cached = JSON.parse(raw);
+      if (!cached || !cached.syncedAt || !cached.courses) return;
+      var cur = window.SYNCED_DATA;
+      var curMs = (cur && cur.syncedAt) ? new Date(cur.syncedAt).getTime() : 0;
+      var cachedMs = new Date(cached.syncedAt).getTime();
+      if (!isNaN(cachedMs) && cachedMs > curMs && (Date.now() - cachedMs) < 7 * 86400000) {
+        window.SYNCED_DATA = cached;
+      }
+    } catch (e) {}
+  })();
   const synced = window.SYNCED_DATA || null;
 
   // Helper: create a base course entry
@@ -3205,6 +3228,9 @@
             }
           }
           window.SYNCED_DATA = fresh;
+          // Cache the good snapshot so a hard refresh restores it instead of
+          // the stale committed dashboard-data.js (see _restoreSyncedCache).
+          try { localStorage.setItem('dashboard_synced_cache', JSON.stringify(fresh)); } catch (e) {}
         }
         renderSummary();
         renderUpcoming();
