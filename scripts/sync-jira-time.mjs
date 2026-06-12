@@ -9,8 +9,9 @@
 //   3. Adds past-calendar-meeting duration for meetings we haven't synced yet
 //   4. Looks up the course's Jira Epic in dashboard_state.course_jira_epics
 //      (user overrides) falling back to the built-in COURSE_JIRA_EPICS map
-//   5. Fetches the Epic's children, picks the one whose summary matches
-//      /designing/i, else uses the Epic itself
+//   5. Picks the target task: the per-course phase override in
+//      dashboard_state.course_jira_phases (e.g. the Build sub-task) if set,
+//      else the child whose summary matches /designing/i, else the Epic itself
 //   6. Posts a worklog, marks events as synced_to_jira=true, and records the
 //      meeting UIDs in dashboard_state.meeting_synced_uids
 //
@@ -297,6 +298,20 @@ function resolveEpic(courseId, overrides) {
   return BUILT_IN_EPICS[bare] || null;
 }
 
+// Per-course phase override set from the dashboard (dashboard_state
+// .course_jira_phases): { courseId: '<child issue key>' }. When present it
+// names the exact child task time should log to (e.g. the Build sub-task once
+// a course leaves the design phase), overriding the Designing default.
+async function loadPhaseOverrides() {
+  try {
+    const rows = await sbSelect('dashboard_state', 'key=eq.course_jira_phases&select=data');
+    return (rows[0] && rows[0].data) || {};
+  } catch (e) {
+    console.warn('[sync-jira-time] Could not read phase overrides:', e.message);
+    return {};
+  }
+}
+
 // Build the human-readable course code variants Jira's summary search will
 // match against ("POP 644", "POP644"). Course IDs are stored lowercase
 // without spaces (e.g. "pop644").
@@ -537,6 +552,7 @@ async function main() {
   }
 
   const overrides = await loadEpicOverrides();
+  const phaseOverrides = await loadPhaseOverrides();
   let overridesDirty = false;
 
   const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0, meetingMinutes: 0 };
@@ -576,9 +592,19 @@ async function main() {
       continue;
     }
 
-    let target = await findDesigningChild(epic);
-    let targetKind = target ? 'Designing' : 'Epic';
-    if (!target) target = epic;
+    // Target: the user's per-course phase override (an exact child task key)
+    // wins — this is how a course routes its time to Build instead of Designing
+    // once it leaves the design phase. Else the Designing child; else the Epic.
+    let target, targetKind;
+    const phaseKey = phaseOverrides[courseId] && String(phaseOverrides[courseId]).toUpperCase();
+    if (phaseKey && /^[A-Z][A-Z0-9_]+-\d+$/.test(phaseKey)) {
+      target = phaseKey;
+      targetKind = (phaseKey === String(epic).toUpperCase()) ? 'Epic (phase override)' : 'phase override';
+    } else {
+      target = await findDesigningChild(epic);
+      targetKind = target ? 'Designing' : 'Epic';
+      if (!target) target = epic;
+    }
 
     const mins = Math.round(seconds / 60);
     const worksheetMins = Math.round(bucket.worksheetMs / 60000);
