@@ -6133,15 +6133,18 @@
       // Check manual completion button
       var courseInfoBtn = document.getElementById('btn-complete-course-info');
       var manuallyComplete = courseInfoBtn && courseInfoBtn.classList.contains('completed');
-      // Mark done if ALL fields are filled OR manually marked complete
-      if (manuallyComplete || (infoTotal > 0 && infoFilled === infoTotal)) {
+      // Green ONLY when manually marked complete — the page has a "Mark as
+      // Complete" button, so filling every field isn't enough on its own.
+      if (manuallyComplete) {
         infoBadge.className = 'badge badge-done';
         infoBadge.textContent = '✓';
-        infoBadge.title = manuallyComplete ? 'Marked complete.' : 'All Course Info fields filled in.';
+        infoBadge.title = 'Marked complete.';
       } else if (infoFilled > 0) {
         infoBadge.className = 'badge badge-partial';
         infoBadge.textContent = infoFilled + '/' + infoTotal;
-        infoBadge.title = 'Still empty: ' + infoMissing.slice(0, 8).join(', ') + (infoMissing.length > 8 ? '…' : '');
+        infoBadge.title = (infoTotal > 0 && infoFilled === infoTotal)
+          ? 'All fields filled — click "Mark as Complete" to finish.'
+          : 'Still empty: ' + infoMissing.slice(0, 8).join(', ') + (infoMissing.length > 8 ? '…' : '');
       } else {
         infoBadge.className = 'badge badge-empty';
         infoBadge.textContent = '—';
@@ -6153,10 +6156,15 @@
     var objBadge = document.getElementById('sidebar-obj-badge');
     if (objBadge) {
       var objCount = realElos.length + realClos.length;
-      if (objCount > 0) {
+      var objComplete = _sectionMarkedComplete('objectives');
+      if (objCount > 0 && objComplete) {
         objBadge.className = 'badge badge-done';
+        objBadge.textContent = '✓';
+        objBadge.title = 'Marked complete (' + realClos.length + ' CLOs, ' + realElos.length + ' ELOs).';
+      } else if (objCount > 0) {
+        objBadge.className = 'badge badge-partial';
         objBadge.textContent = objCount + '/' + objCount;
-        objBadge.title = realClos.length + ' CLO' + (realClos.length === 1 ? '' : 's') + ', ' + realElos.length + ' ELO' + (realElos.length === 1 ? '' : 's') + ' defined.';
+        objBadge.title = realClos.length + ' CLO' + (realClos.length === 1 ? '' : 's') + ', ' + realElos.length + ' ELO' + (realElos.length === 1 ? '' : 's') + ' defined — click "Mark as Complete" to finish.';
       } else {
         objBadge.className = 'badge badge-empty';
         objBadge.textContent = '—';
@@ -6176,10 +6184,15 @@
         if ((f.value && f.value.trim()) || (f.textContent && f.textContent.trim())) tbFilled++;
         else if (f.id) tbMissing.push(_badgeFieldLabel(f.id));
       });
-      if (tbTotal > 0 && tbFilled > 0) {
+      var tbComplete = _sectionMarkedComplete('materials');
+      if (tbTotal > 0 && tbFilled > 0 && tbComplete) {
         textbookBadge.className = 'badge badge-done';
         textbookBadge.textContent = '✓';
-        textbookBadge.title = tbFilled + ' textbook entry filled.';
+        textbookBadge.title = 'Marked complete (' + tbFilled + ' filled).';
+      } else if (tbTotal > 0 && tbFilled > 0) {
+        textbookBadge.className = 'badge badge-partial';
+        textbookBadge.textContent = tbFilled + ' filled';
+        textbookBadge.title = tbFilled + ' textbook entry filled — click "Mark as Complete" to finish.';
       } else {
         textbookBadge.className = 'badge badge-empty';
         textbookBadge.textContent = '—';
@@ -6199,14 +6212,17 @@
         if ((f.value && f.value.trim()) || (f.textContent && f.textContent.trim())) ctxFilled++;
         else if (f.id) ctxMissing.push(_badgeFieldLabel(f.id));
       });
-      if (ctxTotal > 0 && ctxFilled === ctxTotal) {
+      var ctxComplete = _sectionMarkedComplete('context');
+      if (ctxTotal > 0 && ctxFilled === ctxTotal && ctxComplete) {
         contextBadge.className = 'badge badge-done';
         contextBadge.textContent = '✓';
-        contextBadge.title = 'All Course Context questions answered.';
+        contextBadge.title = 'Marked complete.';
       } else if (ctxFilled > 0) {
         contextBadge.className = 'badge badge-partial';
         contextBadge.textContent = ctxFilled + '/' + ctxTotal;
-        contextBadge.title = 'Still empty: ' + ctxMissing.slice(0, 8).join(', ') + (ctxMissing.length > 8 ? '…' : '');
+        contextBadge.title = (ctxTotal > 0 && ctxFilled === ctxTotal)
+          ? 'All answered — click "Mark as Complete" to finish.'
+          : 'Still empty: ' + ctxMissing.slice(0, 8).join(', ') + (ctxMissing.length > 8 ? '…' : '');
       } else {
         contextBadge.className = 'badge badge-empty';
         contextBadge.textContent = '—';
@@ -6240,14 +6256,16 @@
         }
         if (untagged.length) modIssues.push('Module ' + mIdx + ' (untagged: ' + untagged.join(', ') + ')');
       }
-      if (moduleScore >= modCount && modCount > 0) {
+      if (moduleScore >= modCount && modCount > 0 && loadField('mlosReviewed')) {
         modBadge.className = 'badge badge-done';
         modBadge.textContent = displayScore + '/' + modCount;
-        modBadge.title = 'All modules have MLOs tagged with ELOs.';
+        modBadge.title = 'All modules have MLOs tagged with ELOs, and MLOs are marked reviewed.';
       } else if (moduleScore > 0) {
         modBadge.className = 'badge badge-partial';
         modBadge.textContent = displayScore + '/' + modCount;
-        modBadge.title = modIssues.length ? modIssues.slice(0, 8).join('\n') + (modIssues.length > 8 ? '\n…' : '') : '';
+        modBadge.title = (moduleScore >= modCount && modCount > 0)
+          ? 'All MLOs tagged — click "Mark MLOs as Reviewed" to finish.'
+          : (modIssues.length ? modIssues.slice(0, 8).join('\n') + (modIssues.length > 8 ? '\n…' : '') : '');
       } else {
         modBadge.className = 'badge badge-empty';
         modBadge.textContent = '—';
@@ -6299,10 +6317,14 @@
         if (hasSubst) modsWithSubst++; else modsMissingSubst.push(modN);
         if (hasComplete) modsWithComplete++; else modsMissingComplete.push(modN);
       }
-      if (modsWithComplete === modCount && modCount > 0) {
+      if (modsWithComplete === modCount && modCount > 0 && loadField('assignmentsReviewed')) {
         assignBadge.className = 'badge badge-done';
         assignBadge.textContent = modsWithComplete + '/' + modCount;
-        assignBadge.title = 'Every module has at least one activity marked content-complete.';
+        assignBadge.title = 'Every module has a content-complete activity, and Assignments are marked reviewed.';
+      } else if (modsWithComplete === modCount && modCount > 0) {
+        assignBadge.className = 'badge badge-partial';
+        assignBadge.textContent = modsWithComplete + '/' + modCount;
+        assignBadge.title = 'All modules content-complete — click "Mark Assignments as Reviewed" to finish.';
       } else if (modsWithSubst > 0) {
         assignBadge.className = 'badge badge-partial';
         assignBadge.textContent = modsWithSubst + '/' + modCount;
@@ -6333,16 +6355,18 @@
         if (hasm) modsWithMats++;
         else modsMissingMats.push(modN_m);
       }
-      if (modsWithMats === modCount && modCount > 0) {
+      if (modsWithMats === modCount && modCount > 0 && loadField('materialsReviewed')) {
         matsBadge.className = 'badge badge-done';
         matsBadge.textContent = modsWithMats + '/' + modCount;
-        matsBadge.title = 'All modules have at least one titled material.';
+        matsBadge.title = 'All modules have a titled material, and Materials are marked reviewed.';
       } else if (modsWithMats > 0) {
         matsBadge.className = 'badge badge-partial';
         matsBadge.textContent = modsWithMats + '/' + modCount;
-        matsBadge.title = modsMissingMats.length === 1
-          ? 'Module ' + modsMissingMats[0] + ' has no titled material yet.'
-          : 'Missing titled materials in: Module ' + modsMissingMats.join(', Module ');
+        matsBadge.title = (modsWithMats === modCount && modCount > 0)
+          ? 'All modules have materials — click "Mark Materials as Reviewed" to finish.'
+          : (modsMissingMats.length === 1
+              ? 'Module ' + modsMissingMats[0] + ' has no titled material yet.'
+              : 'Missing titled materials in: Module ' + modsMissingMats.join(', Module '));
       } else {
         matsBadge.className = 'badge badge-empty';
         matsBadge.textContent = '—';
@@ -10197,6 +10221,13 @@
     // Update sidebar badge if applicable
     updateSidebarBadge(section, isComplete);
     calculateProgress(true);
+  }
+
+  // True when a section's "Mark as Complete" button has been pressed (stored
+  // per course in localStorage). Used to gate the sidebar badge from going
+  // green until the user explicitly signs the section off.
+  function _sectionMarkedComplete(section) {
+    try { return localStorage.getItem('worksheet-complete-' + courseId + '-' + section) === 'true'; } catch (e) { return false; }
   }
 
   function updateSidebarBadge(section, isComplete) {
@@ -19306,14 +19337,17 @@
     var state = getSyllabusChecklistState();
     var total = countChecklistItems(template);
     var checked = countChecklistChecked(template, state);
-    if (checked === total && total > 0) {
+    var syllComplete = (typeof _sectionMarkedComplete === 'function') && _sectionMarkedComplete('syllabus');
+    if (checked === total && total > 0 && syllComplete) {
       badge.className = 'badge badge-done';
       badge.textContent = '✓';
-      badge.title = 'All ' + total + ' syllabus checklist items complete.';
+      badge.title = 'All ' + total + ' checklist items complete and section marked complete.';
     } else if (checked > 0) {
       badge.className = 'badge badge-partial';
       badge.textContent = checked + '/' + total;
-      badge.title = (total - checked) + ' syllabus checklist item' + (total - checked === 1 ? '' : 's') + ' still unchecked.';
+      badge.title = (checked === total && total > 0)
+        ? 'All items checked — click "Mark as Complete" to finish.'
+        : (total - checked) + ' syllabus checklist item' + (total - checked === 1 ? '' : 's') + ' still unchecked.';
     } else {
       badge.className = 'badge badge-empty';
       badge.textContent = '—';
