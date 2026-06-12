@@ -1631,6 +1631,10 @@
             <button class="btn-add-row" onclick="addMaterial()">+ Add material</button>
           </div>
         </div>
+
+        <!-- ID-only: per-module Canvas-ready review + private design notes.
+             Rendered by renderModuleCanvasReady(); hidden for faculty/reviewers. -->
+        <div id="module-canvas-ready-callout"></div>
       </div>
 
       <!-- ===== SYLLABUS CHECKLIST ===== -->
@@ -3385,6 +3389,7 @@
       'ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">' +
       '<div class="activity-block-toolbar">' +
         '<span class="act-drag-handle" title="Drag to reorder">⠿</span>' +
+        '<button class="act-tool-btn" title="Suggest objective tags with AI" onclick="tagActivityWithAI(\'' + id + '\',' + moduleNum + ',this)">✨</button>' +
         '<button class="act-tool-btn" title="Move to another module" onclick="toggleMoveMenu(this)">↗' +
           '<div class="move-menu" id="move-menu-' + id + '"></div>' +
         '</button>' +
@@ -8127,6 +8132,7 @@
     renderModuleActivities(num);
     renderModuleMaterials(num);
     renderModuleAlignmentSummary(num);
+    renderModuleCanvasReady(num);
 
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     // Re-apply comment highlights after module content renders
@@ -8180,6 +8186,106 @@
       btn.style.color = '#666';
       btn.style.borderColor = '#ddd';
       renderModuleAlignmentSummary(num);
+    }
+  }
+
+  // ID-only Canvas-ready review callout for the current module. Lets the
+  // instructional designer mark the module as Canvas-ready and jot private
+  // design notes (collapsed by default). Hidden entirely for faculty/reviewers.
+  function renderModuleCanvasReady(num) {
+    var host = document.getElementById('module-canvas-ready-callout');
+    if (!host) return;
+    if (typeof _isIdUser === 'function' && !_isIdUser()) { host.style.display = 'none'; host.innerHTML = ''; return; }
+    host.style.display = '';
+    var ready = !!loadField('module_canvas_ready_' + num);
+    var notes = loadField('module_id_notes_' + num) || '';
+    var hasNotes = !!String(notes).trim();
+    var h = '';
+    h += '<div style="margin-top:20px; padding:14px 16px; background:#fbf7fa; border:1px solid #e7cfd9; border-radius:10px;">';
+    h += '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">';
+    h += '<div style="font-weight:700; font-size:14px; color:#8c1d40;">🎓 Canvas-ready review</div>';
+    h += '<span style="font-size:11px; color:#999;">Instructional-designer check for this module — not shown to faculty</span>';
+    h += '<button onclick="toggleModuleCanvasReady(' + num + ')" style="margin-left:auto; padding:6px 16px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:2px solid #4caf50; ' + (ready ? 'background:#4caf50; color:#fff;' : 'background:#fff; color:#4caf50;') + '">' + (ready ? '✓ Marked Canvas-ready' : 'Mark module Canvas-ready') + '</button>';
+    h += '</div>';
+    h += '<div style="margin-top:10px;">';
+    h += '<button id="module-id-notes-btn-' + num + '" onclick="toggleModuleIdNotes(' + num + ')" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">' + (hasNotes ? '📝 ID design notes' : '＋ Add ID design note') + '</button>';
+    h += '<div id="module-id-notes-wrap-' + num + '" style="' + (hasNotes ? '' : 'display:none;') + ' margin-top:8px;">';
+    h += '<textarea id="module-id-notes-ta-' + num + '" oninput="saveModuleIdNotes(' + num + ', this); autoGrowTextarea(this)" placeholder="Private design notes for this module (build reminders, rationale, follow-ups)…" style="width:100%; min-height:60px; font-size:12px; font-family:Inter,sans-serif; border:1px solid #e0ddd5; border-radius:6px; padding:8px; resize:none; overflow:hidden; line-height:1.5; box-sizing:border-box;">' + escapeHtml(notes) + '</textarea>';
+    h += '</div></div>';
+    h += '</div>';
+    host.innerHTML = h;
+    var ta = document.getElementById('module-id-notes-ta-' + num);
+    if (ta && hasNotes && typeof autoGrowTextarea === 'function') autoGrowTextarea(ta);
+  }
+  function toggleModuleCanvasReady(num) {
+    saveField('module_canvas_ready_' + num, !loadField('module_canvas_ready_' + num));
+    renderModuleCanvasReady(num);
+  }
+  function toggleModuleIdNotes(num) {
+    var wrap = document.getElementById('module-id-notes-wrap-' + num);
+    if (!wrap) return;
+    var showing = wrap.style.display !== 'none';
+    wrap.style.display = showing ? 'none' : '';
+    if (!showing) { var ta = document.getElementById('module-id-notes-ta-' + num); if (ta) ta.focus(); }
+  }
+  function saveModuleIdNotes(num, el) {
+    saveField('module_id_notes_' + num, el.value);
+  }
+
+  // Suggest objective (MLO) tags for a module-view activity using AI. Looks at
+  // the activity name + any template content, compares against this module's
+  // MLOs, and applies the matches. Conservative: only this module's MLO tags
+  // are replaced — cross-module tags (e.g. on a comprehensive exam) are kept,
+  // and an empty AI result leaves existing tags untouched.
+  async function tagActivityWithAI(actId, moduleNum, btn) {
+    var acts = courseActivities[moduleNum] || [];
+    var act = acts.find(function (a) { return a.id === actId; });
+    if (!act) return;
+    var name = (act.name || '').trim();
+    if (!name) { alert('Give the activity a name first so the AI knows what to tag.'); return; }
+    var mloTexts = _mlosForModule(moduleNum) || [];
+    var mlos = [];
+    for (var i = 0; i < mloTexts.length; i++) {
+      if (mloTexts[i] && mloTexts[i].trim()) mlos.push({ id: moduleNum + '.' + (i + 1), text: mloTexts[i].trim() });
+    }
+    if (!mlos.length) { alert('This module has no objectives yet. Add MLOs in the Objectives section above first.'); return; }
+    var validSet = {}; mlos.forEach(function (m) { validSet[m.id] = true; });
+    // Gather any authored template content for richer context.
+    var ctxParts = [];
+    if (act.templateData) {
+      Object.keys(act.templateData).forEach(function (tp) {
+        var sec = act.templateData[tp] || {};
+        Object.keys(sec).forEach(function (k) { if (typeof sec[k] === 'string' && sec[k].trim()) ctxParts.push(k + ': ' + sec[k].trim()); });
+      });
+    }
+    var ctx = ctxParts.join('\n').slice(0, 1500);
+    var orig = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '⏳'; }
+    try {
+      var list = mlos.map(function (m) { return m.id + ': ' + m.text; }).join('\n');
+      var prompt = 'Activity: "' + name + '"' + (ctx ? '\nDetails:\n' + ctx : '') + '\n\n'
+        + 'Module learning objectives (MLOs):\n' + list + '\n\n'
+        + 'Which MLOs does this activity directly assess or help students achieve? '
+        + 'Return ONLY a JSON array of the matching MLO ids (e.g. ["' + mlos[0].id + '"]). '
+        + 'Be selective — include an MLO only if the activity clearly targets it. If none clearly apply, return [].';
+      var raw = (await callCreateAI(prompt, 'You are an instructional designer aligning assessments to module learning objectives. Be precise and conservative.', 512)).trim();
+      var arrMatch = raw.match(/\[[\s\S]*\]/);
+      var ids = arrMatch ? _lenientJsonParse(arrMatch[0]) : null;
+      if (!Array.isArray(ids)) throw new Error('The AI did not return a usable list.');
+      var picks = ids.filter(function (x) { return validSet[x]; });
+      if (!picks.length) { alert('The AI did not find a clear objective match for "' + name + '". Existing tags were left unchanged.'); return; }
+      var existing = Array.isArray(act.objectives) ? act.objectives : [];
+      var kept = existing.filter(function (x) { return !validSet[x]; }); // keep cross-module tags
+      act.objectives = kept.concat(picks);
+      saveActivityData();
+      if (typeof broadcastItemUpdate === 'function') broadcastItemUpdate('activity', moduleNum, act);
+      var picker = document.querySelector('.obj-picker[data-picker="' + actId + '"]');
+      if (picker) picker.outerHTML = buildObjPickerHtml(actId, act.objectives, moduleNum);
+      _refreshModuleAlignmentIfVisible();
+    } catch (e) {
+      alert('Tagging failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
     }
   }
 
