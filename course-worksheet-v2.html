@@ -6861,9 +6861,9 @@
       // newest-wins let a stale tab sitting on an empty in-memory state keep
       // re-stamping [] and clobbering a good copy (the POP644 re-wipe). When one
       // side is populated and the other empty, the populated side always wins.
-      if (typeof _SAVE_DESTRUCTIVE_KEYS !== 'undefined' && _SAVE_DESTRUCTIVE_KEYS[k] && typeof _isEffectivelyEmpty === 'function') {
-        var lEmpty = _isEffectivelyEmpty(local[k]);
-        var cEmpty = _isEffectivelyEmpty(cloud[k]);
+      if (typeof _SAVE_DESTRUCTIVE_KEYS !== 'undefined' && _SAVE_DESTRUCTIVE_KEYS[k] && typeof _destructiveValueEmpty === 'function') {
+        var lEmpty = _destructiveValueEmpty(k, local[k]);
+        var cEmpty = _destructiveValueEmpty(k, cloud[k]);
         if (lEmpty !== cEmpty) { merged[k] = lEmpty ? cloud[k] : local[k]; return; }
       }
       var lt = _clampStamp(lMod[k], nowCap);
@@ -6924,6 +6924,26 @@
     return false;
   }
 
+  // Emptiness that understands NESTED wipes. moduleOverviewData stays a
+  // non-empty object (one key per module) even when every module's `mlos`
+  // array is emptied — likewise courseActivities/courseMaterials keep their
+  // module keys when the inner arrays are cleared. For those keys, "empty"
+  // means no inner content at all, so a placeholder shell can't beat real data.
+  function _destructiveValueEmpty(key, v) {
+    if (key === 'moduleOverviewData') {
+      if (!v || typeof v !== 'object') return true;
+      return !Object.keys(v).some(function(mk) {
+        var m = v[mk];
+        return m && Array.isArray(m.mlos) && m.mlos.length > 0;
+      });
+    }
+    if (key === 'courseActivities' || key === 'courseMaterials') {
+      if (!v || typeof v !== 'object') return true;
+      return !Object.keys(v).some(function(mk) { return Array.isArray(v[mk]) && v[mk].length > 0; });
+    }
+    return _isEffectivelyEmpty(v);
+  }
+
   function saveField(key, value) {
     // Reviewers are strictly read-only. Their forced early showView('preview')
     // fires saveModuleOverviewSync()/_doSaveAllFields() while the cloud fetch is
@@ -6939,7 +6959,7 @@
       // Data-loss guard: refuse to overwrite a populated destructive-key with
       // an empty value. This is what kept wiping POP644's CLOs/ELOs/etc. on
       // tab-hide while the page was mid-load.
-      if (_SAVE_DESTRUCTIVE_KEYS[key] && _isEffectivelyEmpty(value) && !_isEffectivelyEmpty(data[key])) {
+      if (_SAVE_DESTRUCTIVE_KEYS[key] && _destructiveValueEmpty(key, value) && !_destructiveValueEmpty(key, data[key])) {
         console.warn('[saveField] refusing to wipe populated "' + key + '" with empty value');
         return;
       }
@@ -6949,7 +6969,7 @@
       // timestamp that then beats the populated cloud copy in the pre-push
       // merge (newer-wins) and pushes the wipe back to everyone. Until the pull
       // hydrates real data, we have nothing worth persisting empty over.
-      if (_SAVE_DESTRUCTIVE_KEYS[key] && _isEffectivelyEmpty(value) && !window._cloudPullComplete) {
+      if (_SAVE_DESTRUCTIVE_KEYS[key] && _destructiveValueEmpty(key, value) && !window._cloudPullComplete) {
         console.warn('[saveField] suppressing empty "' + key + '" write before cloud pull completed');
         return;
       }
