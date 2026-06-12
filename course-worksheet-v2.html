@@ -8798,7 +8798,7 @@
     h += '<div class="attach-section">';
     h += '<div class="attach-section-label">📁 Upload a file</div>';
     h += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">';
-    h += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
+    h += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx, .zip</span>';
     h += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
     h += '</div>';
     h += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
@@ -13289,34 +13289,84 @@
         _renderAttachedFiles(prefix);
         refreshContentIndicator(prefix);
       }).catch(function(err) {
+        if (_isDriveAuthError(err)) { _driveConnectPrompt(status, _runDriveAttach); return; }
         status.textContent = '⚠ ' + (err && err.message ? err.message : 'upload failed');
         status.style.color = '#c62828';
       });
     }
 
-    // Phase 1: ask Drive whether this file already exists somewhere under the
-    // course folder. If yes, treat the upload as a link — no second copy in
-    // Drive, the user just sees that the existing file is now attached here.
-    status.textContent = 'Checking Drive for existing copy…';
-    status.style.color = '#999';
-    window.GDrive.findFileInCourseTree(activeCourse.driveFolder, file.name).then(function(existing) {
-      if (existing && existing.id) {
-        _recordAttachedFile(prefix, {
-          name: file.name, size: file.size,
-          webViewLink: existing.webViewLink, driveId: existing.id,
-          status: 'linked', folderName: subfolderName, redirectedTo: linkedMaterialName
-        });
-        _renderAttachedFiles(prefix);
-        refreshContentIndicator(prefix);
-        return;
-      }
-      _doUpload();
-    }).catch(function() {
-      // findFileInCourseTree shouldn't reject (it returns null on errors),
-      // but if it does, fall through to a normal upload rather than blocking
-      // the user.
-      _doUpload();
-    });
+    // The actual Drive work: check for an existing copy, else upload. Split
+    // into its own function so the "Connect Google Drive" retry can re-run it.
+    function _runDriveAttach() {
+      // Phase 1: ask Drive whether this file already exists somewhere under the
+      // course folder. If yes, treat the upload as a link — no second copy in
+      // Drive, the user just sees that the existing file is now attached here.
+      status.textContent = 'Checking Drive for existing copy…';
+      status.style.color = '#999';
+      window.GDrive.findFileInCourseTree(activeCourse.driveFolder, file.name).then(function(existing) {
+        if (existing && existing.id) {
+          _recordAttachedFile(prefix, {
+            name: file.name, size: file.size,
+            webViewLink: existing.webViewLink, driveId: existing.id,
+            status: 'linked', folderName: subfolderName, redirectedTo: linkedMaterialName
+          });
+          _renderAttachedFiles(prefix);
+          refreshContentIndicator(prefix);
+          return;
+        }
+        _doUpload();
+      }).catch(function() {
+        // findFileInCourseTree shouldn't reject (it returns null on errors),
+        // but if it does, fall through to a normal upload rather than blocking
+        // the user.
+        _doUpload();
+      });
+    }
+
+    // The OAuth popup can't open after the OS file dialog (transient activation
+    // expired), so when we don't already hold a Drive token, don't silently
+    // fire a doomed popup. Show a Connect button — clicking it is a fresh
+    // gesture that can open the Google popup, then the upload runs on its own.
+    if (window.GDrive.hasValidToken && !window.GDrive.hasValidToken()) {
+      _driveConnectPrompt(status, _runDriveAttach);
+      return;
+    }
+    _runDriveAttach();
+  }
+
+  // True for the Google Identity Services popup/auth failures that mean
+  // "we need the user to (re)authorize via a fresh click".
+  function _isDriveAuthError(err) {
+    var m = (err && err.message ? err.message : String(err || '')).toLowerCase();
+    return m.indexOf('popup') !== -1 || m.indexOf('access token') !== -1
+      || m.indexOf('sign-in') !== -1 || m.indexOf('sign in') !== -1
+      || m.indexOf('not configured') !== -1;
+  }
+
+  // Render a "Connect Google Drive" button into a file row's status slot.
+  // onConnected re-runs the upload once authorization succeeds.
+  function _driveConnectPrompt(status, onConnected) {
+    status.innerHTML = '';
+    status.style.color = '#8c1d40';
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = '🔗 Connect Google Drive to upload';
+    btn.style.cssText = 'border:1px solid #8c1d40; background:#fff; color:#8c1d40; font-size:11px; font-weight:600; padding:2px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;';
+    btn.onclick = function() {
+      btn.disabled = true;
+      btn.textContent = 'Connecting…';
+      window.GDrive.getAccessToken().then(function() {
+        onConnected();
+      }).catch(function(e) {
+        btn.disabled = false;
+        btn.textContent = '🔗 Connect Google Drive to upload';
+        var note = document.createElement('span');
+        note.style.cssText = 'color:#c62828; margin-left:8px;';
+        note.textContent = (e && e.message) ? e.message : 'sign-in failed — try again';
+        status.appendChild(note);
+      });
+    };
+    status.appendChild(btn);
   }
 
   function handleFileAttach(input, prefix) {

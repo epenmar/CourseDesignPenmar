@@ -176,12 +176,22 @@
     });
   }
 
+  // True when we hold a still-valid access token, so callers can decide
+  // whether a Drive action will need an interactive OAuth popup. The popup
+  // can only open from a fresh user gesture — after the OS file-picker dialog
+  // the page's transient activation has usually expired, so uploads that need
+  // a new token must be (re)triggered from a dedicated "Connect" click.
+  function hasValidToken() {
+    return !!(accessToken && Date.now() < tokenExpiresAt - 30000);
+  }
+
   window.GDrive = {
     uploadBlob: uploadBlob,
     uploadBlobToSubfolder: uploadBlobToSubfolder,
     findOrCreateFolder: findOrCreateFolder,
     findFileInCourseTree: findFileInCourseTree,
     folderIdFromUrl: folderIdFromUrl,
-    getAccessToken: getAccessToken
+    getAccessToken: getAccessToken,
+    hasValidToken: hasValidToken
   };
 })();
