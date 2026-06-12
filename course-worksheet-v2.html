@@ -673,10 +673,14 @@
   .rubric-table td[contenteditable]:focus { outline: 2px solid #ffc627; outline-offset: -2px; background: #fffde6; }
   .rubric-table th[contenteditable]:empty::before,
   .rubric-table td[contenteditable]:empty::before { content: attr(data-placeholder); color: #bbb; }
-  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { background: transparent; border: none; padding: 0 6px; text-align: center; min-width: 0; }
-  .rubric-row-del { display: none; border: none; background: none; color: #ccc; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 4px; }
-  .rubric-table tbody tr:hover .rubric-row-del { display: inline-block; }
-  .rubric-row-del:hover { color: #c62828; }
+  /* Actions (delete-row) column is pinned to the right edge so it stays
+     reachable even when a wide AI-generated rubric overflows horizontally. */
+  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { border: none; padding: 0 6px; text-align: center; min-width: 28px; width: 28px; position: sticky; right: 0; }
+  .rubric-table th.rubric-actions { background: #fafaf7; }
+  .rubric-table td.rubric-actions { background: #fff; }
+  /* Always visible (was hover-only, which made deleting undiscoverable). */
+  .rubric-row-del { display: inline-block; border: none; background: none; color: #c0392b; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 4px; opacity: 0.55; }
+  .rubric-table tbody tr:hover .rubric-row-del, .rubric-row-del:hover { opacity: 1; color: #c62828; }
   .rubric-grid-actions { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-top: 1px solid #f0ede5; background: #fafaf7; }
   .rubric-grid-hint { font-size: 11px; color: #999; font-style: italic; }
   .rubric-cell-dirty { background: #fffde6; }
