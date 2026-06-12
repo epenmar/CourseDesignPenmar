@@ -530,8 +530,11 @@
      mini-callout pushing the card right. Names the assignment(s) tagged to the
      card's competencies: green when all are covered, amber when some, red when
      none ("Not yet tagged"). */
+  /* order:-1 keeps the box visually on the left while it sits LAST in the DOM,
+     so a comment's text re-anchor matches the real card content first (not the
+     duplicated assignment name in this box). */
   .ceph-coverage-box {
-    flex: 0 0 20%; max-width: 20%; box-sizing: border-box;
+    flex: 0 0 25%; max-width: 25%; order: -1; box-sizing: border-box;
     border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.35;
     display: flex; flex-direction: column; justify-content: center;
   }
@@ -539,7 +542,7 @@
   .ceph-coverage-box.partial  { background: #fff3e0; border: 1px solid #d98e2b; color: #8a5a12; }
   .ceph-coverage-box.untagged { background: #fdecea; border: 1px solid #e0a3a3; color: #b02a2a; }
   .ceph-coverage-box .ceph-cov-label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 9px; margin-bottom: 3px; opacity: 0.85; }
-  .ceph-coverage-box .ceph-cov-name { font-weight: 600; margin-bottom: 2px; }
+  .ceph-coverage-box .ceph-cov-name { font-weight: 400; margin-bottom: 3px; }
   .ceph-group-main { flex: 1; min-width: 0; }
   .ceph-group-head { display: flex; align-items: flex-start; gap: 12px; }
   .ceph-group-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #2a2a2a; line-height: 1.4; }
@@ -4550,14 +4553,14 @@
     if (!container) return;
     var allMlos = getAllMlos();
     if (allMlos.length === 0) { container.innerHTML = '<span style="color:#888;">No MLOs defined yet.</span>'; return; }
+    // Collect tagged MLO ids from EVERY module's activities (iterate the actual
+    // keys, not a numeric range — a range mismatch was flagging tagged MLOs).
     var covered = {};
-    var startNum = activeCourse.moduleStartZero ? 0 : 1;
-    var modCount = activeCourse.moduleCount || 7;
-    for (var m = startNum; m < startNum + modCount; m++) {
+    Object.keys(courseActivities || {}).forEach(function(m) {
       (courseActivities[m] || []).forEach(function(a) {
         (a.objectives || []).forEach(function(o) { covered[o] = true; });
       });
-    }
+    });
     var uncovered = allMlos.filter(function(mlo) { return !covered[mlo.id]; });
     if (uncovered.length === 0) {
       container.innerHTML = '<span style="color:#2d7d46; font-weight:600;">✓ Every MLO has at least one assignment attached.</span>';
@@ -4567,7 +4570,7 @@
     html += '<ul style="margin:0; padding-left:18px; color:#555; line-height:1.6;">';
     uncovered.forEach(function(mlo) {
       var t = (mlo.text || '');
-      html += '<li><strong>MLO ' + escapeHtml(mlo.id) + '</strong> <span style="color:#888;">(Module ' + mlo.modNum + ')</span> — ' + escapeHtml(t.substring(0, 90)) + (t.length > 90 ? '…' : '') + '</li>';
+      html += '<li><strong>MLO ' + escapeHtml(mlo.id) + '</strong> — ' + escapeHtml(t.substring(0, 90)) + (t.length > 90 ? '…' : '') + '</li>';
     });
     html += '</ul>';
     container.innerHTML = html;
@@ -8705,15 +8708,17 @@
       var boxHtml = '<div class="ceph-coverage-box ' + coverClass + '">';
       if (groupTagged.length) {
         boxHtml += '<div class="ceph-cov-label">✓ Assessed by</div>';
+        // Bold only the module number; the assignment title stays unbolded.
         boxHtml += groupTagged.map(function(t) {
-          return '<div class="ceph-cov-name">' + escapeHtml(t.name) + '<span style="font-weight:400; display:block;">Module ' + escapeHtml(String(t.mod)) + '</span></div>';
+          return '<div class="ceph-cov-name"><strong>M' + escapeHtml(String(t.mod)) + '</strong> ' + escapeHtml(t.name) + '</div>';
         }).join('');
       } else {
         boxHtml += '<div class="ceph-cov-label">Not yet tagged</div>';
       }
       boxHtml += '</div>';
       html += '<div class="ceph-group">';
-      html += boxHtml;
+      // Main content FIRST in the DOM (box is order:-1 so it still shows left);
+      // this keeps comment re-anchoring matching the real content, not the box.
       html += '<div class="ceph-group-main">';
       html += '<div class="ceph-group-head">';
       html += '<div class="ceph-group-title">' + escapeHtml(g.title || '(untitled)') + '</div>';
@@ -8732,6 +8737,7 @@
       });
       html += '</div>'; // ceph-group-comps
       html += '</div>'; // ceph-group-main
+      html += boxHtml;  // box last in DOM, visually left via order:-1
       html += '</div>'; // ceph-group
     });
     html += '</div></details></div>';
