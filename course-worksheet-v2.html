@@ -1574,6 +1574,9 @@
             <div style="margin-top:8px; display:flex; justify-content:space-between; align-items:center;">
               <button id="mod-obj-edit-btn" onclick="toggleModDetailMloEdit()" style="border:1px solid #ddd; background:#fff; color:#666; font-size:11px; padding:3px 10px; border-radius:4px; cursor:pointer; font-family:Inter,sans-serif;">✏️ Edit</button>
             </div>
+            <!-- Module-scoped alignment summary: which of this module's objectives
+                 are addressed by an activity, and which activities are untagged. -->
+            <div id="module-alignment-summary" style="margin-top:12px; padding:10px 14px; background:#f7f9f7; border:1px solid #e0e6e0; border-radius:8px; font-size:12px; line-height:1.5;"></div>
           </div>
         </div>
 
@@ -4569,6 +4572,61 @@
     html += '</ul>';
     container.innerHTML = html;
   }
+
+  // Module-detail page: alignment summary for the CURRENT module only —
+  // which of this module's MLOs are addressed by an activity in this module,
+  // and which activities have no objective tagged. Mirrors the overview's
+  // MLO coverage report but scoped to one module so the instructor sees the
+  // gap right where they're building the week.
+  function renderModuleAlignmentSummary(num) {
+    var container = document.getElementById('module-alignment-summary');
+    if (!container) return;
+    var mlos = getAllMlos().filter(function(m) { return m.modNum === num; });
+    var acts = (courseActivities[num] || []);
+    if (mlos.length === 0 && acts.length === 0) { container.innerHTML = ''; return; }
+    var counts = {};
+    mlos.forEach(function(m) { counts[m.id] = 0; });
+    var untagged = [];
+    acts.forEach(function(a) {
+      var objs = (a.objectives || []);
+      objs.forEach(function(o) { if (Object.prototype.hasOwnProperty.call(counts, o)) counts[o]++; });
+      if (objs.length === 0) untagged.push(a);
+    });
+    var uncovered = mlos.filter(function(m) { return counts[m.id] === 0; });
+    var html = '';
+    if (mlos.length === 0) {
+      html += '<div style="color:#888;">No module objectives defined yet — add them above before mapping activities.</div>';
+    } else if (uncovered.length === 0) {
+      html += '<div style="color:#2d7d46; font-weight:600;">✓ All ' + mlos.length + ' module objective' + (mlos.length === 1 ? '' : 's') + ' are addressed by an activity below.</div>';
+    } else {
+      html += '<div style="color:#c0392b; font-weight:600; margin-bottom:6px;">' + uncovered.length + ' module objective' + (uncovered.length === 1 ? '' : 's') + ' not yet addressed by any activity:</div>';
+      html += '<ul style="margin:0 0 2px; padding-left:18px; color:#555; line-height:1.6;">';
+      uncovered.forEach(function(m) {
+        var t = (m.text || '');
+        html += '<li><strong>MLO ' + escapeHtml(m.id) + '</strong> — ' + escapeHtml(t.substring(0, 90)) + (t.length > 90 ? '…' : '') + '</li>';
+      });
+      html += '</ul>';
+    }
+    if (untagged.length) {
+      html += '<div style="margin-top:8px; color:#c4841d; font-weight:600;">' + untagged.length + ' activit' + (untagged.length === 1 ? 'y has' : 'ies have') + ' no objective tagged:</div>';
+      html += '<ul style="margin:0; padding-left:18px; color:#555; line-height:1.6;">';
+      untagged.forEach(function(a) {
+        var nm = (a.name || '').trim() || 'Untitled activity';
+        html += '<li>' + escapeHtml(nm.substring(0, 80)) + (nm.length > 80 ? '…' : '') + '</li>';
+      });
+      html += '</ul>';
+    }
+    container.innerHTML = html;
+  }
+  // Refresh the module alignment summary only when the module-detail view is
+  // the active view (cheap no-op otherwise). Called after objective tags or
+  // the module's activity list change.
+  function _refreshModuleAlignmentIfVisible() {
+    if (currentViewId === 'module' && document.getElementById('module-alignment-summary')) {
+      try { renderModuleAlignmentSummary(currentModuleNum); } catch (e) {}
+    }
+  }
+
   // Module overview page: ELOs mapped to 0 or only 1 MLO.
   function renderEloCoverageReport() {
     var container = document.getElementById('elo-coverage-report');
@@ -5838,7 +5896,7 @@
     for (var i = 0; i < weights.length; i++) {
       html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;" data-weight-idx="' + i + '">' +
         '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0; line-height:1; flex-shrink:0;" title="Remove">&times;</button>' +
-        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" onchange="saveWeightsAndRefresh()" style="flex:1;" />' +
+        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" onfocus="this.dataset.prevCat=this.value" oninput="saveWeights()" onchange="saveWeightsAndRefresh(this)" style="flex:1;" />' +
         '<input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="width:70px; text-align:center; flex-shrink:0;" oninput="saveWeights()" />' +
         '</div>';
     }
@@ -5863,11 +5921,39 @@
   // overview re-render rebuilds the weight inputs (via renderWeightRows) and
   // would steal focus mid-typing, so we only refresh the dependent category
   // dropdowns once the user leaves the field.
-  function saveWeightsAndRefresh() {
+  function saveWeightsAndRefresh(changedInput) {
     saveWeights();
+    // If the user renamed a category in place, carry the new name onto every
+    // activity tagged with the old name — otherwise the activity dropdown would
+    // show "<old name> (removed)" and force a manual reselect. The old name is
+    // captured at focus-time (data-prevCat) because oninput has already
+    // overwritten the saved weights with the new name by the time we get here.
+    if (changedInput && changedInput.dataset) {
+      var oldName = (changedInput.dataset.prevCat || '').trim();
+      var newName = (changedInput.value || '').trim();
+      if (oldName && newName && oldName !== newName && _propagateCategoryRename(oldName, newName)) {
+        if (typeof saveActivityData === 'function') saveActivityData();
+      }
+      changedInput.dataset.prevCat = changedInput.value;
+    }
     if (currentViewId === 'assignments-overview') {
       try { renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards')); } catch (e) {}
     }
+  }
+
+  // Rename a weighting category across every activity that referenced the old
+  // name. Returns true if any activity changed.
+  function _propagateCategoryRename(oldName, newName) {
+    var changed = false;
+    Object.keys(courseActivities || {}).forEach(function(m) {
+      (courseActivities[m] || []).forEach(function(a) {
+        if (a && typeof a.category === 'string' && a.category.trim() === oldName) {
+          a.category = newName;
+          changed = true;
+        }
+      });
+    });
+    return changed;
   }
 
   // The list of weighting-category names defined in the Assignment Weighting
@@ -8040,6 +8126,7 @@
     // Render activities and materials from data model
     renderModuleActivities(num);
     renderModuleMaterials(num);
+    renderModuleAlignmentSummary(num);
 
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
     // Re-apply comment highlights after module content renders
@@ -8092,6 +8179,7 @@
       btn.style.background = '#fff';
       btn.style.color = '#666';
       btn.style.borderColor = '#ddd';
+      renderModuleAlignmentSummary(num);
     }
   }
 
@@ -8139,6 +8227,7 @@
     const activities = courseActivities[num] || [];
     if (activities.length === 0) {
       container.innerHTML = '<div id="activities-empty-state" style="text-align:center; padding:24px; color:#999; font-style:italic; font-size:13px;">No activities yet. Click "+ Add activity" to get started.</div>';
+      _refreshModuleAlignmentIfVisible();
       return;
     }
 
@@ -8158,6 +8247,7 @@
 
     if (window.RichEditor) window.RichEditor.initAll(container);
     if (typeof attachAllDuePickers === 'function') attachAllDuePickers(container);
+    _refreshModuleAlignmentIfVisible();
   }
 
   function renderModuleMaterials(num) {
@@ -9799,6 +9889,7 @@
         if (newDisplay) newDisplay.classList.add('open');
       }
     }
+    _refreshModuleAlignmentIfVisible();
   }
 
   // Bulk add/remove every course MLO on a midterm/final/comprehensive
@@ -9881,6 +9972,7 @@
         if (newDisplay) newDisplay.classList.add('open');
       }
     }
+    _refreshModuleAlignmentIfVisible();
   };
 
   function removeObj(pickerId, objId) {
