@@ -19343,6 +19343,31 @@
   //   CHS / default → { college, data: { items: [{assignment, description}] } }
   //   STPH          → { college, data: { items: [{elo, description}] } }
   //   NCIAS         → { college, data: { prose: "..." } }
+  // Parse AI JSON that may be truncated (response hit the token cap mid-array).
+  // Tries a clean parse first; on failure, trims back to the last complete
+  // element and closes any unbalanced brackets so we recover what we can.
+  function _lenientJsonParse(s) {
+    try { return JSON.parse(s); } catch (e) {}
+    var t = String(s);
+    var lastClose = Math.max(t.lastIndexOf('}'), t.lastIndexOf(']'));
+    if (lastClose === -1) throw new Error('Could not parse AI response (no JSON found).');
+    t = t.slice(0, lastClose + 1);
+    var curly = 0, square = 0, inStr = false, esc = false;
+    for (var i = 0; i < t.length; i++) {
+      var ch = t[i];
+      if (inStr) { if (esc) esc = false; else if (ch === '\\') esc = true; else if (ch === '"') inStr = false; continue; }
+      if (ch === '"') inStr = true;
+      else if (ch === '{') curly++;
+      else if (ch === '}') curly--;
+      else if (ch === '[') square++;
+      else if (ch === ']') square--;
+    }
+    t = t.replace(/,\s*$/, '');
+    while (square > 0) { t += ']'; square--; }
+    while (curly > 0) { t += '}'; curly--; }
+    return JSON.parse(t);
+  }
+
   async function generateSyllabusAssignments(btn) {
     var college = activeCourse.college || '';
     var startN = activeCourse.moduleStartZero ? 0 : 1;
@@ -19495,10 +19520,13 @@
     }
 
     try {
-      var raw = (await callCreateAI(prompt + '\n\n' + schemaInstruction, 'You are an instructional designer writing ASU Online syllabus content. Never invent due dates.', 2048)).trim();
+      var raw = (await callCreateAI(prompt + '\n\n' + schemaInstruction, 'You are an instructional designer writing ASU Online syllabus content. Never invent due dates.', 4096)).trim();
       var jsonMatch = raw.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) throw new Error('Could not parse AI response');
-      var parsed = JSON.parse(jsonMatch[0]);
+      // Fall back to "first { onward" so a response truncated before its closing
+      // brace can still be repaired by _lenientJsonParse (which closes brackets).
+      var jsonStr = jsonMatch ? jsonMatch[0] : (raw.indexOf('{') !== -1 ? raw.slice(raw.indexOf('{')) : null);
+      if (!jsonStr) throw new Error('Could not parse AI response');
+      var parsed = _lenientJsonParse(jsonStr);
 
       // For NCIAS, inject the weight from the Assignment Weighting callout and
       // the actual per-assignment points, so the section reflects the user's
@@ -19820,7 +19848,6 @@
         html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Topic / Module</th>';
         html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Assignments Due</th>';
         html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Assoc. ELO / CEPH #</th>';
-        html += '<th style="padding:6px 8px; text-align:left; border:1px solid #e0ddd5; font-weight:600;">Level of Coverage</th>';
         html += '</tr></thead><tbody>';
         var hasData = false;
         for (var m = _startN; m < _startN + mc; m++) {
@@ -19848,7 +19875,6 @@
           html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (topic ? escapeHtml(topic) : '<span style="color:#ccc;">—</span>') + '</td>';
           html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (actNames.length > 0 ? actNames.join('<br>') : '<span style="color:#ccc;">—</span>') + '</td>';
           html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;">' + (eloRefs.length > 0 ? eloRefs.join(', ') : '<span style="color:#ccc;">—</span>') + '</td>';
-          html += '<td style="padding:6px 8px; border:1px solid #e0ddd5;"><span style="color:#ccc;">—</span></td>';
           html += '</tr>';
         }
         html += '</tbody></table>';
