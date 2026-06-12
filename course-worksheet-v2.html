@@ -2022,8 +2022,7 @@
         <p style="color:#666; font-size:13px; margin-bottom:24px;">Course-wide required materials. Per-module resources go in each module's detail page.</p>
         <div class="card"><div class="card-body">
           <div class="step-hint">Include name, author, edition, and publisher for each textbook.</div>
-          <div class="field-group"><label class="field-label">Textbook 1</label><input type="text" id="mat-textbook-1" class="field-input" placeholder="Title, author, edition, publisher" /></div>
-          <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" id="mat-textbook-2" class="field-input" placeholder="Add another..." /></div>
+          <div id="textbook-rows"></div>
           <button class="btn-add-row" onclick="addTextbookRow()">+ Add textbook</button>
           <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea id="mat-other-materials" class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
           <div class="field-group" style="margin-top:16px;"><label class="field-label">Special Materials</label><textarea id="mat-special-materials" class="field-input" placeholder="Lab coat, safety gear, lab kit, bookstore license, etc."></textarea></div>
@@ -3779,11 +3778,9 @@
       if (el && !el.value) el.value = ciDefaults[id];
     });
 
-    // Populate textbook field from config (applies to ALL courses including MNS 521)
-    if (activeCourse.textbook) {
-      var tb1 = document.getElementById('mat-textbook-1');
-      if (tb1 && !tb1.value) tb1.value = activeCourse.textbook;
-    }
+    // Render the (now dynamic) textbook rows from saved data; row 1 seeds from
+    // the course config's textbook when no textbook data exists yet.
+    if (typeof renderTextbookRows === 'function') renderTextbookRows();
 
     // Set the correct session in the dropdown
     const sessionSelect = document.getElementById('session-select');
@@ -7503,57 +7500,101 @@
   }
 
   // ===== DYNAMIC TEXTBOOK ROWS (Textbooks & Materials page) =====
-  // The page ships with two static textbook inputs (mat-textbook-1/-2). The
-  // "+ Add textbook" button appends more (mat-textbook-3, -4, …). They persist
-  // automatically through the generic formData save (every input is keyed by
-  // id in _doSaveAllFields), so the only extra work is recreating the extra
-  // rows on load — _restoreExtraTextbooks(), called when the view is shown.
-  function _addTextbookGroup(n, value) {
-    var card = document.querySelector('#view-materials .card .card-body');
-    if (!card) return null;
-    if (document.getElementById('mat-textbook-' + n)) return document.getElementById('mat-textbook-' + n);
-    var btn = card.querySelector('.btn-add-row');
+  // Textbook rows are rendered from formData into #textbook-rows. Each row is a
+  // mat-textbook-N input (persisted by the generic formData save, keyed by id)
+  // plus a delete button. mat-textbook-count stores how many rows to show so
+  // adds AND deletes survive reloads. Default 2 rows; row 1 seeds from the
+  // course config's textbook when there's no saved textbook data yet.
+  function _buildTextbookRow(n, value) {
     var group = document.createElement('div');
     group.className = 'field-group';
+    group.setAttribute('data-textbook-row', String(n));
     var label = document.createElement('label');
     label.className = 'field-label';
     label.textContent = 'Textbook ' + n;
+    var rowWrap = document.createElement('div');
+    rowWrap.style.cssText = 'display:flex; gap:8px; align-items:center;';
     var input = document.createElement('input');
     input.type = 'text';
     input.id = 'mat-textbook-' + n;
     input.className = 'field-input';
-    input.placeholder = 'Add another...';
+    input.style.flex = '1';
+    input.placeholder = (n === 1) ? 'Title, author, edition, publisher' : 'Add another...';
     if (value != null) input.value = value;
+    var del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'act-tool-btn btn-delete';
+    del.title = 'Delete this textbook';
+    del.textContent = '✕';
+    del.style.flexShrink = '0';
+    del.setAttribute('onclick', 'deleteTextbookRow(' + n + ')');
+    rowWrap.appendChild(input);
+    rowWrap.appendChild(del);
     group.appendChild(label);
-    group.appendChild(input);
-    card.insertBefore(group, btn);
-    return input;
+    group.appendChild(rowWrap);
+    return group;
   }
-  function addTextbookRow() {
-    var card = document.querySelector('#view-materials .card .card-body');
-    if (!card) return;
+  // Number of textbook rows to show: the stored count (default 2), but never
+  // fewer than the highest mat-textbook-N key present — so rows written by
+  // other code paths (AI parser, legacy data) are never hidden — and never < 1.
+  function _displayedTextbookCount(data) {
     var maxN = 0;
-    card.querySelectorAll('input[id^="mat-textbook-"]').forEach(function(inp) {
-      var m = inp.id.match(/^mat-textbook-(\d+)$/);
-      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
-    });
-    var input = _addTextbookGroup(maxN + 1, '');
-    if (input) input.focus();
-  }
-  // Recreate any extra textbook rows (index >= 3) saved in formData so the
-  // user's added textbooks reappear after a reload.
-  function _restoreExtraTextbooks() {
-    var data = loadField('formData') || {};
-    var idxs = [];
     Object.keys(data).forEach(function(k) {
       var m = k.match(/^mat-textbook-(\d+)$/);
-      if (m) { var n = parseInt(m[1], 10); if (n >= 3 && String(data[k] || '').trim()) idxs.push(n); }
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
     });
-    idxs.sort(function(a, b) { return a - b; });
-    idxs.forEach(function(n) {
-      var input = _addTextbookGroup(n, data['mat-textbook-' + n]);
-      if (input && !input.value && data['mat-textbook-' + n]) input.value = data['mat-textbook-' + n];
-    });
+    var count = parseInt(data['mat-textbook-count'], 10);
+    if (isNaN(count)) count = 2;
+    return Math.max(count, maxN, 1);
+  }
+  function renderTextbookRows() {
+    var container = document.getElementById('textbook-rows');
+    if (!container) return;
+    var data = loadField('formData') || {};
+    var count = _displayedTextbookCount(data);
+    container.innerHTML = '';
+    for (var i = 1; i <= count; i++) {
+      var v = data['mat-textbook-' + i] || '';
+      if (i === 1 && !v && activeCourse && activeCourse.textbook) v = activeCourse.textbook;
+      container.appendChild(_buildTextbookRow(i, v));
+    }
+  }
+  // Snapshot the current textbook input values from the DOM into a 1-indexed
+  // array, so add/delete don't lose unsaved typing before the re-render.
+  function _snapshotTextbookValues(count) {
+    var vals = [];
+    for (var i = 1; i <= count; i++) {
+      var el = document.getElementById('mat-textbook-' + i);
+      vals.push(el ? el.value : '');
+    }
+    return vals;
+  }
+  function _writeTextbookValues(data, vals) {
+    Object.keys(data).forEach(function(k) { if (/^mat-textbook-\d+$/.test(k)) delete data[k]; });
+    vals.forEach(function(v, idx) { data['mat-textbook-' + (idx + 1)] = v; });
+    data['mat-textbook-count'] = vals.length;
+  }
+  function addTextbookRow() {
+    var data = loadField('formData') || {};
+    var count = _displayedTextbookCount(data);
+    var vals = _snapshotTextbookValues(count);
+    vals.push('');
+    _writeTextbookValues(data, vals);
+    saveField('formData', data);
+    renderTextbookRows();
+    var last = document.getElementById('mat-textbook-' + vals.length);
+    if (last) last.focus();
+  }
+  function deleteTextbookRow(n) {
+    var data = loadField('formData') || {};
+    var count = _displayedTextbookCount(data);
+    var vals = _snapshotTextbookValues(count);
+    if (n >= 1 && n <= vals.length) vals.splice(n - 1, 1);
+    if (vals.length < 1) vals = ['']; // always keep at least one row
+    _writeTextbookValues(data, vals);
+    saveField('formData', data);
+    renderTextbookRows();
+    if (typeof scheduleProgressUpdate === 'function') scheduleProgressUpdate();
   }
 
   function showSaveIndicator() {
@@ -8137,7 +8178,7 @@
     if (viewId === 'syllabus-checklist') renderSyllabusChecklist();
     if (viewId === 'course-info') renderCourseInfoGradingTable();
     if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); renderMloCoverageReport(); }
-    if (viewId === 'materials') { _restoreExtraTextbooks(); }
+    if (viewId === 'materials') { renderTextbookRows(); }
     if (viewId === 'materials-overview') { renderMaterialsOverview(); updateMaterialsReviewedButton(); }
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
