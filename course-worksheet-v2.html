@@ -2024,7 +2024,7 @@
           <div class="step-hint">Include name, author, edition, and publisher for each textbook.</div>
           <div class="field-group"><label class="field-label">Textbook 1</label><input type="text" id="mat-textbook-1" class="field-input" placeholder="Title, author, edition, publisher" /></div>
           <div class="field-group"><label class="field-label">Textbook 2</label><input type="text" id="mat-textbook-2" class="field-input" placeholder="Add another..." /></div>
-          <button class="btn-add-row">+ Add textbook</button>
+          <button class="btn-add-row" onclick="addTextbookRow()">+ Add textbook</button>
           <div class="field-group" style="margin-top:20px;"><label class="field-label">Other Required Materials</label><textarea id="mat-other-materials" class="field-input" placeholder="Software, tools, lab access, etc."></textarea></div>
           <div class="field-group" style="margin-top:16px;"><label class="field-label">Special Materials</label><textarea id="mat-special-materials" class="field-input" placeholder="Lab coat, safety gear, lab kit, bookstore license, etc."></textarea></div>
           <div class="field-group" style="margin-top:16px;"><label class="field-label">Co-curricular Activities</label><textarea id="mat-cocurricular" class="field-input" placeholder="Activities outside the normal meeting method required for this course..."></textarea></div>
@@ -7502,6 +7502,60 @@
     } catch(e) {}
   }
 
+  // ===== DYNAMIC TEXTBOOK ROWS (Textbooks & Materials page) =====
+  // The page ships with two static textbook inputs (mat-textbook-1/-2). The
+  // "+ Add textbook" button appends more (mat-textbook-3, -4, …). They persist
+  // automatically through the generic formData save (every input is keyed by
+  // id in _doSaveAllFields), so the only extra work is recreating the extra
+  // rows on load — _restoreExtraTextbooks(), called when the view is shown.
+  function _addTextbookGroup(n, value) {
+    var card = document.querySelector('#view-materials .card .card-body');
+    if (!card) return null;
+    if (document.getElementById('mat-textbook-' + n)) return document.getElementById('mat-textbook-' + n);
+    var btn = card.querySelector('.btn-add-row');
+    var group = document.createElement('div');
+    group.className = 'field-group';
+    var label = document.createElement('label');
+    label.className = 'field-label';
+    label.textContent = 'Textbook ' + n;
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.id = 'mat-textbook-' + n;
+    input.className = 'field-input';
+    input.placeholder = 'Add another...';
+    if (value != null) input.value = value;
+    group.appendChild(label);
+    group.appendChild(input);
+    card.insertBefore(group, btn);
+    return input;
+  }
+  function addTextbookRow() {
+    var card = document.querySelector('#view-materials .card .card-body');
+    if (!card) return;
+    var maxN = 0;
+    card.querySelectorAll('input[id^="mat-textbook-"]').forEach(function(inp) {
+      var m = inp.id.match(/^mat-textbook-(\d+)$/);
+      if (m) maxN = Math.max(maxN, parseInt(m[1], 10));
+    });
+    var input = _addTextbookGroup(maxN + 1, '');
+    if (input) input.focus();
+  }
+  // Recreate any extra textbook rows (index >= 3) saved in formData so the
+  // user's added textbooks reappear after a reload.
+  function _restoreExtraTextbooks() {
+    var data = loadField('formData') || {};
+    var idxs = [];
+    Object.keys(data).forEach(function(k) {
+      var m = k.match(/^mat-textbook-(\d+)$/);
+      if (m) { var n = parseInt(m[1], 10); if (n >= 3 && String(data[k] || '').trim()) idxs.push(n); }
+    });
+    idxs.sort(function(a, b) { return a - b; });
+    idxs.forEach(function(n) {
+      var input = _addTextbookGroup(n, data['mat-textbook-' + n]);
+      if (input && !input.value && data['mat-textbook-' + n]) input.value = data['mat-textbook-' + n];
+    });
+  }
+
   function showSaveIndicator() {
     let ind = document.getElementById('save-indicator');
     if (!ind) {
@@ -8083,6 +8137,7 @@
     if (viewId === 'syllabus-checklist') renderSyllabusChecklist();
     if (viewId === 'course-info') renderCourseInfoGradingTable();
     if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); renderMloCoverageReport(); }
+    if (viewId === 'materials') { _restoreExtraTextbooks(); }
     if (viewId === 'materials-overview') { renderMaterialsOverview(); updateMaterialsReviewedButton(); }
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
@@ -16311,9 +16366,23 @@
     html += '<h1>Course Basics</h1>';
 
     html += '<h2>Textbook, Materials, Technology and Co-curricular Activities</h2>';
-    var tb1 = val('mat-textbook-1'), tb2 = val('mat-textbook-2');
-    html += '<p><strong>Textbook:</strong> ' + (tb1 ? esc(tb1) : '') + '</p>';
-    if (tb2) html += '<p>' + esc(tb2) + '</p>';
+    // Collect every textbook row (mat-textbook-1, -2, and any added via
+    // "+ Add textbook") in numeric order — not just the first two.
+    var tbVals = [];
+    var tbSeen = {};
+    document.querySelectorAll('#view-materials input[id^="mat-textbook-"]').forEach(function(inp) {
+      var m = inp.id.match(/^mat-textbook-(\d+)$/);
+      if (m) tbSeen[parseInt(m[1], 10)] = (inp.value || '').trim();
+    });
+    Object.keys(loadField('formData') || {}).forEach(function(k) {
+      var m = k.match(/^mat-textbook-(\d+)$/);
+      if (m && !(parseInt(m[1], 10) in tbSeen)) tbSeen[parseInt(m[1], 10)] = String((loadField('formData') || {})[k] || '').trim();
+    });
+    Object.keys(tbSeen).map(Number).sort(function(a, b) { return a - b; }).forEach(function(n) {
+      if (tbSeen[n]) tbVals.push(tbSeen[n]);
+    });
+    html += '<p><strong>Textbook:</strong> ' + (tbVals.length ? esc(tbVals[0]) : '') + '</p>';
+    for (var _ti = 1; _ti < tbVals.length; _ti++) html += '<p>' + esc(tbVals[_ti]) + '</p>';
 
     var specialMats = val('mat-special-materials');
     html += '<p><strong>Special materials:</strong> ' + (specialMats ? esc(specialMats).replace(/\n/g, '<br>') : '') + '</p>';
