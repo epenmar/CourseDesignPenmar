@@ -63,7 +63,11 @@ function findCheckedItems(block: string): string[] {
 
 function splitSections(md: string): Record<string, string> {
   const out: Record<string, string> = {};
-  const re = /^###\s+([^\n]+?)\s*\n([\s\S]*?)(?=^###\s|^##\s|\n---\s*\n|$(?![\r\n]))/gm;
+  // Match ANY ATX heading level (# … ######). Granola is inconsistent: older
+  // notes used H3 ("### Action Items"), newer ones use H1 ("# Action Items")
+  // with `---` separators. Keying on `###` only made the newer notes parse to
+  // zero sections → empty summary/decisions/action_items. `#{1,6}` covers both.
+  const re = /^#{1,6}[ \t]+([^\n]+?)\s*\n([\s\S]*?)(?=^#{1,6}[ \t]|\n---\s*\n|$(?![\r\n]))/gm;
   let m;
   while ((m = re.exec(md))) {
     const heading = m[1].trim().toLowerCase();
@@ -308,8 +312,20 @@ async function runSync(apiKey: string, supabaseUrl: string, serviceKey: string) 
 
   // Flatten into rows for upsert
   const rows: any[] = [];
+  let emptySkipped = 0;
   for (const [courseId, notes] of Object.entries(courseNotes)) {
     for (const n of notes) {
+      // Don't upsert a note that parsed to NO content (no summary, decisions,
+      // action items, or relationship notes). Granola fills in the checkbox
+      // template the moment a meeting starts but generates the AI body a few
+      // minutes later — a sync in that window used to write an empty row OVER
+      // a previously-good one (the "synced then disappeared" bug). Skipping
+      // keeps the good data and lets a later sync populate it once it's ready.
+      const hasContent = !!(n.summary && n.summary.trim())
+        || (n.decisions && n.decisions.length > 0)
+        || (n.actionItems && n.actionItems.length > 0)
+        || (n.relationshipBuilding && n.relationshipBuilding.length > 0);
+      if (!hasContent) { emptySkipped++; continue; }
       rows.push({
         granola_id: n.id,
         course_id: courseId,
@@ -346,6 +362,7 @@ async function runSync(apiKey: string, supabaseUrl: string, serviceKey: string) 
   return {
     fetched,
     matched: totalMatched,
+    emptySkipped,
     unmatched: unmatchedCount,
     courses: Object.keys(courseNotes).length,
   };

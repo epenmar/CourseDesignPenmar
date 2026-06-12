@@ -102,9 +102,13 @@ function findCheckedItems(block) {
 }
 
 function splitSections(md) {
-  // Return an object of { headingLower: bodyText } for H3 sections.
+  // Return an object of { headingLower: bodyText } for ANY ATX heading level.
+  // Granola is inconsistent: older notes used H3 ("### Action Items"), newer
+  // ones use H1 ("# Action Items") with `---` separators. Keying on `###` only
+  // made the newer notes parse to zero sections → empty summary/decisions/
+  // action_items. `#{1,6}` covers both.
   const out = {};
-  const re = /^###\s+([^\n]+?)\s*\n([\s\S]*?)(?=^###\s|^##\s|\n---\s*\n|$(?![\r\n]))/gm;
+  const re = /^#{1,6}[ \t]+([^\n]+?)\s*\n([\s\S]*?)(?=^#{1,6}[ \t]|\n---\s*\n|$(?![\r\n]))/gm;
   let m;
   while ((m = re.exec(md))) {
     const heading = m[1].trim().toLowerCase();
@@ -540,8 +544,16 @@ async function upsertMeetingsToSupabase(courseNotes) {
     return;
   }
   const rows = [];
+  let emptySkipped = 0;
   for (const [courseId, notes] of Object.entries(courseNotes)) {
     for (const n of notes) {
+      // Skip notes that parsed to NO content so an early/partial sync can't
+      // overwrite previously-good data (the "synced then disappeared" bug).
+      const hasContent = !!(n.summary && n.summary.trim())
+        || (n.decisions && n.decisions.length > 0)
+        || (n.actionItems && n.actionItems.length > 0)
+        || (n.relationshipBuilding && n.relationshipBuilding.length > 0);
+      if (!hasContent) { emptySkipped++; continue; }
       rows.push({
         granola_id: n.id,
         course_id: courseId,
@@ -559,6 +571,7 @@ async function upsertMeetingsToSupabase(courseNotes) {
       });
     }
   }
+  if (emptySkipped) console.log(`[granola] skipped ${emptySkipped} empty/not-yet-generated note(s) to avoid clobbering good data`);
   if (!rows.length) { console.log('[granola] no rows to upsert'); return; }
   const r = await fetch(creds.url + '/rest/v1/meetings?on_conflict=granola_id', {
     method: 'POST',
