@@ -612,6 +612,9 @@
         <button class="resource-accordion" onclick="openIdentifyCourse()">
           🔍 Identify Course
         </button>
+        <button class="resource-accordion" onclick="window.open('contacts-directory.html','_blank')">
+          👥 Contacts Directory
+        </button>
       </div>
       <div class="resource-body" id="uni-resource-body">
         <div class="resource-section" style="margin-top:4px;">
@@ -639,7 +642,6 @@
               <a class="rc-link" href="https://newcollege.asu.edu/smns/faculty-directory" target="_blank">SMNS Faculty</a>
               <a class="rc-link" href="https://newcollege.asu.edu/directory/staff" target="_blank">Staff</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/new_college" target="_blank">Catalog</a>
-              <a class="rc-link" href="contacts-directory.html#ncias" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('new-college')">+ Add Link</button>
           </div>
@@ -649,7 +651,6 @@
               <a class="rc-link" href="https://publichealthtech.asu.edu/" target="_blank">Home</a>
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://publichealthtech.asu.edu/about/accreditation" target="_blank">CEPH</a>
-              <a class="rc-link" href="contacts-directory.html#stph" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('tph')">+ Add Link</button>
           </div>
@@ -660,7 +661,6 @@
               <a class="rc-link" href="https://chs.asu.edu/about/faculty" target="_blank">Faculty</a>
               <a class="rc-link" href="https://chs.asu.edu/degree-programs/online" target="_blank">Online</a>
               <a class="rc-link" href="https://catalog.asu.edu/policies/chs" target="_blank">Catalog</a>
-              <a class="rc-link" href="contacts-directory.html#chs" target="_blank">👥 Contacts Directory</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('chs')">+ Add Link</button>
           </div>
@@ -6683,30 +6683,22 @@
     renderResourceLinks(cardId);
   }
 
-  // One-time migration: append the "👥 Contacts Directory" link to each
-  // college's saved resource card if it's not already present. Needed
-  // because initResourceLinks() seeds localStorage from the hardcoded
-  // HTML only on the very first load — existing users (with previously-
-  // saved card data) never picked up the directory link added later.
-  function _migrateAddContactsDirectory() {
+  // One-time migration: REMOVE the per-college "👥 Contacts Directory" link
+  // from each college's saved resource card. The directory now lives as its
+  // own top-level button (alongside "Identify Course"), so the per-card copies
+  // are pulled out. Strips any stored link pointing at contacts-directory.html
+  // for existing users whose cards were seeded/migrated with it.
+  function _migrateRemoveContactsDirectory() {
     var stored = getResourceLinks();
-    var pairs = [
-      ['new-college', 'contacts-directory.html#ncias'],
-      ['tph',         'contacts-directory.html#stph'],
-      ['chs',         'contacts-directory.html#chs']
-    ];
     var changed = false;
-    pairs.forEach(function(p) {
-      var cardId = p[0], url = p[1];
+    ['new-college', 'tph', 'chs'].forEach(function(cardId) {
       if (!Array.isArray(stored[cardId])) return;
-      var already = stored[cardId].some(function(lnk) {
-        return lnk && typeof lnk.url === 'string'
-          && lnk.url.indexOf('contacts-directory.html') !== -1;
+      var before = stored[cardId].length;
+      stored[cardId] = stored[cardId].filter(function(lnk) {
+        return !(lnk && typeof lnk.url === 'string'
+          && lnk.url.indexOf('contacts-directory.html') !== -1);
       });
-      if (!already) {
-        stored[cardId].push({ label: '👥 Contacts Directory', url: url });
-        changed = true;
-      }
+      if (stored[cardId].length !== before) changed = true;
     });
     if (changed) {
       saveResourceLinks(stored);
@@ -6716,7 +6708,7 @@
 
   // Initialize on load
   initResourceLinks();
-  _migrateAddContactsDirectory();
+  _migrateRemoveContactsDirectory();
 
   // ===== COMMENT NOTIFICATIONS =====
   // URL + key come from supabase-config.js so there's a single source of truth.
