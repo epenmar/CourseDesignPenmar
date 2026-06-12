@@ -985,17 +985,27 @@
   // calendar items across hard refreshes; the async triggerSync() then
   // refreshes them. Gated on syncedAt so a fresh redeploy still wins, and
   // ignored past a week so a long-dead cache can't mask a real update.
-  (function _restoreSyncedCache() {
+  (function _restoreUpcomingCache() {
     try {
-      var raw = localStorage.getItem('dashboard_synced_cache');
+      // Reclaim space from the earlier full-snapshot cache. It held the entire
+      // SYNCED_DATA (all courses/notes/meetings — easily ~1MB), which could
+      // exhaust localStorage and make other writes (e.g. manually-added
+      // resource links) silently fail. We now cache only the small bits the
+      // Upcoming card needs to survive a hard refresh.
+      localStorage.removeItem('dashboard_synced_cache');
+      var raw = localStorage.getItem('dashboard_upcoming_cache');
       if (!raw) return;
       var cached = JSON.parse(raw);
-      if (!cached || !cached.syncedAt || !cached.courses) return;
+      if (!cached || !cached.syncedAt || !Array.isArray(cached.upcomingDeadlines) || !cached.upcomingDeadlines.length) return;
       var cur = window.SYNCED_DATA;
       var curMs = (cur && cur.syncedAt) ? new Date(cur.syncedAt).getTime() : 0;
       var cachedMs = new Date(cached.syncedAt).getTime();
       if (!isNaN(cachedMs) && cachedMs > curMs && (Date.now() - cachedMs) < 7 * 86400000) {
-        window.SYNCED_DATA = cached;
+        if (!window.SYNCED_DATA) window.SYNCED_DATA = {};
+        // Overlay only the deadlines + timestamp; keep the committed file's
+        // courses (triggerSync refreshes those async).
+        window.SYNCED_DATA.upcomingDeadlines = cached.upcomingDeadlines;
+        window.SYNCED_DATA.syncedAt = cached.syncedAt;
       }
     } catch (e) {}
   })();
@@ -3228,9 +3238,18 @@
             }
           }
           window.SYNCED_DATA = fresh;
-          // Cache the good snapshot so a hard refresh restores it instead of
-          // the stale committed dashboard-data.js (see _restoreSyncedCache).
-          try { localStorage.setItem('dashboard_synced_cache', JSON.stringify(fresh)); } catch (e) {}
+          // Cache ONLY the deadlines + timestamp so a hard refresh restores
+          // them (see _restoreUpcomingCache). Caching the full snapshot used to
+          // exhaust localStorage and break other writes (resource links).
+          try {
+            localStorage.removeItem('dashboard_synced_cache');
+            if (nonEmpty(fresh.upcomingDeadlines)) {
+              localStorage.setItem('dashboard_upcoming_cache', JSON.stringify({
+                syncedAt: fresh.syncedAt,
+                upcomingDeadlines: fresh.upcomingDeadlines
+              }));
+            }
+          } catch (e) {}
         }
         renderSummary();
         renderUpcoming();
@@ -6597,7 +6616,21 @@
     try { return JSON.parse(localStorage.getItem('dashboard_resource_links') || '{}'); } catch(e) { return {}; }
   }
   function saveResourceLinks(data) {
-    localStorage.setItem('dashboard_resource_links', JSON.stringify(data));
+    var payload = JSON.stringify(data);
+    try {
+      localStorage.setItem('dashboard_resource_links', payload);
+    } catch (e) {
+      // localStorage full — the user's manually-added links must take priority
+      // over the optional sync caches. Drop those and retry.
+      try { localStorage.removeItem('dashboard_synced_cache'); } catch (e2) {}
+      try { localStorage.removeItem('dashboard_upcoming_cache'); } catch (e2) {}
+      try {
+        localStorage.setItem('dashboard_resource_links', payload);
+      } catch (e3) {
+        console.warn('[resource-links] save failed — localStorage full:', e3 && e3.message);
+        alert('Could not save the link — the dashboard\'s local storage is full. Try removing some saved links or reloading.');
+      }
+    }
   }
 
   // Seed localStorage from hardcoded HTML on first load
