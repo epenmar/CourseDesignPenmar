@@ -3397,30 +3397,13 @@
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
           _buildContentCompleteBarHtml(id) +
-          '<div class="content-attach-tabs">' +
-            '<button class="content-attach-tab active" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>' +
-            '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>' +
-            '<button class="content-attach-tab" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>' +
-            '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>' +
+          '<div class="content-top-actions">' +
+            '<button class="content-action-btn" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>' +
+            '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + id + '\',' + moduleNum + ',\'' + id + '\')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>' +
+            '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>' +
           '</div>' +
-          '<div class="content-attach-body" id="' + id + '-upload">' +
-            '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">' +
-              '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>' +
-              '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />' +
-            '</div>' +
-            '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
-              '<strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.' +
-            '</div>' +
-            '<div id="' + id + '-files"></div>' +
-          '</div>' +
-          '<div class="content-attach-body hidden" id="' + id + '-link">' +
-            '<div class="link-input-row">' +
-              '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />' +
-              '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>' +
-            '</div>' +
-            '<div id="' + id + '-link-list"></div>' +
-          '</div>' +
-          '<div class="content-attach-body hidden" id="' + id + '-template">' +
+          _buildAttachMenuHtml(id) +
+          '<div class="content-attach-body" id="' + id + '-template">' +
             '<div class="template-type-selector">' +
               '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>' +
               '<button class="template-type-btn' + (activeType === 'assignment' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'assignment\',this)">Assignment</button>' +
@@ -3474,7 +3457,6 @@
               '</div>' +
             '</div>' +
           '</div>' +
-          '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>' +
           '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>' +
         '</div>' +
       '</div>' +
@@ -8512,6 +8494,37 @@
     else if (currentViewId === 'materials-overview') renderMaterialsOverview();
   }
 
+  // Build the single "Attach" popover panel shared by every content callout.
+  // Holds Upload / Link / existing-Materials in one place (toggled by the
+  // 📎 Attach button) so the template can stay front-and-center as the page.
+  // `id` is the content prefix (e.g. 'ov-<actId>' or 'mat-<matId>'); the inner
+  // element ids match the existing file/link/materials handlers verbatim.
+  function _buildAttachMenuHtml(id) {
+    var h = '<div class="attach-menu" id="' + id + '-attach-menu">';
+    // Upload
+    h += '<div class="attach-section">';
+    h += '<div class="attach-section-label">📁 Upload a file</div>';
+    h += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">';
+    h += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
+    h += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
+    h += '</div>';
+    h += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
+    h += '<div id="' + id + '-files"></div></div>';
+    // Link
+    h += '<div class="attach-section">';
+    h += '<div class="attach-section-label">🔗 Add a link</div>';
+    h += '<div class="link-input-row">';
+    h += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />';
+    h += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>';
+    h += '</div><div id="' + id + '-link-list"></div></div>';
+    // Existing course materials
+    h += '<div class="attach-section">';
+    h += '<div class="attach-section-label">📚 Link existing course materials</div>';
+    h += '<div id="' + id + '-linked-materials"></div></div>';
+    h += '</div>';
+    return h;
+  }
+
   // Build inline content attachment for an activity in overview
   function buildOverviewContentHtml(act, moduleNum) {
     var id = 'ov-' + act.id;
@@ -8532,28 +8545,13 @@
     html += '<div class="content-top-actions">';
     html += '<button class="content-action-btn" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>';
     html += '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + act.id + '\',' + moduleNum + ')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>';
+    html += '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>';
     html += '</div>';
-    html += '<div class="content-attach-tabs">';
-    html += '<button class="content-attach-tab active" data-tab-key="template" onclick="switchAttachTab(\'' + id + '\',\'template\',this)">📝 Template</button>';
-    html += '<button class="content-attach-tab" data-tab-key="upload" onclick="switchAttachTab(\'' + id + '\',\'upload\',this)">📁 Upload</button>';
-    html += '<button class="content-attach-tab" data-tab-key="link" onclick="switchAttachTab(\'' + id + '\',\'link\',this)">🔗 Link</button>';
-    html += '<button class="content-attach-tab" data-tab-key="linked" onclick="switchAttachTab(\'' + id + '\',\'linked\',this)" title="Link to existing materials in this course">🔗 Materials</button>';
-    html += '</div>';
-    // Upload tab
-    html += '<div class="content-attach-body hidden" id="' + id + '-upload">';
-    html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')">';
-    html += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx</span>';
-    html += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
-    html += '</div>';
-    html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
-    html += '<div id="' + id + '-files"></div></div>';
-    // Link tab
-    html += '<div class="content-attach-body hidden" id="' + id + '-link">';
-    html += '<div class="link-input-row">';
-    html += '<input type="text" class="activity-input" placeholder="Paste Google Doc, Canvas, or external URL..." style="font-size:12px;" onkeydown="if(event.key===\'Enter\'){event.preventDefault(); addContentLink(\'' + id + '\');}" />';
-    html += '<button style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:11px; font-weight:600; cursor:pointer; white-space:nowrap;" onclick="addContentLink(\'' + id + '\')">Add Link</button>';
-    html += '</div><div id="' + id + '-link-list"></div></div>';
-    // Template tab with dropdown selector — shown by default (front and center).
+    // Single "Attach" menu — Upload / Link / existing Materials in one popover
+    // panel (toggled by the Attach button above). The template below stays the
+    // main page; attaching is a side action, not a separate tab.
+    html += _buildAttachMenuHtml(id);
+    // Template — the main page, shown by default (front and center).
     html += '<div class="content-attach-body" id="' + id + '-template">';
     html += '<div class="template-type-selector">';
     html += '<button class="template-type-btn' + (activeType === 'discussion' ? ' active' : '') + '" onclick="switchTemplate(\'' + id + '\',\'discussion\',this)">Discussion</button>';
@@ -8605,7 +8603,6 @@
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-blank\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
     html += '</div>'; // template body
-    html += '<div class="content-attach-body hidden" id="' + id + '-linked"><div id="' + id + '-linked-materials"></div></div>';
     // Bottom collapse so the user can close the callout without scrolling up.
     html += '<div style="text-align:center; margin-top:14px; padding-top:10px; border-top:1px solid #f0ede5;"><button class="btn-add-row" onclick="collapseContentFrom(this)">▲ Collapse</button></div>';
     html += '</div></div>'; // content-attach-inner + content-attach
@@ -10644,7 +10641,16 @@
   // Toggle the consolidated "+ Attach" dropdown (Upload / Link / Materials).
   function toggleAttachMenu(prefix) {
     var menu = document.getElementById(prefix + '-attach-menu');
-    if (menu) menu.classList.toggle('open');
+    if (!menu) return;
+    var nowOpen = !menu.classList.contains('open');
+    menu.classList.toggle('open');
+    // The existing-materials picker depends on data that may have changed since
+    // render (new materials added elsewhere), so build it fresh on open.
+    if (nowOpen) {
+      var info = _itemForContentPrefix(prefix);
+      if (info && info.kind === 'material') { if (typeof _renderMaterialLinkedAssignments === 'function') _renderMaterialLinkedAssignments(prefix); }
+      else if (typeof _renderActivityLinkedMaterials === 'function') { _renderActivityLinkedMaterials(prefix); }
+    }
   }
 
   // Lazy-load a script from CDN once; resolves when window[globalName] exists.
@@ -10693,8 +10699,10 @@
   }
 
   // Import a faculty instructions document into the active template via AI.
-  async function importDocToTemplate(actId, moduleNum) {
-    var prefix = 'ov-' + actId;
+  async function importDocToTemplate(actId, moduleNum, explicitPrefix) {
+    // The overview uses an 'ov-' prefix; the module-detail view uses the raw
+    // activity id. Callers at the raw-id site pass it explicitly.
+    var prefix = explicitPrefix || ('ov-' + actId);
     var type = _activeTplTypeFor(prefix);
     if (type === 'quiz') { alert('Import populates the Discussion / Assignment / Blank templates — switch off the Quiz template first.'); return; }
     var sections = TEMPLATE_SECTIONS[type] || TEMPLATE_SECTIONS.assignment;
