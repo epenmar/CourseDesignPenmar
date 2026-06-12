@@ -14016,6 +14016,10 @@
     if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
     if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
     if (typeof _restoreLastContentTabs === 'function') _restoreLastContentTabs();
+    // Content renders rebuild innerHTML and wipe inline comment highlights —
+    // restore them from cache so they survive every re-render, not just a
+    // view switch.
+    if (typeof reapplyHighlightsFromCache === 'function') reapplyHighlightsFromCache();
   }
   window.refreshAllContentIndicators = refreshAllContentIndicators;
   window.refreshContentIndicator = refreshContentIndicator;
@@ -21250,6 +21254,13 @@
       // Optimistic UI: drop the highlight + flip the cache resolve flag
       // before the network round-trip (same pattern as resolveComment).
       _stripHighlightFromDom(commentId);
+      // Drop this comment from the highlight cache so it isn't re-applied,
+      // then restore every OTHER highlight (a content re-render elsewhere can
+      // wipe the page's <mark> wrappers — this puts the survivors back).
+      if (typeof _highlightCache !== 'undefined' && Array.isArray(_highlightCache)) {
+        _highlightCache = _highlightCache.filter(function(c) { return c && c.id !== commentId; });
+      }
+      if (typeof reapplyHighlightsFromCache === 'function') reapplyHighlightsFromCache();
       _markCommentResolvedInCache(commentId);
       _markCommentDeletedInCache(commentId);
       _rerenderCommentPanelFromCache();
@@ -21713,6 +21724,70 @@
   }, true);
 
   // ===== RESTORE HIGHLIGHTS ON PAGE LOAD =====
+  // Cache of highlight rows from the last server load. Inline highlights live
+  // only as <mark> wrappers in the live DOM, so any content re-render
+  // (renderAssignmentsOverview etc. rebuild innerHTML) destroys them. Caching
+  // the rows lets us re-apply them synchronously after a render — no network
+  // round-trip — which is what makes them actually persist on the page.
+  var _highlightCache = [];
+
+  // Apply a single comment's highlight to the current DOM. Idempotent: skips
+  // if already marked, resolved, deleted, or the text can't be located.
+  function _applyOneHighlight(comment) {
+    if (!comment || !comment.highlight_anchor) return;
+    if (comment.resolved || comment.deleted_at) return;
+    if (document.querySelector('.inline-highlight[data-comment-id="' + comment.id + '"]')) return;
+    const anchor = comment.highlight_anchor;
+    try {
+      const container = document.querySelector(anchor.containerSelector);
+      if (!container) return;
+      // <input>/<textarea>/<select>: text lives in .value, not child text
+      // nodes, so the <mark>-wrap path can't anchor. Use the field indicator.
+      if (container.tagName === 'INPUT' || container.tagName === 'TEXTAREA' || container.tagName === 'SELECT') {
+        container.classList.add('has-field-comment');
+        container.setAttribute('data-comment-id', comment.id);
+        return;
+      }
+      const fullText = container.textContent || '';
+      const searchText = anchor.highlightText || comment.highlight_text;
+      let idx = fullText.indexOf(searchText);
+      if (idx === -1) return; // text no longer exists or was edited
+      const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+      let charCount = 0;
+      let startNode = null, startOffset = 0, endNode = null, endOffset = 0;
+      while (walker.nextNode()) {
+        const node = walker.currentNode;
+        const nodeLen = node.textContent.length;
+        if (!startNode && charCount + nodeLen > idx) { startNode = node; startOffset = idx - charCount; }
+        if (startNode && charCount + nodeLen >= idx + searchText.length) {
+          endNode = node;
+          endOffset = idx + searchText.length - charCount;
+          break;
+        }
+        charCount += nodeLen;
+      }
+      if (startNode && endNode) {
+        const range = document.createRange();
+        range.setStart(startNode, startOffset);
+        range.setEnd(endNode, endOffset);
+        applyHighlightToRange(range, comment.id);
+      }
+    } catch(e) {
+      console.warn('Could not restore highlight for comment', comment.id, e);
+    }
+  }
+
+  // Re-apply the cached highlights synchronously (no network). Safe to call
+  // after every content render — the per-comment idempotency guard skips marks
+  // that are already present, so it only restores ones a render wiped.
+  function reapplyHighlightsFromCache() {
+    if (_highlightCache && _highlightCache.length) {
+      _highlightCache.forEach(_applyOneHighlight);
+    }
+    if (typeof applyCollapsedCommentHeaders === 'function') applyCollapsedCommentHeaders();
+  }
+  window.reapplyHighlightsFromCache = reapplyHighlightsFromCache;
+
   async function loadAndApplyHighlights() {
     if (!supabaseClient) return;
     try {
@@ -21724,65 +21799,8 @@
         .is('parent_id', null);
 
       if (error || !data) return;
-
-      data.forEach(function(comment) {
-        if (!comment.highlight_anchor) return;
-        if (comment.resolved) return; // don't restore resolved highlights
-        // Skip if already highlighted in the DOM
-        if (document.querySelector('.inline-highlight[data-comment-id="' + comment.id + '"]')) return;
-        const anchor = comment.highlight_anchor;
-        try {
-          const container = document.querySelector(anchor.containerSelector);
-          if (!container) return;
-
-          // <input> / <textarea> / <select>: text lives in .value, not in
-          // child text nodes, so the <mark>-wrap path below can't anchor.
-          // Apply the field-level yellow indicator and skip the walk.
-          // Module overview module-title inputs are the typical case.
-          if (container.tagName === 'INPUT' || container.tagName === 'TEXTAREA' || container.tagName === 'SELECT') {
-            container.classList.add('has-field-comment');
-            container.setAttribute('data-comment-id', comment.id);
-            return;
-          }
-
-          const fullText = container.textContent || '';
-          const searchText = anchor.highlightText || comment.highlight_text;
-
-          // Try to find the text in the container
-          let idx = fullText.indexOf(searchText);
-          if (idx === -1) return; // Text no longer exists or was edited
-
-          // Walk text nodes to find the right position
-          const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
-          let charCount = 0;
-          let startNode = null, startOffset = 0, endNode = null, endOffset = 0;
-
-          while (walker.nextNode()) {
-            const node = walker.currentNode;
-            const nodeLen = node.textContent.length;
-
-            if (!startNode && charCount + nodeLen > idx) {
-              startNode = node;
-              startOffset = idx - charCount;
-            }
-            if (startNode && charCount + nodeLen >= idx + searchText.length) {
-              endNode = node;
-              endOffset = idx + searchText.length - charCount;
-              break;
-            }
-            charCount += nodeLen;
-          }
-
-          if (startNode && endNode) {
-            const range = document.createRange();
-            range.setStart(startNode, startOffset);
-            range.setEnd(endNode, endOffset);
-            applyHighlightToRange(range, comment.id);
-          }
-        } catch(e) {
-          console.warn('Could not restore highlight for comment', comment.id, e);
-        }
-      });
+      _highlightCache = data;
+      data.forEach(_applyOneHighlight);
     } catch(e) { console.error('Failed to load highlights:', e); }
     // Inline highlights inside a collapsed card show via its title until opened.
     if (typeof applyCollapsedCommentHeaders === 'function') applyCollapsedCommentHeaders();
