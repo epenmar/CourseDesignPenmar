@@ -6973,6 +6973,25 @@
         console.warn('[saveField] suppressing empty "' + key + '" write before cloud pull completed');
         return;
       }
+      // formData bulk-wipe guard: a load-race (_doSaveAllFields reading an
+      // unrendered/empty DOM) clears many Course-Info/policy fields at once.
+      // If this write would blank >= 3 fields that are currently non-empty,
+      // keep their existing values — a normal edit only clears one or two.
+      // Mirrors the server-side trigger so the empty state never even forms locally.
+      if (key === 'formData' && value && typeof value === 'object' && data.formData && typeof data.formData === 'object') {
+        var _emptied = [];
+        Object.keys(data.formData).forEach(function(fk) {
+          var ov = data.formData[fk];
+          if (typeof ov === 'string' && ov.trim()) {
+            var nv = value[fk];
+            if (!(typeof nv === 'string' && nv.trim())) _emptied.push(fk);
+          }
+        });
+        if (_emptied.length >= 3) {
+          _emptied.forEach(function(fk) { value[fk] = data.formData[fk]; });
+          console.warn('[saveField] formData bulk-wipe blocked — kept ' + _emptied.length + ' populated fields');
+        }
+      }
       data[key] = value;
       // Stamp the per-key modification time so the pre-push merge can decide
       // whether our value or the cloud's value is newer for this field. The
