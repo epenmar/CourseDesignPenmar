@@ -5856,7 +5856,7 @@
     for (var i = 0; i < weights.length; i++) {
       html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;" data-weight-idx="' + i + '">' +
         '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0; line-height:1; flex-shrink:0;" title="Remove">&times;</button>' +
-        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" style="flex:1;" />' +
+        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" oninput="saveWeights()" onchange="saveWeightsAndRefresh()" style="flex:1;" />' +
         '<input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="width:70px; text-align:center; flex-shrink:0;" oninput="saveWeights()" />' +
         '</div>';
     }
@@ -5875,13 +5875,16 @@
     });
     saveField('assignmentWeights', weights);
     updateWeightTotal();
-    // The assignments-overview category dropdowns read from these rows, so
-    // re-render the overview if it's open to pick up renamed/added categories.
+  }
+
+  // Called on the category input's CHANGE (blur), not every keystroke — the
+  // overview re-render rebuilds the weight inputs (via renderWeightRows) and
+  // would steal focus mid-typing, so we only refresh the dependent category
+  // dropdowns once the user leaves the field.
+  function saveWeightsAndRefresh() {
+    saveWeights();
     if (currentViewId === 'assignments-overview') {
-      try {
-        var openA = getOpenOverviewModules('assignments-overview-cards');
-        renderAssignmentsOverview(openA);
-      } catch (e) {}
+      try { renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards')); } catch (e) {}
     }
   }
 
@@ -8256,9 +8259,15 @@
       var weightCard = document.getElementById('assignment-weighting-card');
       if (weightCard) weightCard.style.display = mode === 'card' ? 'block' : 'none';
     }
-    // Re-render both views when switching so edits in one sync to the other
+    // Re-render the views when switching so edits in one (e.g. category picks,
+    // objective tags) carry over to the other — the card and table DOM are
+    // separate, not live-linked, so the just-shown view must be rebuilt.
     if (prefix === 'module') {
       renderModuleOverviewCards();
+    } else if (prefix === 'assignments') {
+      try { renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards')); } catch (e) {}
+    } else if (prefix === 'materials') {
+      try { renderMaterialsOverview(getOpenOverviewModules('materials-overview-cards')); } catch (e) {}
     }
     // Auto-size textareas now that they're visible (scrollHeight is 0 while display:none)
     if (mode === 'table' && tableEl) {
