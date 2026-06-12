@@ -526,13 +526,20 @@
      stacked below. Sorted by module number, not by competency. */
   .ceph-group { margin-top: 10px; padding: 8px 10px; background: #fff; border: 1px solid #ffe082; border-radius: 6px; display: flex; align-items: stretch; gap: 10px; }
   .ceph-group:first-child { margin-top: 4px; }
-  /* Coverage square to the left of each requirement card: green when every
-     competency in the card is tagged to an assignment, amber when some are,
-     red outline when none. Hover for the tagged assignment names. */
-  .ceph-status-square { flex-shrink: 0; width: 18px; height: 18px; border-radius: 3px; box-sizing: border-box; margin-top: 2px; cursor: default; }
-  .ceph-status-square.tagged   { background: #2d7d46; border: 1px solid #2d7d46; }
-  .ceph-status-square.partial  { background: #f0ad4e; border: 1px solid #d98e2b; }
-  .ceph-status-square.untagged { background: #fff; border: 2px solid #e0a3a3; }
+  /* Coverage box (~1/5 width) to the left of each requirement card, its own
+     mini-callout pushing the card right. Names the assignment(s) tagged to the
+     card's competencies: green when all are covered, amber when some, red when
+     none ("Not yet tagged"). */
+  .ceph-coverage-box {
+    flex: 0 0 20%; max-width: 20%; box-sizing: border-box;
+    border-radius: 6px; padding: 6px 8px; font-size: 11px; line-height: 1.35;
+    display: flex; flex-direction: column; justify-content: center;
+  }
+  .ceph-coverage-box.tagged   { background: #e8f5e9; border: 1px solid #2d7d46; color: #1e5631; }
+  .ceph-coverage-box.partial  { background: #fff3e0; border: 1px solid #d98e2b; color: #8a5a12; }
+  .ceph-coverage-box.untagged { background: #fdecea; border: 1px solid #e0a3a3; color: #b02a2a; }
+  .ceph-coverage-box .ceph-cov-label { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 9px; margin-bottom: 3px; opacity: 0.85; }
+  .ceph-coverage-box .ceph-cov-name { font-weight: 600; margin-bottom: 2px; }
   .ceph-group-main { flex: 1; min-width: 0; }
   .ceph-group-head { display: flex; align-items: flex-start; gap: 12px; }
   .ceph-group-title { flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #2a2a2a; line-height: 1.4; }
@@ -1381,11 +1388,16 @@
           <button class="btn-generate" style="width:auto; padding:10px 48px; font-size:14px;" onclick="addModuleCard()">+ Add Module</button>
         </div>
 
-        <div style="text-align:center; margin-top:20px; margin-bottom:4px;">
-          <button id="mlos-reviewed-btn" onclick="toggleMlosReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
-            Mark MLOs as Reviewed
-          </button>
-          <p id="mlos-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+        <div class="callout callout-info" style="margin-top:24px; text-align:left;">
+          <h4 style="margin:0 0 6px; font-size:14px; color:#8c1d40;">ELO Coverage Check</h4>
+          <p style="font-size:12px; color:#666; margin:0 0 8px;">ELOs mapped to fewer than two MLOs may be under-developed. Map MLOs on this page (or in Course Mapping) to address them.</p>
+          <div id="elo-coverage-report" style="font-size:12px;"></div>
+          <div style="text-align:center; margin-top:16px;">
+            <button id="mlos-reviewed-btn" onclick="toggleMlosReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+              Mark MLOs as Reviewed
+            </button>
+            <p id="mlos-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+          </div>
         </div>
 
         <div class="callout callout-info" style="margin-top:20px;">
@@ -1452,11 +1464,16 @@
         <div id="assignments-overview-cards"></div>
         <div id="assignments-overview-table" style="display:none;"></div>
 
-        <div style="text-align:center; margin-top:20px; margin-bottom:4px;">
-          <button id="assignments-reviewed-btn" onclick="toggleAssignmentsReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
-            Mark Assignments as Reviewed
-          </button>
-          <p id="assignments-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+        <div class="callout callout-info" style="margin-top:24px; text-align:left;">
+          <h4 style="margin:0 0 6px; font-size:14px; color:#8c1d40;">MLO Coverage Check</h4>
+          <p style="font-size:12px; color:#666; margin:0 0 8px;">Every MLO should be assessed by at least one assignment. Tag activities with their MLOs to address any gaps below.</p>
+          <div id="mlo-coverage-report" style="font-size:12px;"></div>
+          <div style="text-align:center; margin-top:16px;">
+            <button id="assignments-reviewed-btn" onclick="toggleAssignmentsReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+              Mark Assignments as Reviewed
+            </button>
+            <p id="assignments-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+          </div>
         </div>
       </div>
 
@@ -1471,6 +1488,13 @@
         </div>
         <div id="materials-overview-cards"></div>
         <div id="materials-overview-table" style="display:none;"></div>
+
+        <div class="callout callout-info" style="margin-top:24px; text-align:center;">
+          <button id="materials-reviewed-btn" onclick="toggleMaterialsReviewed()" style="padding:10px 28px; font-size:14px; font-weight:600; border-radius:6px; cursor:pointer; border:2px solid #4caf50; background:#fff; color:#4caf50; transition:all 0.2s;">
+            Mark Materials as Reviewed
+          </button>
+          <p id="materials-reviewed-status" style="font-size:12px; color:#888; margin-top:6px;"></p>
+        </div>
       </div>
 
       <!-- ===== COURSE MAPPING ===== -->
@@ -2846,6 +2870,8 @@
     if (typeof _renderCephAssessmentAlert === 'function') {
       try { _renderCephAssessmentAlert(); } catch(e) {}
     }
+    // Keep the assignments-page MLO coverage callout live as activities/tags change.
+    if (typeof renderMloCoverageReport === 'function') { try { renderMloCoverageReport(); } catch(e) {} }
   }
 
   // ===== OBJECTIVE PICKER HTML GENERATOR =====
@@ -3096,8 +3122,7 @@
     var done = !!(info && info.item && info.item.contentComplete);
     var hasContent = info && typeof _hasAnyAttachedContent === 'function'
       ? _hasAnyAttachedContent(info.item, info.kind) : false;
-    var hint = done ? 'Reviewed and ready for student-facing use'
-                    : 'Check this once content is reviewed and ready for student-facing use';
+    var hint = done ? 'Reviewed and ready for student-facing use' : '';
     var html = '<label class="content-complete-bar' + (done ? ' is-complete' : '') + '">'
       + '<input type="checkbox" data-content-complete="' + escapeHtml(prefix) + '"'
       + ' onchange="toggleContentComplete(this, \'' + prefix + '\')"' + (done ? ' checked' : '') + '>'
@@ -4300,7 +4325,9 @@
       if (idx !== -1) arr.splice(idx, 1);
     }
     saveField('eloMloAlignment', activeCourse.eloMloAlignment);
-    // Don't re-render — checkbox already reflects the state
+    // Don't re-render the matrix — checkbox already reflects the state — but
+    // refresh the module-overview ELO coverage callout if it's mounted.
+    if (typeof renderEloCoverageReport === 'function') { try { renderEloCoverageReport(); } catch(e) {} }
   }
 
   function getAllMlos() {
@@ -4465,7 +4492,7 @@
       btn.style.color = '#4caf50';
       btn.style.borderColor = '#4caf50';
       btn.textContent = 'Mark MLOs as Reviewed';
-      if (status) status.textContent = 'Until marked reviewed, MLOs contribute half credit to progress.';
+      if (status) status.textContent = 'Until marked reviewed, Module Overview progress cannot be 100% completed.';
     }
   }
   function toggleAssignmentsReviewed() {
@@ -4489,8 +4516,88 @@
       btn.style.color = '#4caf50';
       btn.style.borderColor = '#4caf50';
       btn.textContent = 'Mark Assignments as Reviewed';
-      if (status) status.textContent = 'Until marked reviewed, assignments contribute half credit to progress.';
+      if (status) status.textContent = 'Until marked reviewed, Assignments progress cannot be 100% completed.';
     }
+  }
+  function toggleMaterialsReviewed() {
+    saveField('materialsReviewed', !loadField('materialsReviewed'));
+    updateMaterialsReviewedButton();
+    calculateProgress(true);
+  }
+  function updateMaterialsReviewedButton() {
+    var btn = document.getElementById('materials-reviewed-btn');
+    var status = document.getElementById('materials-reviewed-status');
+    if (!btn) return;
+    var reviewed = loadField('materialsReviewed');
+    if (reviewed) {
+      btn.style.background = '#4caf50'; btn.style.color = '#fff'; btn.style.borderColor = '#4caf50';
+      btn.textContent = '✅ Materials Reviewed';
+      if (status) status.textContent = 'Reviewed — click to revoke';
+    } else {
+      btn.style.background = '#fff'; btn.style.color = '#4caf50'; btn.style.borderColor = '#4caf50';
+      btn.textContent = 'Mark Materials as Reviewed';
+      if (status) status.textContent = 'Until marked reviewed, Materials progress cannot be 100% completed.';
+    }
+  }
+
+  // ===== ABBREVIATED COVERAGE REPORTS (overview-page callouts) =====
+  // Assignments page: MLOs with no assignment attached.
+  function renderMloCoverageReport() {
+    var container = document.getElementById('mlo-coverage-report');
+    if (!container) return;
+    var allMlos = getAllMlos();
+    if (allMlos.length === 0) { container.innerHTML = '<span style="color:#888;">No MLOs defined yet.</span>'; return; }
+    var covered = {};
+    var startNum = activeCourse.moduleStartZero ? 0 : 1;
+    var modCount = activeCourse.moduleCount || 7;
+    for (var m = startNum; m < startNum + modCount; m++) {
+      (courseActivities[m] || []).forEach(function(a) {
+        (a.objectives || []).forEach(function(o) { covered[o] = true; });
+      });
+    }
+    var uncovered = allMlos.filter(function(mlo) { return !covered[mlo.id]; });
+    if (uncovered.length === 0) {
+      container.innerHTML = '<span style="color:#2d7d46; font-weight:600;">✓ Every MLO has at least one assignment attached.</span>';
+      return;
+    }
+    var html = '<div style="color:#c0392b; font-weight:600; margin-bottom:6px;">' + uncovered.length + ' MLO' + (uncovered.length === 1 ? '' : 's') + ' with no assignment attached:</div>';
+    html += '<ul style="margin:0; padding-left:18px; color:#555; line-height:1.6;">';
+    uncovered.forEach(function(mlo) {
+      var t = (mlo.text || '');
+      html += '<li><strong>MLO ' + escapeHtml(mlo.id) + '</strong> <span style="color:#888;">(Module ' + mlo.modNum + ')</span> — ' + escapeHtml(t.substring(0, 90)) + (t.length > 90 ? '…' : '') + '</li>';
+    });
+    html += '</ul>';
+    container.innerHTML = html;
+  }
+  // Module overview page: ELOs mapped to 0 or only 1 MLO.
+  function renderEloCoverageReport() {
+    var container = document.getElementById('elo-coverage-report');
+    if (!container) return;
+    var elos = activeCourse.flatElos || loadField('flatElos') || [];
+    if (elos.length === 0) { container.innerHTML = '<span style="color:#888;">No ELOs defined yet.</span>'; return; }
+    var alignment = getEloMloAlignment();
+    if (Object.keys(alignment).length === 0) { var s = loadField('eloMloAlignment'); if (s) alignment = s; }
+    var realMlo = {};
+    getAllMlos().forEach(function(m) { realMlo[m.id] = true; });
+    var flagged = [];
+    elos.forEach(function(elo, i) {
+      var mapped = (alignment[i + ''] || []).filter(function(id) { return realMlo[id]; });
+      if (mapped.length <= 1) flagged.push({ i: i, text: typeof elo === 'string' ? elo : (elo && elo.text) || '', count: mapped.length });
+    });
+    if (flagged.length === 0) {
+      container.innerHTML = '<span style="color:#2d7d46; font-weight:600;">✓ Every ELO is mapped to at least two MLOs.</span>';
+      return;
+    }
+    var html = '<div style="color:#c0392b; font-weight:600; margin-bottom:6px;">' + flagged.length + ' ELO' + (flagged.length === 1 ? '' : 's') + ' mapped to fewer than two MLOs:</div>';
+    html += '<ul style="margin:0; padding-left:18px; color:#555; line-height:1.6;">';
+    flagged.forEach(function(f) {
+      var badge = f.count === 0
+        ? '<span style="color:#c0392b; font-weight:600;">0 MLOs</span>'
+        : '<span style="color:#c4841d; font-weight:600;">1 MLO</span>';
+      html += '<li><strong>ELO ' + (f.i + 1) + '</strong> — ' + escapeHtml(f.text.substring(0, 90)) + (f.text.length > 90 ? '…' : '') + ' &middot; ' + badge + '</li>';
+    });
+    html += '</ul>';
+    container.innerHTML = html;
   }
 
   // ===== ALIGNMENT AUDIT =====
@@ -5611,6 +5718,7 @@
       }
     });
     saveField('moduleOverviewData', data);
+    if (typeof renderEloCoverageReport === 'function') { try { renderEloCoverageReport(); } catch(e) {} }
     return data;
   }
 
@@ -5914,8 +6022,11 @@
       // Mirror the 7/3 weighting at module granularity for the badge.
       moduleScore += (mlos.length >= 2 ? 0.7 : 0) + 0.3 * frac(modTagged, mlos.length);
     }
-    sectionPct += 7 * frac(modsWith2Mlos, modCount);
-    sectionPct += 3 * frac(mlosTagged, totalMlos);
+    var moPts = 7 * frac(modsWith2Mlos, modCount) + 3 * frac(mlosTagged, totalMlos);
+    // Reserve the top slice until MLOs are marked reviewed, so Module Overview
+    // (and overall) can't read 100% before the review sign-off.
+    if (!loadField('mlosReviewed')) moPts = Math.min(moPts, 9.3);
+    sectionPct += moPts;
 
     // ===== ASSIGNMENTS (50) =====
     // Per-activity fractions over all NAMED activities, plus the per-module
@@ -5932,10 +6043,10 @@
         if (typeof _hasAnyAttachedContent === 'function' && _hasAnyAttachedContent(a, 'activity')) actWithContent++;
       });
     }
-    sectionPct += 5 * frac(actWithObj, actNamedTotal);
-    sectionPct += 5 * frac(actWithCat, actNamedTotal);
-    sectionPct += 10 * frac(modsWithActs, modCount);
-    sectionPct += 30 * frac(actWithContent, actNamedTotal);
+    var assignPts = 5 * frac(actWithObj, actNamedTotal) + 5 * frac(actWithCat, actNamedTotal)
+                  + 10 * frac(modsWithActs, modCount) + 30 * frac(actWithContent, actNamedTotal);
+    if (!loadField('assignmentsReviewed')) assignPts = Math.min(assignPts, 49.3);
+    sectionPct += assignPts;
 
     // ===== MATERIALS (30) =====
     var matTotal = 0, matWithType = 0, matWithMlo = 0;
@@ -5953,10 +6064,10 @@
       });
       if (modHasMatContent) modsWithMatContent++;
     }
-    sectionPct += 10 * frac(modsWith2Mats, modCount);
-    sectionPct += 5 * frac(matWithType, matTotal);
-    sectionPct += 5 * frac(matWithMlo, matTotal);
-    sectionPct += 10 * frac(modsWithMatContent, modCount);
+    var matPts = 10 * frac(modsWith2Mats, modCount) + 5 * frac(matWithType, matTotal)
+               + 5 * frac(matWithMlo, matTotal) + 10 * frac(modsWithMatContent, modCount);
+    if (!loadField('materialsReviewed')) matPts = Math.min(matPts, 29.3);
+    sectionPct += matPts;
 
     // ===== REVIEW (final 1%) =====
     // Section work scales to 99%; the last point is the course-mapping
@@ -7853,12 +7964,12 @@
     // Render overview content when navigating to overview views
     if (viewId === 'syllabus-checklist') renderSyllabusChecklist();
     if (viewId === 'course-info') renderCourseInfoGradingTable();
-    if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); }
-    if (viewId === 'materials-overview') renderMaterialsOverview();
+    if (viewId === 'assignments-overview') { renderAssignmentsOverview(); updateAssignmentsReviewedButton(); renderMloCoverageReport(); }
+    if (viewId === 'materials-overview') { renderMaterialsOverview(); updateMaterialsReviewedButton(); }
     if (viewId === 'course-mapping') { renderEloMloMatrix(); runAlignmentAudit(); updateFacultyApprovedButton(); }
     if (viewId === 'preview') renderPreview();
     if (viewId === 'objectives') { renderEloList(); renderCloList(); renderAlignmentMatrix(); }
-    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); updateMlosReviewedButton(); }
+    if (viewId === 'module-overview') { eloEditMode = false; renderModuleOverviewRef(); renderModuleOverviewCards(); updateMlosReviewedButton(); renderEloCoverageReport(); }
     if (viewId === 'course-parser') { renderCourseParser(); }
     if (viewId === 'canvas-plan') { renderCanvasPlan(); }
     if (typeof resizeVisibleTextareas === 'function') resizeVisibleTextareas();
@@ -8570,25 +8681,36 @@
     groupOrder.forEach(function(k) {
       var g = groups[k];
       var modLabel = (g.mod == null || g.mod === '') ? 'TBD' : ('Module ' + g.mod);
-      // Coverage square to the left of the card: green when every competency
-      // in it is tagged to an assignment, amber when some are, red outline when
-      // none. The faculty's tagged assignment names live in the square tooltip.
+      // Coverage box (~1/5 width) to the left of the card, naming the
+      // assignment(s) the faculty tagged to this card's competencies: green when
+      // all are covered, amber when some, red when none.
       var totalComps = g.items.length;
       var taggedComps = 0;
-      var tipLines = [];
+      var groupTagged = [];
+      var _seenTag = {};
       g.items.forEach(function(it) {
         var tg = cephTaggedByComp[it.fw + ' ' + it.cId] || [];
-        var tagName = it.fw + ' ' + it.cId + (it.variant ? ' · ' + it.variant : '');
         if (tg.length) {
           taggedComps++;
-          tipLines.push(tagName + ' → ' + tg.map(function(t) { return t.name + ' · Module ' + t.mod; }).join(', '));
-        } else {
-          tipLines.push(tagName + ' → not yet tagged');
+          tg.forEach(function(t) {
+            var kkey = t.name + '|' + t.mod;
+            if (!_seenTag[kkey]) { _seenTag[kkey] = true; groupTagged.push(t); }
+          });
         }
       });
       var coverClass = taggedComps === 0 ? 'untagged' : (taggedComps === totalComps ? 'tagged' : 'partial');
+      var boxHtml = '<div class="ceph-coverage-box ' + coverClass + '">';
+      if (groupTagged.length) {
+        boxHtml += '<div class="ceph-cov-label">✓ Assessed by</div>';
+        boxHtml += groupTagged.map(function(t) {
+          return '<div class="ceph-cov-name">' + escapeHtml(t.name) + '<span style="font-weight:400; display:block;">Module ' + escapeHtml(String(t.mod)) + '</span></div>';
+        }).join('');
+      } else {
+        boxHtml += '<div class="ceph-cov-label">Not yet tagged</div>';
+      }
+      boxHtml += '</div>';
       html += '<div class="ceph-group">';
-      html += '<div class="ceph-status-square ' + coverClass + '" title="' + escapeHtml(tipLines.join('\n')) + '"></div>';
+      html += boxHtml;
       html += '<div class="ceph-group-main">';
       html += '<div class="ceph-group-head">';
       html += '<div class="ceph-group-title">' + escapeHtml(g.title || '(untitled)') + '</div>';
@@ -13221,7 +13343,7 @@
       var hint = bar.querySelector('span:last-child');
       if (hint) hint.textContent = cb.checked
         ? 'Reviewed and ready for student-facing use'
-        : 'Check this once content is reviewed and ready for student-facing use';
+        : '';
     }
     if (typeof refreshContentIndicator === 'function') refreshContentIndicator(prefix);
     if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
@@ -17704,6 +17826,7 @@
     // iterate on them before the section counts at full weight.
     saveField('mlosReviewed', false);
     saveField('assignmentsReviewed', false);
+    saveField('materialsReviewed', false);
 
     if (gradeRows.length) saveField('gradingPolicy', gradeRows);
     if (gradeRounding) cpSetFormField('syl-grade-rounding', gradeRounding);
