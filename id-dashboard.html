@@ -3386,6 +3386,28 @@
   window.addEventListener('focus', maybeBackgroundSync);
   setInterval(function() { if (document.visibilityState === 'visible') maybeBackgroundSync(); }, 180000);
 
+  // Keep the per-course progress bars in step with the worksheet. The worksheet
+  // persists completionPct to localStorage (shared across tabs in this browser)
+  // and to Supabase (any machine). Without this, the dashboard's bar stays
+  // frozen at its load-time value and drifts from what the open worksheet shows
+  // once you edit it. On return-to-tab: re-read localStorage immediately (cheap,
+  // catches same-browser edits) and, at most every 30s, re-pull the cloud so
+  // edits made on another machine catch up too. Then re-render the table.
+  var _lastProgressPull = 0;
+  async function refreshProgressOnFocus() {
+    try { refreshCourseProgressFromStorage(); } catch (e) {}
+    if (Date.now() - _lastProgressPull > 30000 && window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
+      _lastProgressPull = Date.now();
+      try { await window.SupabaseSync.pullAllFromCloud(); refreshCourseProgressFromStorage(); } catch (e) {}
+    }
+    try { renderTable(); } catch (e) {}
+    try { renderSummary(); } catch (e) {}
+  }
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'visible') refreshProgressOnFocus();
+  });
+  window.addEventListener('focus', refreshProgressOnFocus);
+
   // Convert plain text body to HTML with embedded links (used by renderDetail + buildEmailDropdown)
   function bodyToHtml(body) {
     let html = body.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
