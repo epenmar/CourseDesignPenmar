@@ -5034,6 +5034,7 @@
         <span class="jira-status-current" id="jira-current-${id}">${currentTxt}</span>
         <select class="jira-status-dropdown" id="jira-transitions-${id}" onchange="applyJiraTransition('${id}','${jiraEpic}', this.value)" ${dropdownDisabled}>${transitionsOpts}</select>
         <button class="jira-worklog-btn" id="jira-worklog-btn-${id}" onclick="syncJiraWorklog('${id}','${jiraEpic}')" title="Push unsynced worksheet time as a Jira worklog on the Epic">Sync time ⇢ Jira</button>
+        <button class="jira-worklog-btn" id="jira-addtime-btn-${id}" onclick="addManualJiraTime('${id}','${jiraEpic}')" title="Manually log time you spent (offline work, calls, etc.) as a Jira worklog">+ Add time</button>
       </div>
       <div class="jira-status-msg" id="jira-status-msg-${id}"></div>
       <div class="jira-children" id="jira-children-${id}">${(cached && cached.childrenHtml) || ''}</div>`;
@@ -6362,6 +6363,75 @@
       if (btnEl) { btnEl.disabled = false; btnEl.textContent = 'Sync time ⇢ Jira'; }
     }
   }
+
+  // Parse a human duration into seconds. Accepts "1h 30m", "45m", "2h",
+  // "1.5h", or a bare number (treated as minutes). Returns 0 if unparseable.
+  function _parseDurationToSeconds(str) {
+    str = String(str || '').trim().toLowerCase();
+    if (!str) return 0;
+    if (/^\d+(\.\d+)?$/.test(str)) return Math.round(parseFloat(str) * 60); // bare number = minutes
+    var total = 0, matched = false;
+    var hr = str.match(/(\d+(?:\.\d+)?)\s*h/);
+    if (hr) { total += parseFloat(hr[1]) * 3600; matched = true; }
+    var mn = str.match(/(\d+(?:\.\d+)?)\s*m/);
+    if (mn) { total += parseFloat(mn[1]) * 60; matched = true; }
+    return matched ? Math.round(total) : 0;
+  }
+
+  // Manually log time for a course as a Jira worklog — for work the automatic
+  // worksheet-session tracker can't see (offline work, calls, planning). Posts
+  // directly to the Designing sub-task (or the Epic) and is independent of the
+  // worksheet-session accounting, so it never double-counts with "Sync time".
+  window.addManualJiraTime = async function(courseId, epic) {
+    var msgEl = document.getElementById('jira-status-msg-' + courseId);
+    var raw = prompt('Log time for ' + String(courseId).toUpperCase() + ' to Jira.\n\nEnter a duration — e.g. "1h 30m", "45m", "2h", or "90" (minutes):');
+    if (raw == null) return; // cancelled
+    var seconds = _parseDurationToSeconds(raw);
+    if (!seconds || seconds < 60) {
+      if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Enter at least 1 minute (e.g. "30m", "1h 15m").'; }
+      else { alert('Enter a valid duration of at least 1 minute (e.g. "30m", "1h 15m").'); }
+      return;
+    }
+    var note = prompt('Optional note (what you worked on):', '');
+    if (note == null) note = ''; // cancel on the note = just omit it, keep the time
+    // Pick the Designing child task; fall back to the Epic.
+    var targetKey = pickDesignTargetKey(courseId);
+    if (!targetKey) { await loadJiraStatus(courseId); targetKey = pickDesignTargetKey(courseId); }
+    var usingFallback = !targetKey;
+    if (!targetKey) targetKey = epic;
+    if (!targetKey) {
+      if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'No Jira Epic mapped for this course.'; }
+      else { alert('No Jira Epic is mapped for this course yet.'); }
+      return;
+    }
+    var mins = Math.round(seconds / 60);
+    var human = mins >= 60 ? (Math.floor(mins / 60) + 'h' + (mins % 60 ? ' ' + (mins % 60) + 'm' : '')) : (mins + 'm');
+    var confirmTarget = usingFallback ? targetKey + ' (Epic — no Designing sub-task found)' : targetKey + ' (Designing)';
+    if (!confirm('Log ' + human + ' as a manual worklog on ' + confirmTarget + '?')) return;
+    var btnEl = document.getElementById('jira-addtime-btn-' + courseId);
+    if (btnEl) { btnEl.disabled = true; btnEl.textContent = 'Logging…'; }
+    if (msgEl) { msgEl.className = 'jira-status-msg'; msgEl.textContent = 'Posting worklog to ' + targetKey + '…'; }
+    try {
+      var r = await fetch('http://127.0.0.1:3456/jira/worklog/' + targetKey, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          timeSpentSeconds: seconds,
+          comment: 'Manual time (' + courseId + ')' + (note.trim() ? ': ' + note.trim() : '')
+        })
+      });
+      var data = await r.json();
+      if (r.ok && data.ok) {
+        if (msgEl) { msgEl.className = 'jira-status-msg ok'; msgEl.textContent = 'Logged ' + human + ' to ' + targetKey + ' ✓'; }
+      } else {
+        if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Failed: ' + (data.error || 'Unknown'); }
+      }
+    } catch (e) {
+      if (msgEl) { msgEl.className = 'jira-status-msg err'; msgEl.textContent = 'Request failed: ' + e.message + ' (is the local sync server running?)'; }
+    } finally {
+      if (btnEl) { btnEl.disabled = false; btnEl.textContent = '+ Add time'; }
+    }
+  };
 
   // ===== DYNAMIC FILTER BUTTONS =====
   function renderFilters() {
