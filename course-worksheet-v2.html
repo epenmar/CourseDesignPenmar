@@ -3428,7 +3428,6 @@
               '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
-                '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -3445,7 +3444,6 @@
               '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
-                '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
               '</div>' +
@@ -8862,7 +8860,6 @@
     html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
-    html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'discussion\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -8877,7 +8874,6 @@
     html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
-    html += '<button class="btn-add-row btn-ai-fill" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',\'assignment\')">✨ AI Fill Template</button>';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
     html += '</div></div>';
@@ -12637,15 +12633,15 @@
       } else if (rowsPref >= 1) {
         prompt += '- Number of body rows: exactly ' + rowsPref + '. Pull the row labels from the meeting notes (or from the requirements the instructor stated).\n';
       } else {
-        prompt += '- Number of body rows: pull from the meeting notes (count of explicit requirements). If silent, use 3-5 rows.\n';
+        prompt += '- Number of body rows: derive ONE row per distinct task the assignment asks students to do. Read the Instructions section and create a row for each numbered prompt, question, or required component (you may add ONE final row for overall writing quality / completeness). If the Instructions list 3 prompts, the rubric should have rows that map to those 3 prompts. Only if there are no Instructions, fall back to the meeting notes, then to 3-5 generic rows.\n';
       }
 
-      // Reusability — the rubric should describe transferable skills, not
-      // this specific module\'s topic. So a single rubric written for an
-      // assignment can be copied to every comparable assignment in the
-      // course (every weekly Annotated Reading, every Applied Assignment)
-      // without manual rewriting.
-      prompt += '\n**Reusability requirement** — Criteria must describe TRANSFERABLE skills assessable across any comparable assignment in this course. Do NOT name the specific topic of this module\'s reading. For example, if Module 1 is on epidemiology, do NOT write "epidemiological fundamentals" or "study-design concept" — write "a key concept from the reading" or "the central claim". The same rubric should apply unchanged to Module 2\'s reading, Module 3\'s reading, etc.\n';
+      // Alignment to the actual prompts is the priority; reusability governs
+      // the WORDING, not which rows exist. A rubric that scores generic
+      // "engagement" instead of the specific tasks the Instructions ask for
+      // is the failure mode we are preventing here.
+      prompt += '\n**Each criterion must map to a specific task in the Instructions.** A grader reading a row label should be able to tell which prompt / required component it scores. Do NOT collapse several distinct prompts into one vague row like "Completeness and engagement" or "Engagement with the material".\n';
+      prompt += '\n**Phrasing for reusability** — phrase each row LABEL in transferable language so the rubric can be reused on comparable assignments, WITHOUT dropping the substance of the task. Keep the action/skill the prompt is testing; just avoid naming this module\'s specific subject matter. Example: a prompt that says "revisit your driving question from Module 1" → row label "Revisits and develops the driving question" (good) rather than "Epidemiology driving question" (too topic-specific) or "Engagement" (too vague).\n';
 
       // Cell semantics by rubric style.
       if (isBinaryStyle) {
