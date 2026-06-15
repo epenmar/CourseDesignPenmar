@@ -232,6 +232,8 @@
   .upcoming-date-box .month { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
   .upcoming-date-box .day { font-size: 15px; font-weight: 700; line-height: 1; }
   .upcoming-sync-spinner { width: 12px; height: 12px; border: 2px solid #bbdefb; border-top-color: #0d47a1; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
+  .upcoming-sync-overlay { position: absolute; inset: 0; background: rgba(244, 248, 253, 0.82); backdrop-filter: blur(1px); border-radius: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 600; color: #0d47a1; z-index: 5; pointer-events: none; }
+  .upcoming-sync-overlay .upcoming-sync-spinner { width: 16px; height: 16px; border-width: 3px; }
   .upcoming-info .upcoming-title { font-size: 11px; font-weight: 600; }
   .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-info .upcoming-course a:hover { text-decoration: underline; }
@@ -735,7 +737,11 @@
   </div>
 
   <!-- UPCOMING DEADLINES -->
-  <div class="dash-section upcoming">
+  <div class="dash-section upcoming" id="upcoming-section" style="position:relative;">
+    <div class="upcoming-sync-overlay" id="upcoming-sync-overlay" style="display:none;">
+      <span class="upcoming-sync-spinner"></span>
+      <span>Syncing calendar…</span>
+    </div>
     <div class="section-header" style="display:flex; align-items:center; gap:12px;">
       <h2 style="margin:0;">Upcoming</h2>
       <select id="upcoming-weeks" onchange="renderUpcoming()" style="font-size:12px; padding:2px 6px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#333; cursor:pointer;">
@@ -1450,6 +1456,11 @@
   window.renderSyncStalenessChip = renderSyncStalenessChip;
 
   function renderUpcoming() {
+    // Show/hide the "Syncing calendar…" overlay over the whole card based on
+    // whether a sync is in flight (triggerSync calls renderUpcoming on start +
+    // finish). This is visible even when the card already has cached items.
+    var _syncOverlay = document.getElementById('upcoming-sync-overlay');
+    if (_syncOverlay) _syncOverlay.style.display = window._syncInFlight ? 'flex' : 'none';
     // Always read the live global — `synced` is a const captured at page
     // parse time, so it holds the initial dashboard-data.js snapshot.
     // When triggerSync swaps window.SYNCED_DATA later, this function needs
@@ -3102,6 +3113,11 @@
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
+      // The pull overwrote dashboard_resource_links in localStorage with the
+      // cloud copy — re-render the cards (and strip any migrated-away links) so
+      // links saved on another machine appear without a second reload.
+      try { if (typeof _migrateRemoveContactsDirectory === 'function') _migrateRemoveContactsDirectory(); } catch(e) {}
+      try { if (typeof renderResourceLinks === 'function' && typeof allResourceCardIds !== 'undefined') allResourceCardIds.forEach(renderResourceLinks); } catch(e) {}
     }
     // Purge sync-auto-created pseudo-courses from both local and cloud
     // AFTER the pull, otherwise the cloud copy keeps resurrecting them on
@@ -6824,7 +6840,7 @@
   function getResourceLinks() {
     try { return JSON.parse(localStorage.getItem('dashboard_resource_links') || '{}'); } catch(e) { return {}; }
   }
-  function saveResourceLinks(data) {
+  function saveResourceLinks(data, skipCloud) {
     var payload = JSON.stringify(data);
     try {
       localStorage.setItem('dashboard_resource_links', payload);
@@ -6840,11 +6856,22 @@
         alert('Could not save the link — the dashboard\'s local storage is full. Try removing some saved links or reloading.');
       }
     }
+    // Push to cloud immediately. Without this, pullAllFromCloud() overwrites
+    // dashboard_resource_links in localStorage with the stale cloud copy on the
+    // next load — which is why added links didn't stick. skipCloud=true for the
+    // boot-time seed/migration (runs before the pull) so a stale local snapshot
+    // can't clobber a newer cloud copy made on another machine.
+    if (!skipCloud && window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'dashboard_resource_links', data: data }, { onConflict: 'key' })
+        .then(function(r) { if (r.error) console.warn('[resource-links] cloud sync failed:', r.error.message); });
+    }
   }
 
   // Seed localStorage from hardcoded HTML on first load
   function initResourceLinks() {
     const stored = getResourceLinks();
+    let changed = false;
     allResourceCardIds.forEach(cardId => {
       if (stored[cardId]) return; // already initialized
       const container = document.getElementById('rc-links-' + cardId);
@@ -6853,8 +6880,11 @@
       container.querySelectorAll('a.rc-link').forEach(a => {
         stored[cardId].push({ label: a.textContent.trim(), url: a.href });
       });
+      changed = true;
     });
-    saveResourceLinks(stored);
+    // Local-only save (skipCloud): this runs before the cloud pull, so pushing
+    // here could clobber a newer cloud copy with this machine's stale seed.
+    if (changed) saveResourceLinks(stored, true);
     // Render all from data
     allResourceCardIds.forEach(renderResourceLinks);
   }
@@ -6991,7 +7021,7 @@
       if (stored[cardId].length !== before) changed = true;
     });
     if (changed) {
-      saveResourceLinks(stored);
+      saveResourceLinks(stored, true); // local-only; runs before the cloud pull
       ['new-college', 'tph', 'chs'].forEach(renderResourceLinks);
     }
   }
