@@ -1467,18 +1467,13 @@
     // to see the new reference, otherwise the Upcoming widget goes stale
     // after every live sync.
     const live = window.SYNCED_DATA || synced;
+    // The Upcoming card is driven purely by REAL calendar meetings (collected
+    // below from each course's calendarMeetings + nextMeeting). The old
+    // `upcomingDeadlines` list was a static, hand-seeded array that
+    // sync-calendar.js perpetually shifted forward (past, already-done
+    // milestones like "CLOs and ELOs Due" kept resurfacing as "upcoming"),
+    // so it's no longer used as a source — it was the outdated/inaccurate data.
     let raw = [];
-    if (live && live.upcomingDeadlines) {
-      raw = live.upcomingDeadlines;
-    } else {
-      Object.values(courseData).forEach(c => {
-        if (c.milestones) {
-          c.milestones.slice(0, 2).forEach(m => {
-            raw.push({ title: m.label, course: c.title, date: m.date });
-          });
-        }
-      });
-    }
 
     // Filter by selected week range
     const weeksEl = document.getElementById('upcoming-weeks');
