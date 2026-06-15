@@ -1268,6 +1268,9 @@
         if (s.meetings) courseData[id].meetings = s.meetings;
         if (s.actionItems) courseData[id].actionItems = s.actionItems;
         if (s.nextMeeting) courseData[id].nextMeeting = s.nextMeeting;
+        // calendarMeetings was previously only merged by triggerSync, so on a
+        // slow/offline sync the Upcoming card had no meetings to show.
+        if (s.calendarMeetings) courseData[id].calendarMeetings = s.calendarMeetings;
       }
     });
   }
@@ -1532,23 +1535,35 @@
     const seenMeetings = {};
     const dedupeKey = (m) => m.uid ? ('uid:' + m.uid) : ('dl:' + m.date + '|' + (m.label || ''));
     const inactiveMap = (typeof getInactiveCourses === 'function') ? getInactiveCourses() : {};
+    const liveCourses = (live && live.courses) || {};
     Object.keys(courseData).forEach(id => {
       if (inactiveMap[id]) return; // hide meetings from courses the user has marked inactive
       const c = courseData[id];
       if (!c) return;
+      // Source meetings from the authoritative synced course object when it has
+      // them — courseData's merge can lag (calendarMeetings used to be set only
+      // by triggerSync), which left this card empty until/unless a live sync ran.
+      const sc = liveCourses[id] || {};
+      const calMtgs = (sc.calendarMeetings && sc.calendarMeetings.length) ? sc.calendarMeetings : (c.calendarMeetings || []);
+      const nextMtg = (sc.nextMeeting && sc.nextMeeting.date) ? sc.nextMeeting : c.nextMeeting;
       const allMeetings = [];
-      if (c.calendarMeetings) allMeetings.push(...c.calendarMeetings);
-      if (c.nextMeeting && c.nextMeeting.date) {
-        const alreadyHas = allMeetings.some(m => m.date === c.nextMeeting.date && m.label === c.nextMeeting.label);
-        if (!alreadyHas) allMeetings.push(c.nextMeeting);
+      if (calMtgs && calMtgs.length) allMeetings.push(...calMtgs);
+      if (nextMtg && nextMtg.date) {
+        const alreadyHas = allMeetings.some(m => m.date === nextMtg.date && m.label === nextMtg.label);
+        if (!alreadyHas) allMeetings.push(nextMtg);
       }
       const datesForCourse = deadlineDatesByCourse[id] || [];
       allMeetings.forEach(m => {
         if (!m.date || m.date > cutoffStr) return;
         if (isPastMeeting(m)) return;
-        var key = dedupeKey(m);
-        if (seenMeetings[key]) return;
-        seenMeetings[key] = true;
+        // Dedupe by uid AND by date+label: the same meeting can arrive once
+        // from calendarMeetings (with a uid) and once from nextMeeting (no uid),
+        // so a uid-only key would let the pair through as a duplicate card.
+        var keys = [];
+        if (m.uid) keys.push('uid:' + m.uid);
+        keys.push('dl:' + m.date + '|' + String(m.label || '').trim().toLowerCase());
+        if (keys.some(function(k) { return seenMeetings[k]; })) return;
+        keys.forEach(function(k) { seenMeetings[k] = true; });
         const sameDayDeadline = datesForCourse.indexOf(m.date) !== -1;
         if (!sameDayDeadline) {
           cards.push({
