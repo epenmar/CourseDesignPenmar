@@ -186,7 +186,11 @@
           attachedFiles: attached,
           linkedMaterialIds: (a.linkedMaterialIds || []).slice(),
           templateData: a.templateData ? _cloneJson(a.templateData) : {},
-          aiFillPrefs: a.aiFillPrefs ? _cloneJson(a.aiFillPrefs) : null
+          aiFillPrefs: a.aiFillPrefs ? _cloneJson(a.aiFillPrefs) : null,
+          // Quiz questions + question-bank settings (isBank / drawCount) so the
+          // build tool can emit a Canvas quiz — and, for a bank, a question
+          // group that randomly draws drawCount of the pooled questions.
+          quizQuestions: a.quizQuestions ? _cloneJson(a.quizQuestions) : null
         };
       });
 

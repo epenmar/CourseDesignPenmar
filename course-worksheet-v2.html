@@ -934,6 +934,10 @@
   .quiz-feedback-input.incorrect-fb { border-left: 3px solid #ef5350; }
   .quiz-points-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; font-size: 12px; color: #666; }
   .quiz-points-input { width: 60px; padding: 4px 8px; border: 1px solid #e0ddd5; border-radius: 4px; font-size: 12px; text-align: center; font-family: 'Inter', sans-serif; }
+  .quiz-bank-box { margin-bottom: 12px; padding: 10px 12px; background: #f4f8ff; border: 1px solid #cfe0f5; border-radius: 8px; font-size: 12px; color: #444; }
+  .quiz-bank-toggle { display: flex; align-items: flex-start; gap: 6px; cursor: pointer; line-height: 1.4; }
+  .quiz-bank-draw { margin-top: 8px; padding-top: 8px; border-top: 1px solid #dce8f7; color: #1565c0; }
+  .quiz-bank-draw .quiz-points-input { width: 56px; }
   .quiz-add-btns { display: flex; gap: 8px; flex-wrap: wrap; }
   .attached-file { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e8f5e9; border: 1px solid #a5d6a7; border-radius: 6px; font-size: 12px; color: #2e7d32; margin-top: 6px; }
   .attached-file .remove-file { cursor: pointer; color: #999; font-size: 14px; }
@@ -3489,6 +3493,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
+              '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + '</div>' +
               '<div id="' + id + '-quiz-builder"></div>' +
               '<div style="margin-top:8px;">' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>' +
@@ -8868,6 +8873,7 @@
     // Quiz template (will be modernized in task 18)
     html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
     html += '<h4>Quiz Template</h4>';
+    html += '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + '</div>';
     html += '<div id="' + id + '-quiz-builder"></div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>';
@@ -10896,6 +10902,7 @@
   var TEMPLATE_SECTIONS = {
     discussion: ['Overview', 'Discussion Prompt', 'Peer Reply Requirements', 'Materials', 'How You Will Be Graded'],
     assignment: ['Overview', 'Instructions', 'Materials', 'How You Will Be Graded'],
+    quiz: ['Overview'],
     blank: ['Content']
   };
 
@@ -11160,6 +11167,8 @@
     // Strip the DOM-only `num` field; recompute on render.
     loc.item.quizQuestions = {
       pointsPerQuestion: data.pointsPerQuestion,
+      isBank: !!data.isBank,
+      drawCount: data.drawCount || null,
       questions: (data.questions || []).map(function(q) {
         return {
           text: q.text || '',
@@ -11186,6 +11195,8 @@
       if (saved && Array.isArray(saved.questions) && saved.questions.length > 0) {
         quizData[builderId] = {
           pointsPerQuestion: saved.pointsPerQuestion || 5,
+          isBank: !!saved.isBank,
+          drawCount: saved.drawCount || null,
           questions: saved.questions.map(function(q, i) {
             return {
               num: i + 1,
@@ -11232,6 +11243,21 @@
     html += '<div class="quiz-points-row">';
     html += '<label>Points per question:</label>';
     html += '<input type="number" class="quiz-points-input" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1; saveQuizDataForBuilder(\'' + builderId + '\')" />';
+    html += '</div>';
+
+    // Question-bank mode: the questions below become a POOL, and Canvas draws a
+    // random subset for each student. Compatible with Canvas question groups /
+    // item banks (CanvasCurate emits the bank + "pick N" on build).
+    var qCount = data.questions.length;
+    var drawN = data.drawCount || Math.min(qCount, 5);
+    html += '<div class="quiz-bank-box">';
+    html += '<label class="quiz-bank-toggle"><input type="checkbox"' + (data.isBank ? ' checked' : '') + ' onchange="toggleQuizBank(\'' + builderId + '\', this.checked)"> <strong>Question bank</strong> <span style="font-weight:400; color:#888;">— the questions below are a pool; Canvas randomly selects from them per student</span></label>';
+    if (data.isBank) {
+      html += '<div class="quiz-bank-draw">Draw <input type="number" class="quiz-points-input" min="1" max="' + qCount + '" value="' + drawN + '" onchange="setQuizBankDraw(\'' + builderId + '\', this.value)" /> of the <strong>' + qCount + '</strong> question' + (qCount === 1 ? '' : 's') + ' for each student'
+        + ' <span style="color:#888;">(' + (data.pointsPerQuestion * (Math.min(drawN, qCount) || 0)) + ' pts per attempt)</span>'
+        + (drawN > qCount ? ' <span style="color:#c0392b; font-weight:600;">— add more questions, the pool is smaller than the draw count</span>' : '')
+        + '</div>';
+    }
     html += '</div>';
 
     for (var q = 0; q < data.questions.length; q++) {
@@ -11350,6 +11376,27 @@
     renderQuizBuilder(document.getElementById(builderId));
     saveQuizDataForBuilder(builderId);
   }
+
+  // ===== QUESTION BANK =====
+  function toggleQuizBank(builderId, checked) {
+    var data = quizData[builderId];
+    if (!data) return;
+    data.isBank = !!checked;
+    if (data.isBank && !data.drawCount) data.drawCount = Math.min(data.questions.length, 5);
+    renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
+  }
+  function setQuizBankDraw(builderId, value) {
+    var data = quizData[builderId];
+    if (!data) return;
+    var n = parseInt(value, 10);
+    if (isNaN(n) || n < 1) n = 1;
+    data.drawCount = n;
+    renderQuizBuilder(document.getElementById(builderId));
+    saveQuizDataForBuilder(builderId);
+  }
+  window.toggleQuizBank = toggleQuizBank;
+  window.setQuizBankDraw = setQuizBankDraw;
 
   function removeQuizQuestion(builderId, qIdx) {
     var data = quizData[builderId];
@@ -11839,6 +11886,9 @@
       return;
     }
     var act = info.item;
+    // The quiz template has no field-fill modal — its "AI Generate" writes the
+    // Quiz Description from the questions + linked readings.
+    if (tplType === 'quiz') { return generateQuizOverview(actId, modNum); }
     var sections = AI_FILL_TEMPLATE_SECTIONS[tplType];
     if (!sections) {
       alert('AI fill is not yet wired for this template type.');
@@ -12800,7 +12850,7 @@
   var _IMPROVE_SYS = 'You are an instructional designer improving course content for clarity and student-facing formatting. Preserve the author\'s substance; never invent requirements, criteria, points, or due dates; never use em-dashes.';
 
   async function _improveOneField(sectionKey, tplType, currentHtml) {
-    var typeLabel = tplType === 'discussion' ? 'discussion' : 'assignment';
+    var typeLabel = tplType === 'discussion' ? 'discussion' : (tplType === 'quiz' ? 'quiz' : 'assignment');
     var p = 'You are improving ONE section of a course ' + typeLabel + ' so it is clearer for students and better formatted.\n\n';
     p += 'SECTION: ' + sectionKey + '\n\nCurrent content (HTML):\n' + currentHtml + '\n\n';
     p += 'Rewrite it to be:\n';
@@ -12902,7 +12952,9 @@
     var info = _itemForContentPrefix(actId);
     if (!info || info.kind !== 'activity') return;
     var act = info.item;
-    if (tplType === 'quiz' || tplType === 'blank') { alert('Polish & reorganize works on the Discussion / Assignment templates (it sorts content across sections).'); return; }
+    // Quiz has a single description box — "Polish" just improves that text.
+    if (tplType === 'quiz') { return improveTemplateField(actId, 'quiz', 'Overview', btn); }
+    if (tplType === 'blank') { alert('Polish & reorganize works on the Discussion / Assignment / Quiz templates.'); return; }
     var sections = (typeof TEMPLATE_SECTIONS !== 'undefined' && TEMPLATE_SECTIONS[tplType]) ? TEMPLATE_SECTIONS[tplType] : ['Overview', 'Instructions', 'Materials', 'How You Will Be Graded'];
     var td = (act.templateData && act.templateData[tplType]) || {};
     var fields = {}; var anyContent = false;
@@ -12919,6 +12971,59 @@
       if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
     }
   };
+
+  // ===== QUIZ DESCRIPTION GENERATOR =====
+  // "AI Generate" on the Quiz template writes the Quiz Description box from the
+  // questions the faculty built + any linked readings: a short student-facing
+  // overview of what the quiz covers and what to review to succeed.
+  async function generateQuizOverview(actId, modNum) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    var qq = act.quizQuestions || {};
+    var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
+    if (questions.length === 0) {
+      alert('Add some quiz questions first — the description is generated from the questions and what they assess.');
+      return;
+    }
+    // Compact, answer-free question list (don\'t leak the key into the overview).
+    var qList = questions.map(function(q, i) {
+      var line = (i + 1) + '. ' + String(q.text).replace(/\s+/g, ' ').trim();
+      if (q.type) line += ' [' + q.type + ']';
+      return line;
+    }).join('\n');
+    // Linked readings/materials for "what to review".
+    var mats = (typeof _getLinkedMaterialsForActivity === 'function') ? (_getLinkedMaterialsForActivity(act) || []) : [];
+    var matText = mats.map(function(row) {
+      var m = row.mat || row;
+      return '- ' + ((m && (m.title || m.type)) || 'material');
+    }).join('\n');
+    var modTopic = '';
+    try { var smo = loadField('moduleOverviewData') || {}; modTopic = (smo[modNum] && smo[modNum].topic) || ''; } catch (e) {}
+
+    var p = 'Write a short student-facing DESCRIPTION for a course quiz, to appear above the questions.\n\n';
+    p += 'Course: ' + (activeCourse.code || courseId) + (modTopic ? ' — Module ' + modNum + ': ' + modTopic : '') + '\n';
+    p += 'Quiz: "' + (act.name || 'Quiz') + '"\n\n';
+    p += 'The quiz questions (do NOT reveal answers, just infer the topics):\n' + qList + '\n\n';
+    if (matText) p += 'Linked readings / materials students should review:\n' + matText + '\n\n';
+    p += 'Write 2-4 short sentences (HTML, may use <strong> and a short <ul> of "what to review"):\n';
+    p += '- State what the quiz covers, inferred from the questions.\n';
+    p += '- Tell students what to review from the readings/materials to do well.\n';
+    p += '- Encouraging, plain language; second person ("you").\n';
+    p += '- Do NOT restate or answer the questions, and do NOT invent specific readings beyond those listed.\n';
+    p += '- Never use em-dashes.\n\nReturn ONLY the HTML. No JSON, no commentary, no code fences.';
+    try {
+      var raw = await callCreateAI(p, 'You write concise, encouraging quiz overviews for students. Never reveal answers, never invent sources, never use em-dashes.', 1024);
+      var after = _cleanAiHtml(raw);
+      var before = (act.templateData && act.templateData['quiz'] && act.templateData['quiz']['Overview']) || '';
+      _openImprovePreview({ actId: actId, tplType: 'quiz',
+        changes: [{ section: 'Overview', before: before, after: after }],
+        notes: ['Drafted from your ' + questions.length + ' quiz question' + (questions.length === 1 ? '' : 's') + (matText ? ' and the linked readings' : '') + '.'] });
+    } catch (e) {
+      alert('Generate failed: ' + (e && e.message ? e.message : e));
+    }
+  }
+  window.generateQuizOverview = generateQuizOverview;
 
   // ===== IMPROVE PREVIEW MODAL =====
   function _openImprovePreview(plan) {
