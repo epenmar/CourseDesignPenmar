@@ -4383,7 +4383,10 @@
     var moduleOverviewData = loadField('moduleOverviewData') || {};
     var _sn = activeCourse.moduleStartZero ? 0 : 1;
     var allMlos = [];
-    for (var m = 1; m <= modCount; m++) {
+    // Iterate the ACTUAL module numbers. A moduleStartZero course runs
+    // 0..modCount-1; starting at 1 skipped Module 0's MLOs (never coverage-
+    // checked) and read a nonexistent Module N.
+    for (var m = _sn; m < _sn + modCount; m++) {
       var modData = moduleOverviewData[m] || {};
       var _ai = m - _sn;
       var topic = modData.topic || (activeCourse.modules[_ai] ? activeCourse.modules[_ai].title : '');
@@ -9251,6 +9254,10 @@
       if (tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
     }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+    // Keep the MLO coverage report in step with the rendered activities — a
+    // re-render (e.g. after the cloud pull populates objectives) otherwise left
+    // a stale "N MLOs with no assignment" computed from empty data.
+    if (typeof renderMloCoverageReport === 'function') { try { renderMloCoverageReport(); } catch (e) {} }
   }
 
   function renderMaterialsOverview(openModules) {
