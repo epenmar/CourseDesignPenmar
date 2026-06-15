@@ -7374,6 +7374,7 @@
     });
     // Save checkbox states
     document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+      if (el.dataset.managed === 'true') return; // managed elsewhere (e.g. quiz bank)
       const key = el.id || ('chk_' + idx);
       allData[key] = el.checked;
     });
@@ -7436,6 +7437,7 @@
       }
     });
     document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+      if (el.dataset.managed === 'true') return; // managed elsewhere (e.g. quiz bank)
       const key = el.id || ('chk_' + idx);
       if (key in allData) el.checked = allData[key];
     });
@@ -11191,6 +11193,7 @@
     var actId = _quizActIdFromBuilderId(builderId);
     var loc = _quizFindActivity(actId);
     var saved = loc && loc.item && loc.item.quizQuestions;
+    var _quizRepaired = false;
     if (!quizData[builderId]) {
       if (saved && Array.isArray(saved.questions) && saved.questions.length > 0) {
         quizData[builderId] = {
@@ -11198,9 +11201,14 @@
           isBank: !!saved.isBank,
           drawCount: saved.drawCount || null,
           questions: saved.questions.map(function(q, i) {
+            // Repair earlier corruption: a question whose text is a bare integer
+            // ("-1", "0", …) is the formData-restore artifact, never a real
+            // question — blank it so the field shows its placeholder.
+            var qText = q.text || '';
+            if (/^-?\d+$/.test(String(qText).trim())) { qText = ''; _quizRepaired = true; }
             return {
               num: i + 1,
-              text: q.text || '',
+              text: qText,
               type: q.type || 'multiple-choice',
               choices: (q.choices || []).map(function(c) { return { text: c.text || '', correct: !!c.correct }; }),
               correctFeedback: q.correctFeedback || '',
@@ -11208,6 +11216,7 @@
             };
           })
         };
+        if (_quizRepaired) { try { saveQuizDataForBuilder(builderId); } catch (e) {} }
       } else {
         quizData[builderId] = {
           pointsPerQuestion: 5,
@@ -11242,7 +11251,7 @@
     var html = '<div class="quiz-builder">';
     html += '<div class="quiz-points-row">';
     html += '<label>Points per question:</label>';
-    html += '<input type="number" class="quiz-points-input" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1; saveQuizDataForBuilder(\'' + builderId + '\')" />';
+    html += '<input type="number" class="quiz-points-input" data-managed="true" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1; saveQuizDataForBuilder(\'' + builderId + '\')" />';
     html += '</div>';
 
     // Question-bank mode: the questions below become a POOL, and Canvas draws a
@@ -11251,9 +11260,9 @@
     var qCount = data.questions.length;
     var drawN = data.drawCount || Math.min(qCount, 5);
     html += '<div class="quiz-bank-box">';
-    html += '<label class="quiz-bank-toggle"><input type="checkbox"' + (data.isBank ? ' checked' : '') + ' onchange="toggleQuizBank(\'' + builderId + '\', this.checked)"> <strong>Question bank</strong> <span style="font-weight:400; color:#888;">— the questions below are a pool; Canvas randomly selects from them per student</span></label>';
+    html += '<label class="quiz-bank-toggle"><input type="checkbox" data-managed="true"' + (data.isBank ? ' checked' : '') + ' onchange="toggleQuizBank(\'' + builderId + '\', this.checked)"> <strong>Question bank</strong> <span style="font-weight:400; color:#888;">— the questions below are a pool; Canvas randomly selects from them per student</span></label>';
     if (data.isBank) {
-      html += '<div class="quiz-bank-draw">Draw <input type="number" class="quiz-points-input" min="1" max="' + qCount + '" value="' + drawN + '" onchange="setQuizBankDraw(\'' + builderId + '\', this.value)" /> of the <strong>' + qCount + '</strong> question' + (qCount === 1 ? '' : 's') + ' for each student'
+      html += '<div class="quiz-bank-draw">Draw <input type="number" class="quiz-points-input" data-managed="true" min="1" max="' + qCount + '" value="' + drawN + '" onchange="setQuizBankDraw(\'' + builderId + '\', this.value)" /> of the <strong>' + qCount + '</strong> question' + (qCount === 1 ? '' : 's') + ' for each student'
         + ' <span style="color:#888;">(' + (data.pointsPerQuestion * (Math.min(drawN, qCount) || 0)) + ' pts per attempt)</span>'
         + (drawN > qCount ? ' <span style="color:#c0392b; font-weight:600;">— add more questions, the pool is smaller than the draw count</span>' : '')
         + '</div>';
@@ -11265,8 +11274,8 @@
       html += '<div class="quiz-question-card" data-q-idx="' + q + '">';
       html += '<div class="quiz-question-header">';
       html += '<span class="quiz-question-num">' + (q + 1) + '</span>';
-      html += '<input type="text" class="quiz-question-input" value="' + escapeHtml(question.text) + '" placeholder="Enter question text..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'text\',this.value)" />';
-      html += '<select class="quiz-question-type" onchange="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'type\',this.value)">';
+      html += '<input type="text" class="quiz-question-input" data-managed="true" value="' + escapeHtml(question.text) + '" placeholder="Enter question text..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'text\',this.value)" />';
+      html += '<select class="quiz-question-type" data-managed="true" onchange="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'type\',this.value)">';
       html += '<option value="multiple-choice"' + (question.type === 'multiple-choice' ? ' selected' : '') + '>Multiple Choice</option>';
       html += '<option value="true-false"' + (question.type === 'true-false' ? ' selected' : '') + '>True/False</option>';
       html += '<option value="short-answer"' + (question.type === 'short-answer' ? ' selected' : '') + '>Short Answer</option>';
@@ -11287,7 +11296,7 @@
           if (question.type === 'true-false') {
             html += '<span style="flex:1; font-size:12px; font-weight:500;">' + choices[c].text + '</span>';
           } else {
-            html += '<input type="text" class="quiz-choice-input" value="' + escapeHtml(choices[c].text) + '" placeholder="Answer choice ' + String.fromCharCode(65 + c) + '..." oninput="updateQuizChoice(\'' + builderId + '\',' + q + ',' + c + ',this.value)" />';
+            html += '<input type="text" class="quiz-choice-input" data-managed="true" value="' + escapeHtml(choices[c].text) + '" placeholder="Answer choice ' + String.fromCharCode(65 + c) + '..." oninput="updateQuizChoice(\'' + builderId + '\',' + q + ',' + c + ',this.value)" />';
             html += '<button class="quiz-choice-delete" onclick="removeQuizChoice(\'' + builderId + '\',' + q + ',' + c + ')" title="Remove choice">×</button>';
           }
           html += '</div>';
@@ -11302,8 +11311,8 @@
 
       // Feedback
       html += '<div class="quiz-feedback-row">';
-      html += '<input type="text" class="quiz-feedback-input correct-fb" value="' + escapeHtml(question.correctFeedback) + '" placeholder="Correct answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'correctFeedback\',this.value)" />';
-      html += '<input type="text" class="quiz-feedback-input incorrect-fb" value="' + escapeHtml(question.incorrectFeedback) + '" placeholder="Incorrect answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'incorrectFeedback\',this.value)" />';
+      html += '<input type="text" class="quiz-feedback-input correct-fb" data-managed="true" value="' + escapeHtml(question.correctFeedback) + '" placeholder="Correct answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'correctFeedback\',this.value)" />';
+      html += '<input type="text" class="quiz-feedback-input incorrect-fb" data-managed="true" value="' + escapeHtml(question.incorrectFeedback) + '" placeholder="Incorrect answer feedback..." oninput="updateQuizQuestion(\'' + builderId + '\',' + q + ',\'incorrectFeedback\',this.value)" />';
       html += '</div>';
       html += '</div>';
     }
