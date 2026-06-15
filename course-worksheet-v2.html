@@ -824,6 +824,31 @@
   .attach-menu.open { display: block; }
   .attach-menu .attach-section + .attach-section { margin-top: 14px; padding-top: 12px; border-top: 1px solid #ece9df; }
   .attach-menu .attach-section-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; color: #8c1d40; margin-bottom: 6px; }
+  /* AI Improve / Polish */
+  .tpl-improve-btn { margin-left: 8px; border: 1px solid #c9a3d4; background: #faf5fc; color: #6a1b9a; font-size: 10px; font-weight: 600; padding: 1px 7px; border-radius: 10px; cursor: pointer; font-family: 'Inter', sans-serif; vertical-align: middle; }
+  .tpl-improve-btn:hover { background: #f3e6f8; }
+  .tpl-improve-btn[disabled] { opacity: 0.6; cursor: default; }
+  .tpl-improve-overlay { position: fixed; inset: 0; background: rgba(20,12,24,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
+  .tpl-improve-modal { background: #fff; border-radius: 12px; max-width: 920px; width: 100%; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  .tpl-improve-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; font-size: 15px; }
+  .tpl-improve-x { border: none; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: #999; }
+  .tpl-improve-notes { margin: 12px 18px 0; padding: 10px 14px; background: #f6f0fa; border: 1px solid #e3d3ee; border-radius: 8px; font-size: 12px; color: #5a3a6a; }
+  .tpl-improve-notes-title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; font-size: 10px; margin-bottom: 4px; }
+  .tpl-improve-notes ul { margin: 0; padding-left: 18px; }
+  .tpl-improve-body { overflow-y: auto; padding: 12px 18px; }
+  .tpl-improve-change { margin-bottom: 16px; }
+  .tpl-improve-sec { font-weight: 700; color: #8c1d40; font-size: 13px; margin-bottom: 6px; }
+  .tpl-improve-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .tpl-improve-coltitle { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #999; margin-bottom: 4px; }
+  .tpl-improve-prev { border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5; max-height: 260px; overflow-y: auto; }
+  .tpl-improve-prev.before { background: #fbfaf8; color: #777; }
+  .tpl-improve-prev.after { background: #f4fbf5; }
+  .tpl-improve-prev ul, .tpl-improve-prev ol { margin: 4px 0; padding-left: 20px; }
+  .tpl-improve-rubric { border-collapse: collapse; width: 100%; font-size: 11px; }
+  .tpl-improve-rubric th, .tpl-improve-rubric td { border: 1px solid #e0ddd5; padding: 3px 5px; text-align: left; }
+  .tpl-improve-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 12px 18px; border-top: 1px solid #eee; }
+  .tpl-improve-cancel { padding: 7px 16px; border: 1px solid #ddd; background: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
+  .tpl-improve-apply { padding: 7px 18px; border: none; background: #6a1b9a; color: #fff; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px; }
   .content-attach-tabs { display: flex; gap: 0; margin-bottom: 8px; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; }
   .content-attach-tab { flex: 1; padding: 7px 10px; font-size: 11px; font-weight: 600; text-align: center; cursor: pointer; background: #fff; color: #666; border: none; font-family: 'Inter', sans-serif; transition: all 0.15s; border-right: 1px solid #e0ddd5; }
   .content-attach-tab:last-child { border-right: none; }
@@ -3420,6 +3445,7 @@
           _buildContentCompleteBarHtml(id) +
           '<div class="content-top-actions">' +
             '<button class="content-action-btn" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>' +
+            '<button class="content-action-btn" onclick="polishTemplate(\'' + id + '\',_activeTplTypeFor(\'' + id + '\'),this)" title="Improve clarity + formatting of what is already written, and move any misplaced content to the right field (with a review step)">✨ Polish &amp; reorganize</button>' +
             '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + id + '\',' + moduleNum + ',\'' + id + '\')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>' +
             '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>' +
           '</div>' +
@@ -8796,6 +8822,7 @@
     // above it, and Upload/Link/Materials are the "attach" tabs below.
     html += '<div class="content-top-actions">';
     html += '<button class="content-action-btn" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>';
+    html += '<button class="content-action-btn" onclick="polishTemplate(\'' + act.id + '\',_activeTplTypeFor(\'' + id + '\'),this)" title="Improve clarity + formatting of what is already written, and move any misplaced content to the right field (with a review step)">✨ Polish &amp; reorganize</button>';
     html += '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + act.id + '\',' + moduleNum + ')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>';
     html += '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>';
     html += '</div>';
@@ -12736,6 +12763,231 @@
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
 
+  // ===== AI IMPROVE / POLISH (refine faculty-written template text) =====
+  // Distinct from AI Generate (which writes from worksheet data): Improve takes
+  // the text already in the field(s) and rewrites it for clarity + formatting,
+  // preserving the substance. Per-field buttons polish one box; "Polish &
+  // reorganize" works across all sections so misplaced content can be MOVED to
+  // the right field, and a detailed grading description is parsed into a rubric.
+
+  // Em-dashes are banned in output (instructor preference) and stripped from
+  // any source text we feed back.
+  function _stripEmDashes(s) { return String(s == null ? '' : s).replace(/\s*—\s*/g, ', '); }
+  function _cleanAiHtml(s) {
+    var t = String(s == null ? '' : s).trim();
+    t = t.replace(/^```[a-z]*\s*/i, '').replace(/```\s*$/, '').trim();
+    return _stripEmDashes(t);
+  }
+  function _normalizeForCompare(s) { return String(s || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase(); }
+  function _rubricPreviewHtml(pipe) {
+    if (!pipe || String(pipe).indexOf('|') === -1) return '<em>(none)</em>';
+    var rows = (typeof _parseRubricPipes === 'function') ? _parseRubricPipes(pipe) : [];
+    if (!rows.length) return '<em>(none)</em>';
+    var h = '<table class="tpl-improve-rubric">';
+    rows.forEach(function(r, ri) {
+      h += '<tr>';
+      r.forEach(function(c) { h += (ri === 0 ? '<th>' : '<td>') + escapeHtml(c) + (ri === 0 ? '</th>' : '</td>'); });
+      h += '</tr>';
+    });
+    return h + '</table>';
+  }
+  function _previewRender(section, html) {
+    if (section === 'Rubric') return _rubricPreviewHtml(html);
+    if (!html || !String(html).trim()) return '<em>(empty)</em>';
+    return (typeof sanitizeAIHtml === 'function') ? sanitizeAIHtml(html) : html;
+  }
+
+  var _IMPROVE_SYS = 'You are an instructional designer improving course content for clarity and student-facing formatting. Preserve the author\'s substance; never invent requirements, criteria, points, or due dates; never use em-dashes.';
+
+  async function _improveOneField(sectionKey, tplType, currentHtml) {
+    var typeLabel = tplType === 'discussion' ? 'discussion' : 'assignment';
+    var p = 'You are improving ONE section of a course ' + typeLabel + ' so it is clearer for students and better formatted.\n\n';
+    p += 'SECTION: ' + sectionKey + '\n\nCurrent content (HTML):\n' + currentHtml + '\n\n';
+    p += 'Rewrite it to be:\n';
+    p += '- Clear and direct, addressed to students in second person ("you will…").\n';
+    p += '- Well formatted using HTML: <strong> for key terms/requirements, <ul><li> for lists, <ol><li> for sequential steps, short <p> paragraphs, and a bold lead-in line where it aids scanning.\n';
+    p += '- Faithful to the substance: keep EVERY requirement, instruction, quantity, tool, link, and specific the faculty wrote. Do NOT invent requirements and never add or change due dates or point values.\n\n';
+    p += 'Rules:\n- Never use em-dashes; rewrite or use a comma/colon, and remove any in the source.\n';
+    p += '- Return ONLY the improved HTML for this section. No JSON, no commentary, no code fences.';
+    var raw = await callCreateAI(p, _IMPROVE_SYS, 2048);
+    return _cleanAiHtml(raw);
+  }
+
+  // Grading text → short summary (keeps a rubric mention) + structured rubric.
+  async function _improveGradingField(act, tplType, gradingHtml) {
+    var actPts = (act && act.points != null) ? String(act.points).trim() : '';
+    var hasPts = actPts && !isNaN(parseFloat(actPts));
+    var p = 'A faculty member wrote the grading description below for a course assignment. The "How You Will Be Graded" box should contain only a SHORT plain-language summary (1-3 sentences) that mentions a rubric is used. The detailed criteria belong in a structured rubric, not in this box.\n\n';
+    p += 'Faculty grading text (HTML):\n' + gradingHtml + '\n\n';
+    p += 'Produce TWO things:\n';
+    p += '1. summary: a short HTML blurb (1-3 sentences, may use <strong>), student-facing, that notes a rubric describes the full criteria. Do NOT list the detailed criteria here.\n';
+    p += '2. rubric: a pipe-separated table from the criteria in the faculty text. First row EXACTLY: "Criteria | Excellent | Proficient | Developing | Beginning | Points". Then one row per criterion; each level cell is one short phrase. ';
+    p += hasPts ? ('Distribute the ' + actPts + '-point total across the Points column so it sums to ' + actPts + '.') : 'Put "TBD" in each Points cell.';
+    p += ' Use ONLY criteria the faculty described; do not invent any. If there are no gradable criteria, return an empty string for rubric.\n\n';
+    p += 'Rules:\n- Never use em-dashes.\n- Return ONLY JSON: {"summary":"<html>","rubric":"<pipe text or empty>"}. No code fences, no other text.';
+    var raw = (await callCreateAI(p, _IMPROVE_SYS, 2048)).trim();
+    var m = raw.match(/\{[\s\S]*\}/);
+    var parsed = m ? _lenientJsonParse(m[0]) : null;
+    if (!parsed) throw new Error('AI returned no usable content.');
+    var changes = [];
+    if (typeof parsed.summary === 'string' && parsed.summary.trim()) {
+      changes.push({ section: 'How You Will Be Graded', before: gradingHtml, after: _cleanAiHtml(parsed.summary) });
+    }
+    if (typeof parsed.rubric === 'string' && parsed.rubric.indexOf('|') !== -1) {
+      var beforeR = (act.templateData && act.templateData[tplType] && act.templateData[tplType]['Rubric']) || '';
+      changes.push({ section: 'Rubric', before: beforeR, after: _stripEmDashes(parsed.rubric.trim()) });
+    }
+    return { actId: act.id, tplType: tplType, changes: changes,
+      notes: ['Kept a short summary in "How You Will Be Graded" and moved the detailed criteria into a structured rubric.'] };
+  }
+
+  // Per-field Improve entry point (wired onto each rich-editor field's label).
+  window.improveTemplateField = async function(actId, tplType, sectionKey, btn) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    var current = (act.templateData && act.templateData[tplType] && act.templateData[tplType][sectionKey]) || '';
+    if (!String(current).replace(/<[^>]+>/g, '').trim()) { alert('That field is empty — there is nothing to improve yet. Use ✨ AI Generate to draft it, or type something first.'); return; }
+    var orig = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '✨ Improving…'; }
+    try {
+      var plan = (sectionKey === 'How You Will Be Graded')
+        ? await _improveGradingField(act, tplType, current)
+        : { actId: actId, tplType: tplType, changes: [{ section: sectionKey, before: current, after: await _improveOneField(sectionKey, tplType, current) }], notes: [] };
+      _openImprovePreview(plan);
+    } catch (e) {
+      alert('Improve failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+    }
+  };
+
+  async function _polishWholeTemplate(act, tplType, sections, fields) {
+    var actPts = (act && act.points != null) ? String(act.points).trim() : '';
+    var hasPts = actPts && !isNaN(parseFloat(actPts));
+    var p = 'You are polishing a course ' + (tplType === 'discussion' ? 'discussion' : 'assignment') + ' template. Faculty sometimes put content in the wrong field. Reorganize so each piece of content sits in the SECTION it belongs to, then improve each section for clarity and formatting.\n\n';
+    p += 'Sections (current HTML content):\n';
+    sections.forEach(function(s) { p += '\n### ' + s + '\n' + (fields[s] && String(fields[s]).trim() ? fields[s] : '(empty)') + '\n'; });
+    p += '\nRules:\n';
+    p += '- MOVE misplaced content to the correct section (e.g., grading criteria found in Instructions go to grading; a discussion question in Overview goes to the prompt). NEVER drop content — every piece must land in some section.\n';
+    p += '- Improve clarity + formatting with HTML: <strong>, <ul>/<li>, <ol>/<li> for steps, short <p> paragraphs.\n';
+    p += '- Preserve substance. Do NOT invent requirements, criteria, points, or due dates.\n';
+    p += '- "How You Will Be Graded" must contain only a SHORT summary (1-3 sentences) that mentions a rubric; put the detailed criteria in the rubric, NOT this box.\n';
+    p += '- rubric: pipe-separated, header EXACTLY "Criteria | Excellent | Proficient | Developing | Beginning | Points", one row per criterion. ' + (hasPts ? ('Distribute ' + actPts + ' points so the column sums to ' + actPts + '.') : 'Use "TBD" in each Points cell.') + ' Only criteria the faculty described; if none, empty string.\n';
+    p += '- Never use em-dashes.\n\n';
+    p += 'Return ONLY JSON: { "sections": { ' + sections.map(function(s) { return '"' + s + '": "<html>"'; }).join(', ') + ' }, "rubric": "<pipe text or empty>", "changes": ["short human-readable description of each move or cleanup"] }. No code fences, no other text.';
+    var raw = (await callCreateAI(p, 'You reorganize and polish course template content. Move misplaced content to the right section, never drop or invent content, never use em-dashes.', 4096)).trim();
+    var m = raw.match(/\{[\s\S]*\}/);
+    var parsed = m ? _lenientJsonParse(m[0]) : null;
+    if (!parsed || !parsed.sections) throw new Error('AI returned no usable content.');
+    var changes = [];
+    sections.forEach(function(s) {
+      var after = parsed.sections[s];
+      if (typeof after !== 'string') return;
+      after = _cleanAiHtml(after);
+      var before = fields[s] || '';
+      if (_normalizeForCompare(after) !== _normalizeForCompare(before)) changes.push({ section: s, before: before, after: after });
+    });
+    if (typeof parsed.rubric === 'string' && parsed.rubric.indexOf('|') !== -1) {
+      var beforeR = (act.templateData && act.templateData[tplType] && act.templateData[tplType]['Rubric']) || '';
+      var afterR = _stripEmDashes(parsed.rubric.trim());
+      if (_normalizeForCompare(afterR) !== _normalizeForCompare(beforeR)) changes.push({ section: 'Rubric', before: beforeR, after: afterR });
+    }
+    var notes = Array.isArray(parsed.changes) ? parsed.changes.filter(function(x) { return typeof x === 'string' && x.trim(); }) : [];
+    return { actId: act.id, tplType: tplType, changes: changes, notes: notes };
+  }
+
+  // Whole-template Polish entry point (top action row button).
+  window.polishTemplate = async function(actId, tplType, btn) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    if (tplType === 'quiz' || tplType === 'blank') { alert('Polish & reorganize works on the Discussion / Assignment templates (it sorts content across sections).'); return; }
+    var sections = (typeof TEMPLATE_SECTIONS !== 'undefined' && TEMPLATE_SECTIONS[tplType]) ? TEMPLATE_SECTIONS[tplType] : ['Overview', 'Instructions', 'Materials', 'How You Will Be Graded'];
+    var td = (act.templateData && act.templateData[tplType]) || {};
+    var fields = {}; var anyContent = false;
+    sections.forEach(function(s) { fields[s] = td[s] || ''; if (String(fields[s]).replace(/<[^>]+>/g, '').trim()) anyContent = true; });
+    if (!anyContent) { alert('No template content to polish yet — the fields are empty. Use ✨ AI Generate first, or have the faculty type their draft.'); return; }
+    var orig = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '✨ Polishing…'; }
+    try {
+      var plan = await _polishWholeTemplate(act, tplType, sections, fields);
+      _openImprovePreview(plan);
+    } catch (e) {
+      alert('Polish failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+    }
+  };
+
+  // ===== IMPROVE PREVIEW MODAL =====
+  function _openImprovePreview(plan) {
+    _closeImprovePreview();
+    if (!plan || !plan.changes || !plan.changes.length) { alert('No changes suggested — the content already looks good.'); return; }
+    window._improvePlan = plan;
+    var ov = document.createElement('div');
+    ov.id = 'tpl-improve-overlay';
+    ov.className = 'tpl-improve-overlay';
+    ov.onclick = function(e) { if (e.target === ov) _closeImprovePreview(); };
+    var h = '<div class="tpl-improve-modal">';
+    h += '<div class="tpl-improve-head"><strong>✨ Review AI improvements</strong><button class="tpl-improve-x" onclick="_closeImprovePreview()" title="Cancel">×</button></div>';
+    if (plan.notes && plan.notes.length) {
+      h += '<div class="tpl-improve-notes"><div class="tpl-improve-notes-title">What changed</div><ul>';
+      plan.notes.forEach(function(n) { h += '<li>' + escapeHtml(String(n)) + '</li>'; });
+      h += '</ul></div>';
+    }
+    h += '<div class="tpl-improve-body">';
+    plan.changes.forEach(function(ch) {
+      h += '<div class="tpl-improve-change"><div class="tpl-improve-sec">' + escapeHtml(ch.section) + '</div><div class="tpl-improve-cols">';
+      h += '<div class="tpl-improve-col"><div class="tpl-improve-coltitle">Before</div><div class="tpl-improve-prev before">' + _previewRender(ch.section, ch.before) + '</div></div>';
+      h += '<div class="tpl-improve-col"><div class="tpl-improve-coltitle">After</div><div class="tpl-improve-prev after">' + _previewRender(ch.section, ch.after) + '</div></div>';
+      h += '</div></div>';
+    });
+    h += '</div>';
+    h += '<div class="tpl-improve-foot"><button class="tpl-improve-cancel" onclick="_closeImprovePreview()">Cancel</button><button class="tpl-improve-apply" onclick="_applyImprovePlan()">Apply changes</button></div></div>';
+    ov.innerHTML = h;
+    document.body.appendChild(ov);
+  }
+  window._closeImprovePreview = function() {
+    var ov = document.getElementById('tpl-improve-overlay');
+    if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
+  };
+  window._applyImprovePlan = function() {
+    var plan = window._improvePlan;
+    if (!plan) { _closeImprovePreview(); return; }
+    var info = _itemForContentPrefix(plan.actId);
+    if (info && info.kind === 'activity') {
+      var parsed = {};
+      plan.changes.forEach(function(ch) { parsed[ch.section] = ch.after; });
+      _aiFillApply(info.item, plan.tplType, parsed);
+    }
+    window._improvePlan = null;
+    _closeImprovePreview();
+  };
+
+  // Add an "✨ Improve" button to every rich-editor template field's label.
+  // Idempotent — safe to call after each content render.
+  function _injectImproveButtons() {
+    document.querySelectorAll('.rich-editor[data-editor-type="template"]').forEach(function(ed) {
+      var section = ed.closest('.template-section') || ed.closest('details.template-collapsible');
+      if (!section) return;
+      var label = section.querySelector('.template-section-label');
+      if (!label || label.querySelector('.tpl-improve-btn')) return;
+      var actId = ed.getAttribute('data-act-id');
+      var tplType = ed.getAttribute('data-tpl-type');
+      var sectionKey = ed.getAttribute('data-section');
+      if (!actId || !tplType || !sectionKey) return;
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'tpl-improve-btn';
+      b.textContent = '✨ Improve';
+      b.title = 'Improve this field with AI: clearer wording + better formatting, keeping what you wrote';
+      b.onclick = function(e) { e.preventDefault(); e.stopPropagation(); improveTemplateField(actId, tplType, sectionKey, b); };
+      label.appendChild(b);
+    });
+  }
+  window._injectImproveButtons = _injectImproveButtons;
+
   // ===== APPLY TEMPLATE TO OTHER ACTIVITIES =====
   // Once a user has reviewed/edited an assignment's template fields they
   // often want the same Instructions + Rubric on every sibling assignment
@@ -13947,6 +14199,7 @@
     if (typeof refreshAllMaterialUsageBadges === 'function') refreshAllMaterialUsageBadges();
     if (typeof refreshTableContentChips === 'function') refreshTableContentChips();
     if (typeof _restoreLastContentTabs === 'function') _restoreLastContentTabs();
+    if (typeof _injectImproveButtons === 'function') _injectImproveButtons();
     // Content renders rebuild innerHTML and wipe inline comment highlights —
     // restore them from cache so they survive every re-render, not just a
     // view switch.
