@@ -15690,6 +15690,93 @@
     }
     if (typeof saveActivityData === 'function') saveActivityData();
 
+    // Open the module picker + conflict-policy modal. The actual push
+    // happens in _sendHandoffBundle() once the user confirms what to send.
+    _openHandoffModal(spec);
+  };
+
+  // In-page modal (no native confirm/prompt) to choose WHICH modules to
+  // push and HOW to treat modules that already exist in Curate
+  // (leave untouched vs overwrite). On confirm it filters the spec to the
+  // chosen modules and hands off to _sendHandoffBundle().
+  function _openHandoffModal(spec) {
+    var modules = (spec && spec.modules) || [];
+    var prior = document.getElementById('cc-handoff-modal');
+    if (prior) prior.remove();
+
+    var overlay = document.createElement('div');
+    overlay.id = 'cc-handoff-modal';
+    overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;justify-content:center;';
+
+    var card = document.createElement('div');
+    card.style.cssText = 'background:#fff;border-radius:10px;max-width:560px;width:92%;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.3);';
+    card.innerHTML =
+        '<div style="padding:18px 22px;border-bottom:1px solid #eee;">'
+      +   '<div style="font-size:17px;font-weight:700;color:#222;">Push to CanvasCurate</div>'
+      +   '<div style="font-size:12px;color:#666;margin-top:3px;">Pick which modules to send and how to handle modules that already exist in Curate.</div>'
+      + '</div>'
+      + '<div style="padding:16px 22px;">'
+      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:8px;">Modules to push</div>'
+      +   '<div id="cc-handoff-modlist"></div>'
+      +   '<div style="margin-top:8px;font-size:12px;"><a href="#" id="cc-handoff-all" style="color:#8c1d40;">Select all</a> &middot; <a href="#" id="cc-handoff-none" style="color:#8c1d40;">Select none</a></div>'
+      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin:18px 0 8px;">If a module already exists in Curate</div>'
+      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="skip" checked style="margin-top:2px;"><span><strong>Leave it untouched</strong> &mdash; keep the version already in Curate (protects edits made there). New modules are still added.</span></label>'
+      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="overwrite" style="margin-top:2px;"><span><strong>Overwrite it</strong> &mdash; replace its pages/activities with this version. Any edits made inside Curate are discarded.</span></label>'
+      + '</div>'
+      + '<div style="padding:14px 22px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px;align-items:center;">'
+      +   '<span id="cc-handoff-warn" style="color:#c62828;font-size:12px;margin-right:auto;"></span>'
+      +   '<button id="cc-handoff-cancel" style="padding:8px 16px;border:1px solid #ccc;background:#fff;border-radius:6px;cursor:pointer;font-size:13px;">Cancel</button>'
+      +   '<button id="cc-handoff-send" style="padding:8px 18px;border:none;background:#8c1d40;color:#fff;border-radius:6px;cursor:pointer;font-size:13px;font-weight:600;">Send to Curate</button>'
+      + '</div>';
+    overlay.appendChild(card);
+    document.body.appendChild(overlay);
+
+    var list = card.querySelector('#cc-handoff-modlist');
+    if (!modules.length) {
+      list.innerHTML = '<div style="font-size:13px;color:#999;">This course has no modules to push.</div>';
+    }
+    modules.forEach(function(mod, i) {
+      var num = (typeof mod.number === 'number') ? mod.number : (i + 1);
+      var topic = (mod.topic || mod.title || '').toString();
+      var label = document.createElement('label');
+      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;cursor:pointer;';
+      var cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.checked = true; cb.className = 'cc-handoff-modcb'; cb.value = String(i);
+      var span = document.createElement('span');
+      span.textContent = 'Module ' + num + (topic ? ' — ' + topic : '');
+      label.appendChild(cb); label.appendChild(span);
+      list.appendChild(label);
+    });
+
+    function close() { overlay.remove(); }
+    function allCbs() { return Array.prototype.slice.call(list.querySelectorAll('.cc-handoff-modcb')); }
+    card.querySelector('#cc-handoff-cancel').onclick = close;
+    overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
+    card.querySelector('#cc-handoff-all').onclick = function(e) { e.preventDefault(); allCbs().forEach(function(c) { c.checked = true; }); };
+    card.querySelector('#cc-handoff-none').onclick = function(e) { e.preventDefault(); allCbs().forEach(function(c) { c.checked = false; }); };
+
+    card.querySelector('#cc-handoff-send').onclick = function() {
+      var picked = allCbs().filter(function(c) { return c.checked; }).map(function(c) { return parseInt(c.value, 10); });
+      if (!picked.length) {
+        card.querySelector('#cc-handoff-warn').textContent = 'Select at least one module to push.';
+        return;
+      }
+      var onConflictEl = card.querySelector('input[name="cc-onconflict"]:checked');
+      var onConflict = onConflictEl ? onConflictEl.value : 'skip';
+      // Shallow-clone the spec, swapping in only the chosen modules so
+      // course.code + format ride along for Curate's session matching.
+      var filtered = {};
+      Object.keys(spec).forEach(function(k) { filtered[k] = spec[k]; });
+      filtered.modules = picked.map(function(idx) { return spec.modules[idx]; });
+      close();
+      _sendHandoffBundle(filtered, onConflict);
+    };
+  }
+
+  // Build the bundle from the (possibly module-filtered) spec + the chosen
+  // conflict policy and POST it to Curate. Falls back to a local download
+  // if Curate is unreachable.
+  async function _sendHandoffBundle(spec, onConflict) {
     var identity = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
     var bundle = {
       handoff: {
@@ -15698,7 +15785,8 @@
         to: 'CanvasCurate',
         bundledAt: new Date().toISOString(),
         bundledBy: identity && identity.name || null,
-        bundledByRole: identity && identity.role || null
+        bundledByRole: identity && identity.role || null,
+        onConflict: (onConflict === 'overwrite' ? 'overwrite' : 'skip')
       },
       spec: spec
     };
@@ -15746,7 +15834,10 @@
       var curateUrl = CURATE_FRONTEND_URL.replace(/\/$/, '') + '/dashboard?handoff=' + encodeURIComponent(data.handoff_id || '');
       try { window.open(curateUrl, '_blank', 'noopener'); } catch (e) {}
 
-      var msg = '✓ Sent to CanvasCurate. Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
+      var pushedCount = (bundle.spec.modules || []).length;
+      var msg = '✓ Sent to CanvasCurate (' + pushedCount + ' module' + (pushedCount === 1 ? '' : 's')
+        + '; existing modules: ' + (bundle.handoff.onConflict === 'overwrite' ? 'overwrite' : 'leave untouched')
+        + '). Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
       if (data.superseded_count && data.superseded_count > 0) {
         msg += '\n\n' + data.superseded_count + ' earlier pending handoff' + (data.superseded_count === 1 ? '' : 's')
           + ' for this course ' + (data.superseded_count === 1 ? 'was' : 'were') + ' superseded — only this push will be built.';
