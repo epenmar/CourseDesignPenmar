@@ -14997,19 +14997,27 @@
           fix: { view: 'materials-overview', modNum: mod.number, label: 'Add materials' }
         });
       } else {
+        // Roll-up = summary only. We aggregate the worst per-material status
+        // into the page badge and emit a SINGLE count line — the specifics
+        // (and the Attach source / Link activity fixes) live on the
+        // per-material cards rendered just below, so we don't repeat every
+        // material once per warning here (that read as duplicate content).
+        var materialsNeedingAttention = 0;
         (mod.materials || []).forEach(function(mat) {
           var mg = gaps.byRef['mat-' + mat.id];
           if (!mg) return;
           if (mg.status === 'error' && materialsPageStatus !== 'error') materialsPageStatus = 'error';
           else if (mg.status === 'warn' && materialsPageStatus === 'ok') materialsPageStatus = 'warn';
-          (mg.reasons || []).forEach(function(r) {
-            materialsPageReasons.push({
-              level: r.level,
-              msg: (mat.title || '(untitled material)') + ' — ' + r.msg,
-              fix: r.fix
-            });
-          });
+          if (mg.status === 'error' || mg.status === 'warn') materialsNeedingAttention++;
         });
+        if (materialsNeedingAttention > 0) {
+          materialsPageReasons.push({
+            level: materialsPageStatus === 'error' ? 'error' : 'warn',
+            msg: materialsNeedingAttention + ' of ' + matCount + ' material'
+              + (matCount === 1 ? '' : 's') + ' need attention — see the breakdown below',
+            fix: { view: 'materials-overview', modNum: mod.number, label: 'Open Materials' }
+          });
+        }
       }
       var materialsPageMeta = matCount === 0
         ? 'no materials yet'
