@@ -107,10 +107,26 @@
     _bumpContentIndicator(el);
   }
 
+  // Font sizes offered in the toolbars. Registered as an inline-STYLE attributor
+  // (not Quill's default class-based size) so the chosen size is written as
+  // style="font-size:18px" and therefore renders in the document preview and
+  // the Canvas export too, not only inside the editor.
+  var SIZE_WHITELIST = ['12px', '14px', '16px', '18px', '20px', '24px', '28px', '32px'];
+  var _formatsRegistered = false;
+  function registerCustomFormats() {
+    if (_formatsRegistered || !window.Quill) return;
+    try {
+      var SizeStyle = Quill.import('attributors/style/size');
+      SizeStyle.whitelist = SIZE_WHITELIST;
+      Quill.register(SizeStyle, true);
+      _formatsRegistered = true;
+    } catch (e) { console.warn('[RichEditor] size-format registration failed', e); }
+  }
+
   function defaultToolbarOptions() {
     return [
       [{ 'header': [1, 2, 3, false] }],
-      [{ 'font': [] }, { 'size': ['small', false, 'large', 'huge'] }],
+      [{ 'font': [] }, { 'size': SIZE_WHITELIST }],
       ['bold', 'italic', 'underline', 'strike'],
       [{ 'color': [] }, { 'background': [] }],
       [{ 'list': 'ordered' }, { 'list': 'bullet' }],
@@ -315,6 +331,12 @@
       { value: '1', label: 'H1' }, { value: '2', label: 'H2' }, { value: '3', label: 'H3' }
     ], 'Normal');
     g1.appendChild(headerSel);
+    // Font size — first option (value '') resets to the default size.
+    var sizeSel = mkSelect('size', [{ value: '', label: 'Size' }].concat(
+      SIZE_WHITELIST.map(function(px) { return { value: px, label: px.replace('px', '') }; })
+    ), null);
+    sizeSel.title = 'Font size';
+    g1.appendChild(sizeSel);
 
     var g2 = addGroup();
     g2.appendChild(mkBtn('bold', null, '<b>B</b>', 'Bold (Ctrl+B)'));
@@ -358,6 +380,7 @@
 
   function initAll(root) {
     ensureKatexGlobal();
+    registerCustomFormats();
     root = root || document;
 
     // First handle shared-toolbar previews.
