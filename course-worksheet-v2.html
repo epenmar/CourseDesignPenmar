@@ -7356,14 +7356,15 @@
       // Skip comment system elements — they're managed by Supabase, not localStorage
       if (el.closest('.comment-thread-panel') || el.closest('#comment-identity-modal')) return;
       if (el.dataset.managed === 'true') return;
-      // Build a unique key from context
-      const view = el.closest('[id^="view-"]');
-      const viewId = view ? view.id : 'global';
-      // Use element id, name, or positional key
+      // Persist ONLY by stable id/name. The old positional fallback
+      // ("viewId_idx") keyed id-less inputs by DOM order, so when dynamic
+      // content shifted the order, a value (often a <select>'s selectedIndex,
+      // e.g. -1) landed in the wrong field on restore — the corruption that hit
+      // the weighting categories and quiz questions. Any id-less input here is
+      // managed by its own renderer (weights, quiz, link boxes, edit fields),
+      // so skipping it is correct.
       let key = el.id || el.name || '';
-      if (!key) {
-        key = viewId + '_' + idx;
-      }
+      if (!key) return;
       if (el.type === 'checkbox') {
         allData[key] = el.checked;
       } else if (el.tagName === 'SELECT') {
@@ -7373,10 +7374,10 @@
       }
     });
     // Save checkbox states
-    document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(el) {
       if (el.dataset.managed === 'true') return; // managed elsewhere (e.g. quiz bank)
-      const key = el.id || ('chk_' + idx);
-      allData[key] = el.checked;
+      if (!el.id) return; // id-less checkboxes are managed by their own UI (modals, checklists)
+      allData[el.id] = el.checked;
     });
     saveField('formData', allData);
   }
@@ -7423,10 +7424,10 @@
       if (el.dataset.managed === 'true') return;
       // Skip session-select — it has its own dedicated restore via saveField('sessionSelect')
       if (el.id === 'session-select') return;
-      const view = el.closest('[id^="view-"]');
-      const viewId = view ? view.id : 'global';
+      // Restore ONLY by stable id/name — never by DOM position (the old
+      // positional fallback is what wrote stray values into id-less inputs).
       let key = el.id || el.name || '';
-      if (!key) key = viewId + '_' + idx;
+      if (!key) return;
       if (key in allData) {
         if (el.tagName === 'SELECT') {
           el.selectedIndex = allData[key];
@@ -7436,10 +7437,10 @@
         if (el.tagName === 'TEXTAREA' && typeof autoResize === 'function') autoResize(el);
       }
     });
-    document.querySelectorAll('input[type="checkbox"]').forEach(function(el, idx) {
+    document.querySelectorAll('input[type="checkbox"]').forEach(function(el) {
       if (el.dataset.managed === 'true') return; // managed elsewhere (e.g. quiz bank)
-      const key = el.id || ('chk_' + idx);
-      if (key in allData) el.checked = allData[key];
+      if (!el.id) return; // id-less checkboxes are managed by their own UI
+      if (el.id in allData) el.checked = allData[el.id];
     });
     // Faculty directory auto-fill: if the course's instructor matches an
     // entry the dashboard saved on a prior course, pre-fill empty email +
