@@ -5904,14 +5904,29 @@
       { category: 'Quizzes', weight: '' },
       { category: 'Final Project', weight: '' }
     ];
+    // Repair earlier corruption: the category-name inputs used to be swept by
+    // the generic formData restore (no id / not data-managed), which overwrote
+    // names with a colliding <select>'s selectedIndex. A category name that is
+    // a bare integer ("-1", "0", "3") is always that artifact, never real —
+    // blank it so the field shows its placeholder for clean re-entry.
+    if (Array.isArray(weights)) {
+      var repaired = false;
+      weights.forEach(function(w) {
+        if (w && typeof w.category === 'string' && /^-?\d+$/.test(w.category.trim())) {
+          w.category = '';
+          repaired = true;
+        }
+      });
+      if (repaired) saveField('assignmentWeights', weights);
+    }
     var container = document.getElementById('assignment-weights-container');
     if (!container) return;
     var html = '';
     for (var i = 0; i < weights.length; i++) {
       html += '<div style="display:flex; align-items:center; gap:6px; margin-bottom:6px;" data-weight-idx="' + i + '">' +
         '<button onclick="removeWeightRow(' + i + ')" style="border:none; background:none; color:#ccc; cursor:pointer; font-size:16px; padding:0; line-height:1; flex-shrink:0;" title="Remove">&times;</button>' +
-        '<input type="text" class="field-input" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" onfocus="this.dataset.prevCat=this.value" oninput="saveWeights()" onchange="saveWeightsAndRefresh(this)" style="flex:1;" />' +
-        '<input type="number" class="field-input" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="width:70px; text-align:center; flex-shrink:0;" oninput="saveWeights()" />' +
+        '<input type="text" class="field-input" data-managed="true" value="' + escapeHtml(weights[i].category || '') + '" placeholder="Category name" onfocus="this.dataset.prevCat=this.value" oninput="saveWeights()" onchange="saveWeightsAndRefresh(this)" style="flex:1;" />' +
+        '<input type="number" class="field-input" data-managed="true" value="' + (weights[i].weight || '') + '" placeholder="%" min="0" max="100" style="width:70px; text-align:center; flex-shrink:0;" oninput="saveWeights()" />' +
         '</div>';
     }
     container.innerHTML = html;
