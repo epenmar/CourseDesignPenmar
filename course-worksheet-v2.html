@@ -15660,7 +15660,12 @@
   // below — including renderCanvasPlan, which is why the Canvas
   // Plan view rendered blank. Don't put literal close-script
   // sequences in JS comments; describe in plain English instead.)
-  var CURATE_API_URL = window.CURATE_API_URL || 'https://web-production-49d0a.up.railway.app';
+  // Post fork-split (2026-05): epenmar's Compose targets epenmar's own
+  // Curate stack — backend a1165 + frontend canvascurate-v2. The earlier
+  // default pointed the backend at marsenea's live Curate (49d0a) while the
+  // frontend already pointed here, so handoffs wrote to her DB but opened our
+  // dashboard and never appeared. Override via window.CURATE_API_URL if needed.
+  var CURATE_API_URL = window.CURATE_API_URL || 'https://web-production-a1165.up.railway.app';
   var CURATE_FRONTEND_URL = window.CURATE_FRONTEND_URL || 'https://canvascurate-v2.vercel.app';
   var HANDOFF_TIMEOUT_MS = 30000;
 
