@@ -16339,19 +16339,30 @@
         // ELO↔MLO alignment). Lets the document show MLO→ELO traceability.
         var prevElAlign = (typeof getEloMloAlignment === 'function') ? getEloMloAlignment() : null;
         if (!prevElAlign || !Object.keys(prevElAlign).length) prevElAlign = loadField('eloMloAlignment') || {};
+        var prevEloTexts = activeCourse.flatElos || loadField('flatElos') || [];
         var elosForMlo = function(mloId) {
           var out = [];
           Object.keys(prevElAlign || {}).forEach(function(k) {
             var arr = prevElAlign[k] || [];
-            if (arr.indexOf(mloId) !== -1) { var n = parseInt(k, 10); if (!isNaN(n)) out.push(n + 1); }
+            if (arr.indexOf(mloId) !== -1) { var n = parseInt(k, 10); if (!isNaN(n)) out.push(n); }
           });
           return out.sort(function(a, b) { return a - b; });
         };
+        // Each ELO renders on its own non-wrapping line (no bullet — the bullet
+        // + hanging indent pushed "ELO N" onto a second line in this narrow
+        // column) with a dotted underline + title tooltip showing the full ELO
+        // text on hover. Smaller font keeps "ELO N" on one line.
         var renderElosCell = function(mloId) {
-          var nums = elosForMlo(mloId);
-          if (!nums.length) return '<span class="placeholder">—</span>';
-          if (nums.length === 1) return 'ELO ' + nums[0];
-          return nums.map(function(n) { return bulletItem('ELO ' + n); }).join('');
+          var idxs = elosForMlo(mloId);
+          if (!idxs.length) return '<span class="placeholder">—</span>';
+          return idxs.map(function(i) {
+            var raw = prevEloTexts[i];
+            var full = (typeof raw === 'string') ? raw : ((raw && raw.text) || '');
+            var tip = esc(String(full)).replace(/"/g, '&quot;');
+            return '<span style="display:block; white-space:nowrap; font-size:8pt; line-height:1.5;'
+              + (full ? ' cursor:help; border-bottom:1px dotted #999;' : '') + '"'
+              + (full ? ' title="' + tip + '"' : '') + '>ELO ' + (i + 1) + '</span>';
+          }).join('');
         };
 
         html += '<table><thead><tr>';
