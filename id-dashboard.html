@@ -228,8 +228,10 @@
   .upcoming-card { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 8px 12px; display: flex; align-items: center; gap: 8px; flex: 1; min-width: 220px; cursor: pointer; transition: border-color 0.15s; }
   .upcoming-card:hover { border-color: #8c1d40; }
   .upcoming-date-box { background: #8c1d40; color: #fff; border-radius: 6px; padding: 4px 6px; text-align: center; min-width: 40px; }
+  .upcoming-date-box .weekday { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; opacity: 0.85; }
   .upcoming-date-box .month { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
   .upcoming-date-box .day { font-size: 15px; font-weight: 700; line-height: 1; }
+  .upcoming-sync-spinner { width: 12px; height: 12px; border: 2px solid #bbdefb; border-top-color: #0d47a1; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
   .upcoming-info .upcoming-title { font-size: 11px; font-weight: 600; }
   .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-info .upcoming-course a:hover { text-decoration: underline; }
@@ -1401,6 +1403,14 @@
       });
       chip._wired = true;
     }
+    // A sync is running right now — show progress instead of a stale/broken
+    // age so the chip doesn't read "sync broken" during the 30–60s refresh.
+    if (window._syncInFlight) {
+      chip.className = 'sync-staleness-chip syncing';
+      chip.textContent = 'Syncing…';
+      chip.title = 'Pulling the latest calendar + meeting notes…';
+      return;
+    }
     var live = window.SYNCED_DATA;
     var iso = live && live.syncedAt;
     if (!iso) {
@@ -1575,11 +1585,16 @@
 
     const el = document.getElementById('upcoming-list');
     if (upcoming.length === 0) {
-      el.innerHTML = `<div style="padding:20px; color:#999; font-size:13px;">Nothing upcoming in the next ${weeks} week${weeks > 1 ? 's' : ''}.</div>`;
+      if (window._syncInFlight) {
+        el.innerHTML = `<div style="padding:20px; color:#0d47a1; font-size:13px; display:flex; align-items:center; gap:8px;"><span class="upcoming-sync-spinner"></span>Syncing calendar… this can take up to a minute after a refresh.</div>`;
+      } else {
+        el.innerHTML = `<div style="padding:20px; color:#999; font-size:13px;">Nothing upcoming in the next ${weeks} week${weeks > 1 ? 's' : ''}.</div>`;
+      }
       return;
     }
     el.innerHTML = upcoming.map(d => {
       const dt = d.date ? new Date(d.date + 'T00:00:00') : null;
+      const weekday = dt ? dt.toLocaleDateString('en-US', {weekday:'short'}) : '';
       const month = d.month || (dt ? dt.toLocaleDateString('en-US', {month:'short'}) : '—');
       const day = d.day || (dt ? dt.getDate() : '—');
       let meetingTag = '';
@@ -1590,7 +1605,7 @@
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
       return `<div class="upcoming-card"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
-        <div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div>
+        <div class="upcoming-date-box">${weekday ? `<div class="weekday">${weekday}</div>` : ''}<div class="month">${month}</div><div class="day">${day}</div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
           <div class="upcoming-course">${d.title}</div>
@@ -3183,6 +3198,13 @@
   function triggerSync(force) {
     var btn = document.getElementById('sync-btn');
     if (btn) btn.classList.add('syncing');
+    // Mark a sync as in-flight so the staleness chip + Upcoming card show a
+    // "Syncing…" state instead of "sync broken" / "Nothing upcoming" during the
+    // 30–60s a calendar sync takes after a refresh. Re-render immediately so
+    // the message appears right away.
+    window._syncInFlight = true;
+    try { renderSyncStalenessChip(); } catch (e) {}
+    try { renderUpcoming(); } catch (e) {}
     var url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
     var controller = new AbortController();
     // A force sync re-fetches the iCal feed (slow) and walks all Granola
@@ -3314,7 +3336,16 @@
         };
         document.head.appendChild(s);
       })
-      .finally(function() { clearTimeout(timer); if (btn) btn.classList.remove('syncing'); });
+      .finally(function() {
+        clearTimeout(timer);
+        if (btn) btn.classList.remove('syncing');
+        // Sync finished (success or failure) — clear the in-flight state and
+        // repaint so the chip shows the real result (fresh / broken) and the
+        // Upcoming card shows items or its true empty state.
+        window._syncInFlight = false;
+        try { renderSyncStalenessChip(); } catch (e) {}
+        try { renderUpcoming(); } catch (e) {}
+      });
   }
   try { triggerSync(); } catch(e) {} // sync on page load, never block initial render
 
