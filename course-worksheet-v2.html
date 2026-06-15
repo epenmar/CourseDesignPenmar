@@ -16335,16 +16335,31 @@
           }).join('');
         };
 
-        // Column-width percentages match the hand-edited TPH 501.docx
-        // reference (1320 / 3345 / 2715 / 3375 twips → 12 / 31 / 26 / 31 %).
-        // The Assignments column needed an explicit width — without it the
-        // .docx generator was flooring it to ~20% and assignment text
-        // wrapped vertically into a thin column.
+        // ELO column: for each MLO, which course ELO(s) it maps to (via the
+        // ELO↔MLO alignment). Lets the document show MLO→ELO traceability.
+        var prevElAlign = (typeof getEloMloAlignment === 'function') ? getEloMloAlignment() : null;
+        if (!prevElAlign || !Object.keys(prevElAlign).length) prevElAlign = loadField('eloMloAlignment') || {};
+        var elosForMlo = function(mloId) {
+          var out = [];
+          Object.keys(prevElAlign || {}).forEach(function(k) {
+            var arr = prevElAlign[k] || [];
+            if (arr.indexOf(mloId) !== -1) { var n = parseInt(k, 10); if (!isNaN(n)) out.push(n + 1); }
+          });
+          return out.sort(function(a, b) { return a - b; });
+        };
+        var renderElosCell = function(mloId) {
+          var nums = elosForMlo(mloId);
+          if (!nums.length) return '<span class="placeholder">—</span>';
+          if (nums.length === 1) return 'ELO ' + nums[0];
+          return nums.map(function(n) { return bulletItem('ELO ' + n); }).join('');
+        };
+
         html += '<table><thead><tr>';
-        html += '<th style="width:12%;">Topic(s)</th>';
-        html += '<th style="width:31%;">Module Objectives</th>';
-        html += '<th style="width:26%;">Assignments</th>';
-        html += '<th style="width:31%;">Learning Materials</th>';
+        html += '<th style="width:11%;">Topic(s)</th>';
+        html += '<th style="width:28%;">Module Objectives</th>';
+        html += '<th style="width:9%;">ELO(s)</th>';
+        html += '<th style="width:24%;">Assignments</th>';
+        html += '<th style="width:28%;">Learning Materials</th>';
         html += '</tr></thead><tbody>';
 
         for (let r = 0; r < finalMlos.length; r++) {
@@ -16356,6 +16371,7 @@
             html += '<td rowspan="' + rowCount + '">' + esc(modTopic) + '</td>';
           }
           html += '<td><strong>' + mloId + ':</strong> ' + esc(mloText) + '</td>';
+          html += '<td>' + renderElosCell(mloId) + '</td>';
           html += '<td>' + renderActsCell(rowActs) + '</td>';
           if (r === 0) {
             html += '<td rowspan="' + rowCount + '">' + renderMaterialsCell() + '</td>';
@@ -16370,6 +16386,7 @@
             html += '<td>' + esc(modTopic) + '</td>';
           }
           html += '<td><span class="placeholder">(no MLO tagged)</span></td>';
+          html += '<td><span class="placeholder">—</span></td>';
           html += '<td>' + renderActsCell(untaggedActs) + '</td>';
           if (finalMlos.length === 0) {
             html += '<td>' + renderMaterialsCell() + '</td>';
