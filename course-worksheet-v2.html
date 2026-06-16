@@ -15548,7 +15548,7 @@
   // (objectives + assignments + materials): an intro paragraph, an objectives
   // bullet list, and a student to-do bullet list. Stored on
   // moduleOverviewData[mod].overviewPageHtml and carried to Curate in the spec.
-  window.generateModuleOverview = async function(modNum, btn) {
+  window.generateModuleOverview = async function(modNum, btn, batch) {
     if (typeof window.CourseComposeSpec === 'undefined') return;
     var spec = window.CourseComposeSpec.build();
     var mod = (spec.modules || []).find(function(m) { return String(m.number) === String(modNum); });
@@ -15584,8 +15584,12 @@
       if (!all[modNum]) all[modNum] = {};
       all[modNum].overviewPageHtml = clean;
       saveField('moduleOverviewData', all);
-      if (typeof renderCanvasPlan === 'function') renderCanvasPlan();
+      // In batch mode the caller re-renders ONCE at the end. Re-rendering here
+      // per-module would detach the "Generate all" button mid-loop and kill its
+      // x/x progress indicator.
+      if (!batch && typeof renderCanvasPlan === 'function') renderCanvasPlan();
     } catch (e) {
+      if (batch) throw e; // let the batch loop count it as a failure and move on
       alert('Generate failed: ' + (e && e.message ? e.message : e));
       if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
     }
@@ -15601,11 +15605,19 @@
     if (!confirm('Generate Overview pages for ' + mods.length + ' module' + (mods.length === 1 ? '' : 's') + '? This overwrites any existing generated overviews.')) return;
     var orig = btn ? btn.textContent : null;
     if (btn) btn.disabled = true;
+    // Drive the indicator on BOTH the button and the persistent
+    // ".cp-overview-bar-count" span ("X of Y generated"). batch=true keeps
+    // generateModuleOverview from re-rendering the plan per module, so these
+    // DOM nodes stay put and their x/N updates are actually visible.
+    var countEl = document.querySelector('.cp-overview-bar-count');
+    var done = 0;
     for (var i = 0; i < mods.length; i++) {
-      if (btn) btn.textContent = '✨ Generating ' + (i + 1) + '/' + mods.length + '…';
-      try { await generateModuleOverview(mods[i].number, null); } catch (e) {}
+      if (btn) btn.textContent = '✨ Generating ' + (i + 1) + ' of ' + mods.length + '…';
+      if (countEl) countEl.textContent = 'Generating ' + (i + 1) + ' of ' + mods.length + '…';
+      try { await generateModuleOverview(mods[i].number, null, true); done++; } catch (e) {}
     }
     if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+    if (countEl && done < mods.length) countEl.textContent = done + ' of ' + mods.length + ' generated (' + (mods.length - done) + ' failed)';
     if (typeof renderCanvasPlan === 'function') renderCanvasPlan();
   };
 
