@@ -4789,7 +4789,7 @@
 
     // Build MLO → activities map
     var mloActivityMap = {};
-    for (var m = 1; m <= modCount; m++) {
+    for (var m = (activeCourse.moduleStartZero ? 0 : 1); m < (activeCourse.moduleStartZero ? 0 : 1) + modCount; m++) {
       var acts = courseActivities[m] || [];
       acts.forEach(function(act) {
         stats.totalActivities++;
@@ -6380,9 +6380,12 @@
     if (modBadge) {
       var displayScore = Math.round(moduleScore * 10) / 10; // one decimal
       if (displayScore === Math.floor(displayScore)) displayScore = Math.floor(displayScore); // drop .0
-      // Build tooltip listing exactly what each module is missing.
+      // Build tooltip listing exactly what each module is missing. Iterate the
+      // ACTUAL module numbers (a moduleStartZero course runs 0..modCount-1);
+      // the old 1..modCount range skipped Module 0 and invented a phantom
+      // "Module N (no MLOs)" that made a complete course look incomplete.
       var modIssues = [];
-      for (var mIdx = 1; mIdx <= modCount; mIdx++) {
+      for (var mIdx = _pStart; mIdx < _pEnd; mIdx++) {
         var modData2 = savedModOverview[mIdx] || {};
         var mlosArr = modData2.mlos || [];
         var nonEmpty = mlosArr.filter(function(s) { return s && s.trim(); });
@@ -7776,7 +7779,7 @@
 
     // Gather activities and materials per module
     var activities = {};
-    for (var m = 1; m <= modCount; m++) {
+    for (var m = (activeCourse.moduleStartZero ? 0 : 1); m < (activeCourse.moduleStartZero ? 0 : 1) + modCount; m++) {
       var acts = courseActivities[m] || [];
       if (acts.length > 0) {
         activities[m] = acts.map(function(a) {
@@ -7785,7 +7788,7 @@
       }
     }
     var materials = {};
-    for (var m = 1; m <= modCount; m++) {
+    for (var m = (activeCourse.moduleStartZero ? 0 : 1); m < (activeCourse.moduleStartZero ? 0 : 1) + modCount; m++) {
       var mats = courseMaterials[m] || [];
       if (mats.length > 0) {
         materials[m] = mats.map(function(mat) {
@@ -16806,7 +16809,7 @@
       // so we can filter out alignment entries that point at MLOs the
       // instructor has since deleted.
       var prevMloActMap = {};
-      for (var pm = 1; pm <= modCount; pm++) {
+      for (var pm = (activeCourse.moduleStartZero ? 0 : 1); pm < (activeCourse.moduleStartZero ? 0 : 1) + modCount; pm++) {
         (courseActivities[pm] || []).forEach(function(act) {
           (act.objectives || []).forEach(function(tag) {
             if (!prevMloActMap[tag]) prevMloActMap[tag] = [];
