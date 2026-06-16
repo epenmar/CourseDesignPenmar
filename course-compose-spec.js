@@ -246,7 +246,11 @@
         topic: topic,
         mlos: mlos,
         activities: modActs,
-        materials: modMats
+        materials: modMats,
+        // AI-generated Overview page body (intro paragraph + objectives +
+        // student to-do list) for the build tool to publish as the module's
+        // Canvas Overview page. Empty until generated on the Canvas Plan.
+        overviewPageHtml: saved.overviewPageHtml || ''
       });
     }
 

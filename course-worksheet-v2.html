@@ -343,6 +343,16 @@
   .view-toggle { display: inline-flex; background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; overflow: hidden; margin-bottom: 16px; }
   .view-btn { padding: 8px 20px; font-size: 13px; border: none; background: none; cursor: pointer; font-family: 'Inter', sans-serif; font-weight: 500; color: #666; transition: all 0.15s; }
   .view-btn.active { background: #8c1d40; color: #fff; }
+  /* Canvas Plan: module overview generator */
+  .cp-gen-btn { font-size: 11px; font-weight: 600; padding: 3px 10px; border: 1px solid #c9a3d4; background: #faf5fc; color: #6a1b9a; border-radius: 12px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .cp-gen-btn:hover { background: #f3e6f8; }
+  .cp-gen-btn[disabled] { opacity: 0.6; cursor: default; }
+  .cp-ov-gen { border: 1px solid #d7e8d9; border-radius: 6px; background: #f6fbf6; }
+  .cp-ov-gen > summary { padding: 6px 10px; cursor: pointer; font-size: 12px; color: #2e7d32; font-weight: 600; }
+  .cp-ov-body { padding: 8px 12px; font-size: 13px; line-height: 1.5; border-top: 1px solid #d7e8d9; }
+  .cp-ov-body ul { margin: 4px 0; padding-left: 20px; }
+  .cp-ov-body p { margin: 0 0 6px; }
+  .cp-ov-actions { padding: 6px 10px; border-top: 1px solid #d7e8d9; }
 
   /* ===== HELPFUL RESOURCES ===== */
   .helpful-resources-details { width: 100%; }
@@ -15099,10 +15109,24 @@
       html += _canvasPlanRow({
         icon: '📄',
         title: 'Module ' + mod.number + ' Overview',
-        meta: 'auto-generated · lists MLOs + module summary',
+        meta: 'intro paragraph + objectives + student to-do list',
         status: overviewGap.status,
         reasons: overviewGap.reasons
       });
+      // Generated Overview page body — created from this module's content
+      // (objectives + assignments + materials) and carried to Curate.
+      var _ovStored = ((loadField('moduleOverviewData') || {})[mod.number] || {}).overviewPageHtml || '';
+      html += '<div style="margin:2px 0 10px 34px;">';
+      if (_ovStored) {
+        var _ovSafe = (typeof sanitizeAIHtml === 'function') ? sanitizeAIHtml(_ovStored) : _ovStored;
+        html += '<details class="cp-ov-gen"><summary>✓ Overview page generated — preview / regenerate</summary>';
+        html += '<div class="cp-ov-body">' + _ovSafe + '</div>';
+        html += '<div class="cp-ov-actions"><button class="cp-gen-btn" onclick="generateModuleOverview(' + mod.number + ', this)">✨ Regenerate</button></div>';
+        html += '</details>';
+      } else {
+        html += '<button class="cp-gen-btn" onclick="generateModuleOverview(' + mod.number + ', this)" title="Generate the Overview page (intro paragraph, objectives, student to-do list) from this module\'s content">✨ Generate overview page</button>';
+      }
+      html += '</div>';
 
       // 2. Learning Materials page — one Canvas page that lists every
       //    material for this module (PDFs, readings, videos, etc.).
@@ -15255,6 +15279,72 @@
 
     host.innerHTML = html;
   }
+
+  // ===== MODULE OVERVIEW PAGE GENERATOR (Canvas Plan) =====
+  // Builds the student-facing Overview page for a module from its content
+  // (objectives + assignments + materials): an intro paragraph, an objectives
+  // bullet list, and a student to-do bullet list. Stored on
+  // moduleOverviewData[mod].overviewPageHtml and carried to Curate in the spec.
+  window.generateModuleOverview = async function(modNum, btn) {
+    if (typeof window.CourseComposeSpec === 'undefined') return;
+    var spec = window.CourseComposeSpec.build();
+    var mod = (spec.modules || []).find(function(m) { return String(m.number) === String(modNum); });
+    if (!mod) { alert('Module ' + modNum + ' not found.'); return; }
+    var mlos = (mod.mlos || []).filter(function(x) { return x && String(x).trim(); });
+    var acts = mod.activities || [];
+    var mats = mod.materials || [];
+    if (!mlos.length && !acts.length && !mats.length) {
+      alert('Module ' + modNum + ' has no objectives, assignments, or materials yet — add content before generating its overview.');
+      return;
+    }
+    var orig = btn ? btn.textContent : null;
+    if (btn) { btn.disabled = true; btn.textContent = '✨ Generating…'; }
+    try {
+      var ctx = 'Module ' + modNum + (mod.topic ? ': ' + mod.topic : '') + '\n';
+      if (mlos.length) ctx += '\nModule learning objectives:\n' + mlos.map(function(o, i) { return (i + 1) + '. ' + String(o).trim(); }).join('\n') + '\n';
+      if (acts.length) ctx += '\nAssignments / activities this module:\n' + acts.map(function(a) {
+        var td = a.templateData || {};
+        var ov = (td.assignment && td.assignment.Overview) || (td.discussion && td.discussion.Overview) || (td.quiz && td.quiz.Overview) || '';
+        ov = String(ov).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+        return '- ' + (a.name || 'Activity') + (a.type ? ' [' + a.type + ']' : '') + (ov ? ': ' + ov.slice(0, 180) : '');
+      }).join('\n') + '\n';
+      if (mats.length) ctx += '\nLearning materials this module:\n' + mats.map(function(m) { return '- ' + (m.title || m.type || 'material') + (m.type ? ' (' + m.type + ')' : ''); }).join('\n') + '\n';
+      var p = 'Write the student-facing OVERVIEW PAGE for this course module as HTML, in three parts:\n'
+        + '1. An intro paragraph in a <p> (3-5 sentences, second person) on what the module covers and why it matters.\n'
+        + '2. <p><strong>What you will be able to do</strong></p> then a <ul> of the module objectives (use the MLOs; you may phrase as "you will…" but keep the meaning). One <li> per objective.\n'
+        + '3. <p><strong>Your to-do list</strong></p> then a <ul> of the concrete steps to complete this module (review the readings/videos, take part in the discussion, complete each assignment/quiz). Derive these ONLY from the materials and assignments listed; do NOT invent items or add due dates.\n\n'
+        + 'Encouraging, concise, second person. Never use em-dashes. Return ONLY the HTML, no commentary or code fences.\n\n=== MODULE CONTENT ===\n' + ctx;
+      var raw = await callCreateAI(p, 'You write welcoming, well-structured Canvas module Overview pages for students. Use only the provided content; never invent assignments or due dates; never use em-dashes.', 1500);
+      var clean = (typeof _cleanAiHtml === 'function') ? _cleanAiHtml(raw) : String(raw || '').trim();
+      if (!clean) throw new Error('AI returned no content.');
+      var all = loadField('moduleOverviewData') || {};
+      if (!all[modNum]) all[modNum] = {};
+      all[modNum].overviewPageHtml = clean;
+      saveField('moduleOverviewData', all);
+      if (typeof renderCanvasPlan === 'function') renderCanvasPlan();
+    } catch (e) {
+      alert('Generate failed: ' + (e && e.message ? e.message : e));
+      if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+    }
+  };
+
+  window.generateAllModuleOverviews = async function(btn) {
+    if (typeof window.CourseComposeSpec === 'undefined') return;
+    var spec = window.CourseComposeSpec.build();
+    var mods = (spec.modules || []).filter(function(m) {
+      return (m.mlos || []).length || (m.activities || []).length || (m.materials || []).length;
+    });
+    if (!mods.length) { alert('No module content to generate overviews from yet.'); return; }
+    if (!confirm('Generate Overview pages for ' + mods.length + ' module' + (mods.length === 1 ? '' : 's') + '? This overwrites any existing generated overviews.')) return;
+    var orig = btn ? btn.textContent : null;
+    if (btn) btn.disabled = true;
+    for (var i = 0; i < mods.length; i++) {
+      if (btn) btn.textContent = '✨ Generating ' + (i + 1) + '/' + mods.length + '…';
+      try { await generateModuleOverview(mods[i].number, null); } catch (e) {}
+    }
+    if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
+    if (typeof renderCanvasPlan === 'function') renderCanvasPlan();
+  };
 
   // Compute gap status for every row in the Canvas Plan view. Returns a
   // ref-keyed map (`mod-<n>`, `overview-<n>`, `act-<id>`, `mat-<id>`)
@@ -15735,6 +15825,16 @@
     }
     btn.onclick = function() { handOffToCanvasCurate(); };
     bar.appendChild(btn);
+
+    // Generate-all-overviews button — drafts every module's Overview page body
+    // (paragraph + objectives + to-do) from its content in one pass.
+    var genBtn = document.createElement('button');
+    genBtn.className = 'view-btn';
+    genBtn.setAttribute('data-canvas-plan-dynamic', '1');
+    genBtn.textContent = '✨ Generate all overviews';
+    genBtn.title = 'Generate the Overview page body for every module from its objectives, assignments, and materials';
+    genBtn.onclick = function() { generateAllModuleOverviews(genBtn); };
+    bar.appendChild(genBtn);
 
     // Last-shipped indicator — pulled from localStorage so it survives
     // page reloads. Shown inline next to the button so the user can see
