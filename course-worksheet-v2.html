@@ -345,6 +345,12 @@
   .view-btn.active { background: #8c1d40; color: #fff; }
   /* Canvas Plan: module overview generator */
   .cp-gen-btn { font-size: 11px; font-weight: 600; padding: 3px 10px; border: 1px solid #c9a3d4; background: #faf5fc; color: #6a1b9a; border-radius: 12px; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .cp-overview-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 10px 14px; margin-bottom: 12px; background: #f6f0fa; border: 1px solid #e3d3ee; border-radius: 8px; }
+  .cp-overview-bar-label { font-size: 13px; font-weight: 600; color: #6a1b9a; }
+  .cp-overview-bar-count { font-size: 12px; color: #888; }
+  .cp-gen-all { margin-left: auto; font-size: 13px; padding: 7px 16px; background: #6a1b9a; color: #fff; border-color: #6a1b9a; }
+  .cp-gen-all:hover { background: #571580; }
+  .cp-gen-all[disabled] { opacity: 0.6; cursor: default; }
   .cp-gen-btn:hover { background: #f3e6f8; }
   .cp-gen-btn[disabled] { opacity: 0.6; cursor: default; }
   .cp-ov-gen { border: 1px solid #d7e8d9; border-radius: 6px; background: #f6fbf6; }
@@ -15082,6 +15088,22 @@
     // Curate's output until the live POST endpoint is wired.
     renderCanvasPlanBuildReport();
 
+    // ---- Bulk overview generation bar ----
+    // Dedicated, prominent control to draft every module's Overview page body
+    // at once (each Overview row below also has its own Generate/Regenerate).
+    var _ovTotal = 0, _ovDone = 0;
+    spec.modules.forEach(function(m) {
+      if ((m.mlos || []).length || (m.activities || []).length || (m.materials || []).length) {
+        _ovTotal++;
+        if (m.overviewPageHtml && String(m.overviewPageHtml).trim()) _ovDone++;
+      }
+    });
+    html += '<div class="cp-overview-bar">'
+      + '<span class="cp-overview-bar-label">📄 Module Overview pages</span>'
+      + '<span class="cp-overview-bar-count">' + _ovDone + ' of ' + _ovTotal + ' generated</span>'
+      + '<button class="cp-gen-btn cp-gen-all" onclick="generateAllModuleOverviews(this)">✨ ' + (_ovDone > 0 ? 'Regenerate all overviews' : 'Generate all overviews') + '</button>'
+      + '</div>';
+
     spec.modules.forEach(function(mod) {
       var actCount = (mod.activities || []).length;
       var matCount = (mod.materials || []).length;
@@ -15834,16 +15856,8 @@
     }
     btn.onclick = function() { handOffToCanvasCurate(); };
     bar.appendChild(btn);
-
-    // Generate-all-overviews button — drafts every module's Overview page body
-    // (paragraph + objectives + to-do) from its content in one pass.
-    var genBtn = document.createElement('button');
-    genBtn.className = 'view-btn';
-    genBtn.setAttribute('data-canvas-plan-dynamic', '1');
-    genBtn.textContent = '✨ Generate all overviews';
-    genBtn.title = 'Generate the Overview page body for every module from its objectives, assignments, and materials';
-    genBtn.onclick = function() { generateAllModuleOverviews(genBtn); };
-    bar.appendChild(genBtn);
+    // (Bulk "Generate all overviews" now lives in its own prominent bar above
+    // the module list in renderCanvasPlan — see cp-overview-bar.)
 
     // Last-shipped indicator — pulled from localStorage so it survives
     // page reloads. Shown inline next to the button so the user can see
