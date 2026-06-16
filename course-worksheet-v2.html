@@ -11354,7 +11354,8 @@
 
     html += '<div class="quiz-add-btns">';
     html += '<button class="btn-add-row" onclick="addQuizQuestion(\'' + builderId + '\')">+ Add question</button>';
-    html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')">✨ Generate questions with AI</button>';
+    html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')" title="Generate questions from the course/module objectives">✨ Generate from context</button>';
+    html += '<button class="btn-add-row" onclick="openQuizGenModal(\'' + builderId + '\')" title="Upload a transcript, reading, or slides and generate questions from that content">📄 Generate from content</button>';
     html += '</div>';
     html += '</div>';
 
@@ -11578,6 +11579,235 @@
       alert('AI generation failed: ' + err.message);
     } finally {
       if (btn) { btn.disabled = false; btn.textContent = '✨ Generate questions with AI'; }
+    }
+  }
+
+  // ===== AI QUIZ GENERATION FROM UPLOADED CONTENT =====
+  // generateQuizAI() writes questions from course/module context alone. This
+  // flow instead grounds questions in faculty-provided source material — a
+  // lecture transcript, reading, or slide deck (PDF / DOCX / MD / TXT) or
+  // pasted text — so the questions actually test what the content covers.
+  var _quizGenState = { builderId: null, sourceText: '', sourceLabel: '' };
+
+  function openQuizGenModal(builderId) {
+    _quizGenState = { builderId: builderId, sourceText: '', sourceLabel: '' };
+    var ov = document.getElementById('quiz-gen-overlay') || _buildQuizGenModal();
+    var paste = document.getElementById('quiz-gen-paste'); if (paste) paste.value = '';
+    var cnt = document.getElementById('quiz-gen-count'); if (cnt) cnt.value = 5;
+    document.getElementById('quiz-gen-t-mc').checked = true;
+    document.getElementById('quiz-gen-t-tf').checked = false;
+    document.getElementById('quiz-gen-t-sa').checked = false;
+    var appendR = document.querySelector('input[name="quiz-gen-mode"][value="append"]'); if (appendR) appendR.checked = true;
+    _quizGenSetFileStatus('');
+    _quizGenSetStatus('');
+    var go = document.getElementById('quiz-gen-go'); if (go) { go.disabled = false; go.textContent = '✨ Generate questions'; }
+    ov.style.display = 'flex';
+  }
+
+  function closeQuizGenModal() {
+    var ov = document.getElementById('quiz-gen-overlay');
+    if (ov) ov.style.display = 'none';
+  }
+
+  function _quizGenSetStatus(msg) {
+    var el = document.getElementById('quiz-gen-status'); if (el) el.textContent = msg || '';
+  }
+  function _quizGenSetFileStatus(msg) {
+    var el = document.getElementById('quiz-gen-file-status'); if (el) el.textContent = msg || '';
+  }
+
+  function _buildQuizGenModal() {
+    var ov = document.createElement('div');
+    ov.id = 'quiz-gen-overlay';
+    ov.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:300; align-items:flex-start; justify-content:center; padding-top:32px;';
+    ov.onclick = function (e) { if (e.target === ov) closeQuizGenModal(); };
+    var html = '';
+    html += '<div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:640px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">';
+    html += '<div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:6px;">';
+    html += '<div><div style="font-size:15px; font-weight:600; color:#8c1d40;">📄 Generate quiz questions from content</div>';
+    html += '<div style="font-size:12px; color:#888; margin-top:2px;">Upload a transcript, reading, or slides — or paste text. Questions are written from that material.</div></div>';
+    html += '<button onclick="closeQuizGenModal()" style="background:none; border:none; font-size:22px; line-height:1; color:#999; cursor:pointer;">&times;</button>';
+    html += '</div>';
+    html += '<div style="overflow-y:auto; padding:4px 2px;">';
+    html += '<div onclick="document.getElementById(\'quiz-gen-file\').click()" style="border:2px dashed #c9a0ac; border-radius:8px; padding:16px; text-align:center; cursor:pointer; color:#8c1d40; font-size:13px; background:#faf5f7;">';
+    html += '⬆ Click to upload a file <span style="color:#999;">(.pdf, .docx, .md, .txt)</span>';
+    html += '<div id="quiz-gen-file-status" style="font-size:12px; color:#2e7d32; margin-top:6px;"></div>';
+    html += '</div>';
+    html += '<input type="file" id="quiz-gen-file" accept=".pdf,.docx,.md,.markdown,.txt" style="display:none;" onchange="_quizGenOnFile(this)" />';
+    html += '<div style="text-align:center; font-size:11px; color:#aaa; margin:8px 0;">— or paste content —</div>';
+    html += '<textarea id="quiz-gen-paste" placeholder="Paste a lecture transcript or any source text here..." style="width:100%; min-height:90px; resize:vertical; border:1px solid #ddd; border-radius:6px; padding:8px; font-size:12px; font-family:inherit; box-sizing:border-box;"></textarea>';
+    html += '<div style="display:flex; gap:16px; align-items:center; flex-wrap:wrap; margin-top:12px;">';
+    html += '<label style="font-size:12px;">Number of questions: <input type="number" id="quiz-gen-count" value="5" min="1" max="25" style="width:54px; padding:3px 6px; border:1px solid #ddd; border-radius:4px;" /></label>';
+    html += '</div>';
+    html += '<div style="margin-top:10px; font-size:12px;"><span style="color:#666;">Question types:</span> ';
+    html += '<label style="margin-left:8px;"><input type="checkbox" id="quiz-gen-t-mc" checked /> Multiple choice</label> ';
+    html += '<label style="margin-left:8px;"><input type="checkbox" id="quiz-gen-t-tf" /> True/False</label> ';
+    html += '<label style="margin-left:8px;"><input type="checkbox" id="quiz-gen-t-sa" /> Short answer</label>';
+    html += '</div>';
+    html += '<div style="margin-top:10px; font-size:12px;"><span style="color:#666;">When generated:</span> ';
+    html += '<label style="margin-left:8px;"><input type="radio" name="quiz-gen-mode" value="append" checked /> Add to existing</label> ';
+    html += '<label style="margin-left:8px;"><input type="radio" name="quiz-gen-mode" value="replace" /> Replace existing</label>';
+    html += '</div>';
+    html += '</div>';
+    html += '<div style="display:flex; gap:8px; align-items:center; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eee;">';
+    html += '<div id="quiz-gen-status" style="flex:1; font-size:12px; color:#888;"></div>';
+    html += '<button onclick="closeQuizGenModal()" style="padding:7px 14px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>';
+    html += '<button id="quiz-gen-go" onclick="runQuizGenFromContent()" style="padding:7px 16px; border:none; background:#8c1d40; color:#fff; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">✨ Generate questions</button>';
+    html += '</div>';
+    html += '</div>';
+    ov.innerHTML = html;
+    document.body.appendChild(ov);
+    return ov;
+  }
+
+  async function _quizGenOnFile(input) {
+    var file = input.files && input.files[0];
+    if (!file) return;
+    _quizGenSetStatus('');
+    _quizGenSetFileStatus('⏳ Reading ' + file.name + '…');
+    try {
+      var text = await _extractDocText(file);
+      if (!text || !text.trim()) throw new Error('No readable text found.');
+      _quizGenState.sourceText = text;
+      _quizGenState.sourceLabel = file.name;
+      _quizGenSetFileStatus('✓ ' + file.name + ' — ' + text.length.toLocaleString() + ' characters loaded');
+    } catch (e) {
+      _quizGenState.sourceText = '';
+      _quizGenState.sourceLabel = '';
+      _quizGenSetFileStatus('');
+      _quizGenSetStatus('Could not read that file: ' + (e && e.message ? e.message : e));
+    }
+  }
+
+  // Reuse generateQuizAI's context-gathering: course name, module topic + MLOs,
+  // and the activity name, all read off the builder's surrounding card.
+  function _quizGenContext(container) {
+    var ctx = { courseName: '', moduleTitle: '', moduleMlos: '', actName: '' };
+    var card = container.closest('.activity-block') || container.closest('.card');
+    if (card) {
+      var nameInput = card.querySelector('input[data-field="name"]');
+      if (nameInput) ctx.actName = nameInput.value;
+    }
+    ctx.courseName = activeCourse.code + (activeCourse.name ? ' — ' + activeCourse.name : '');
+    var modNumEl = card ? card.querySelector('[data-module-num]') : null;
+    if (modNumEl) {
+      var modNum = parseInt(modNumEl.getAttribute('data-module-num'));
+      var savedMods = loadField('moduleOverviewData') || {};
+      var savedMod = savedMods[modNum] || {};
+      var mlos = savedMod.mlos || [];
+      ctx.moduleTitle = savedMod.topic || '';
+      if (mlos.length === 0) {
+        var _startN = activeCourse.moduleStartZero ? 0 : 1;
+        var mod = (activeCourse.modules || [])[modNum - _startN];
+        if (mod) { mlos = mod.mlos || []; if (!ctx.moduleTitle) ctx.moduleTitle = mod.title || ''; }
+      }
+      if (mlos.length > 0) ctx.moduleMlos = mlos.map(function (m, i) { return modNum + '.' + (i + 1) + ': ' + m; }).join('\n');
+    }
+    return ctx;
+  }
+
+  // Coerce one AI question object into the builder's question shape, honoring
+  // the allowed-types filter and the True/False two-choice convention.
+  function _quizGenNormalize(q, allowedTypes) {
+    var type = (q && q.type ? String(q.type) : 'multiple-choice').toLowerCase();
+    if (type.indexOf('true') !== -1) type = 'true-false';
+    else if (type.indexOf('short') !== -1) type = 'short-answer';
+    else type = 'multiple-choice';
+    if (allowedTypes.indexOf(type) === -1) type = allowedTypes[0];
+    var choices = [];
+    if (type === 'true-false') {
+      var trueCorrect = false;
+      if (Array.isArray(q.choices)) {
+        q.choices.forEach(function (c) {
+          var t = (c && c.text ? String(c.text) : '').toLowerCase();
+          if (t.indexOf('true') !== -1 && c.correct) trueCorrect = true;
+          if (t.indexOf('false') !== -1 && c.correct) trueCorrect = false;
+        });
+      }
+      if (typeof q.answer === 'boolean') trueCorrect = q.answer;
+      choices = [{ text: 'True', correct: !!trueCorrect }, { text: 'False', correct: !trueCorrect }];
+    } else if (type === 'multiple-choice') {
+      choices = (Array.isArray(q.choices) ? q.choices : []).map(function (c) {
+        return { text: (c && c.text ? String(c.text) : ''), correct: !!(c && c.correct) };
+      }).filter(function (c) { return c.text; });
+      if (choices.length && !choices.some(function (c) { return c.correct; })) choices[0].correct = true;
+      while (choices.length < 2) choices.push({ text: '', correct: false });
+    } else {
+      choices = [];
+    }
+    return {
+      text: (q && q.text ? String(q.text) : ''),
+      type: type,
+      choices: choices,
+      correctFeedback: (q && q.correctFeedback ? String(q.correctFeedback) : ''),
+      incorrectFeedback: (q && q.incorrectFeedback ? String(q.incorrectFeedback) : '')
+    };
+  }
+
+  async function runQuizGenFromContent() {
+    var st = _quizGenState;
+    var builderId = st.builderId;
+    var container = builderId ? document.getElementById(builderId) : null;
+    if (!container) { closeQuizGenModal(); return; }
+
+    var pasted = (document.getElementById('quiz-gen-paste').value || '').trim();
+    var sourceText = (st.sourceText && st.sourceText.trim()) ? st.sourceText.trim() : pasted;
+    if (!sourceText) { _quizGenSetStatus('Upload a file or paste some content first.'); return; }
+    var sourceLabel = st.sourceLabel || 'pasted text';
+
+    var count = parseInt(document.getElementById('quiz-gen-count').value, 10) || 5;
+    count = Math.max(1, Math.min(25, count));
+    var allowed = [];
+    if (document.getElementById('quiz-gen-t-mc').checked) allowed.push('multiple-choice');
+    if (document.getElementById('quiz-gen-t-tf').checked) allowed.push('true-false');
+    if (document.getElementById('quiz-gen-t-sa').checked) allowed.push('short-answer');
+    if (!allowed.length) allowed = ['multiple-choice'];
+    var modeEl = document.querySelector('input[name="quiz-gen-mode"]:checked');
+    var mode = modeEl ? modeEl.value : 'append';
+
+    var ctx = _quizGenContext(container);
+    var typeLabels = { 'multiple-choice': 'multiple-choice', 'true-false': 'true/false', 'short-answer': 'short-answer' };
+    var allowedLabel = allowed.map(function (t) { return typeLabels[t]; }).join(', ');
+
+    var prompt = 'Write ' + count + ' quiz questions for a university course, grounded ONLY in the source material at the bottom of this message.\n';
+    prompt += 'Course: ' + ctx.courseName + '\n';
+    if (ctx.moduleTitle) prompt += 'Module topic: ' + ctx.moduleTitle + '\n';
+    if (ctx.actName) prompt += 'Quiz: "' + ctx.actName + '"\n';
+    if (ctx.moduleMlos) prompt += '\nModule learning objectives (favor questions that assess these where the material supports it):\n' + ctx.moduleMlos + '\n';
+    prompt += '\nAllowed question types: ' + allowedLabel + '. Use a mix if more than one is allowed.\n';
+    prompt += 'Rules:\n';
+    prompt += '- Base every question, answer, and distractor ONLY on the source material. Do not test facts that are not in it, and do not invent details.\n';
+    prompt += '- Multiple choice: exactly 4 choices, exactly one correct; wrong choices should be plausible and drawn from related ideas in the material.\n';
+    prompt += '- True/False: a single clear statement; mark whether it is true or false.\n';
+    prompt += '- Short answer: a question answerable in a sentence or two; no choices.\n';
+    prompt += '- Give brief correctFeedback and incorrectFeedback for each question.\n';
+    prompt += '\nReturn ONLY a JSON array, no other text, with this exact structure:\n';
+    prompt += '[{"text":"...","type":"multiple-choice|true-false|short-answer","choices":[{"text":"...","correct":true}],"correctFeedback":"...","incorrectFeedback":"..."}]\n';
+    prompt += '\n=== SOURCE MATERIAL ===\n' + sourceText.slice(0, 14000);
+
+    var go = document.getElementById('quiz-gen-go');
+    if (go) { go.disabled = true; go.textContent = '⏳ Generating…'; }
+    _quizGenSetStatus('Reading "' + sourceLabel + '" and writing questions…');
+
+    try {
+      var text = (await callCreateAI(prompt, 'You are an instructional design expert writing assessment items grounded strictly in provided source material. Never invent facts that are not in the source.', 4096)).trim();
+      var jsonMatch = text.match(/\[[\s\S]*\]/);
+      if (!jsonMatch) throw new Error('The AI did not return any questions.');
+      var raw = _lenientJsonParse(jsonMatch[0]);
+      if (!Array.isArray(raw) || !raw.length) throw new Error('No questions were generated.');
+      var mapped = raw.map(function (q) { return _quizGenNormalize(q, allowed); }).filter(function (q) { return q.text; });
+      if (!mapped.length) throw new Error('No usable questions were generated.');
+
+      quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 5, questions: [] };
+      if (mode === 'replace') quizData[builderId].questions = mapped;
+      else quizData[builderId].questions = (quizData[builderId].questions || []).concat(mapped);
+      quizData[builderId].questions.forEach(function (q, i) { q.num = i + 1; });
+      renderQuizBuilder(container);
+      saveQuizDataForBuilder(builderId);
+      closeQuizGenModal();
+    } catch (err) {
+      if (go) { go.disabled = false; go.textContent = '✨ Generate questions'; }
+      _quizGenSetStatus('Generation failed: ' + (err && err.message ? err.message : err));
     }
   }
 
