@@ -275,33 +275,11 @@ def ingest_bundle(supabase, handoff_row: Dict[str, Any], user_id: str) -> str:
             }
 
             position = 1
-            # ---- 3-pre. Module Overview page (from CourseCompose) ----
-            # CourseCompose's Canvas Plan can AI-generate an Overview page body
-            # (intro paragraph + objectives + student to-do list). When present,
-            # publish it as the module's first page so the Canvas module reads
-            # Overview → Learning Materials → Assignments.
-            overview_html = (module.get("overviewPageHtml") or "").strip()
-            if overview_html:
-                mod_num = module.get("number") if isinstance(module.get("number"), int) else mod_index + 1
-                _insert_content_item(
-                    supabase,
-                    session_id=session_id,
-                    user_id=user_id,
-                    module=module_ctx,
-                    canvas_id_prefix="overview",
-                    title=f"Module {mod_num} Overview",
-                    content_type="page",
-                    html_body=overview_html,
-                    item_metadata={
-                        "source": "coursecompose",
-                        "coursecompose_kind": "module_overview",
-                        "coursecompose_module_number": module.get("number"),
-                    },
-                    position=position,
-                    module_db_id=module_db_id,
-                )
-                position += 1
-
+            # NOTE: Module Overview page creation (from module.overviewPageHtml)
+            # is handled by the LIVE Curate ingest in canvascurateV2 (it
+            # reconciled the field into its existing _build_overview_html path).
+            # This snapshot intentionally does NOT insert it — adding a second
+            # insert here would duplicate the Overview page if ever synced over.
             # ---- 3a. activities → course_content_items ----
             for activity in module.get("activities") or []:
                 title = (activity.get("name") or "Untitled activity").strip() or "Untitled activity"
