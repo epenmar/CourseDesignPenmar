@@ -5838,7 +5838,9 @@
       card.querySelectorAll('.obj-entry textarea.field-input, .obj-entry input.field-input').forEach(function(inp) {
         if (inp.value.trim()) mlos.push(inp.value.trim());
       });
-      data[modNum] = { topic: topicInput ? topicInput.value : '', mlos: mlos };
+      // Merge (don't replace) so extra fields on the module — e.g. the
+      // Canvas-Plan-generated overviewPageHtml — survive an MLO/topic edit.
+      data[modNum] = Object.assign({}, data[modNum] || {}, { topic: topicInput ? topicInput.value : '', mlos: mlos });
       var arrayIdx = modNum - startNum;
       if (activeCourse.modules && activeCourse.modules[arrayIdx]) {
         activeCourse.modules[arrayIdx].mlos = mlos;
