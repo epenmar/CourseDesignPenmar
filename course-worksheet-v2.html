@@ -996,6 +996,10 @@
   body.reviewer-mode .breadcrumb { color: #8c1d40; font-weight: 600; }
   body.reviewer-mode #reviewer-comments-btn { display: inline-flex !important; align-items: center; gap: 6px; }
   body.reviewer-mode #reviewer-comments-btn:hover { background: #6d1633; }
+  /* "How to comment" banners */
+  .reviewer-comment-banner { display: none; }
+  body.reviewer-mode .reviewer-comment-banner { display: block; background: #eef4fb; border: 1px solid #bcd4ec; border-left: 4px solid #1565c0; border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; font-size: 13px; color: #1a2a3a; line-height: 1.5; }
+  .comment-howto-banner { background: #f6f0fa; border-bottom: 1px solid #e3d3ee; padding: 8px 16px; font-size: 11.5px; color: #5a3a6a; line-height: 1.45; }
 
   /* ===== COMMENTS SYSTEM ===== */
   .comment-btn { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border: 1px solid #e0ddd5; border-radius: 6px; background: #fff; font-size: 11px; color: #888; cursor: pointer; transition: all 0.15s; font-family: 'Inter', sans-serif; }
@@ -2088,6 +2092,7 @@
 
       <!-- ===== DOC PREVIEW ===== -->
       <div id="view-preview" style="display:none;">
+        <div class="reviewer-comment-banner">💬 <strong>Leaving a comment?</strong> Highlight the relevant text in the document below, then click the <strong>Comment</strong> button that pops up. Your comments are saved and sent to the course designer.</div>
         <div style="display:flex; align-items:center; gap:12px; margin-bottom:12px; flex-wrap:wrap;">
           <label style="font-size:13px; font-weight:600; color:#555;">Document:</label>
           <select id="doc-type-select" onchange="renderPreview()" style="padding:6px 12px; border:1px solid #e0ddd5; border-radius:8px; font-size:13px; font-family:'Inter',sans-serif; background:#fff;">
@@ -2206,6 +2211,7 @@
       <button class="comment-thread-close" onclick="closeCommentPanel()">×</button>
     </div>
   </div>
+  <div class="comment-howto-banner">💡 To comment on something specific, <strong>highlight the relevant text</strong> in the document, then click the <strong>💬 Comment</strong> button that appears.</div>
   <div class="comment-thread-messages" id="comment-messages"></div>
   <div class="comment-input-area" id="comment-input-area">
     <div class="comment-input-row">
@@ -21368,7 +21374,8 @@
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
-      renderAllComments(data || []);
+      window._allCommentsData = data || [];
+      renderAllComments(window._allCommentsData);
     } catch(e) {
       console.error('Failed to load all comments:', e);
       msgContainer.innerHTML = '<div class="comment-empty">Failed to load comments.</div>';
@@ -21404,6 +21411,7 @@
     if (!ensureIdentity()) { currentCommentSection = sectionId; return; }
     currentCommentSection = sectionId;
     currentHighlightCommentId = highlightId || null;
+    window._allCommentsData = null; // leaving the all-comments view
     // Restore the reply input in case it was hidden by the all-comments view
     var inputArea = document.getElementById('comment-input-area');
     if (inputArea) inputArea.style.display = '';
@@ -21677,7 +21685,7 @@
     //   4. Refresh field/section indicator classes
     _stripHighlightFromDom(commentId);
     _markCommentResolvedInCache(commentId);
-    _rerenderCommentPanelFromCache();
+    _afterCommentStateChange(commentId);
     if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
 
     try {
@@ -21706,6 +21714,21 @@
   // optimistic cache updates so the panel reflects the new state without
   // waiting for a round-trip. Safe to call when the panel is closed —
   // it just no-ops if there's no current section.
+  // After a resolve/delete, refresh whichever comment view is open so the
+  // comment moves to history instantly. Section/thread view re-renders from the
+  // cache; the "All Comments" view (currentCommentSection === null) drops the
+  // comment from its in-memory list and re-renders — without this, the global
+  // panel kept showing resolved/deleted comments until it was reopened.
+  function _afterCommentStateChange(commentId) {
+    if (currentCommentSection) {
+      _rerenderCommentPanelFromCache();
+    } else if (Array.isArray(window._allCommentsData)) {
+      window._allCommentsData = window._allCommentsData.filter(function(c) { return c && c.id !== commentId; });
+      renderAllComments(window._allCommentsData);
+    }
+    if (typeof updateGlobalCommentBtn === 'function') updateGlobalCommentBtn();
+  }
+
   function _rerenderCommentPanelFromCache() {
     if (!currentCommentSection) return;
     var msgContainer = document.getElementById('comment-messages');
@@ -21804,7 +21827,7 @@
       if (typeof reapplyHighlightsFromCache === 'function') reapplyHighlightsFromCache();
       _markCommentResolvedInCache(commentId);
       _markCommentDeletedInCache(commentId);
-      _rerenderCommentPanelFromCache();
+      _afterCommentStateChange(commentId);
       // Soft-delete: set deleted_at timestamp instead of removing the row
       const { error: softErr } = await supabaseClient.from('comments').update({ deleted_at: new Date().toISOString(), resolved: true }).eq('id', commentId);
       // If soft-delete fails (column doesn't exist yet), fall back to hard resolve
