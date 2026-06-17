@@ -3197,11 +3197,38 @@
     return null;
   }
 
-  function _buildMloBlockHtml(modNum, mlos) {
-    var items = mlos.map(function(m, i) {
-      return '<li><strong>' + modNum + '.' + (i + 1) + '</strong> &mdash; ' + escapeHtml(String(m).trim()) + '</li>';
+  // Resolve a tagged objective id ("1.3" = module 1, objective 3) to its MLO
+  // text. Mirrors the id scheme the objectives picker writes (moduleNum + '.' +
+  // (idx + 1)).
+  function _resolveMloById(objId) {
+    var m = String(objId).match(/^(\d+)\.(\d+)$/);
+    if (!m) return null;
+    var modN = parseInt(m[1], 10), idx = parseInt(m[2], 10) - 1;
+    var arr = ((typeof _mlosForModule === 'function') ? _mlosForModule(modN) : []) || [];
+    var text = arr[idx];
+    return (text != null && String(text).trim()) ? String(text).trim() : null;
+  }
+
+  // Only the objectives this quiz is tagged to (act.objectives), resolved to
+  // {id, text} and sorted by module.index — NOT every objective in the module.
+  function _taggedMloItems(act) {
+    var items = [];
+    ((act && act.objectives) || []).forEach(function(objId) {
+      var text = _resolveMloById(objId);
+      if (text) items.push({ id: String(objId), text: text });
+    });
+    items.sort(function(a, b) {
+      var pa = a.id.split('.').map(Number), pb = b.id.split('.').map(Number);
+      return (pa[0] - pb[0]) || (pa[1] - pb[1]);
+    });
+    return items;
+  }
+
+  function _buildMloBlockHtml(items) {
+    var li = items.map(function(it) {
+      return '<li><strong>' + escapeHtml(it.id) + '</strong> &mdash; ' + escapeHtml(it.text) + '</li>';
     }).join('');
-    return '<p><strong>Learning objectives assessed by this quiz:</strong></p><ul>' + items + '</ul>';
+    return '<p><strong>Learning objectives assessed by this quiz:</strong></p><ul>' + li + '</ul>';
   }
 
   // Remove a previously-inserted objectives block so re-inserting doesn't stack
@@ -3223,38 +3250,54 @@
     return tmp.innerHTML;
   }
 
+  // The live Quill instance for a quiz's Overview editor (set on the element as
+  // el._quill by rich-editor.js), or null if that editor isn't on screen.
+  function _getQuizOverviewEditor(actId) {
+    var el = document.querySelector('.rich-editor[data-tpl-type="quiz"][data-section="Overview"][data-act-id="' + actId + '"]');
+    return el && el._quill ? el._quill : null;
+  }
+
+  // Data-model path: prepend (idempotently) the objectives block to a quiz's
+  // Overview and refresh its editor IN PLACE if it's mounted — never re-render
+  // the whole view (that collapses the open card). Used by the bulk action and
+  // as a fallback when a single quiz's editor isn't currently rendered.
   function _applyMloBlockToQuiz(modKey, act) {
-    var modNum = parseInt(modKey, 10);
-    var mlos = ((typeof _mlosForModule === 'function') ? _mlosForModule(modNum) : []) || [];
-    mlos = mlos.filter(function(x) { return x && String(x).trim(); });
-    if (!mlos.length) return false;
-    var block = _buildMloBlockHtml(modNum, mlos);
+    var items = _taggedMloItems(act);
+    if (!items.length) return false;
+    var block = _buildMloBlockHtml(items);
     var stripped = _stripPriorMloBlock(getTemplateVal(act, 'quiz', 'Overview'));
     var merged = block + (stripped && stripped.trim() ? stripped : '');
     saveTemplateField(act.id, 'quiz', 'Overview', merged);
+    var quill = _getQuizOverviewEditor(act.id);
+    if (quill) {
+      try { quill.setContents([]); quill.clipboard.dangerouslyPasteHTML(0, merged, 'silent'); }
+      catch (e) { try { quill.root.innerHTML = merged; } catch (e2) {} }
+    }
     return true;
   }
 
-  // Repaint whichever template surface is open so the rich editor reflects the
-  // freshly-written Overview (mirrors importDocToTemplate's re-render).
-  function _repaintTemplatesView() {
-    try {
-      if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') {
-        renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
-      } else if (currentViewId === 'module' && typeof renderModuleDetail === 'function') {
-        renderModuleDetail(currentModuleNum);
-      }
-    } catch (e) {}
-  }
-
+  // Single quiz: insert the module's objectives AT THE CURSOR in the live
+  // editor (source 'user' → the editor's own text-change handler persists it),
+  // leaving the open assignment exactly where it is. Falls back to the
+  // data-model prepend only when the editor isn't mounted.
   function insertModuleObjectivesIntoQuiz(actId) {
     var found = _findActModule(actId);
     if (!found) return;
-    if (!_applyMloBlockToQuiz(found.mod, found.act)) {
-      alert('Module ' + parseInt(found.mod, 10) + ' has no learning objectives yet. Add the module\'s MLOs first, then insert them.');
+    var items = _taggedMloItems(found.act);
+    if (!items.length) {
+      alert('This quiz isn\'t tagged to any learning objectives yet. Use the objectives picker on the quiz to tag the MLOs it assesses, then insert them.');
       return;
     }
-    _repaintTemplatesView();
+    var block = _buildMloBlockHtml(items);
+    var quill = _getQuizOverviewEditor(actId);
+    if (quill) {
+      var range = quill.getSelection();
+      if (!range) { quill.focus(); range = quill.getSelection(); }
+      var index = range ? range.index : quill.getLength();
+      quill.clipboard.dangerouslyPasteHTML(index, block, 'user');
+    } else {
+      _applyMloBlockToQuiz(found.mod, found.act);
+    }
   }
   window.insertModuleObjectivesIntoQuiz = insertModuleObjectivesIntoQuiz;
 
@@ -3269,15 +3312,14 @@
     if (!confirm('Insert each module\'s learning objectives into all ' + quizzes.length + ' quiz description' + (quizzes.length === 1 ? '' : 's') + '?\n\nAny existing objectives block is refreshed; the rest of each description is kept.')) return;
     var done = 0, skipped = 0;
     quizzes.forEach(function(q) { if (_applyMloBlockToQuiz(q.mod, q.act)) done++; else skipped++; });
-    _repaintTemplatesView();
-    alert('Inserted objectives into ' + done + ' quiz' + (done === 1 ? '' : 'zes') + (skipped ? '.\nSkipped ' + skipped + ' (their module has no objectives yet).' : '.'));
+    alert('Inserted objectives into ' + done + ' quiz' + (done === 1 ? '' : 'zes') + (skipped ? '.\nSkipped ' + skipped + ' (not tagged to any objectives yet).' : '.'));
   }
   window.insertModuleObjectivesIntoAllQuizzes = insertModuleObjectivesIntoAllQuizzes;
 
   function _quizObjectivesBtnRow(actId) {
     return '<div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">'
-      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoQuiz(\'' + actId + '\')" title="Add this module\'s learning objectives to the quiz description">&#43; Insert module objectives</button>'
-      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoAllQuizzes()" title="Add each module\'s objectives to every quiz description in this course">Insert into all quizzes</button>'
+      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoQuiz(\'' + actId + '\')" title="Insert the objectives this quiz is tagged to into the description, at your cursor">&#43; Insert tagged objectives</button>'
+      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoAllQuizzes()" title="Insert each quiz\'s tagged objectives into every quiz description in this course">Insert into all quizzes</button>'
       + '</div>';
   }
 
