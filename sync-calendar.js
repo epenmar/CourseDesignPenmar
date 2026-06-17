@@ -304,12 +304,24 @@ function _isDeadEvent(ev) {
   return /^(cancell?ed:|declined:)/.test(s);
 }
 
+// A keyword is a course CODE (e.g. "MNS 521", "STP494", "LSC598/STP494") rather
+// than an instructor name or topic word ("Dariush", "Genomics", "Capstone").
+// Codes are a 2-4 letter prefix immediately followed by a 3-digit number.
+const _COURSE_CODE_RE = /[a-z]{2,4}\s?\d{3}/i;
+function _isCourseCodeKeyword(kw) { return _COURSE_CODE_RE.test(String(kw)); }
+
 function matchEventToCourses(event) {
-  const text = (event.summary || '').toLowerCase() + ' ' + (event.description || '').toLowerCase();
+  // Attribute a meeting to a course ONLY when the course CODE appears in the
+  // event TITLE. Title-only (not description) and code-only (not instructor
+  // names / topic words) so a generic "Nilesh/Elisa Check-In" or a meeting that
+  // merely mentions a faculty member doesn't get pulled in — the meeting has to
+  // actually name the course.
+  const title = String(event.summary || '').toLowerCase();
   const matches = [];
   for (const [courseId, keywords] of Object.entries(COURSE_KEYWORDS)) {
     for (const kw of keywords) {
-      if (text.includes(kw.toLowerCase())) { matches.push(courseId); break; }
+      if (!_isCourseCodeKeyword(kw)) continue;
+      if (title.includes(kw.toLowerCase())) { matches.push(courseId); break; }
     }
   }
   return matches;
