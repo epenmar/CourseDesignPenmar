@@ -16188,6 +16188,84 @@
   // push and HOW to treat modules that already exist in Curate
   // (leave untouched vs overwrite). On confirm it filters the spec to the
   // chosen modules and hands off to _sendHandoffBundle().
+  // Bucket an activity into a page-type key for the "By page type" filter.
+  // Activity.type comes from a.contentType (discussion / assignment / quiz /
+  // page); page + blank fall into the assignment bucket.
+  function _actBucket(a) {
+    var t = String((a && (a.type || a.contentType)) || 'assignment').toLowerCase();
+    if (t.indexOf('quiz') !== -1) return 'quiz';
+    if (t.indexOf('discussion') !== -1) return 'discussion';
+    return 'assignment';
+  }
+
+  function _modHasOverview(mod) {
+    return !!(mod && mod.overviewPageHtml && String(mod.overviewPageHtml).trim());
+  }
+
+  // How many pages of a given type exist across all modules (for the
+  // "By page type" checkbox counts).
+  function _countTypeAcrossModules(modules, key) {
+    var n = 0;
+    (modules || []).forEach(function(mod) {
+      if (key === 'overview') { if (_modHasOverview(mod)) n++; }
+      else if (key === 'material') { n += (mod.materials || []).length; }
+      else { n += (mod.activities || []).filter(function(a) { return _actBucket(a) === key; }).length; }
+    });
+    return n;
+  }
+
+  // Total pushable pages in a (possibly filtered) spec: overview + activities
+  // + materials across all its modules.
+  function _countSpecPages(spec) {
+    var n = 0;
+    (spec.modules || []).forEach(function(mod) {
+      if (_modHasOverview(mod)) n++;
+      n += (mod.activities || []).length;
+      n += (mod.materials || []).length;
+    });
+    return n;
+  }
+
+  // Produce a new spec whose modules are filtered down to the user's
+  // selection. `sel` is one of:
+  //   { mode:'modules', moduleIdx:[i,...] }   — whole modules, unchanged
+  //   { mode:'types', types:{overview,assignment,discussion,quiz,material:bool} }
+  //   { mode:'pages', refs:{ 'ov-<i>'|'act-<id>'|'mat-<id>': true } }
+  // Modules that end up empty are dropped so we don't seed empty modules
+  // in Curate. course.code + format + objectives ride along untouched for
+  // Curate's session matching.
+  function _filterSpecBySelection(spec, sel) {
+    var out = {};
+    Object.keys(spec).forEach(function(k) { out[k] = spec[k]; });
+    var kept = [];
+    (spec.modules || []).forEach(function(mod, i) {
+      if (sel.mode === 'modules') {
+        if (sel.moduleIdx.indexOf(i) !== -1) kept.push(mod);
+        return;
+      }
+      var keepOverview, acts, mats;
+      if (sel.mode === 'types') {
+        keepOverview = !!sel.types.overview;
+        acts = (mod.activities || []).filter(function(a) { return sel.types[_actBucket(a)]; });
+        mats = sel.types.material ? (mod.materials || []) : [];
+      } else { // pages
+        keepOverview = !!sel.refs['ov-' + i];
+        acts = (mod.activities || []).filter(function(a) { return sel.refs['act-' + a.id]; });
+        mats = (mod.materials || []).filter(function(m) { return sel.refs['mat-' + m.id]; });
+      }
+      var hasOv = keepOverview && _modHasOverview(mod);
+      if (!hasOv && !acts.length && !mats.length) return; // nothing chosen here
+      var m = {};
+      Object.keys(mod).forEach(function(k) { m[k] = mod[k]; });
+      m.overviewPageHtml = hasOv ? mod.overviewPageHtml : '';
+      m.activities = acts;
+      m.materials = mats;
+      kept.push(m);
+    });
+    out.modules = kept;
+    return out;
+  }
+
   function _openHandoffModal(spec) {
     var modules = (spec && spec.modules) || [];
     var prior = document.getElementById('cc-handoff-modal');
@@ -16197,19 +16275,30 @@
     overlay.id = 'cc-handoff-modal';
     overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:99999;display:flex;align-items:center;justify-content:center;';
 
+    var TABS = [
+      { key: 'modules', label: 'Whole modules' },
+      { key: 'types', label: 'By page type' },
+      { key: 'pages', label: 'Individual pages' }
+    ];
+    var mode = 'modules';
+
     var card = document.createElement('div');
-    card.style.cssText = 'background:#fff;border-radius:10px;max-width:560px;width:92%;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.3);';
+    card.style.cssText = 'background:#fff;border-radius:10px;max-width:580px;width:92%;max-height:84vh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,0.3);';
+    var tabBtns = TABS.map(function(t) {
+      return '<button class="cc-handoff-tab" data-mode="' + t.key + '" style="flex:1;padding:7px 6px;border:1px solid #d6c2cc;background:#fff;color:#8c1d40;font-size:12px;font-weight:600;cursor:pointer;">' + t.label + '</button>';
+    }).join('');
     card.innerHTML =
         '<div style="padding:18px 22px;border-bottom:1px solid #eee;">'
       +   '<div style="font-size:17px;font-weight:700;color:#222;">Push to CanvasCurate</div>'
-      +   '<div style="font-size:12px;color:#666;margin-top:3px;">Pick which modules to send and how to handle modules that already exist in Curate.</div>'
+      +   '<div style="font-size:12px;color:#666;margin-top:3px;">Choose what to send and how to handle anything that already exists in Curate.</div>'
       + '</div>'
       + '<div style="padding:16px 22px;">'
-      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:8px;">Modules to push</div>'
-      +   '<div id="cc-handoff-modlist"></div>'
+      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin-bottom:8px;">What to push</div>'
+      +   '<div style="display:flex;gap:0;margin-bottom:12px;border-radius:6px;overflow:hidden;border:1px solid #d6c2cc;">' + tabBtns + '</div>'
+      +   '<div id="cc-handoff-body" style="min-height:60px;"></div>'
       +   '<div style="margin-top:8px;font-size:12px;"><a href="#" id="cc-handoff-all" style="color:#8c1d40;">Select all</a> &middot; <a href="#" id="cc-handoff-none" style="color:#8c1d40;">Select none</a></div>'
-      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin:18px 0 8px;">If a module already exists in Curate</div>'
-      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="skip" checked style="margin-top:2px;"><span><strong>Leave it untouched</strong> &mdash; keep the version already in Curate (protects edits made there). New modules are still added.</span></label>'
+      +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin:18px 0 8px;">If a page/module already exists in Curate</div>'
+      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="skip" checked style="margin-top:2px;"><span><strong>Leave it untouched</strong> &mdash; keep the version already in Curate (protects edits made there). New items are still added.</span></label>'
       +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="overwrite" style="margin-top:2px;"><span><strong>Overwrite it</strong> &mdash; replace its pages/activities with this version. Any edits made inside Curate are discarded.</span></label>'
       + '</div>'
       + '<div style="padding:14px 22px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px;align-items:center;">'
@@ -16220,46 +16309,97 @@
     overlay.appendChild(card);
     document.body.appendChild(overlay);
 
-    var list = card.querySelector('#cc-handoff-modlist');
-    if (!modules.length) {
-      list.innerHTML = '<div style="font-size:13px;color:#999;">This course has no modules to push.</div>';
+    var body = card.querySelector('#cc-handoff-body');
+    function esc(s) { return (typeof escapeHtml === 'function') ? escapeHtml(String(s)) : String(s); }
+    function row(inner, pad) {
+      return '<label style="display:flex;align-items:center;gap:8px;font-size:13px;padding:4px 0;' + (pad ? 'padding-left:16px;' : '') + 'cursor:pointer;">' + inner + '</label>';
     }
-    modules.forEach(function(mod, i) {
+    function modTitle(mod, i) {
       var num = (typeof mod.number === 'number') ? mod.number : (i + 1);
       var topic = (mod.topic || mod.title || '').toString();
-      var label = document.createElement('label');
-      label.style.cssText = 'display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0;cursor:pointer;';
-      var cb = document.createElement('input');
-      cb.type = 'checkbox'; cb.checked = true; cb.className = 'cc-handoff-modcb'; cb.value = String(i);
-      var span = document.createElement('span');
-      span.textContent = 'Module ' + num + (topic ? ' — ' + topic : '');
-      label.appendChild(cb); label.appendChild(span);
-      list.appendChild(label);
-    });
+      return 'Module ' + num + (topic ? ' — ' + topic : '');
+    }
+
+    function renderBody() {
+      if (!modules.length) { body.innerHTML = '<div style="font-size:13px;color:#999;">This course has no content to push.</div>'; return; }
+      var html = '';
+      if (mode === 'modules') {
+        modules.forEach(function(mod, i) {
+          html += row('<input type="checkbox" class="sel-cb" data-kind="module" data-idx="' + i + '" checked> <span>' + esc(modTitle(mod, i)) + '</span>');
+        });
+      } else if (mode === 'types') {
+        var types = [['overview', 'Overview pages'], ['assignment', 'Assignments'], ['discussion', 'Discussions'], ['quiz', 'Quizzes'], ['material', 'Materials']];
+        html += '<div style="font-size:12px;color:#888;margin-bottom:6px;">Across all modules:</div>';
+        types.forEach(function(t) {
+          var n = _countTypeAcrossModules(modules, t[0]);
+          html += row('<input type="checkbox" class="sel-cb" data-kind="type" data-type="' + t[0] + '"' + (n ? ' checked' : ' disabled') + '> <span>' + t[1] + ' <span style="color:#aaa;">(' + n + ')</span></span>');
+        });
+      } else { // pages
+        modules.forEach(function(mod, i) {
+          var rows = '';
+          if (_modHasOverview(mod)) rows += row('<input type="checkbox" class="sel-cb" data-kind="page" data-ref="ov-' + i + '" checked> <span>Overview page</span>', true);
+          (mod.activities || []).forEach(function(a) {
+            rows += row('<input type="checkbox" class="sel-cb" data-kind="page" data-ref="act-' + esc(a.id) + '" checked> <span>' + esc(a.name || 'Untitled') + ' <span style="color:#aaa;">[' + _actBucket(a) + ']</span></span>', true);
+          });
+          (mod.materials || []).forEach(function(m) {
+            rows += row('<input type="checkbox" class="sel-cb" data-kind="page" data-ref="mat-' + esc(m.id) + '" checked> <span>' + esc(m.title || m.type || 'Material') + ' <span style="color:#aaa;">[material]</span></span>', true);
+          });
+          if (!rows) return;
+          html += '<div style="margin:6px 0 4px;font-size:12px;font-weight:600;color:#555;">' + esc(modTitle(mod, i)) + '</div>' + rows;
+        });
+        if (!html) html = '<div style="font-size:13px;color:#999;">No individual pages yet.</div>';
+      }
+      body.innerHTML = html;
+    }
+
+    function activeCbs() { return Array.prototype.slice.call(body.querySelectorAll('.sel-cb:not(:disabled)')); }
+
+    function setMode(next) {
+      mode = next;
+      Array.prototype.slice.call(card.querySelectorAll('.cc-handoff-tab')).forEach(function(b) {
+        var on = b.getAttribute('data-mode') === mode;
+        b.style.background = on ? '#8c1d40' : '#fff';
+        b.style.color = on ? '#fff' : '#8c1d40';
+      });
+      renderBody();
+    }
+
+    function getSelection() {
+      if (mode === 'modules') {
+        return { mode: 'modules', moduleIdx: activeCbs().filter(function(c) { return c.checked; }).map(function(c) { return parseInt(c.getAttribute('data-idx'), 10); }) };
+      }
+      if (mode === 'types') {
+        var types = {};
+        Array.prototype.slice.call(body.querySelectorAll('[data-kind="type"]')).forEach(function(c) { types[c.getAttribute('data-type')] = c.checked; });
+        return { mode: 'types', types: types };
+      }
+      var refs = {};
+      Array.prototype.slice.call(body.querySelectorAll('[data-kind="page"]')).forEach(function(c) { if (c.checked) refs[c.getAttribute('data-ref')] = true; });
+      return { mode: 'pages', refs: refs };
+    }
 
     function close() { overlay.remove(); }
-    function allCbs() { return Array.prototype.slice.call(list.querySelectorAll('.cc-handoff-modcb')); }
     card.querySelector('#cc-handoff-cancel').onclick = close;
     overlay.addEventListener('click', function(e) { if (e.target === overlay) close(); });
-    card.querySelector('#cc-handoff-all').onclick = function(e) { e.preventDefault(); allCbs().forEach(function(c) { c.checked = true; }); };
-    card.querySelector('#cc-handoff-none').onclick = function(e) { e.preventDefault(); allCbs().forEach(function(c) { c.checked = false; }); };
+    card.querySelector('#cc-handoff-all').onclick = function(e) { e.preventDefault(); activeCbs().forEach(function(c) { c.checked = true; }); };
+    card.querySelector('#cc-handoff-none').onclick = function(e) { e.preventDefault(); activeCbs().forEach(function(c) { c.checked = false; }); };
+    Array.prototype.slice.call(card.querySelectorAll('.cc-handoff-tab')).forEach(function(b) {
+      b.onclick = function() { setMode(b.getAttribute('data-mode')); };
+    });
 
     card.querySelector('#cc-handoff-send').onclick = function() {
-      var picked = allCbs().filter(function(c) { return c.checked; }).map(function(c) { return parseInt(c.value, 10); });
-      if (!picked.length) {
-        card.querySelector('#cc-handoff-warn').textContent = 'Select at least one module to push.';
+      var filtered = _filterSpecBySelection(spec, getSelection());
+      if (!filtered.modules.length) {
+        card.querySelector('#cc-handoff-warn').textContent = 'Select at least one page to push.';
         return;
       }
       var onConflictEl = card.querySelector('input[name="cc-onconflict"]:checked');
       var onConflict = onConflictEl ? onConflictEl.value : 'skip';
-      // Shallow-clone the spec, swapping in only the chosen modules so
-      // course.code + format ride along for Curate's session matching.
-      var filtered = {};
-      Object.keys(spec).forEach(function(k) { filtered[k] = spec[k]; });
-      filtered.modules = picked.map(function(idx) { return spec.modules[idx]; });
       close();
       _sendHandoffBundle(filtered, onConflict);
     };
+
+    setMode('modules');
   }
 
   // Build the bundle from the (possibly module-filtered) spec + the chosen
@@ -16323,9 +16463,11 @@
       var curateUrl = CURATE_FRONTEND_URL.replace(/\/$/, '') + '/dashboard?handoff=' + encodeURIComponent(data.handoff_id || '');
       try { window.open(curateUrl, '_blank', 'noopener'); } catch (e) {}
 
-      var pushedCount = (bundle.spec.modules || []).length;
-      var msg = '✓ Sent to CanvasCurate (' + pushedCount + ' module' + (pushedCount === 1 ? '' : 's')
-        + '; existing modules: ' + (bundle.handoff.onConflict === 'overwrite' ? 'overwrite' : 'leave untouched')
+      var pushedMods = (bundle.spec.modules || []).length;
+      var pushedPages = _countSpecPages(bundle.spec);
+      var msg = '✓ Sent to CanvasCurate (' + pushedPages + ' page' + (pushedPages === 1 ? '' : 's')
+        + ' across ' + pushedMods + ' module' + (pushedMods === 1 ? '' : 's')
+        + '; existing items: ' + (bundle.handoff.onConflict === 'overwrite' ? 'overwrite' : 'leave untouched')
         + '). Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
       if (data.superseded_count && data.superseded_count > 0) {
         msg += '\n\n' + data.superseded_count + ' earlier pending handoff' + (data.superseded_count === 1 ? '' : 's')
