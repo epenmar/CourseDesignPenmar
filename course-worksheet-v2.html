@@ -3179,6 +3179,108 @@
     return act.templateData[tplType][sectionLabel] || '';
   }
 
+  // ===== INSERT MODULE OBJECTIVES INTO QUIZ DESCRIPTIONS =====
+  // Faculty wanted each module's learning objectives dropped into that module's
+  // quiz description (the quiz 'Overview' field) — one quiz at a time or all at
+  // once. The block is prepended to the description and is idempotent: a prior
+  // objectives block (detected by its heading) is refreshed in place rather than
+  // duplicated, so re-running after editing MLOs just updates the list.
+  var _MLO_BLOCK_HEADING = 'learning objectives assessed by this quiz';
+
+  function _findActModule(actId) {
+    for (var m in courseActivities) {
+      var acts = courseActivities[m] || [];
+      for (var i = 0; i < acts.length; i++) {
+        if (acts[i].id === actId) return { mod: m, act: acts[i] };
+      }
+    }
+    return null;
+  }
+
+  function _buildMloBlockHtml(modNum, mlos) {
+    var items = mlos.map(function(m, i) {
+      return '<li><strong>' + modNum + '.' + (i + 1) + '</strong> &mdash; ' + escapeHtml(String(m).trim()) + '</li>';
+    }).join('');
+    return '<p><strong>Learning objectives assessed by this quiz:</strong></p><ul>' + items + '</ul>';
+  }
+
+  // Remove a previously-inserted objectives block so re-inserting doesn't stack
+  // duplicates. Keyed off the heading text (Quill may strip wrapper divs/attrs,
+  // but it keeps the <p><strong>…</strong></p> + following <ul>).
+  function _stripPriorMloBlock(html) {
+    var tmp = document.createElement('div');
+    tmp.innerHTML = html || '';
+    var ps = tmp.querySelectorAll('p');
+    for (var i = 0; i < ps.length; i++) {
+      var txt = (ps[i].textContent || '').trim().toLowerCase();
+      if (txt.indexOf(_MLO_BLOCK_HEADING) === 0) {
+        var next = ps[i].nextElementSibling;
+        if (next && next.tagName === 'UL') next.remove();
+        ps[i].remove();
+        break;
+      }
+    }
+    return tmp.innerHTML;
+  }
+
+  function _applyMloBlockToQuiz(modKey, act) {
+    var modNum = parseInt(modKey, 10);
+    var mlos = ((typeof _mlosForModule === 'function') ? _mlosForModule(modNum) : []) || [];
+    mlos = mlos.filter(function(x) { return x && String(x).trim(); });
+    if (!mlos.length) return false;
+    var block = _buildMloBlockHtml(modNum, mlos);
+    var stripped = _stripPriorMloBlock(getTemplateVal(act, 'quiz', 'Overview'));
+    var merged = block + (stripped && stripped.trim() ? stripped : '');
+    saveTemplateField(act.id, 'quiz', 'Overview', merged);
+    return true;
+  }
+
+  // Repaint whichever template surface is open so the rich editor reflects the
+  // freshly-written Overview (mirrors importDocToTemplate's re-render).
+  function _repaintTemplatesView() {
+    try {
+      if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') {
+        renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
+      } else if (currentViewId === 'module' && typeof renderModuleDetail === 'function') {
+        renderModuleDetail(currentModuleNum);
+      }
+    } catch (e) {}
+  }
+
+  function insertModuleObjectivesIntoQuiz(actId) {
+    var found = _findActModule(actId);
+    if (!found) return;
+    if (!_applyMloBlockToQuiz(found.mod, found.act)) {
+      alert('Module ' + parseInt(found.mod, 10) + ' has no learning objectives yet. Add the module\'s MLOs first, then insert them.');
+      return;
+    }
+    _repaintTemplatesView();
+  }
+  window.insertModuleObjectivesIntoQuiz = insertModuleObjectivesIntoQuiz;
+
+  function insertModuleObjectivesIntoAllQuizzes() {
+    var quizzes = [];
+    for (var m in courseActivities) {
+      (courseActivities[m] || []).forEach(function(a) {
+        if ((a.contentType || a.type) === 'quiz') quizzes.push({ mod: m, act: a });
+      });
+    }
+    if (!quizzes.length) { alert('There are no quizzes in this course yet.'); return; }
+    if (!confirm('Insert each module\'s learning objectives into all ' + quizzes.length + ' quiz description' + (quizzes.length === 1 ? '' : 's') + '?\n\nAny existing objectives block is refreshed; the rest of each description is kept.')) return;
+    var done = 0, skipped = 0;
+    quizzes.forEach(function(q) { if (_applyMloBlockToQuiz(q.mod, q.act)) done++; else skipped++; });
+    _repaintTemplatesView();
+    alert('Inserted objectives into ' + done + ' quiz' + (done === 1 ? '' : 'zes') + (skipped ? '.\nSkipped ' + skipped + ' (their module has no objectives yet).' : '.'));
+  }
+  window.insertModuleObjectivesIntoAllQuizzes = insertModuleObjectivesIntoAllQuizzes;
+
+  function _quizObjectivesBtnRow(actId) {
+    return '<div style="display:flex; gap:8px; margin-top:6px; flex-wrap:wrap;">'
+      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoQuiz(\'' + actId + '\')" title="Add this module\'s learning objectives to the quiz description">&#43; Insert module objectives</button>'
+      + '<button type="button" class="btn-add-row" onclick="insertModuleObjectivesIntoAllQuizzes()" title="Add each module\'s objectives to every quiz description in this course">Insert into all quizzes</button>'
+      + '</div>';
+  }
+
   // Called from rich-editor.js — persists rich text into courseMaterials.
   // Also exposed on `window` so the rich-editor's `window.saveMaterialField`
   // dispatch resolves; without the alias, material rich-text edits silently
@@ -3515,7 +3617,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
-              '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(id) + '</div>' +
               '<div id="' + id + '-quiz-builder"></div>' +
               '<div style="margin-top:8px;">' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>' +
@@ -8906,7 +9008,7 @@
     // Quiz template (will be modernized in task 18)
     html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
     html += '<h4>Quiz Template</h4>';
-    html += '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(act.id) + '</div>';
     html += '<div id="' + id + '-quiz-builder"></div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>';
