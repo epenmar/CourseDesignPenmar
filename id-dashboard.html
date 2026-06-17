@@ -752,6 +752,10 @@
         <option value="3">3 weeks</option>
         <option value="4">4 weeks</option>
       </select>
+      <select id="upcoming-scope" onchange="_onUpcomingScopeChange(this)" title="Show only meetings tied to a course, or your whole calendar" style="font-size:12px; padding:2px 6px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#333; cursor:pointer;">
+        <option value="course">Course meetings</option>
+        <option value="all">All meetings</option>
+      </select>
       <span class="sync-staleness-chip" id="sync-staleness-chip" title="Last calendar sync time. Click to trigger a fresh sync.">—</span>
     </div>
     <div class="upcoming-list" id="upcoming-list"></div>
@@ -1460,6 +1464,13 @@
   setInterval(function() { try { renderSyncStalenessChip(); } catch (e) {} }, 60000);
   window.renderSyncStalenessChip = renderSyncStalenessChip;
 
+  // Course-meetings-only (default) vs. whole-calendar scope for the Upcoming
+  // card. Persisted so the choice survives reloads.
+  function _onUpcomingScopeChange(sel) {
+    try { localStorage.setItem('upcoming_scope', sel.value); } catch (e) {}
+    renderUpcoming();
+  }
+
   function renderUpcoming() {
     // Show/hide the "Syncing calendar…" overlay over the whole card based on
     // whether a sync is in flight (triggerSync calls renderUpcoming on start +
@@ -1472,6 +1483,13 @@
     // to see the new reference, otherwise the Upcoming widget goes stale
     // after every live sync.
     const live = window.SYNCED_DATA || synced;
+    // Scope: 'course' (default) shows only meetings tied to a tracked course;
+    // 'all' also folds in the whole-calendar uncategorizedMeetings. Keep the
+    // dropdown in sync with the persisted choice.
+    var _scope = 'course';
+    try { _scope = localStorage.getItem('upcoming_scope') || 'course'; } catch (e) {}
+    var _scopeEl = document.getElementById('upcoming-scope');
+    if (_scopeEl && _scopeEl.value !== _scope) _scopeEl.value = _scope;
     // The Upcoming card is driven purely by REAL calendar meetings (collected
     // below from each course's calendarMeetings + nextMeeting). The old
     // `upcomingDeadlines` list was a static, hand-seeded array that
@@ -1585,25 +1603,27 @@
     // the Upcoming card to mirror the real day, so these show too — grouped
     // under a neutral "Internal · no course" label since there's no course to
     // attach them to. Sourced from the sync's uncategorizedMeetings list.
-    const uncategorizedMtgs = (live && live.uncategorizedMeetings) || [];
-    uncategorizedMtgs.forEach(m => {
-      if (!m.date || m.date > cutoffStr) return;
-      if (isPastMeeting(m)) return;
-      var keys = [];
-      if (m.uid) keys.push('uid:' + m.uid);
-      keys.push('dl:' + m.date + '|' + String(m.label || '').trim().toLowerCase());
-      if (keys.some(function(k) { return seenMeetings[k]; })) return;
-      keys.forEach(function(k) { seenMeetings[k] = true; });
-      cards.push({
-        title: 'Internal · no course',
-        course: m.label || 'Meeting',
-        date: m.date,
-        courseId: null,
-        meetingInfo: { time: m.time, label: m.label },
-        isStandaloneMeeting: true,
-        isUncategorized: true
+    if (_scope === 'all') {
+      const uncategorizedMtgs = (live && live.uncategorizedMeetings) || [];
+      uncategorizedMtgs.forEach(m => {
+        if (!m.date || m.date > cutoffStr) return;
+        if (isPastMeeting(m)) return;
+        var keys = [];
+        if (m.uid) keys.push('uid:' + m.uid);
+        keys.push('dl:' + m.date + '|' + String(m.label || '').trim().toLowerCase());
+        if (keys.some(function(k) { return seenMeetings[k]; })) return;
+        keys.forEach(function(k) { seenMeetings[k] = true; });
+        cards.push({
+          title: 'Internal · no course',
+          course: m.label || 'Meeting',
+          date: m.date,
+          courseId: null,
+          meetingInfo: { time: m.time, label: m.label },
+          isStandaloneMeeting: true,
+          isUncategorized: true
+        });
       });
-    });
+    }
 
     // Drop deadline cards whose date is today and whose attached meeting
     // (if any) has already ended — without this, "Materials Review" at

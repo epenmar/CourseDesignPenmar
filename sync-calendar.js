@@ -295,6 +295,15 @@ function genericCodeMatches(text) {
 // CHS 300" → chs100 + chs300 pseudo-courses) and bleeding those into
 // the dashboard's table and Upcoming widget. If you want a new course
 // to receive meetings, add it to COURSE_KEYWORDS above.
+// Outlook keeps events you cancel or decline in the feed with a "Canceled:" /
+// "Declined:" title prefix (their STATUS is often NOT CANCELLED), which showed
+// up as "ghost" meetings on the dashboard. Treat those as dead.
+function _isDeadEvent(ev) {
+  if (ev.status === 'CANCELLED') return true;
+  var s = String(ev.summary || '').trim().toLowerCase();
+  return /^(cancell?ed:|declined:)/.test(s);
+}
+
 function matchEventToCourses(event) {
   const text = (event.summary || '').toLowerCase() + ' ' + (event.description || '').toLowerCase();
   const matches = [];
@@ -376,12 +385,13 @@ async function main() {
   console.log(`[sync] Fetching Outlook calendar...`);
   let courseCalendar = {};
   let uncategorizedMeetings = [];
+  const _seenUncat = {};
   try {
     const icsText = await fetchIcal(ICAL_URL);
     const allEvents = parseIcal(icsText);
     console.log(`[sync] Parsed ${allEvents.length} calendar events`);
 
-    const windowed = allEvents.filter(ev => ev.dtstart >= lookbackDate && ev.dtstart <= cutoff && ev.status !== 'CANCELLED');
+    const windowed = allEvents.filter(ev => ev.dtstart >= lookbackDate && ev.dtstart <= cutoff && !_isDeadEvent(ev));
     console.log(`[sync] ${windowed.length} events in window (past ${LOOKBACK_DAYS}d → next ${LOOKAHEAD_DAYS}d)`);
 
     for (const ev of windowed) {
@@ -406,8 +416,12 @@ async function main() {
         // dashboard's Upcoming card can mirror the user's real day (internal
         // planning, admin blocks, untracked courses like HCD 330). Skip all-day
         // events (PTO/holidays) and anything already past — that's calendar
-        // noise, not an upcoming meeting.
-        if (!ev.allDay && ev.dtstart >= todayStart) uncategorizedMeetings.push(mkMeeting());
+        // noise, not an upcoming meeting. Dedupe identical date+time+title so a
+        // recurring/duplicated invite doesn't render twice.
+        if (!ev.allDay && ev.dtstart >= todayStart) {
+          var _dk = formatDateStr(ev.dtstart) + '|' + formatTime(ev.dtstart) + '|' + String(ev.summary || '').trim().toLowerCase();
+          if (!_seenUncat[_dk]) { _seenUncat[_dk] = true; uncategorizedMeetings.push(mkMeeting()); }
+        }
         continue;
       }
       for (const courseId of courses) {
