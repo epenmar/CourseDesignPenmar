@@ -16299,7 +16299,8 @@
       +   '<div style="margin-top:8px;font-size:12px;"><a href="#" id="cc-handoff-all" style="color:#8c1d40;">Select all</a> &middot; <a href="#" id="cc-handoff-none" style="color:#8c1d40;">Select none</a></div>'
       +   '<div style="font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:#888;margin:18px 0 8px;">If a page/module already exists in Curate</div>'
       +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="skip" checked style="margin-top:2px;"><span><strong>Leave it untouched</strong> &mdash; keep the version already in Curate (protects edits made there). New items are still added.</span></label>'
-      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="overwrite" style="margin-top:2px;"><span><strong>Overwrite it</strong> &mdash; replace its pages/activities with this version. Any edits made inside Curate are discarded.</span></label>'
+      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;margin-bottom:6px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="overwrite" style="margin-top:2px;"><span><strong>Overwrite it</strong> &mdash; replace its pages/activities with this version. Any edits made inside Curate are discarded.</span></label>'
+      +   '<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer;"><input type="radio" name="cc-onconflict" value="merge-content" style="margin-top:2px;"><span><strong>Update text, keep formatting</strong> &mdash; refresh just the page text and keep the layout/styling already built in Curate. <em style="color:#999;">(Rolling out in Curate &mdash; behaves like &ldquo;leave untouched&rdquo; until it lands there.)</em></span></label>'
       + '</div>'
       + '<div style="padding:14px 22px;border-top:1px solid #eee;display:flex;justify-content:flex-end;gap:10px;align-items:center;">'
       +   '<span id="cc-handoff-warn" style="color:#c62828;font-size:12px;margin-right:auto;"></span>'
@@ -16415,7 +16416,7 @@
         bundledAt: new Date().toISOString(),
         bundledBy: identity && identity.name || null,
         bundledByRole: identity && identity.role || null,
-        onConflict: (onConflict === 'overwrite' ? 'overwrite' : 'skip')
+        onConflict: (onConflict === 'overwrite' ? 'overwrite' : (onConflict === 'merge-content' ? 'merge-content' : 'skip'))
       },
       spec: spec
     };
@@ -16467,7 +16468,7 @@
       var pushedPages = _countSpecPages(bundle.spec);
       var msg = '✓ Sent to CanvasCurate (' + pushedPages + ' page' + (pushedPages === 1 ? '' : 's')
         + ' across ' + pushedMods + ' module' + (pushedMods === 1 ? '' : 's')
-        + '; existing items: ' + (bundle.handoff.onConflict === 'overwrite' ? 'overwrite' : 'leave untouched')
+        + '; existing items: ' + (bundle.handoff.onConflict === 'overwrite' ? 'overwrite' : (bundle.handoff.onConflict === 'merge-content' ? 'update text, keep formatting' : 'leave untouched'))
         + '). Opening Curate in a new tab.\n\nHandoff ID: ' + (data.handoff_id || '?');
       if (data.superseded_count && data.superseded_count > 0) {
         msg += '\n\n' + data.superseded_count + ' earlier pending handoff' + (data.superseded_count === 1 ? '' : 's')
