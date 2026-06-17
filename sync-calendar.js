@@ -384,8 +384,6 @@ async function main() {
   // ===== 1. OUTLOOK CALENDAR =====
   console.log(`[sync] Fetching Outlook calendar...`);
   let courseCalendar = {};
-  let uncategorizedMeetings = [];
-  const _seenUncat = {};
   try {
     const icsText = await fetchIcal(ICAL_URL);
     const allEvents = parseIcal(icsText);
@@ -396,6 +394,10 @@ async function main() {
 
     for (const ev of windowed) {
       const courses = matchEventToCourses(ev);
+      // Only meetings tied to a portfolio course are kept — non-course calendar
+      // events are intentionally dropped (the dashboard's Upcoming card is
+      // course-only).
+      if (courses.length === 0) continue;
       let durationMinutes = null;
       if (ev.dtend instanceof Date && ev.dtstart instanceof Date) {
         const ms = ev.dtend.getTime() - ev.dtstart.getTime();
@@ -411,19 +413,6 @@ async function main() {
         dtStartIso: ev.dtstart instanceof Date ? ev.dtstart.toISOString() : null,
         dtEndIso: ev.dtend instanceof Date ? ev.dtend.toISOString() : null
       });
-      if (courses.length === 0) {
-        // No tracked course matched. Keep it as an "uncategorized" meeting so the
-        // dashboard's Upcoming card can mirror the user's real day (internal
-        // planning, admin blocks, untracked courses like HCD 330). Skip all-day
-        // events (PTO/holidays) and anything already past — that's calendar
-        // noise, not an upcoming meeting. Dedupe identical date+time+title so a
-        // recurring/duplicated invite doesn't render twice.
-        if (!ev.allDay && ev.dtstart >= todayStart) {
-          var _dk = formatDateStr(ev.dtstart) + '|' + formatTime(ev.dtstart) + '|' + String(ev.summary || '').trim().toLowerCase();
-          if (!_seenUncat[_dk]) { _seenUncat[_dk] = true; uncategorizedMeetings.push(mkMeeting()); }
-        }
-        continue;
-      }
       for (const courseId of courses) {
         if (!courseCalendar[courseId]) courseCalendar[courseId] = [];
         courseCalendar[courseId].push(mkMeeting());
@@ -439,13 +428,6 @@ async function main() {
         return ta - tb;
       });
     }
-    uncategorizedMeetings.sort((a, b) => {
-      if (a.date !== b.date) return a.date.localeCompare(b.date);
-      var ta = a.dtStartIso ? Date.parse(a.dtStartIso) : 0;
-      var tb = b.dtStartIso ? Date.parse(b.dtStartIso) : 0;
-      return ta - tb;
-    });
-    console.log(`[sync] Calendar: ${uncategorizedMeetings.length} uncategorized (no-course) meeting(s)`);
     for (const [courseId, meetings] of Object.entries(courseCalendar)) {
       console.log(`[sync] Calendar: ${courseId} → ${meetings.length} meeting(s)`);
       for (const m of meetings) console.log(`  → ${m.date} ${m.time} — ${m.label}`);
@@ -683,7 +665,6 @@ async function main() {
   }
 
   // ===== 6. WRITE =====
-  existing.uncategorizedMeetings = uncategorizedMeetings;
   existing.syncedAt = now.toISOString();
   existing.calendarSyncedAt = now.toISOString();
   existing.notesSyncedAt = now.toISOString();
