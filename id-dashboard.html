@@ -231,6 +231,8 @@
   .upcoming-date-box .weekday { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; opacity: 0.85; }
   .upcoming-date-box .month { font-size: 8px; text-transform: uppercase; font-weight: 600; letter-spacing: 0.04em; }
   .upcoming-date-box .day { font-size: 15px; font-weight: 700; line-height: 1; }
+  .upcoming-datecol { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+  .upcoming-datecol .weekday-top { font-size: 9px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; color: #8c1d40; line-height: 1; }
   .upcoming-sync-spinner { width: 12px; height: 12px; border: 2px solid #bbdefb; border-top-color: #0d47a1; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
   .upcoming-sync-overlay { position: absolute; inset: 0; background: rgba(244, 248, 253, 0.82); backdrop-filter: blur(1px); border-radius: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 600; color: #0d47a1; z-index: 5; pointer-events: none; }
   .upcoming-sync-overlay .upcoming-sync-spinner { width: 16px; height: 16px; border-width: 3px; }
@@ -1578,6 +1580,31 @@
       });
     });
 
+    // Standalone calendar meetings not tied to any tracked course (internal
+    // planning, admin blocks, untracked courses like HCD 330). The user wants
+    // the Upcoming card to mirror the real day, so these show too — grouped
+    // under a neutral "Internal · no course" label since there's no course to
+    // attach them to. Sourced from the sync's uncategorizedMeetings list.
+    const uncategorizedMtgs = (live && live.uncategorizedMeetings) || [];
+    uncategorizedMtgs.forEach(m => {
+      if (!m.date || m.date > cutoffStr) return;
+      if (isPastMeeting(m)) return;
+      var keys = [];
+      if (m.uid) keys.push('uid:' + m.uid);
+      keys.push('dl:' + m.date + '|' + String(m.label || '').trim().toLowerCase());
+      if (keys.some(function(k) { return seenMeetings[k]; })) return;
+      keys.forEach(function(k) { seenMeetings[k] = true; });
+      cards.push({
+        title: 'Internal · no course',
+        course: m.label || 'Meeting',
+        date: m.date,
+        courseId: null,
+        meetingInfo: { time: m.time, label: m.label },
+        isStandaloneMeeting: true,
+        isUncategorized: true
+      });
+    });
+
     // Drop deadline cards whose date is today and whose attached meeting
     // (if any) has already ended — without this, "Materials Review" at
     // 10 AM stays in Upcoming all afternoon.
@@ -1621,12 +1648,15 @@
       let meetingTag = '';
       if (d.meetingInfo) {
         const timeStr = d.meetingInfo.time ? ' at ' + d.meetingInfo.time : '';
-        meetingTag = `<div class="upcoming-meeting-tag has-meeting">Meeting scheduled${timeStr}</div>`;
+        // "On your calendar" reads right for non-course blocks (admin/desk work);
+        // course meetings keep "Meeting scheduled".
+        const tagWord = d.isUncategorized ? 'On your calendar' : 'Meeting scheduled';
+        meetingTag = `<div class="upcoming-meeting-tag has-meeting">${tagWord}${timeStr}</div>`;
       } else {
         meetingTag = `<div class="upcoming-meeting-tag no-meeting">No meeting scheduled</div>`;
       }
       return `<div class="upcoming-card"${d.courseId ? ` onclick="openDetail('${d.courseId}')"` : ''}>
-        <div class="upcoming-date-box">${weekday ? `<div class="weekday">${weekday}</div>` : ''}<div class="month">${month}</div><div class="day">${day}</div></div>
+        <div class="upcoming-datecol">${weekday ? `<div class="weekday-top">${weekday}</div>` : ''}<div class="upcoming-date-box"><div class="month">${month}</div><div class="day">${day}</div></div></div>
         <div class="upcoming-info">
           <div class="upcoming-title">${d.courseId ? `<a href="#" onclick="event.preventDefault(); event.stopPropagation(); openDetail('${d.courseId}')" style="color:#8c1d40; text-decoration:none;">${d.course}</a>` : d.course}</div>
           <div class="upcoming-course">${d.title}</div>
