@@ -12957,15 +12957,20 @@
     var pickedTool = _aiFillResolveTool(prefs);
     var ag = (prefs && prefs.autograde) || {};
     var autoActive = !!ag.enabled && (ag.minWords || ag.peerReplies || ag.replyWords || ag.reactions || ag.other);
+    // A discussion activity must use the tool in post-based discussion mode, not
+    // its social-annotation default — otherwise Harmonize/Perusall generate
+    // "highlight the reading" instructions for what is actually a discussion.
+    var isDiscussion = tplType === 'discussion' || /\bdiscussion\b/i.test((act && act.name) || '');
     if (pickedTool) {
       prompt += '\n## Tool / platform (instructor-selected — authoritative)\n';
       prompt += 'This ' + tplType + ' uses **' + pickedTool + '**.\n';
       var toolGuide = _aiFillToolInstructions(pickedTool);
       if (toolGuide) prompt += toolGuide + '\n';
-      if (autoActive && /^(Harmonize|Yellowdig|Perusall)$/i.test(pickedTool)) {
-        prompt += '\n**Override:** Auto-grading is enabled below — treat ' + pickedTool
-          + ' as a post-based threaded discussion (top-level posts + peer replies). '
-          + 'Do NOT write annotated-reading / highlight-passage instructions.\n';
+      if ((autoActive || isDiscussion) && /^(Harmonize|Yellowdig|Perusall)$/i.test(pickedTool)) {
+        prompt += '\n**Override:** This is a discussion — treat ' + pickedTool
+          + ' as a post-based threaded discussion (top-level posts + peer replies), NOT '
+          + 'social annotation. Do NOT write annotated-reading / highlight-passage '
+          + 'instructions; write a discussion prompt + posting/peer-reply instructions.\n';
       }
     }
 
