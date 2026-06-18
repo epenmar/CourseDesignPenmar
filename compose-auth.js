@@ -108,7 +108,7 @@
       'flex-direction:column; align-items:center; justify-content:center; font-family:Inter,sans-serif;';
     d.innerHTML =
       '<div style="text-align:center; max-width:380px; padding:24px;">' +
-        '<h1 style="color:#8c1d40; font-size:26px; margin:0 0 6px;">Compose</h1>' +
+        '<h1 style="color:#8c1d40; font-size:26px; margin:0 0 6px;">CourseCompose</h1>' +
         '<p style="color:#666; margin:0 0 24px; font-size:14px;">Sign in with your ASU account to continue.</p>' +
         '<button id="compose-login-btn" style="background:#8c1d40; color:#fff; border:none; ' +
         'padding:12px 24px; border-radius:8px; font-size:15px; cursor:pointer;">Sign in with ASU Google</button>' +

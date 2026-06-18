@@ -7,7 +7,7 @@ window.SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_di7j_DR1Ie3GJdOtHb8NlQ_rI5eiP4
 // has no login gate and all owner-only features stay enabled (single-user mode).
 // Flip to true only after the Google OAuth provider is configured in Supabase
 // (see docs/track-b-auth-foundation.md) and the schema migration has run.
-window.COMPOSE_AUTH_ENABLED = false;
+window.COMPOSE_AUTH_ENABLED = true;
 // Bootstrap admins (lowercased emails). Used before/until a profiles.is_admin
 // row exists so the owner keeps access to owner-only tools (e.g. Canvas Plan).
 window.COMPOSE_ADMIN_EMAILS = ['elisa.penmar@asu.edu', 'epenmar@asu.edu'];
