@@ -1,15 +1,14 @@
 -- Track C — STEP C3: BREAKING CUTOVER. ⛔ DO NOT RUN until tested.
 --
--- ⚠ HARD PREREQUISITE — write paths must be made ownership-aware FIRST, or the
--- dashboard's own saves will start failing the moment this runs:
---   * dashboard_state upserts: include user_id AND change onConflict 'key' ->
---     'user_id,key' (the PK changes below). Sites: supabase-sync.js pushAllToCloud,
---     saveResourceLinks + upsertFaculty in id-dashboard.html.
---   * user_courses upserts: include user_id (with-check requires user_id=auth.uid()).
---   * worksheets upserts (course-worksheet-v2.html ~7204): set owner_id when a
---     logged-in ID saves (instructors save via grant, no owner_id needed).
---   * comments inserts by the ID: set owner_id (faculty insert via grant).
--- Revert if anything breaks: supabase/migrations/trackc_0003_REVERT.sql.
+-- PREREQUISITES — now handled (2026-06-18):
+--   * Ownership stamping: DB triggers (trackc_0005) set user_id/owner_id from
+--     auth.uid() on write, so no app save-code changes are needed to populate it.
+--   * dashboard_state onConflict: app reads window.COMPOSE_DS_CONFLICT (gated).
+--     AT CUTOVER set `window.COMPOSE_DS_CONFLICT = 'user_id,key'` in
+--     supabase-config.js (and deploy) IN THE SAME WINDOW as running this file,
+--     since this changes the dashboard_state PK to (user_id, key).
+-- Revert if anything breaks: supabase/migrations/trackc_0003_REVERT.sql
+--   (and set COMPOSE_DS_CONFLICT back to 'key').
 -- Replaces the abandoned trackb_0002. Enables true per-user isolation while the
 -- anonymous faculty/reviewer flow keeps working via share GRANTS.
 --

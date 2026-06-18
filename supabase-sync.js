@@ -61,7 +61,7 @@
       dsRows.push({ key: k, data: val });
     });
     if (dsRows.length > 0) {
-      var { error } = await sb.from('dashboard_state').upsert(dsRows, { onConflict: 'key' });
+      var { error } = await sb.from('dashboard_state').upsert(dsRows, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') });
       if (error) errors.push('dashboard_state: ' + error.message);
       else pushed.dashboardState = dsRows.length;
     }

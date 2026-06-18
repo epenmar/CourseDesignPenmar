@@ -1956,7 +1956,7 @@
     localStorage.setItem('faculty_directory', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'faculty_directory', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'faculty_directory', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r && r.error) console.warn('[faculty_directory] cloud sync failed:', r.error.message); });
     }
   }
@@ -2633,7 +2633,7 @@
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: 'key' })
+        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r && r.error) console.warn('[shell-urls] cloud sync failed:', r.error.message); });
     }
     if (statusEl) {
@@ -2752,7 +2752,7 @@
   function pushInactiveCoursesToCloud(map) {
     if (!window._sbClient) return;
     window._sbClient.from('dashboard_state')
-      .upsert({ key: 'inactive_courses', data: map }, { onConflict: 'key' })
+      .upsert({ key: 'inactive_courses', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
       .then(function(r) { if (r.error) console.warn('[inactive_courses] cloud sync failed:', r.error.message); });
   }
 
@@ -2884,7 +2884,7 @@
       localStorage.setItem('dashboard_col_order', JSON.stringify(colOrder));
       if (window._sbClient) {
         window._sbClient.from('dashboard_state')
-          .upsert({ key: 'dashboard_col_order', data: colOrder }, { onConflict: 'key' })
+          .upsert({ key: 'dashboard_col_order', data: colOrder }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
           .then(function(r) { if (r.error) console.warn('[colOrder] cloud sync failed:', r.error.message); });
       }
     } catch(e) {}
@@ -2940,7 +2940,7 @@
     // setCourseJiraEpic / saveEditCourse).
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'dashboard_hidden_cols', data: hiddenCols }, { onConflict: 'key' })
+        .upsert({ key: 'dashboard_hidden_cols', data: hiddenCols }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[hiddenCols] cloud sync failed:', r.error.message); });
     }
     applyColumnVisibility();
@@ -2989,7 +2989,7 @@
       localStorage.setItem('dashboard_filters', JSON.stringify(msFilterState));
       if (window._sbClient) {
         window._sbClient.from('dashboard_state')
-          .upsert({ key: 'dashboard_filters', data: msFilterState }, { onConflict: 'key' })
+          .upsert({ key: 'dashboard_filters', data: msFilterState }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
           .then(function(r) { if (r.error) console.warn('[filters] cloud sync failed:', r.error.message); });
       }
     } catch(e) {}
@@ -3646,7 +3646,7 @@
     localStorage.setItem('course_action_items', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_action_items', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'course_action_items', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[actionItems] cloud sync failed:', r.error.message); });
     }
   }
@@ -3693,7 +3693,7 @@
     localStorage.setItem('course_airtable_urls', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_airtable_urls', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'course_airtable_urls', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[airtableUrls] cloud sync failed:', r.error.message); });
     }
   }
@@ -4096,7 +4096,7 @@
     localStorage.setItem('airtable_auto_imports', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'airtable_auto_imports', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'airtable_auto_imports', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[airtable auto] cloud sync failed:', r.error.message); });
     }
   }
@@ -4548,7 +4548,7 @@
     localStorage.setItem('course_jira_epics', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_jira_epics', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'course_jira_epics', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[jiraEpics] cloud sync failed:', r.error.message); });
     }
   }
@@ -4580,7 +4580,7 @@
     localStorage.setItem('course_jira_phases', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_jira_phases', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'course_jira_phases', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[jiraPhases] cloud sync failed:', r.error.message); });
     }
   }
@@ -4762,7 +4762,7 @@
     localStorage.setItem('privateNotes', JSON.stringify(map));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'privateNotes', data: map }, { onConflict: 'key' })
+        .upsert({ key: 'privateNotes', data: map }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[privateNotes] cloud sync failed:', r.error.message); });
     }
   }
@@ -4926,7 +4926,7 @@
     // items reappeared after reload.
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: 'key' })
+        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[action-items] cloud sync failed:', r.error.message); });
     }
     // In-place update — used for the Faculty To-dos rows in the Meeting
@@ -6154,7 +6154,7 @@
     try { localStorage.setItem('meeting_action_items_state', JSON.stringify(state)); } catch(e) {}
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: 'key' })
+        .upsert({ key: 'meeting_action_items_state', data: state }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[todo-panel] cloud sync failed:', r.error.message); });
     }
     var row = el && el.closest('.todo-item');
@@ -6980,7 +6980,7 @@
     // can't clobber a newer cloud copy made on another machine.
     if (!skipCloud && window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'dashboard_resource_links', data: data }, { onConflict: 'key' })
+        .upsert({ key: 'dashboard_resource_links', data: data }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[resource-links] cloud sync failed:', r.error.message); });
     }
   }
@@ -7466,7 +7466,7 @@
     localStorage.setItem('course_overrides', JSON.stringify(overrides));
     if (window._sbClient) {
       window._sbClient.from('dashboard_state')
-        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: 'key' })
+        .upsert({ key: 'course_overrides', data: overrides }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
         .then(function(r) { if (r.error) console.warn('[course_overrides] cloud sync failed:', r.error.message); });
     }
 
