@@ -3646,8 +3646,8 @@
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'discussion', 'How You Will Be Graded') + '</div>' + buildTplTextarea(id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'discussion\')">📋 Copy to other discussions…</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>' +
@@ -3662,8 +3662,8 @@
               '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific assignment targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'assignment\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'assignment', 'Activity Objective', 'By the end of this assignment, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>' +
               '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>' +
-              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(id, 'assignment', 'How You Will Be Graded') + '</div>' + buildTplTextarea(id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>' +
               '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">' +
                 '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + id + '\',\'assignment\')">📋 Copy to other assignments…</button>' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>' +
@@ -9133,8 +9133,8 @@
     html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials &amp; References</div>' + buildTplTextarea(act.id, 'discussion', 'Materials', 'List readings, videos, or links...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'How You Will Be Graded') + '</div>' + buildTplTextarea(act.id, 'discussion', 'How You Will Be Graded', 'Brief plain-language description of how the discussion will be graded...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'discussion', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'discussion') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'discussion\')">📋 Copy to other discussions…</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-discussion\', this)">📂 Export to Google Drive</button>';
@@ -9147,8 +9147,8 @@
     // for a separate textarea here.
     html += '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Instructions') + '</div>' + buildTplTextarea(act.id, 'assignment', 'Instructions', 'Step-by-step instructions for students...', 'min-height:100px;') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Materials</div>' + buildTplTextarea(act.id, 'assignment', 'Materials', 'Links, documents, or resources needed...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'How You Will Be Graded') + ' <span style="font-weight:400; color:#888; font-size:11px;">— plain-language summary that appears on the Canvas page</span></div>' + buildTplTextarea(act.id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>';
-    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + ' <span style="font-weight:400; color:#888; font-size:11px;">— Canvas-importable rubric (separate from page body)</span></div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'How You Will Be Graded') + '</div>' + buildTplTextarea(act.id, 'assignment', 'How You Will Be Graded', 'Brief plain-language description of how the assignment will be graded...') + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Rubric / Grading Criteria' + _sectionCopyFromBtnHtml(act.id, 'assignment', 'Rubric') + '</div>' + _buildRubricGridHtml(act, 'assignment') + '</div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">';
     html += '<button class="btn-add-row" onclick="openApplyTemplateModal(\'' + act.id + '\',\'assignment\')">📋 Copy to other assignments…</button>';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-assignment\', this)">📂 Export to Google Drive</button>';
@@ -13837,7 +13837,10 @@
       var section = ed.closest('.template-section') || ed.closest('details.template-collapsible');
       if (!section) return;
       var label = section.querySelector('.template-section-label');
-      if (!label || label.querySelector('.tpl-improve-btn')) return;
+      // buildTplTextarea already renders an Improve button in the field's
+      // action row. Skip if THIS section already has one anywhere (not just in
+      // the label) so we don't add a second, duplicate button.
+      if (!label || section.querySelector('.tpl-improve-btn')) return;
       var actId = ed.getAttribute('data-act-id');
       var tplType = ed.getAttribute('data-tpl-type');
       var sectionKey = ed.getAttribute('data-section');
