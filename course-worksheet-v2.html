@@ -3592,7 +3592,7 @@
     const id = act.id;
     const driveDisplay = activeCourse.driveFolder ? 'inline-flex' : 'none';
     const driveHref = activeCourse.driveFolder || '#';
-    const activeType = act.contentType || 'discussion';
+    const activeType = _defaultTplTypeForAct(act);
 
     return '<div class="activity-block" draggable="false" data-activity-id="' + id + '" data-module-num="' + moduleNum + '" ' +
       'ondragstart="actDragStart(event)" ondragover="actDragOver(event)" ondrop="actDrop(event)" ondragend="actDragEnd(event)" ondragleave="actDragLeave(event)">' +
@@ -9034,7 +9034,7 @@
     var id = 'ov-' + act.id;
     var driveDisplay = activeCourse.driveFolder ? 'inline-flex' : 'none';
     var driveHref = activeCourse.driveFolder || '#';
-    var activeType = act.contentType || 'assignment';
+    var activeType = _defaultTplTypeForAct(act);
 
     // Content toggle button now lives inline in the activity row (rendered
     // by renderAssignmentsOverview). This function only renders the body
@@ -11132,6 +11132,15 @@
   };
 
   // The template type currently shown for a content callout (prefix = ov-<id>).
+  // Default template view for an activity when first rendered. An explicit user
+  // switch wins; otherwise a title containing "discussion" defaults to the
+  // discussion view, then the activity's stored contentType, then assignment.
+  function _defaultTplTypeForAct(act) {
+    if (act && act.contentTypeUserSet && act.contentType) return act.contentType;
+    if (/\bdiscussion\b/i.test((act && act.name) || '')) return 'discussion';
+    return (act && act.contentType) || 'assignment';
+  }
+
   function _activeTplTypeFor(prefix) {
     var types = ['discussion', 'assignment', 'quiz', 'blank'];
     for (var i = 0; i < types.length; i++) {
@@ -11351,7 +11360,10 @@
       var modNum = parseInt(actBlock.getAttribute('data-module-num'));
       if (actId && !isNaN(modNum) && courseActivities[modNum]) {
         var act = courseActivities[modNum].find(function(a) { return a.id === actId; });
-        if (act) { act.contentType = type; saveActivityData(); }
+        // Flag as a deliberate choice so the title-based default (a
+        // "Discussion: …" title defaulting to the discussion view) doesn't
+        // override what the user explicitly picked.
+        if (act) { act.contentType = type; act.contentTypeUserSet = true; saveActivityData(); }
       }
     }
   }
