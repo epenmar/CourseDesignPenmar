@@ -1,4 +1,15 @@
 -- Track C — STEP C3: BREAKING CUTOVER. ⛔ DO NOT RUN until tested.
+--
+-- ⚠ HARD PREREQUISITE — write paths must be made ownership-aware FIRST, or the
+-- dashboard's own saves will start failing the moment this runs:
+--   * dashboard_state upserts: include user_id AND change onConflict 'key' ->
+--     'user_id,key' (the PK changes below). Sites: supabase-sync.js pushAllToCloud,
+--     saveResourceLinks + upsertFaculty in id-dashboard.html.
+--   * user_courses upserts: include user_id (with-check requires user_id=auth.uid()).
+--   * worksheets upserts (course-worksheet-v2.html ~7204): set owner_id when a
+--     logged-in ID saves (instructors save via grant, no owner_id needed).
+--   * comments inserts by the ID: set owner_id (faculty insert via grant).
+-- Revert if anything breaks: supabase/migrations/trackc_0003_REVERT.sql.
 -- Replaces the abandoned trackb_0002. Enables true per-user isolation while the
 -- anonymous faculty/reviewer flow keeps working via share GRANTS.
 --
@@ -57,6 +68,7 @@ drop policy if exists "open access" on comments;
 create policy "cm owner"        on comments for all    using (owner_id = auth.uid() or cc_is_admin()) with check (owner_id = auth.uid() or cc_is_admin());
 create policy "cm grant read"   on comments for select using (cc_grant_role(course_id) is not null);
 create policy "cm grant insert" on comments for insert with check (cc_grant_role(course_id) is not null);
+create policy "cm grant update" on comments for update using (cc_grant_role(course_id) is not null) with check (cc_grant_role(course_id) is not null); -- faculty resolve/edit comments in their course
 
 -- worksheet activity tracking: owner-of-course/admin/grant. (No owner_id column —
 -- ownership inferred from the course's worksheet row.)
