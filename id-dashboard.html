@@ -3354,13 +3354,13 @@
     renderSummary();
     renderUpcoming();
     try { if (!_previewNewUser && typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
-    try { renderSyncStalenessChip(); } catch (e) {}
+    try { if (!_previewNewUser) renderSyncStalenessChip(); } catch (e) {}
     renderTable();
     // Re-render the filter/column controls so the UI reflects the fresh state.
     try { renderColumnFilters(); } catch(e) {}
     applyColumnVisibility();
     try {
-      if (typeof renderAirtableAutoBanner === 'function') renderAirtableAutoBanner();
+      if (!_previewNewUser && typeof renderAirtableAutoBanner === 'function') renderAirtableAutoBanner();
     } catch(e) { console.warn('[airtable auto] banner render failed:', e && e.message); }
     // Fire-and-forget: load activity data and re-render detail if open
     loadWorksheetSessions();
