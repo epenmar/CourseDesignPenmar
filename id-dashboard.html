@@ -234,8 +234,6 @@
   .upcoming-datecol { display: flex; flex-direction: column; align-items: center; gap: 2px; }
   .upcoming-datecol .weekday-top { font-size: 9px; text-transform: uppercase; font-weight: 700; letter-spacing: 0.04em; color: #8c1d40; line-height: 1; }
   .upcoming-sync-spinner { width: 12px; height: 12px; border: 2px solid #bbdefb; border-top-color: #0d47a1; border-radius: 50%; display: inline-block; animation: spin 0.8s linear infinite; }
-  .upcoming-sync-overlay { position: absolute; inset: 0; background: rgba(244, 248, 253, 0.82); backdrop-filter: blur(1px); border-radius: inherit; display: flex; align-items: center; justify-content: center; gap: 10px; font-size: 13px; font-weight: 600; color: #0d47a1; z-index: 5; pointer-events: none; }
-  .upcoming-sync-overlay .upcoming-sync-spinner { width: 16px; height: 16px; border-width: 3px; }
   .upcoming-info .upcoming-title { font-size: 11px; font-weight: 600; }
   .upcoming-info .upcoming-course { font-size: 10px; color: #666; }
   .upcoming-info .upcoming-course a:hover { text-decoration: underline; }
@@ -740,10 +738,6 @@
 
   <!-- UPCOMING DEADLINES -->
   <div class="dash-section upcoming" id="upcoming-section" style="position:relative;">
-    <div class="upcoming-sync-overlay" id="upcoming-sync-overlay" style="display:none;">
-      <span class="upcoming-sync-spinner"></span>
-      <span>Syncing calendar…</span>
-    </div>
     <div class="section-header" style="display:flex; align-items:center; gap:12px;">
       <h2 style="margin:0;">Upcoming</h2>
       <select id="upcoming-weeks" onchange="renderUpcoming()" style="font-size:12px; padding:2px 6px; border:1px solid #ccc; border-radius:4px; background:#fff; color:#333; cursor:pointer;">
@@ -1461,11 +1455,8 @@
   window.renderSyncStalenessChip = renderSyncStalenessChip;
 
   function renderUpcoming() {
-    // Show/hide the "Syncing calendar…" overlay over the whole card based on
-    // whether a sync is in flight (triggerSync calls renderUpcoming on start +
-    // finish). This is visible even when the card already has cached items.
-    var _syncOverlay = document.getElementById('upcoming-sync-overlay');
-    if (_syncOverlay) _syncOverlay.style.display = window._syncInFlight ? 'flex' : 'none';
+    // Sync progress is shown by the staleness "sync" pill in the header — no
+    // full-card overlay (it was redundant with the pill).
     // Always read the live global — `synced` is a const captured at page
     // parse time, so it holds the initial dashboard-data.js snapshot.
     // When triggerSync swaps window.SYNCED_DATA later, this function needs
