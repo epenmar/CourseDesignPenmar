@@ -3383,11 +3383,18 @@
     }
     // Rich editor container (initialized by rich-editor.js)
     var minH = (extraStyle && /min-height/.test(extraStyle)) ? extraStyle : 'min-height:80px;';
-    return '<div class="rich-editor" data-managed="true"' +
+    var aE = escapeHtml(actId), tE = escapeHtml(tplType), sE = escapeHtml(sectionLabel);
+    // Per-field action row: Copy-from (pull this field from another activity) +
+    // Improve (AI clarity/formatting pass). Applied to every template text field.
+    var toolbar = '<div class="tpl-field-actions" style="display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-bottom:4px;">' +
+      '<button class="section-copy-from-btn" type="button" title="Copy this field from another activity" onclick="openCopyFromFieldModal(\'' + aE + '\',\'' + tE + '\',\'' + sE + '\')">📋 Copy from…</button>' +
+      '<button class="tpl-improve-btn" type="button" title="Improve this field\'s clarity and formatting with AI" onclick="improveTemplateField(\'' + aE + '\',\'' + tE + '\',\'' + sE + '\',this)">✨ Improve</button>' +
+      '</div>';
+    return toolbar + '<div class="rich-editor" data-managed="true"' +
       ' data-editor-type="template"' +
-      ' data-act-id="' + escapeHtml(actId) + '"' +
-      ' data-tpl-type="' + escapeHtml(tplType) + '"' +
-      ' data-section="' + escapeHtml(sectionLabel) + '"' +
+      ' data-act-id="' + aE + '"' +
+      ' data-tpl-type="' + tE + '"' +
+      ' data-section="' + sE + '"' +
       ' data-placeholder="' + escapeHtml(placeholder) + '"' +
       ' data-initial="' + escapeHtml(val) + '"' +
       ' style="' + minH + '"></div>';
@@ -3405,6 +3412,9 @@
   // single field from a sibling without going through the bigger
   // apply-template modal first.
   function _sectionCopyFromBtnHtml(actId, tplType, sectionKey) {
+    // Text fields now carry their own Copy-from button (see buildTplTextarea), so
+    // this inline label button is only needed for the Rubric grid (not a text field).
+    if (!/rubric/i.test(sectionKey || '')) return '';
     return ' <button class="section-copy-from-btn" type="button" title="Copy ' + escapeHtml(sectionKey) + ' from another activity" onclick="openCopyFromFieldModal(\'' + escapeHtml(actId) + '\',\'' + escapeHtml(tplType) + '\',\'' + escapeHtml(sectionKey) + '\')">📋 Copy from…</button>';
   }
 
@@ -11258,7 +11268,9 @@
       for (var p = 1; p <= pdf.numPages; p++) {
         var page = await pdf.getPage(p);
         var tc = await page.getTextContent();
-        out.push(tc.items.map(function (it) { return it.str; }).join(' '));
+        // Preserve line breaks (pdf.js sets hasEOL at line ends) so line-based
+        // parsers (e.g. quiz import) can split questions/choices.
+        out.push(tc.items.map(function (it) { return it.str + (it.hasEOL ? '\n' : ' '); }).join('').replace(/[ \t]+\n/g, '\n'));
       }
       return out.join('\n\n').trim();
     }
@@ -11272,7 +11284,7 @@
     // activity id. Callers at the raw-id site pass it explicitly.
     var prefix = explicitPrefix || ('ov-' + actId);
     var type = _activeTplTypeFor(prefix);
-    if (type === 'quiz') { alert('Import populates the Discussion / Assignment / Blank templates — switch off the Quiz template first.'); return; }
+    if (type === 'quiz') { importDocToQuiz(prefix); return; }
     var sections = TEMPLATE_SECTIONS[type] || TEMPLATE_SECTIONS.assignment;
     var inp = document.createElement('input');
     inp.type = 'file';
@@ -11317,6 +11329,38 @@
         alert('Import failed: ' + (e && e.message ? e.message : e));
       } finally {
         if (importBtn) { importBtn.disabled = false; if (origLabel) importBtn.textContent = origLabel; }
+      }
+    };
+    inp.click();
+  }
+
+  // Import a .docx / .pdf / .md / .txt of existing quiz questions and parse them
+  // straight into the quiz builder (no AI — uses the same parser as Batch paste).
+  async function importDocToQuiz(prefix) {
+    var builderId = prefix + '-quiz-builder';
+    var bc = document.getElementById(builderId);
+    if (bc && !bc.hasChildNodes()) { try { initQuizBuilder(bc); } catch (e) {} }
+    if (!quizData[builderId]) { alert('Open the Quiz template first, then try the import.'); return; }
+    var inp = document.createElement('input');
+    inp.type = 'file';
+    inp.accept = '.docx,.pdf,.md,.markdown,.txt';
+    inp.onchange = async function () {
+      var file = inp.files && inp.files[0];
+      if (!file) return;
+      var importBtn = document.querySelector('[data-import-btn="' + prefix + '"]');
+      var orig = importBtn ? importBtn.textContent : null;
+      if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Reading…'; }
+      try {
+        var text = _htmlToPlainLines(await _extractDocText(file));
+        if (!text || !text.trim()) throw new Error('No readable text found in that file.');
+        var parsed = parseQuizText(text);
+        if (!parsed.length) throw new Error('Couldn\'t find quiz questions in that document. Check the formatting, or try Batch paste.');
+        var n = _applyParsedQuizQuestions(builderId, parsed);
+        alert('Imported ' + n + ' question' + (n === 1 ? '' : 's') + ' from "' + file.name + '". Review and edit below.');
+      } catch (e) {
+        alert('Import failed: ' + (e && e.message ? e.message : e));
+      } finally {
+        if (importBtn) { importBtn.disabled = false; if (orig) importBtn.textContent = orig; }
       }
     };
     inp.click();
@@ -11584,6 +11628,33 @@
     return out;
   }
 
+  // Append parsed questions to a builder (dropping a single blank starter), save,
+  // and re-render. Shared by Batch paste and document import. Returns the count.
+  function _applyParsedQuizQuestions(builderId, parsed) {
+    var data = quizData[builderId];
+    if (!data || !parsed || !parsed.length) return 0;
+    var existing = (data.questions || []).filter(function(q) {
+      var hasChoice = (q.choices || []).some(function(c) { return (c.text || '').trim(); });
+      return (q.text || '').trim() || hasChoice;
+    });
+    data.questions = existing.concat(parsed);
+    data.questions.forEach(function(q, i) { q.num = i + 1; });
+    saveQuizDataForBuilder(builderId);
+    var cont = document.getElementById(builderId);
+    if (cont) renderQuizBuilder(cont);
+    return parsed.length;
+  }
+
+  // Convert mammoth/docx HTML (or already-plain text) into line-broken plain
+  // text so the line-based quiz parser can split questions/choices.
+  function _htmlToPlainLines(s) {
+    if (!s || /<[a-z][\s\S]*>/i.test(s) === false) return String(s || '');
+    var d = document.createElement('div');
+    d.innerHTML = s;
+    d.querySelectorAll('p,li,br,div,tr,h1,h2,h3,h4,h5').forEach(function(el) { el.insertAdjacentText('afterend', '\n'); });
+    return (d.textContent || '').replace(/\n{3,}/g, '\n\n');
+  }
+
   function openQuizImport(builderId) {
     if (document.getElementById('quiz-import-overlay')) return;
     var ov = document.createElement('div');
@@ -11592,7 +11663,7 @@
     ov.innerHTML =
       '<div style="background:#fff;border-radius:12px;width:92%;max-width:640px;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.25);">' +
         '<div style="padding:16px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
-          '<h3 style="margin:0;font-size:15px;color:#8c1d40;">📥 Import quiz questions</h3>' +
+          '<h3 style="margin:0;font-size:15px;color:#8c1d40;">📋 Batch paste quiz questions</h3>' +
           '<button id="qimp-x" style="border:none;background:none;font-size:20px;color:#999;cursor:pointer;">&times;</button>' +
         '</div>' +
         '<div style="padding:14px 20px;overflow:auto;">' +
@@ -11613,20 +11684,10 @@
     document.getElementById('qimp-go').onclick = function() {
       var parsed = parseQuizText(document.getElementById('qimp-text').value);
       if (!parsed.length) { alert('Couldn\'t find any questions to import. Check the formatting and try again.'); return; }
-      var data = quizData[builderId];
-      if (!data) { close(); return; }
-      // Drop a single leftover blank starter question so the import replaces it.
-      var existing = (data.questions || []).filter(function(q) {
-        var hasChoice = (q.choices || []).some(function(c) { return (c.text || '').trim(); });
-        return (q.text || '').trim() || hasChoice;
-      });
-      data.questions = existing.concat(parsed);
-      data.questions.forEach(function(q, i) { q.num = i + 1; });
-      saveQuizDataForBuilder(builderId);
-      var cont = document.getElementById(builderId);
-      if (cont) renderQuizBuilder(cont);
+      if (!quizData[builderId]) { close(); return; }
+      var n = _applyParsedQuizQuestions(builderId, parsed);
       close();
-      alert('Imported ' + parsed.length + ' question' + (parsed.length === 1 ? '' : 's') + '. Review and edit them below.');
+      if (n) alert('Imported ' + n + ' question' + (n === 1 ? '' : 's') + '. Review and edit them below.');
     };
   }
 
@@ -11762,7 +11823,7 @@
 
     html += '<div class="quiz-add-btns">';
     html += '<button class="btn-add-row" onclick="addQuizQuestion(\'' + builderId + '\')">+ Add question</button>';
-    html += '<button class="btn-add-row" onclick="openQuizImport(\'' + builderId + '\')" title="Paste existing quiz questions and parse them into the builder">📥 Import questions</button>';
+    html += '<button class="btn-add-row" onclick="openQuizImport(\'' + builderId + '\')" title="Paste existing quiz questions as text and parse them into the builder">📋 Batch paste</button>';
     html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')" title="Generate questions from the course/module objectives">✨ Generate from context</button>';
     html += '<button class="btn-add-row" onclick="openQuizGenModal(\'' + builderId + '\')" title="Upload a transcript, reading, or slides and generate questions from that content">📄 Generate from content</button>';
     html += '</div>';
