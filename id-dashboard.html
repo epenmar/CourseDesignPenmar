@@ -3227,6 +3227,11 @@
         localStorage.setItem('compose_last_uid', _uid);
       }
     } catch(e) {}
+    // Preview: ?preview=newuser lets the owner SEE the empty new-user dashboard
+    // (course area only — see banner) without a second account. In-memory only;
+    // never writes/clears the owner's data.
+    var _previewNewUser = false;
+    try { _previewNewUser = new URLSearchParams(location.search).get('preview') === 'newuser'; } catch(e) {}
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
@@ -3323,9 +3328,26 @@
     try {
       if (typeof applyAirtableAutoImports === 'function') applyAirtableAutoImports();
     } catch(e) { console.warn('[airtable auto] apply failed:', e && e.message); }
+    if (_previewNewUser) {
+      // Empty the in-memory course set (and synced data) right before render so
+      // the owner sees the new-user view. Nothing is persisted — a normal reload
+      // (without the param) restores everything.
+      try { Object.keys(courseData).forEach(function(k) { delete courseData[k]; }); } catch(e) {}
+      window.SYNCED_DATA = { courses: {}, upcomingDeadlines: [], syncedAt: null };
+      try {
+        if (!document.getElementById('preview-banner')) {
+          var _pb = document.createElement('div');
+          _pb.id = 'preview-banner';
+          _pb.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99998;background:#8c1d40;color:#fff;font-family:Inter,sans-serif;font-size:13px;text-align:center;padding:6px 10px;';
+          _pb.textContent = '👁 Preview: this is the empty dashboard a brand-new user sees. Your data is hidden, not changed. Remove ?preview=newuser to exit.';
+          document.body.appendChild(_pb);
+          document.body.style.paddingTop = '30px';
+        }
+      } catch(e) {}
+    }
     renderSummary();
     renderUpcoming();
-    try { if (typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
+    try { if (!_previewNewUser && typeof renderTodoPanel === 'function') renderTodoPanel(); } catch (e) {}
     try { renderSyncStalenessChip(); } catch (e) {}
     renderTable();
     // Re-render the filter/column controls so the UI reflects the fresh state.
