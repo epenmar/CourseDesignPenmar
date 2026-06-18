@@ -2,16 +2,17 @@
 -- change, no RLS change to existing tables). Shared Compose+Curate DB — the
 -- coursecompose_ prefix keeps it clearly Compose-owned.
 --
--- Course share tokens: the opaque token lives only in the link the ID sends; we
--- store its SHA-256. The redeem-share-token edge function (service role) looks up
--- by hash and mints a course-scoped Supabase JWT. See docs/track-c-share-tokens.md.
+-- Course share tokens: an opaque token embedded in the link the ID sends. Stored
+-- so the dashboard can re-embed the same token each time a link is copied. The
+-- redeem-share-token edge function (service role) looks it up and mints a
+-- course-scoped Supabase JWT. See docs/track-c-share-tokens.md.
 
 create table if not exists coursecompose_share_tokens (
   id          uuid primary key default gen_random_uuid(),
   course_id   text not null,
   owner_id    uuid not null references auth.users(id) on delete cascade,
   role        text not null check (role in ('instructor','reviewer')),
-  token_hash  text not null unique,
+  token       text not null unique,
   label       text,
   revoked     boolean not null default false,
   created_at  timestamptz not null default now(),

@@ -11,6 +11,7 @@
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
 <script src="compose-auth.js"></script>
+<script src="compose-share.js"></script>
 <script src="course-directory.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -1780,7 +1781,7 @@
     // Compose email
     var c = courseData[courseId];
     var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var reviewUrl = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer';
+    var reviewUrl = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
     var subject = encodeURIComponent('Review Invitation: ' + (c.emailName || c.code));
     var firstName = name.split(/\s+/)[0];
     var bodyText = 'Hi ' + firstName + ',\n\n' +
@@ -1822,7 +1823,7 @@
     if (!r) return;
     var c = courseData[courseId];
     var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer';
+    var url = baseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
     navigator.clipboard.writeText(url).then(function() {
       // Brief visual feedback
       var btns = document.querySelectorAll('[onclick*="copyReviewerLink"]');
@@ -1836,7 +1837,7 @@
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
     var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer';
+    var url = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
     navigator.clipboard.writeText(url).then(function() {
       var btn = event && event.target;
       if (btn) { var orig = btn.textContent; btn.textContent = '✓'; setTimeout(function() { btn.textContent = orig; }, 1500); }
@@ -1865,7 +1866,7 @@
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
     var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '');
+    var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '') + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'instructor') : '');
     navigator.clipboard.writeText(url).then(function() {
       var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
       if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor Link'; }, 1500); }
@@ -4971,6 +4972,10 @@
     const c = courseData[id];
     if (!c) return;
 
+    // Track C: mint/fetch this course's share tokens so copied links can carry
+    // them. Fire-and-forget; no-op while share tokens are disabled.
+    try { if (window.ComposeShare) window.ComposeShare.prime(id); } catch(e) {}
+
     const stateIcons = { done: { cls: 'mc-done', icon: '✓' }, partial: { cls: 'mc-partial', icon: '◐' }, empty: { cls: 'mc-empty', icon: '○' } };
     const stateColors = { done: '#2e7d32', partial: '#e65100', empty: '#999' };
 
@@ -5732,7 +5737,7 @@
 
       // Build course-specific links
       const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-      const worksheetUrl = c.devLink ? (baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '')) : '';
+      const worksheetUrl = c.devLink ? (baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '') + (window.ComposeShare ? window.ComposeShare.tokenParam(id, 'instructor') : '')) : '';
       const driveUrl = c.driveFolder || '';
       const facLinks = getFacultyResourceLinks();
       const slideshowUrl = facLinks['kickoff slideshow'] || '[SLIDESHOW_LINK]';

@@ -38,5 +38,25 @@ This is the cleanest fit because the worksheet keeps its current data layer — 
 - `user_courses`: same course-scoped read; write owner/admin only.
 - `dashboard_state`: private keys owner/admin only; `course_overrides` readable when `user_id = (auth.jwt()->>'owner_id')::uuid` (owner id travels in the claim, so the worksheet fetches the owner's overrides without seeing other IDs').
 
+## C2 status — BUILT, dormant (2026-06-18)
+All flag-gated on `window.COMPOSE_SHARE_TOKENS_ENABLED = false`; edge function not yet deployed. Nothing live changes.
+- `coursecompose_share_tokens` table created (stores raw `token`, unique per course+owner+role).
+- `supabase/functions/redeem-share-token/index.ts` — token → course-scoped JWT (`course_id`, `owner_id`, `share_role`; 12h).
+- `compose-share.js` — `prime()`/`tokenParam()` (dashboard mints + embeds `&t=`), `redeem()`/`applyWorksheetToken()` (worksheet swaps `_sbClient` to the scoped session).
+- Dashboard link builders decorated: `copyInstructorLink`, `copyReviewerLink`, `copyDetectedReviewerLink`, `addReviewer` email, kickoff email worksheet link. Reviewers get the **reviewer** token; instructor links the **instructor** token.
+- Worksheet redeems on anonymous load before any data read.
+- Decision: reviewers = comments only (confirmed).
+
+### Deploy steps (yours, when ready to test C2)
+1. Set the function secret (must equal the project JWT secret so PostgREST accepts minted tokens): Supabase → Settings → API → **JWT secret**, then
+   `supabase secrets set SHARE_JWT_SECRET="<that secret>"`
+2. Deploy anon-callable: `supabase functions deploy redeem-share-token --no-verify-jwt`
+3. Test behind the flag: load the dashboard with `?composeauth=1` won't matter here — instead set `COMPOSE_SHARE_TOKENS_ENABLED=true` in a throwaway check, copy an instructor link (it now has `&t=`), open it in a logged-out browser, confirm the worksheet loads via the scoped session. (RLS still open at this point, so this only proves redemption works.)
+
+### Remaining before C3 cutover
+- **Audit RLS for any blanket `authenticated`-allow policy** (Curate or Compose) — the minted JWT is role `authenticated` with a synthetic `sub`; course-scoped policies are the only intended grant.
+- Write + apply the C3 isolation RLS (course-scoped + owner + admin; per-user `course_overrides` read via the `owner_id` claim). This replaces the on-hold `trackb_0002`.
+- Confirm every worksheet-link generator carries a token (the 5 above are done).
+
 ## Open product question
 - **Reviewer write scope:** confirm reviewers may post comments but **not** edit the worksheet (assumed yes — matches current reviewer = Document Preview lock).

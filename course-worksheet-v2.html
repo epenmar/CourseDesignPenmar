@@ -11,6 +11,7 @@
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
 <script src="compose-auth.js"></script>
+<script src="compose-share.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="gdrive-config.js"></script>
 <script src="gdrive.js"></script>
@@ -3912,6 +3913,10 @@
     // worksheet stays anonymous for faculty/reviewers). No-op while auth is off.
     // Lets owner-only tools like Canvas Plan show "coming soon" to other IDs.
     try { if (window.ComposeAuth) await window.ComposeAuth.init(); } catch(e) { console.warn('[compose-auth] worksheet init failed:', e && e.message); }
+    // Track C: anonymous faculty/reviewers redeem a ?t= share token into a
+    // course-scoped Supabase session BEFORE any data reads. No-op while share
+    // tokens are off or for logged-in IDs (who use their own session).
+    try { if (window.ComposeShare) await window.ComposeShare.applyWorksheetToken(); } catch(e) { console.warn('[compose-share] redeem failed:', e && e.message); }
     await pullCurrentCourseFromCloud();
     initDataModel();
     // If cloud pull changed localStorage after any overview containers
