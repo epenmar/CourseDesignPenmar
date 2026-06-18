@@ -20166,13 +20166,46 @@
   // Last time the local user produced an input event (key, click, mouse move,
   // focus). Used to mark idle status on the presence pill — Google Docs style.
   var _lastLocalActivityAt = Date.now();
+  var _lastTrackedLocation = '';
+
+  // A specific, human-readable label for exactly where the local user is — e.g.
+  // "Module 2 Discussion content — Climate Debate" — derived from the focused
+  // field's activity + template type. Falls back to the page label.
+  function _currentLocationLabel() {
+    var view = currentViewId || 'dashboard';
+    var base = (view === 'module') ? ('Module ' + currentModuleNum) : ((typeof getViewLabel === 'function' && getViewLabel(view)) || view);
+    try {
+      var ae = document.activeElement;
+      if (!ae || !ae.closest) return base;
+      var ed = ae.closest('.rich-editor[data-act-id]') || ae.closest('[data-act-id]');
+      if (ed) {
+        var actId = ed.getAttribute('data-act-id');
+        var tpl = ed.getAttribute('data-tpl-type') || '';
+        var info = actId && typeof _itemForContentPrefix === 'function' ? _itemForContentPrefix(actId) : null;
+        var mod = info ? info.modNum : currentModuleNum;
+        var name = info && info.item ? (info.item.name || '') : '';
+        var word = tpl ? (tpl.charAt(0).toUpperCase() + tpl.slice(1)) : (info && info.kind === 'material' ? 'Material' : '');
+        return 'Module ' + mod + (word ? ' ' + word : '') + ' content' + (name ? ' — ' + name : '');
+      }
+      var qb = ae.closest('[id$="-quiz-builder"]');
+      if (qb && typeof _quizActIdFromBuilderId === 'function') {
+        var aId = _quizActIdFromBuilderId(qb.id);
+        var qi = aId && typeof _itemForContentPrefix === 'function' ? _itemForContentPrefix(aId) : null;
+        if (qi) return 'Module ' + qi.modNum + ' Quiz content' + (qi.item && qi.item.name ? ' — ' + qi.item.name : '');
+      }
+    } catch (e) {}
+    return base;
+  }
+
   function _trackPresence(identity) {
     if (!presenceChannel) return;
     try {
+      _lastTrackedLocation = _currentLocationLabel();
       presenceChannel.track({
         name: identity.name,
         role: identity.role,
         page: currentViewId || 'dashboard',
+        location: _lastTrackedLocation,
         online_at: new Date().toISOString(),
         last_active_at: new Date(_lastLocalActivityAt).toISOString()
       });
@@ -20201,6 +20234,19 @@
   ['keydown', 'mousedown', 'mousemove', 'focusin', 'touchstart'].forEach(function(ev) {
     document.addEventListener(ev, _bumpLocalActivity, { passive: true, capture: true });
   });
+
+  // Re-track presence (throttled) when the focused field changes the location
+  // label, so collaborators' banner updates to the exact spot you move to.
+  var _locRetrackTimer = null;
+  document.addEventListener('focusin', function() {
+    if (_currentLocationLabel() === _lastTrackedLocation) return;
+    if (_locRetrackTimer) return;
+    _locRetrackTimer = setTimeout(function() {
+      _locRetrackTimer = null;
+      var id = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+      if (id) _trackPresence(id);
+    }, 800);
+  }, { passive: true, capture: true });
 
   // Repaint presence on a slow timer so remote pills age into idle even when
   // no presence-sync event fires. Supabase only pushes us a sync when state
@@ -20613,20 +20659,6 @@
   // focused on so we can re-show their colored outline + chip after any
   // re-render destroys the DOM those lived on.
   var remoteFocusRegistry = {};
-  // Best-effort readable name of the field a collaborator is focused on, when
-  // that field happens to be on the current page (otherwise just the page).
-  function _remoteFieldHint(name) {
-    var st = remoteFocusRegistry[name];
-    if (!st || !st.key) return '';
-    var el = findFieldByLiveKey(st.key);
-    if (!el) return '';
-    var sec = el.closest && el.closest('.template-section');
-    var lbl = sec && sec.querySelector('.template-section-label');
-    if (lbl) return lbl.textContent.replace(/—.*$/, '').trim().slice(0, 40);
-    if (el.closest && el.closest('.quiz-question-card')) return 'a quiz question';
-    return '';
-  }
-
   // Top banner naming exactly where each collaborator is working. Replaces the
   // auto-scroll: passive, so the user can work elsewhere; click an entry to jump.
   function _renderPresenceLocationBanner(others) {
@@ -20645,14 +20677,13 @@
     var html = '<span style="color:#999; font-weight:600; text-transform:uppercase; letter-spacing:0.03em; font-size:10px;">Working now</span>';
     active.forEach(function(u) {
       var color = userColorFor(u.name);
-      var where = getViewLabel(u.page) || u.page;
-      var hint = _remoteFieldHint(u.name);
+      var where = u.location || getViewLabel(u.page) || u.page;
       var safeName = String(u.name || '').replace(/'/g, "\\'");
       html += '<button type="button" onclick="goToCollaborator(\'' + escapeHtml(safeName) + '\',\'' + escapeHtml(u.page) + '\')" ' +
         'title="Jump to where ' + escapeHtml(u.name) + ' is working" ' +
         'style="display:inline-flex; align-items:center; gap:5px; border:1px solid ' + color + '88; background:' + color + '14; color:' + color + '; border-radius:12px; padding:2px 9px; cursor:pointer; font-size:11px; font-weight:600;">' +
         '<span style="width:7px; height:7px; border-radius:50%; background:' + color + ';"></span>' +
-        escapeHtml(u.name.split(' ')[0]) + ' · ' + escapeHtml(where) + (hint ? ' → ' + escapeHtml(hint) : '') +
+        escapeHtml(u.name.split(' ')[0]) + ' · ' + escapeHtml(where) +
         '</button>';
     });
     banner.innerHTML = html;
@@ -20864,7 +20895,7 @@
       var initials = (u.name || '?').split(' ').map(function(w) { return w[0]; }).join('').toUpperCase().slice(0, 2);
       var pillColor = userColorFor(u.name);
       var roleLabel = u.role === 'instructor' ? 'Faculty' : u.role === 'id' ? 'ID' : u.role;
-      var viewName = getViewLabel(u.page);
+      var viewName = u.location || getViewLabel(u.page);
       // Idle = no activity in PRESENCE_IDLE_MS. For the local user we use the
       // up-to-the-second _lastLocalActivityAt; for remotes we use the
       // last_active_at they last broadcast (might be ~10s stale by throttle).
