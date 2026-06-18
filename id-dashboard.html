@@ -603,16 +603,16 @@
   <div class="dashboard-top">
     <div style="display:flex; flex-direction:column; align-items:flex-start; gap:6px;">
       <div style="display:flex; gap:6px; flex-wrap:wrap;">
-        <button class="resource-accordion" onclick="var b=document.getElementById('uni-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+        <button class="resource-accordion" onclick="toggleResourceAccordion('uni-resource-body', this)">
           🏛 University Resources <span class="ra-arrow">▾</span>
         </button>
-        <button class="resource-accordion" onclick="var b=document.getElementById('college-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+        <button class="resource-accordion" onclick="toggleResourceAccordion('college-resource-body', this)">
           🏫 College Resources <span class="ra-arrow">▾</span>
         </button>
-        <button class="resource-accordion" onclick="var b=document.getElementById('faculty-resource-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+        <button class="resource-accordion" onclick="toggleResourceAccordion('faculty-resource-body', this)">
           🎓 Faculty Resources <span class="ra-arrow">▾</span>
         </button>
-        <button class="resource-accordion" onclick="var b=document.getElementById('multi-action-body'); b.classList.toggle('open'); this.querySelector('.ra-arrow').classList.toggle('open');">
+        <button class="resource-accordion" onclick="toggleResourceAccordion('multi-action-body', this)">
           🛠 Multi-course Actions <span class="ra-arrow">▾</span>
         </button>
         <button class="resource-accordion" onclick="openIdentifyCourse()">
@@ -676,10 +676,7 @@
         <div class="resource-section" style="margin-top:4px;">
           <div class="resource-card" data-rc-id="faculty-tools">
             <div class="rc-header"><span>🛠</span><span class="rc-title">Course Development Tools</span></div>
-            <div class="rc-links" id="rc-links-faculty-tools">
-              <a class="rc-link" href="course-worksheet-v2.html" target="_blank" onclick="event.preventDefault(); var ov=document.getElementById('detail-overlay'); var cid=(ov&&ov._currentId)?ov._currentId:Object.keys(courseData)[0]; window.open('course-worksheet-v2.html?course='+cid,'_blank');">CourseCompose</a>
-              <a class="rc-link" href="https://docs.google.com/presentation/d/1example/edit" target="_blank">Kickoff Slideshow</a>
-            </div>
+            <div class="rc-links" id="rc-links-faculty-tools"></div>
             <button class="rc-add-btn" onclick="showAddLinkForm('faculty-tools')">+ Add Link</button>
           </div>
           <div class="resource-card" data-rc-id="faculty-training">
@@ -687,6 +684,7 @@
             <div class="rc-links" id="rc-links-faculty-training">
               <a class="rc-link" href="https://teachonline.asu.edu/masterclass/" target="_blank">MasterClass Registration</a>
               <a class="rc-link" href="https://teachonline.asu.edu/" target="_blank">Teach Online @ ASU</a>
+              <a class="rc-link" href="https://docs.google.com/presentation/d/1example/edit" target="_blank">Kickoff Slideshow</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('faculty-training')">+ Add Link</button>
           </div>
@@ -700,6 +698,10 @@
               <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal('dev');">📋 Generate Dev Canvas Shell CSV</a>
               <a class="rc-link" href="#" onclick="event.preventDefault(); openCanvasShellModal('live');">🎓 Generate Live Canvas Shell CSV</a>
             </div>
+            <div class="rc-links" id="rc-links-multi-actions">
+              <a class="rc-link" href="https://ces.apps.asu.edu/" target="_blank">Request Shell</a>
+            </div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('multi-actions')">+ Add Link</button>
           </div>
         </div>
       </div>
@@ -1859,6 +1861,69 @@
     navigator.clipboard.writeText(url).then(function() {
       var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
       if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor Link'; }, 1500); }
+    });
+  }
+
+  // Side-panel "Open Canvas" control. Smart by design:
+  //   - only a Dev URL  → a single button that opens Dev
+  //   - only a Live URL → a single button that opens Live
+  //   - both URLs       → a dropdown to choose Dev or Live
+  //   - neither         → nothing (the right-click menu still offers to add one)
+  function buildCanvasButton(id, c) {
+    var hasDev = !!(c && c.canvasDevUrl), hasLive = !!(c && c.canvasLiveUrl);
+    if (!hasDev && !hasLive) return '';
+    var btnStyle = 'background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; text-decoration:none; padding:8px 16px; cursor:pointer; font-family:Inter,sans-serif; font-size:14px; border-radius:6px; line-height:1; display:inline-block;';
+    if (hasDev !== hasLive) {
+      var url = hasDev ? c.canvasDevUrl : c.canvasLiveUrl;
+      var lbl = hasDev ? 'Open Canvas (Dev)' : 'Open Canvas (Live)';
+      return `<a href="${url}" target="_blank" class="btn-open-dev" style="${btnStyle}">🎓 ${lbl}</a>`;
+    }
+    var itemStyle = 'display:block; padding:8px 14px; font-size:13px; color:#333; text-decoration:none;';
+    return `<span style="position:relative; display:inline-block;">` +
+      `<button type="button" class="btn-open-dev" style="${btnStyle}" onclick="toggleCanvasMenu('${id}', event)">🎓 Open Canvas ▾</button>` +
+      `<div id="canvas-menu-${id}" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#fff; border:1px solid #e0d9cc; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.12); z-index:50; min-width:160px; overflow:hidden;">` +
+        `<a href="${c.canvasDevUrl}" target="_blank" style="${itemStyle}" onmouseover="this.style.background='#f7f3ec'" onmouseout="this.style.background='#fff'">📚 Open Dev Shell</a>` +
+        `<a href="${c.canvasLiveUrl}" target="_blank" style="${itemStyle} border-top:1px solid #f0ede5;" onmouseover="this.style.background='#f7f3ec'" onmouseout="this.style.background='#fff'">📡 Open Live Shell</a>` +
+      `</div></span>`;
+  }
+
+  function toggleCanvasMenu(id, e) {
+    if (e) e.stopPropagation();
+    var menu = document.getElementById('canvas-menu-' + id);
+    if (!menu) return;
+    var willOpen = menu.style.display !== 'block';
+    menu.style.display = willOpen ? 'block' : 'none';
+    if (willOpen) {
+      setTimeout(function() {
+        document.addEventListener('click', function _closeCanvasMenu() {
+          menu.style.display = 'none';
+          document.removeEventListener('click', _closeCanvasMenu);
+        });
+      }, 0);
+    }
+  }
+
+  // Copy the instructor's ASURITE email (asurite@asu.edu) to the clipboard.
+  // The ASURITE is recorded per-course on the Course Info card and usually
+  // differs from the email-username, so this is the address Canvas/official
+  // systems expect.
+  function copyInstructorAsuriteEmail(courseId) {
+    var asurite = '';
+    try { asurite = _facultyAsuriteForCourse(courseId) || ''; } catch(e) {}
+    if (!asurite) {
+      // Fall back to the learns-from-saves faculty directory.
+      try {
+        var c = courseData[courseId];
+        var dir = getFacultyDirectory();
+        var entry = c && c.instructor ? dir[_facultyKey(c.instructor)] : null;
+        if (entry && entry.asurite) asurite = String(entry.asurite).trim();
+      } catch(e) {}
+    }
+    if (!asurite) { alert('No instructor ASURITE on file. Add it via right-click → Edit Course Info.'); return; }
+    var email = asurite.indexOf('@') !== -1 ? asurite : asurite + '@asu.edu';
+    navigator.clipboard.writeText(email).then(function() {
+      var btn = document.getElementById('copy-asurite-btn-' + courseId);
+      if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor ASURITE'; }, 1500); }
     });
   }
 
@@ -3129,6 +3194,7 @@
       // cloud copy — re-render the cards (and strip any migrated-away links) so
       // links saved on another machine appear without a second reload.
       try { if (typeof _migrateRemoveContactsDirectory === 'function') _migrateRemoveContactsDirectory(); } catch(e) {}
+      try { if (typeof _migrateResourceLinkRelocations === 'function') _migrateResourceLinkRelocations(false); } catch(e) {}
       try { if (typeof renderResourceLinks === 'function' && typeof allResourceCardIds !== 'undefined') allResourceCardIds.forEach(renderResourceLinks); } catch(e) {}
     }
     // Purge sync-auto-created pseudo-courses from both local and cloud
@@ -4904,13 +4970,18 @@
     if (c.driveFolder) {
       html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
     }
+    html += buildCanvasButton(id, c);
     if (c.email) {
       html += buildEmailDropdown(id, c);
     }
     html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
+    var _copyLinkStyle = 'background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; text-align:left;';
+    html += `<span style="display:inline-flex; flex-direction:column; gap:3px; align-self:center; margin-left:4px;">`;
     if (c.devLink) {
-      html += `<button onclick="copyInstructorLink('${id}')" style="background:none; color:#8c1d40; border:none; padding:0; margin-left:4px; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; align-self:center;" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
+      html += `<button onclick="copyInstructorLink('${id}')" style="${_copyLinkStyle}" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
+    html += `<button id="copy-asurite-btn-${id}" onclick="copyInstructorAsuriteEmail('${id}')" style="${_copyLinkStyle}" title="Copy the instructor's ASURITE email (asurite@asu.edu)">📋 Copy Instructor ASURITE</button>`;
+    html += `</span>`;
     html += `</div>`;
 
     // Reviewer invite form (hidden by default)
@@ -6847,7 +6918,7 @@
   }
 
   // ===== RESOURCE LINK MANAGEMENT =====
-  const allResourceCardIds = ['university','new-college','tph','chs','faculty-tools','faculty-training'];
+  const allResourceCardIds = ['university','new-college','tph','chs','faculty-tools','faculty-training','multi-actions'];
 
   function getResourceLinks() {
     try { return JSON.parse(localStorage.getItem('dashboard_resource_links') || '{}'); } catch(e) { return {}; }
@@ -6931,9 +7002,14 @@
     menu.style.left = Math.min(e.clientX, vw - mw - 4) + 'px';
     menu.style.top  = Math.min(e.clientY, vh - mh - 4) + 'px';
     menu.style.visibility = 'visible';
+    // Defer attaching the dismiss listeners so the right-click that opened
+    // this menu doesn't immediately close it. They are NOT {once:true}: a
+    // leftover one-shot 'contextmenu' listener was swallowing every other
+    // right-click, which is why deleting/editing a link only worked once
+    // before a page refresh. closeResourceContextMenu() removes all three.
     setTimeout(() => {
-      document.addEventListener('click', closeResourceContextMenu, { once: true });
-      document.addEventListener('contextmenu', closeResourceContextMenu, { once: true });
+      document.addEventListener('click', closeResourceContextMenu);
+      document.addEventListener('contextmenu', closeResourceContextMenu);
       document.addEventListener('keydown', rcEscListener);
     }, 0);
   }
@@ -6945,6 +7021,8 @@
   function closeResourceContextMenu() {
     const existing = document.getElementById('rc-context-menu');
     if (existing) existing.remove();
+    document.removeEventListener('click', closeResourceContextMenu);
+    document.removeEventListener('contextmenu', closeResourceContextMenu);
     document.removeEventListener('keydown', rcEscListener);
   }
 
@@ -7038,9 +7116,49 @@
     }
   }
 
+  // Accordion: opening one resource dropdown collapses any others that are open.
+  function toggleResourceAccordion(bodyId, btn) {
+    var target = document.getElementById(bodyId);
+    if (!target) return;
+    var willOpen = !target.classList.contains('open');
+    document.querySelectorAll('.resource-body.open').forEach(function(b) { b.classList.remove('open'); });
+    document.querySelectorAll('.resource-accordion .ra-arrow.open').forEach(function(a) { a.classList.remove('open'); });
+    if (willOpen) {
+      target.classList.add('open');
+      var arrow = btn && btn.querySelector('.ra-arrow');
+      if (arrow) arrow.classList.add('open');
+    }
+  }
+
+  // One-time relocations of seeded resource links. Existing users already have
+  // these links in their cloud copy under the old card, so an HTML seed change
+  // alone won't move them — this migrates the live data (idempotent: once the
+  // source card no longer holds the link, each move is a no-op). skipCloud is
+  // true pre-pull (local only) and false post-pull (persist the move).
+  function _migrateResourceLinkRelocations(skipCloud) {
+    var stored = getResourceLinks();
+    var changed = false;
+    function moveLink(fromId, toId, matcher) {
+      if (!Array.isArray(stored[fromId])) return;
+      var idx = stored[fromId].findIndex(function(l) { return l && matcher(l); });
+      if (idx === -1) return;
+      var link = stored[fromId].splice(idx, 1)[0];
+      if (!Array.isArray(stored[toId])) stored[toId] = [];
+      if (!stored[toId].some(function(l) { return l && matcher(l); })) stored[toId].push(link);
+      changed = true;
+    }
+    moveLink('university', 'multi-actions', function(l) { return /request shell/i.test(l.label || ''); });
+    moveLink('faculty-tools', 'faculty-training', function(l) { return /kickoff/i.test(l.label || ''); });
+    if (changed) {
+      saveResourceLinks(stored, skipCloud);
+      ['university', 'multi-actions', 'faculty-tools', 'faculty-training'].forEach(renderResourceLinks);
+    }
+  }
+
   // Initialize on load
   initResourceLinks();
   _migrateRemoveContactsDirectory();
+  _migrateResourceLinkRelocations(true);
 
   // ===== COMMENT NOTIFICATIONS =====
   // URL + key come from supabase-config.js so there's a single source of truth.
