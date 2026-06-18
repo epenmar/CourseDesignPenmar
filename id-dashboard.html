@@ -1880,6 +1880,34 @@
     });
   }
 
+  // Brand icons for the side-panel link buttons, drawn inline as simple SVG
+  // (brand-colored geometric marks) so they render crisply at any size with no
+  // external image files. Used purely to label the link to that service.
+  var DRIVE_ICON_SVG = '<svg viewBox="0 0 24 24" width="16" height="16" style="vertical-align:-2px; margin-right:7px;" aria-hidden="true">'
+    + '<path d="M12 3.7 L4.1 18.3" fill="none" stroke="#1ea362" stroke-width="3" stroke-linecap="round"/>'
+    + '<path d="M12 3.7 L19.9 18.3" fill="none" stroke="#ffba00" stroke-width="3" stroke-linecap="round"/>'
+    + '<path d="M4.1 18.3 L19.9 18.3" fill="none" stroke="#2684fc" stroke-width="3" stroke-linecap="round"/>'
+    + '</svg>';
+
+  function _buildCanvasLogoSvg(size) {
+    var cx = 12, cy = 12, color = '#E4282B', parts = [], i, ang;
+    var outerR = 8.4, arcHalf = 15 * Math.PI / 180;
+    for (i = 0; i < 8; i++) {
+      ang = (i * 45 - 90) * Math.PI / 180;
+      var a0 = ang - arcHalf, a1 = ang + arcHalf;
+      var x0 = (cx + outerR * Math.cos(a0)).toFixed(2), y0 = (cy + outerR * Math.sin(a0)).toFixed(2);
+      var x1 = (cx + outerR * Math.cos(a1)).toFixed(2), y1 = (cy + outerR * Math.sin(a1)).toFixed(2);
+      parts.push('<path d="M' + x0 + ' ' + y0 + ' A ' + outerR + ' ' + outerR + ' 0 0 1 ' + x1 + ' ' + y1 + '" fill="none" stroke="' + color + '" stroke-width="2.8" stroke-linecap="round"/>');
+    }
+    var innerR = 4.3, dotR = 1.2;
+    for (i = 0; i < 8; i++) {
+      ang = (i * 45 - 90 + 22.5) * Math.PI / 180;
+      parts.push('<circle cx="' + (cx + innerR * Math.cos(ang)).toFixed(2) + '" cy="' + (cy + innerR * Math.sin(ang)).toFixed(2) + '" r="' + dotR + '" fill="' + color + '"/>');
+    }
+    return '<svg viewBox="0 0 24 24" width="' + (size || 16) + '" height="' + (size || 16) + '" style="vertical-align:-2px; margin-right:7px;" aria-hidden="true">' + parts.join('') + '</svg>';
+  }
+  var CANVAS_ICON_SVG = _buildCanvasLogoSvg(16);
+
   // Side-panel "Open Canvas" control. Smart by design:
   //   - only a Dev URL  → a single button that opens Dev
   //   - only a Live URL → a single button that opens Live
@@ -1892,11 +1920,11 @@
     if (hasDev !== hasLive) {
       var url = hasDev ? c.canvasDevUrl : c.canvasLiveUrl;
       var lbl = hasDev ? 'Open Canvas (Dev)' : 'Open Canvas (Live)';
-      return `<a href="${url}" target="_blank" class="btn-open-dev" style="${btnStyle}">🎓 ${lbl}</a>`;
+      return `<a href="${url}" target="_blank" class="btn-open-dev" style="${btnStyle}">${CANVAS_ICON_SVG}${lbl}</a>`;
     }
     var itemStyle = 'display:block; padding:8px 14px; font-size:13px; color:#333; text-decoration:none;';
     return `<span style="position:relative; display:inline-block;">` +
-      `<button type="button" class="btn-open-dev" style="${btnStyle}" onclick="toggleCanvasMenu('${id}', event)">🎓 Open Canvas ▾</button>` +
+      `<button type="button" class="btn-open-dev" style="${btnStyle}" onclick="toggleCanvasMenu('${id}', event)">${CANVAS_ICON_SVG}Open Canvas ▾</button>` +
       `<div id="canvas-menu-${id}" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; background:#fff; border:1px solid #e0d9cc; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.12); z-index:50; min-width:160px; overflow:hidden;">` +
         `<a href="${c.canvasDevUrl}" target="_blank" style="${itemStyle}" onmouseover="this.style.background='#f7f3ec'" onmouseout="this.style.background='#fff'">📚 Open Dev Shell</a>` +
         `<a href="${c.canvasLiveUrl}" target="_blank" style="${itemStyle} border-top:1px solid #f0ede5;" onmouseover="this.style.background='#f7f3ec'" onmouseout="this.style.background='#fff'">📡 Open Live Shell</a>` +
@@ -5071,7 +5099,7 @@
       html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Worksheet</a>`;
     }
     if (c.driveFolder) {
-      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#1a73e8; border:1.5px solid #1a73e8; text-decoration:none; padding:8px 16px;"><img src="gdrive-icon.png" width="18" height="15" alt="" style="vertical-align:middle; margin-right:6px;">Google Drive</a>`;
+      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#3c4043; border:1.5px solid #dadce0; text-decoration:none; padding:8px 16px;">${DRIVE_ICON_SVG}Google Drive</a>`;
     }
     html += buildCanvasButton(id, c);
     if (c.email) {
