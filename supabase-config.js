@@ -18,7 +18,7 @@ window.COMPOSE_ADMIN_EMAILS = ['elisa.penmar@asu.edu', 'epenmar@asu.edu'];
 window.COMPOSE_SHARE_TOKENS_ENABLED = true;
 // dashboard_state upsert conflict target. Stays 'key' until the C3 isolation
 // cutover changes the primary key to (user_id, key); set to 'user_id,key' then.
-window.COMPOSE_DS_CONFLICT = 'key';
+window.COMPOSE_DS_CONFLICT = 'user_id,key';
 
 // When true, Airtable API calls route through the `airtable-proxy` Supabase
 // edge function, which injects the PAT server-side. Flip this on after
