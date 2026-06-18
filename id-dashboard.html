@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
+<script src="compose-auth.js"></script>
 <script src="course-directory.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -3187,6 +3188,9 @@
 
   // Pull latest cloud state first so the table reflects fresh per-course completionPct
   (async function bootDashboard() {
+    // Track B: gate the dashboard behind ASU Google login when auth is enabled.
+    // No-op while window.COMPOSE_AUTH_ENABLED is false (single-user mode).
+    try { if (window.ComposeAuth) await window.ComposeAuth.init({ requireLogin: true }); } catch(e) { console.warn('[compose-auth] init failed:', e && e.message); }
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();

@@ -10,6 +10,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
 <script src="supabase-sync.js"></script>
+<script src="compose-auth.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="gdrive-config.js"></script>
 <script src="gdrive.js"></script>
@@ -1168,7 +1169,7 @@
           <span class="icon">✅</span> Syllabus Builder
           <span class="badge badge-empty" id="sidebar-checklist-badge">—</span>
         </div>
-        <div class="nav-item" onclick="showView('canvas-plan')">
+        <div class="nav-item" id="nav-canvas-plan" onclick="showView('canvas-plan')">
           <span class="icon">🧱</span> Canvas Plan
         </div>
       </div>
@@ -3907,6 +3908,10 @@
 
   // Populate page with course-specific data
   document.addEventListener('DOMContentLoaded', async function() {
+    // Track B: pick up the signed-in identity (no login gate here — the
+    // worksheet stays anonymous for faculty/reviewers). No-op while auth is off.
+    // Lets owner-only tools like Canvas Plan show "coming soon" to other IDs.
+    try { if (window.ComposeAuth) await window.ComposeAuth.init(); } catch(e) { console.warn('[compose-auth] worksheet init failed:', e && e.message); }
     await pullCurrentCourseFromCloud();
     initDataModel();
     // If cloud pull changed localStorage after any overview containers
@@ -12283,6 +12288,17 @@
     if (!isId && typeof currentViewId !== 'undefined' && _ID_ONLY_VIEWS[currentViewId]) {
       try { showView('dashboard'); } catch (e) {}
     }
+    // Track B: grey the Canvas Plan nav for signed-in non-admin IDs (Curate
+    // connection not enabled for them yet). No-op for the owner / when auth off.
+    var blocked = !!(window.ComposeAuth && window.ComposeAuth.ownerToolsBlocked && window.ComposeAuth.ownerToolsBlocked());
+    var cp = document.getElementById('nav-canvas-plan');
+    if (cp) {
+      cp.style.opacity = blocked ? '0.45' : '';
+      cp.title = blocked ? 'Coming soon' : '';
+      cp.innerHTML = blocked
+        ? '<span class="icon">🧱</span> Canvas Plan <span style="font-size:10px; color:#999; font-style:italic;">soon</span>'
+        : '<span class="icon">🧱</span> Canvas Plan';
+    }
   }
   window._applyIdToolsVisibility = _applyIdToolsVisibility;
 
@@ -15419,6 +15435,18 @@
   function renderCanvasPlan() {
     var host = document.getElementById('canvas-plan-content');
     if (!host) return;
+    // Track B: the Canvas Plan bridges to CanvasCurate, which isn't connected for
+    // other IDs yet. Show "coming soon" to signed-in non-admin IDs. No-op for the
+    // owner/admin and while auth is disabled (window.ComposeAuth.ownerToolsBlocked
+    // is false in both cases).
+    if (window.ComposeAuth && window.ComposeAuth.ownerToolsBlocked && window.ComposeAuth.ownerToolsBlocked()) {
+      host.innerHTML = '<div style="padding:48px 24px; text-align:center; color:#888; font-family:Inter,sans-serif;">' +
+        '<div style="font-size:34px; margin-bottom:10px;">🧱</div>' +
+        '<h2 style="color:#8c1d40; margin:0 0 8px; font-size:20px;">Canvas Plan — coming soon</h2>' +
+        '<p style="max-width:420px; margin:0 auto; font-size:14px; line-height:1.5;">The Canvas build &amp; handoff to CanvasCurate isn\'t available on your account yet. We\'ll turn it on once the connection is ready.</p>' +
+      '</div>';
+      return;
+    }
     if (typeof window.CourseComposeSpec === 'undefined') {
       host.innerHTML = '<div style="padding:24px; text-align:center; color:#c62828;">course-compose-spec.js failed to load — refresh the page.</div>';
       return;
