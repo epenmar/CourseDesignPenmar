@@ -7257,6 +7257,30 @@
     return out;
   }
 
+  // Field-level merge for formData: each form field merges by its own
+  // __modifiedAt['formData.<field>'] stamp (newest wins), falling back to the
+  // legacy whole-'formData' stamp for fields saved before per-field stamping.
+  // Union of fields so neither side's fields are dropped.
+  function _mergeFormData(lVal, cVal, lMod, cMod, cap) {
+    lVal = (lVal && typeof lVal === 'object') ? lVal : {};
+    cVal = (cVal && typeof cVal === 'object') ? cVal : {};
+    var lWhole = _clampStamp(lMod['formData'], cap), cWhole = _clampStamp(cMod['formData'], cap);
+    var out = {};
+    var fields = {};
+    Object.keys(lVal).forEach(function(k) { fields[k] = true; });
+    Object.keys(cVal).forEach(function(k) { fields[k] = true; });
+    Object.keys(fields).forEach(function(fk) {
+      var hasL = Object.prototype.hasOwnProperty.call(lVal, fk);
+      var hasC = Object.prototype.hasOwnProperty.call(cVal, fk);
+      if (hasL && !hasC) { out[fk] = lVal[fk]; return; }
+      if (hasC && !hasL) { out[fk] = cVal[fk]; return; }
+      var lt = _clampStamp(lMod['formData.' + fk], cap) || lWhole;
+      var ct = _clampStamp(cMod['formData.' + fk], cap) || cWhole;
+      out[fk] = lt >= ct ? lVal[fk] : cVal[fk];
+    });
+    return out;
+  }
+
   function mergeWorksheetBlobs(local, cloud) {
     var lMod = (local && local.__modifiedAt) || {};
     var cMod = (cloud && cloud.__modifiedAt) || {};
@@ -7276,6 +7300,12 @@
       if (k === 'moduleOverviewData') {
         var _ltOv = _clampStamp(lMod[k], nowCap), _ctOv = _clampStamp(cMod[k], nowCap);
         merged[k] = _mergeModuleOverviewData(local[k], cloud[k], _ltOv >= _ctOv);
+        return;
+      }
+      // formData merges per field (not whole-object newest-wins) so concurrent
+      // edits to different fields by the ID and faculty both survive.
+      if (k === 'formData') {
+        merged[k] = _mergeFormData(local[k], cloud[k], lMod, cMod, nowCap);
         return;
       }
       // For data-loss-prone keys (CLOs/ELOs/modules/activities/…), never let an
@@ -7414,12 +7444,29 @@
           console.warn('[saveField] formData bulk-wipe blocked — kept ' + _emptied.length + ' populated fields');
         }
       }
+      var _prevFormData = (key === 'formData') ? data.formData : null;
       data[key] = value;
       // Stamp the per-key modification time so the pre-push merge can decide
       // whether our value or the cloud's value is newer for this field. The
       // map lives inside the same blob so it rides along with every push/pull.
       if (!data.__modifiedAt || typeof data.__modifiedAt !== 'object') data.__modifiedAt = {};
-      data.__modifiedAt[key] = Date.now();
+      if (key === 'formData' && value && typeof value === 'object') {
+        // PER-FIELD stamps. formData carries every text field as one object, but
+        // _doSaveAllFields re-saves the whole object on every blur/view-switch.
+        // A whole-object newest-wins merge then lets the most-recently-saving
+        // session keep winning and discard a collaborator's edits to OTHER
+        // fields. Stamp ONLY the fields whose value actually changed so each
+        // field merges independently (see _mergeFormData).
+        var _pf = (_prevFormData && typeof _prevFormData === 'object') ? _prevFormData : {};
+        var _nowTs = Date.now();
+        Object.keys(value).forEach(function(fk) {
+          if (JSON.stringify(value[fk]) !== JSON.stringify(_pf[fk])) {
+            data.__modifiedAt['formData.' + fk] = _nowTs;
+          }
+        });
+      } else {
+        data.__modifiedAt[key] = Date.now();
+      }
       localStorage.setItem(storageKey, JSON.stringify(data));
       scheduleCloudPush();
       // Live-broadcast the timeline state so other collaborators redraw the
