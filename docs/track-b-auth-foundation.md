@@ -214,6 +214,12 @@ Nothing is pushed to `main`, so the live tool is unaffected until we deliberatel
 6. Get Elisa's `auth.users.id`; fill `<ELISA_UID>` in `trackb_0002_isolation.sql`; run it.
 7. Verify isolation with a second ASU account (sees own empty dashboard; Canvas Plan greyed/"coming soon").
 
+## 8c-status. LIVE STATUS (2026-06-18)
+
+- **Steps 1–5 DONE and live on `main`.** Google OAuth configured (consent screen **Internal** = ASU-only; new "Compose Web" client in the existing "course development" Google project), additive SQL run (ownership columns exist), `COMPOSE_AUTH_ENABLED = true`. The dashboard now requires ASU Google login; tested working; login title reads "CourseCompose". Escape hatch: `?composeauth=0`.
+- **Step 6 (RLS isolation) BLOCKED — needs redesign.** The naive owner-only RLS would break the anonymous faculty/reviewer worksheet flow, which reads `user_courses` and `dashboard_state` (`course_overrides`) without a login. `trackb_0002_isolation.sql` is marked DO-NOT-RUN with the fix sketch (split read/write; route anon reads via a share-token edge function — Track C; make `course_overrides` reads owner-aware).
+- **Net:** auth/identity foundation is live and safe for the single active user (Elisa). Real per-user data isolation (and therefore safely onboarding a *second* ID) waits on the Step 6 redesign. Until then RLS stays open. Daily login is the only change for Elisa — can be turned off by flipping the flag back to `false` if undesired before multi-user is ready.
+
 ## 8d. REALITY CHECK (2026-06-18): Compose & Curate share ONE Supabase project
 
 Discovered while configuring auth (the project's Site URL was Curate's Vercel app). `gflnymqjraxonbdtbxma` hosts **both** products. Implications baked into the build:

@@ -1,3 +1,22 @@
+-- ============================================================================
+-- ⛔ DO NOT RUN — SUPERSEDED, NEEDS REDESIGN (2026-06-18).
+-- This naive owner-only RLS BREAKS the anonymous faculty/reviewer worksheet flow:
+-- course-worksheet-v2.html reads, WITHOUT a login, by course_id/key:
+--   * user_courses   (line ~3851 — the instructor's incognito course load)
+--   * dashboard_state key='course_overrides' (line ~3879)
+-- Locking these to user_id = auth.uid() would make those reads return nothing for
+-- unauthenticated faculty/reviewers, so they couldn't open their course.
+--
+-- Correct approach (to be designed): split READ vs WRITE — keep the specific
+-- shared reads (a course's user_courses row; the course_overrides key) readable,
+-- but make WRITES owner-only; and/or move the worksheet's cross-user reads behind
+-- a signed share-token edge function (Track C). Also note course_overrides becomes
+-- per-user (PK user_id,key), so the worksheet's `.eq('key','course_overrides')
+-- .maybeSingle()` must learn to fetch the OWNER's row, not "the" row.
+-- Until that's built, isolation stays OFF and RLS remains open. The rest of Track B
+-- (login + identity + Canvas Plan gating) is live and safe without this.
+-- ============================================================================
+
 -- Track B — STEP 2 of 2: BREAKING. DO NOT RUN WHILE ACTIVELY WORKING.
 --
 -- Shared Compose+Curate DB. This backfills ownership onto existing Compose rows
