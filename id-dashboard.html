@@ -3307,7 +3307,10 @@
     // "Syncing…" state instead of "sync broken" / "Nothing upcoming" during the
     // 30–60s a calendar sync takes after a refresh. Re-render immediately so
     // the message appears right away.
-    window._syncInFlight = true;
+    // Counter, not a boolean: overlapping syncs (load + focus/poll) must not let
+    // the faster one's .finally clear the in-flight state while a slower one is
+    // still running — that's what flashed "Nothing upcoming" mid-sync.
+    window._syncInFlight = (window._syncInFlight || 0) + 1;
     try { renderSyncStalenessChip(); } catch (e) {}
     try { renderUpcoming(); } catch (e) {}
     var url = 'http://127.0.0.1:3456/' + (force ? 'sync?force=1' : 'sync');
@@ -3405,11 +3408,22 @@
             return;
           }
         }
-        // Server not running and memory is missing/stale — reload from disk
+        // Server not running and memory is missing/stale — reload from disk.
+        // This async <script> load resolves AFTER the promise's .finally below,
+        // so without counting it as in-flight the Upcoming card would briefly
+        // flash "Nothing upcoming" before the disk data lands. Keep the sync
+        // counter raised until onload/onerror.
+        window._syncInFlight = (window._syncInFlight || 0) + 1;
         var s = document.createElement('script');
         s.src = 'dashboard-data.js?t=' + Date.now();
+        s.onerror = function() {
+          window._syncInFlight = Math.max(0, (window._syncInFlight || 1) - 1);
+          try { renderSyncStalenessChip(); } catch (e) {}
+          try { renderUpcoming(); } catch (e) {}
+        };
         s.onload = function() {
           var fresh = window.SYNCED_DATA;
+          window._syncInFlight = Math.max(0, (window._syncInFlight || 1) - 1);
           if (fresh && fresh.courses) {
             var nonEmpty = function(v) { return Array.isArray(v) ? v.length > 0 : !!v; };
             Object.keys(fresh.courses).forEach(function(id) {
@@ -3438,6 +3452,10 @@
             // source for meetings, so let it win over disk-cached data.
             if (typeof loadMeetingsFromSupabase === 'function') loadMeetingsFromSupabase();
           }
+          // Repaint regardless (data merged, or no usable data) so the count
+          // decrement above resolves the card to its real state.
+          try { renderSyncStalenessChip(); } catch (e) {}
+          try { renderUpcoming(); } catch (e) {}
         };
         document.head.appendChild(s);
       })
@@ -3447,7 +3465,7 @@
         // Sync finished (success or failure) — clear the in-flight state and
         // repaint so the chip shows the real result (fresh / broken) and the
         // Upcoming card shows items or its true empty state.
-        window._syncInFlight = false;
+        window._syncInFlight = Math.max(0, (window._syncInFlight || 1) - 1);
         try { renderSyncStalenessChip(); } catch (e) {}
         try { renderUpcoming(); } catch (e) {}
       });
