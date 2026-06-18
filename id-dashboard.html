@@ -613,6 +613,9 @@
         <button class="resource-accordion" onclick="toggleResourceAccordion('faculty-resource-body', this)">
           🎓 Faculty Resources <span class="ra-arrow">▾</span>
         </button>
+        <button class="resource-accordion" onclick="toggleResourceAccordion('coursedev-resource-body', this)">
+          🧰 Course Development Tools <span class="ra-arrow">▾</span>
+        </button>
         <button class="resource-accordion" onclick="toggleResourceAccordion('multi-action-body', this)">
           🛠 Multi-course Actions <span class="ra-arrow">▾</span>
         </button>
@@ -675,11 +678,6 @@
       </div>
       <div class="resource-body" id="faculty-resource-body">
         <div class="resource-section" style="margin-top:4px;">
-          <div class="resource-card" data-rc-id="faculty-tools">
-            <div class="rc-header"><span>🛠</span><span class="rc-title">Course Development Tools</span></div>
-            <div class="rc-links" id="rc-links-faculty-tools"></div>
-            <button class="rc-add-btn" onclick="showAddLinkForm('faculty-tools')">+ Add Link</button>
-          </div>
           <div class="resource-card" data-rc-id="faculty-training">
             <div class="rc-header"><span>📚</span><span class="rc-title">Faculty Training & Development</span></div>
             <div class="rc-links" id="rc-links-faculty-training">
@@ -688,6 +686,15 @@
               <a class="rc-link" href="https://docs.google.com/presentation/d/1example/edit" target="_blank">Kickoff Slideshow</a>
             </div>
             <button class="rc-add-btn" onclick="showAddLinkForm('faculty-training')">+ Add Link</button>
+          </div>
+        </div>
+      </div>
+      <div class="resource-body" id="coursedev-resource-body">
+        <div class="resource-section" style="margin-top:4px;">
+          <div class="resource-card" data-rc-id="faculty-tools">
+            <div class="rc-header"><span>🧰</span><span class="rc-title">Course Development Tools</span></div>
+            <div class="rc-links" id="rc-links-faculty-tools"></div>
+            <button class="rc-add-btn" onclick="showAddLinkForm('faculty-tools')">+ Add Link</button>
           </div>
         </div>
       </div>

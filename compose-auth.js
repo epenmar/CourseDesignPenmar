@@ -18,6 +18,15 @@
 // worksheet on the same origin.
 (function () {
   var ENABLED = !!window.COMPOSE_AUTH_ENABLED;
+  // Per-session override so auth can be tested (or escaped) without flipping the
+  // global flag: append ?composeauth=1 to force the login gate ON for this load,
+  // or ?composeauth=0 to force it OFF (recovery hatch if a login ever wedges the
+  // live dashboard). The param survives the OAuth round-trip via redirectTo.
+  try {
+    var _qp = new URLSearchParams(window.location.search);
+    if (_qp.get('composeauth') === '1') ENABLED = true;
+    else if (_qp.get('composeauth') === '0') ENABLED = false;
+  } catch (e) {}
   var ADMIN_EMAILS = (window.COMPOSE_ADMIN_EMAILS || []).map(function (e) { return String(e).toLowerCase().trim(); });
   var state = { ready: false, user: null, profile: null };
 
