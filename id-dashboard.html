@@ -1666,6 +1666,13 @@
     if (idx !== -1) starred.splice(idx, 1);
     else starred.push(id);
     localStorage.setItem('starred_courses', JSON.stringify(starred));
+    // Push immediately so the next cloud pull doesn't overwrite the star with the
+    // stale cloud copy (starred_courses is a synced dashboard_state key).
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state')
+        .upsert({ key: 'starred_courses', data: starred }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
+        .then(function(r) { if (r && r.error) console.warn('[star] cloud sync failed:', r.error.message); });
+    }
     renderTable();
   }
 
@@ -3215,7 +3222,11 @@
   (async function bootDashboard() {
     // Track B: gate the dashboard behind ASU Google login when auth is enabled.
     // No-op while window.COMPOSE_AUTH_ENABLED is false (single-user mode).
-    try { if (window.ComposeAuth) await window.ComposeAuth.init({ requireLogin: true }); } catch(e) { console.warn('[compose-auth] init failed:', e && e.message); }
+    // Preview: ?preview=newuser shows the empty new-user dashboard without a
+    // second account, and skips the login gate so it can be opened directly.
+    var _previewNewUser = false;
+    try { _previewNewUser = new URLSearchParams(location.search).get('preview') === 'newuser'; } catch(e) {}
+    try { if (window.ComposeAuth) await window.ComposeAuth.init({ requireLogin: !_previewNewUser }); } catch(e) { console.warn('[compose-auth] init failed:', e && e.message); }
     // Tenant safety: if a DIFFERENT account is now signed in on this browser,
     // wipe the previous user's cached data before the pull repopulates this
     // user's own. First run (no stored uid) preserves existing single-user data.
@@ -3227,11 +3238,6 @@
         localStorage.setItem('compose_last_uid', _uid);
       }
     } catch(e) {}
-    // Preview: ?preview=newuser lets the owner SEE the empty new-user dashboard
-    // (course area only — see banner) without a second account. In-memory only;
-    // never writes/clears the owner's data.
-    var _previewNewUser = false;
-    try { _previewNewUser = new URLSearchParams(location.search).get('preview') === 'newuser'; } catch(e) {}
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
       try { await window.SupabaseSync.pullAllFromCloud(); } catch(e) { console.warn('[dashboard pull] failed:', e && e.message); }
       refreshCourseProgressFromStorage();
@@ -6843,6 +6849,7 @@
     const fSess = msFilterState.session;
     const fStats = msFilterState.status;
 
+    var starredSet = getStarredCourses();
     var visibleCount = 0;
     document.querySelectorAll('.course-table tbody tr').forEach(row => {
       const id = row.getAttribute('onclick')?.match(/'([^']+)'/)?.[1];
@@ -6855,12 +6862,18 @@
                           activeStatusFilter === 'inactive' ? isInactiveRow :
                           row.dataset.status === activeStatusFilter;
       const tabMatch = tabMatches(activeTableTab, c, isInactiveRow);
-      const show = tabMatch && statusMatch &&
-        (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
+      // Starred courses bypass the selection filters (status pill + program /
+      // college / session / status multi-selects) so a pinned course stays
+      // visible even when it's outside the current selection. Search + tab still apply.
+      const isStarredRow = starredSet.indexOf(id) !== -1;
+      const matchesSelection = statusMatch &&
         (fProgs.length === 0 || fProgs.indexOf(c.program) !== -1) &&
         (fColls.length === 0 || fColls.indexOf(c.college) !== -1) &&
         (fSess.length === 0 || fSess.indexOf(c.session) !== -1) &&
         (fStats.length === 0 || fStats.indexOf(c.status) !== -1);
+      const show = tabMatch &&
+        (!searchQ || row.textContent.toLowerCase().includes(searchQ)) &&
+        (isStarredRow || matchesSelection);
       row.style.display = show ? '' : 'none';
       if (show) visibleCount++;
     });
