@@ -3207,7 +3207,7 @@
   function _clearComposeLocalData() {
     try {
       var keep = { compose_last_uid: 1 };
-      var dashKeys = ['user_courses','inactive_courses','course_overrides','starred_courses','privateNotes','faculty_directory','course_reviewers','meeting_action_items_state','course_action_items','course_airtable_urls','airtable_auto_imports','course_jira_epics','course_jira_phases','dashboard_resource_links','dashboard_hidden_cols','dashboard_col_order','dashboard_filters','dashboard_upcoming_cache','dashboard_synced_cache'];
+      var dashKeys = ['user_courses','inactive_courses','course_overrides','starred_courses','privateNotes','faculty_directory','course_reviewers','contacts_overrides','meeting_action_items_state','course_action_items','course_airtable_urls','airtable_auto_imports','course_jira_epics','course_jira_phases','dashboard_resource_links','dashboard_hidden_cols','dashboard_col_order','dashboard_filters','dashboard_upcoming_cache','dashboard_synced_cache'];
       var toRemove = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);

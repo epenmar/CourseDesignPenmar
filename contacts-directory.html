@@ -49,6 +49,7 @@
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="supabase-config.js"></script>
+<script src="compose-auth.js"></script>
 </head>
 <body>
 
@@ -290,7 +291,7 @@
   function saveLocal(m) { try { localStorage.setItem(STORE_KEY, JSON.stringify(m)); } catch (e) {} }
   function pushCloud(m) {
     if (!sb) return;
-    sb.from('dashboard_state').upsert({ key: STORE_KEY, data: m }, { onConflict: 'key' })
+    sb.from('dashboard_state').upsert({ key: STORE_KEY, data: m }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
       .then(function (r) { if (r && r.error) console.warn('[contacts] cloud save failed:', r.error.message); });
   }
 
@@ -334,22 +335,48 @@
     setActions(card, id, false);
   }
 
-  document.querySelectorAll('.contact-card').forEach(initCard);
-
-  // After parse-time apply, pull the cloud copy and re-apply (cloud wins).
-  if (sb) {
-    sb.from('dashboard_state').select('data').eq('key', STORE_KEY).maybeSingle().then(function (r) {
-      if (r && r.data && r.data.data && typeof r.data.data === 'object') {
-        overrides = Object.assign({}, overrides, r.data.data);
-        saveLocal(overrides);
-        document.querySelectorAll('.contact-card').forEach(function (card) {
-          var id = card.getAttribute('data-card-id');
-          var content = card.querySelector('.card-content');
-          if (content && overrides[id] != null && !content.classList.contains('cc-editing')) content.innerHTML = overrides[id];
-        });
+  (async function _contactsBoot() {
+    // Tenant gate: the hardcoded contacts in this page are the owner's personal
+    // directory, served to everyone. Show them only to the owner/admin; any other
+    // signed-in (or anonymous) viewer gets an empty directory.
+    var isOwner = true;
+    try {
+      if (window.COMPOSE_AUTH_ENABLED) {
+        window._sbClient = window._sbClient || sb;
+        if (window.ComposeAuth) { await window.ComposeAuth.init(); isOwner = !!window.ComposeAuth.isAdmin(); }
+        else isOwner = false;
       }
-    });
-  }
+    } catch (e) { isOwner = false; }
+
+    if (!isOwner) {
+      document.querySelectorAll('.school').forEach(function (s) { s.style.display = 'none'; });
+      if (!document.getElementById('contacts-empty')) {
+        var d = document.createElement('div');
+        d.id = 'contacts-empty';
+        d.style.cssText = 'max-width:640px;margin:48px auto;padding:24px;text-align:center;color:#666;font-family:Inter,sans-serif;';
+        d.innerHTML = '<h2 style="color:#8c1d40;margin:0 0 8px;">Contacts Directory</h2><p>Your contacts directory is empty for now — it will fill in as you work.</p>';
+        document.body.appendChild(d);
+      }
+      return;
+    }
+
+    document.querySelectorAll('.contact-card').forEach(initCard);
+
+    // After parse-time apply, pull the cloud copy and re-apply (cloud wins).
+    if (sb) {
+      sb.from('dashboard_state').select('data').eq('key', STORE_KEY).maybeSingle().then(function (r) {
+        if (r && r.data && r.data.data && typeof r.data.data === 'object') {
+          overrides = Object.assign({}, overrides, r.data.data);
+          saveLocal(overrides);
+          document.querySelectorAll('.contact-card').forEach(function (card) {
+            var id = card.getAttribute('data-card-id');
+            var content = card.querySelector('.card-content');
+            if (content && overrides[id] != null && !content.classList.contains('cc-editing')) content.innerHTML = overrides[id];
+          });
+        }
+      });
+    }
+  })();
 
   window.ccEdit = function (id) {
     var card = document.querySelector('[data-card-id="' + id + '"]');
