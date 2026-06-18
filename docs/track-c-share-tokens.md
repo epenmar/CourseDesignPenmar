@@ -56,7 +56,17 @@ Reworked to the asymmetric-compatible approach:
 - C3 cutover migration drafted: `supabase/migrations/trackc_0003_isolation.sql` (grant-based RLS; replaces `trackb_0002`).
 - Dashboard token-issuing + link decoration unchanged (still correct).
 
-Remaining user steps when ready to test (small): **enable Anonymous sign-ins** in Supabase Auth, then deploy the edge function. Then test instructor/reviewer links end-to-end, refine the C3 policies against the live read/write matrix, and apply C3 in a quiet window.
+**LIVE PROGRESS 2026-06-18:**
+- Edge function **deployed** (`redeem-share-token`, `--no-verify-jwt`).
+- Anonymous sign-ins **enabled** in Supabase Auth.
+- Shared `handle_new_user` trigger **patched to skip anonymous users** (`trackc_0004`) — without it, anon sign-in 500s on the null-email user_profiles insert. Google/Curate sign-ups unchanged.
+- **End-to-end redemption verified** at the API level: anon sign-in → redeem → grant recorded; bad token → 401.
+- `COMPOSE_SHARE_TOKENS_ENABLED = true` — feature ON, but **RLS is still open**, so nothing is enforced/broken: links now carry `&t=`, anon visits record a grant, and everything still loads. Revert with the flag → `false`.
+
+**Remaining for true isolation (C3 cutover):**
+- Validate a real instructor + reviewer link in a logged-out browser (worksheet loads normally; grant recorded).
+- Capture the live read/write table matrix; refine `trackc_0003_isolation.sql` accordingly.
+- Apply C3 in a quiet window (the breaking step). Keep `COMPOSE_SHARE_TOKENS_ENABLED=false` as the fast revert if a policy is wrong.
 
 ### Historical note — original JWT-minting variant (SUPERSEDED)
 All flag-gated on `window.COMPOSE_SHARE_TOKENS_ENABLED = false`; edge function not yet deployed. Nothing live changes.
