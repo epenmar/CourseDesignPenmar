@@ -1,5 +1,6 @@
 -- ============================================================================
--- ⛔ DO NOT RUN — SUPERSEDED, NEEDS REDESIGN (2026-06-18).
+-- ⛔ DO NOT RUN — SUPERSEDED by supabase/migrations/trackc_0003_isolation.sql
+-- (grant-based, compatible with the project's ES256 asymmetric JWTs). 2026-06-18.
 -- This naive owner-only RLS BREAKS the anonymous faculty/reviewer worksheet flow:
 -- course-worksheet-v2.html reads, WITHOUT a login, by course_id/key:
 --   * user_courses   (line ~3851 — the instructor's incognito course load)

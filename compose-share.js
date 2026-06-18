@@ -59,14 +59,19 @@
     return t ? ("&t=" + encodeURIComponent(t)) : "";
   }
 
+  // Send the link token + the caller's current (anonymous) session to the edge
+  // function, which records a grant (anon_uid -> course/owner/role). Returns
+  // {ok, course_id, owner_id, role} or null.
   async function redeem(token) {
-    var base = window.SUPABASE_URL;
-    var key = window.SUPABASE_PUBLISHABLE_KEY;
-    if (!base) return null;
+    var base = window.SUPABASE_URL, key = window.SUPABASE_PUBLISHABLE_KEY;
+    var sb = window._sbClient;
+    if (!base || !sb) return null;
     try {
+      var s = await sb.auth.getSession();
+      var bearer = (s && s.data && s.data.session && s.data.session.access_token) || key;
       var resp = await fetch(base + "/functions/v1/redeem-share-token", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "apikey": key, "Authorization": "Bearer " + key },
+        headers: { "Content-Type": "application/json", "apikey": key, "Authorization": "Bearer " + bearer },
         body: JSON.stringify({ token: token }),
       });
       if (!resp.ok) return null;
@@ -74,24 +79,31 @@
     } catch (e) { console.warn("[compose-share] redeem failed:", e && e.message); return null; }
   }
 
-  // Worksheet boot: if this is an anonymous visit carrying ?t=, redeem it and
-  // point _sbClient at the course-scoped session. Logged-in IDs skip this (their
-  // own session already grants owner access). Returns true if a scope was applied.
+  // Worksheet boot: an anonymous visit carrying ?t= establishes a REAL anonymous
+  // Supabase session (kept on _sbClient — no client swap), then redeems the token
+  // so a grant is recorded. RLS on the data tables then authorizes this anon
+  // session for that one course. Logged-in IDs skip this (own session grants
+  // owner access). Returns true if a grant was applied.
   async function applyWorksheetToken() {
     if (!enabled()) return false;
     if (window.ComposeAuth && window.ComposeAuth.user) return false;
     var t;
     try { t = new URLSearchParams(window.location.search).get("t"); } catch (e) { return false; }
     if (!t) return false;
-    var r = await redeem(t);
-    if (!r || !r.access_token) return false;
+    var sb = window._sbClient;
+    if (!sb || !sb.auth) return false;
     try {
-      window._sbClient = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_PUBLISHABLE_KEY, {
-        global: { headers: { Authorization: "Bearer " + r.access_token } },
-        auth: { persistSession: false, autoRefreshToken: false },
-      });
-      window._composeShareSession = r;
-      return true;
+      var s = await sb.auth.getSession();
+      if (!(s && s.data && s.data.session)) {
+        var anon = await sb.auth.signInAnonymously();
+        if (anon && anon.error) {
+          console.warn("[compose-share] anonymous sign-in failed (enable Anonymous sign-ins in Supabase):", anon.error.message);
+          return false;
+        }
+      }
+      var r = await redeem(t);
+      window._composeShareGrant = r || null;
+      return !!(r && r.ok);
     } catch (e) { console.warn("[compose-share] apply failed:", e && e.message); return false; }
   }
 

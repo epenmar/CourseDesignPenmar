@@ -47,7 +47,18 @@ The project's JWKS exposes an **ES256** signing key, i.e. Supabase signs JWTs wi
 3. The worksheet keeps its real anon session; RLS authorizes via a join: a row is visible when `course_id` matches a grant for `auth.uid()` (and `course_overrides` via the grant's `owner_id`). No custom JWT claims needed.
 This is compatible with asymmetric signing and keeps the "existing .from() calls just work" benefit. `compose-share.js` changes from "set custom JWT" to "anon sign-in + record grant"; the dashboard token-issuing + link decoration stay as-is.
 
-## C2 status — BUILT, dormant (2026-06-18) — JWT-minting variant SUPERSEDED (see revision above)
+## C2 status — REBUILT (anon-session + grants), dormant (2026-06-18)
+
+Reworked to the asymmetric-compatible approach:
+- `coursecompose_share_grants` table created (anon_uid → course_id, owner_id, role).
+- `redeem-share-token` edge function rewritten: reads the caller's anonymous session (Authorization → `getUser`), validates the token, records a grant. **No JWT secret / no `--no-verify-jwt` secret step.** Deploy: `supabase functions deploy redeem-share-token --no-verify-jwt`.
+- `compose-share.js` `applyWorksheetToken()`: anonymous visitor → `signInAnonymously()` → `redeem()` records the grant; `_sbClient` keeps its real anon session (no client swap).
+- C3 cutover migration drafted: `supabase/migrations/trackc_0003_isolation.sql` (grant-based RLS; replaces `trackb_0002`).
+- Dashboard token-issuing + link decoration unchanged (still correct).
+
+Remaining user steps when ready to test (small): **enable Anonymous sign-ins** in Supabase Auth, then deploy the edge function. Then test instructor/reviewer links end-to-end, refine the C3 policies against the live read/write matrix, and apply C3 in a quiet window.
+
+### Historical note — original JWT-minting variant (SUPERSEDED)
 All flag-gated on `window.COMPOSE_SHARE_TOKENS_ENABLED = false`; edge function not yet deployed. Nothing live changes.
 - `coursecompose_share_tokens` table created (stores raw `token`, unique per course+owner+role).
 - `supabase/functions/redeem-share-token/index.ts` — token → course-scoped JWT (`course_id`, `owner_id`, `share_role`; 12h).
