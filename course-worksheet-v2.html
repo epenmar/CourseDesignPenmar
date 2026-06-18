@@ -56,7 +56,7 @@
   .nav-item:hover { background: #f5f5f0; }
   .nav-item.active { background: #fef3e8; color: #8c1d40; font-weight: 500; }
   /* Per-user nav highlights — set inline by renderPresence with the user's color. */
-  .nav-item .presence-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-left:auto; flex-shrink:0; }
+  .nav-item .presence-dot { display:inline-block; width:9px; height:9px; border-radius:50%; margin-left:auto; flex-shrink:0; box-shadow:0 0 0 2px #fff, 0 0 4px rgba(0,0,0,0.3); }
   .nav-item .icon { width: 20px; margin-right: 8px; text-align: center; font-size: 13px; }
   .nav-item .badge { margin-left: auto; font-size: 10px; padding: 2px 6px; border-radius: 10px; font-weight: 600; }
   .badge-done { background: #e8f5e9; color: #2e7d32; }
@@ -20248,6 +20248,13 @@
         var id = getCommentIdentity();
         if (id) _trackPresence(id);
         if (typeof renderPresence === 'function') renderPresence();
+        // After the new view finishes its async render, re-show collaborators'
+        // field highlights on this page and scroll the first one into view so the
+        // user is guided to exactly where a collaborator is working.
+        _lastScrolledFocusKey = null;
+        setTimeout(function() {
+          try { reapplyRemoteFocuses(); _scrollToFirstRemoteFocus(); } catch (e) {}
+        }, 350);
       };
       window._showViewWrappedForPresence = true;
     }
@@ -20601,6 +20608,23 @@
   // focused on so we can re-show their colored outline + chip after any
   // re-render destroys the DOM those lived on.
   var remoteFocusRegistry = {};
+  // When arriving on a page, scroll the first collaborator's focused field into
+  // view (once per navigation) so the user is led straight to where they are.
+  var _lastScrolledFocusKey = null;
+  function _scrollToFirstRemoteFocus() {
+    var keys = Object.keys(remoteFocusRegistry);
+    for (var i = 0; i < keys.length; i++) {
+      var st = remoteFocusRegistry[keys[i]];
+      if (!st || !st.key) continue;
+      var el = findFieldByLiveKey(st.key);
+      if (el && el.offsetParent !== null) {
+        if (_lastScrolledFocusKey === st.key) return;
+        _lastScrolledFocusKey = st.key;
+        try { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); } catch (e) {}
+        return;
+      }
+    }
+  }
   function reapplyRemoteFocuses() {
     Object.keys(remoteFocusRegistry).forEach(function(author) {
       var state = remoteFocusRegistry[author];
