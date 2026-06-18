@@ -11189,7 +11189,9 @@
   // discussion view, then the activity's stored contentType, then assignment.
   function _defaultTplTypeForAct(act) {
     if (act && act.contentTypeUserSet && act.contentType) return act.contentType;
-    if (/\bdiscussion\b/i.test((act && act.name) || '')) return 'discussion';
+    var nm = (act && act.name) || '';
+    if (/\bquiz(?:zes)?\b/i.test(nm)) return 'quiz';
+    if (/\bdiscussion\b/i.test(nm)) return 'discussion';
     return (act && act.contentType) || 'assignment';
   }
 
@@ -11474,6 +11476,160 @@
     }
   }
 
+  // ===== QUIZ IMPORT (paste existing questions, parse into the builder) =====
+  // Forgiving parser for the formats faculty actually use: numbered questions,
+  // lettered choices (A/B/C…), bullets, the correct answer marked inline
+  // (leading *, ✓, "(correct)") or via an "Answer: B" line, True/False, and
+  // Feedback:/Rationale: lines. Best-effort — the builder is the review surface.
+  function _splitQuizBlocks(lines) {
+    var isQ = function(l) {
+      return /^\s*(?:Q(?:uestion)?\s*)?\d+\s*[\.\):]\s+/i.test(l) && !/^\s*[*✓✔]?\s*[\(\[]?[A-Ha-h][\)\].:]\s/.test(l);
+    };
+    var hasNumbered = lines.some(isQ);
+    var blocks = [], cur = null;
+    var push = function() { if (cur && cur.length) blocks.push(cur); cur = null; };
+    for (var i = 0; i < lines.length; i++) {
+      var l = lines[i];
+      if (hasNumbered) {
+        if (isQ(l)) { push(); cur = [l]; }
+        else if (cur) cur.push(l);
+        else if (l.trim()) cur = [l];
+      } else {
+        if (!l.trim()) push();
+        else if (cur) cur.push(l);
+        else cur = [l];
+      }
+    }
+    push();
+    return blocks;
+  }
+
+  function _parseQuizBlock(blk) {
+    var choiceRe = /^\s*([*✓✔]?)\s*[\(\[]?([A-Ha-h])[\)\].:]\s+(.+)$/;
+    var bulletRe = /^\s*[-•·]\s+(.+)$/;
+    var ansRe = /^\s*(?:correct answer|answer|ans|key|correct)\s*[:\-=]\s*(.+)$/i;
+    var cfbRe = /^\s*(?:correct feedback|feedback\s*\(?\s*correct\s*\)?|if correct)\s*[:\-]\s*(.+)$/i;
+    var ifbRe = /^\s*(?:incorrect feedback|feedback\s*\(?\s*incorrect\s*\)?|if incorrect|wrong feedback)\s*[:\-]\s*(.+)$/i;
+    var fbRe = /^\s*(?:feedback|rationale|explanation|explain|why)\s*[:\-]\s*(.+)$/i;
+    var stemLines = [], choices = [], answerLetters = [], answerText = '';
+    var correctFb = '', incorrectFb = '', genFb = '', inChoices = false;
+
+    blk.forEach(function(line, idx) {
+      var t = idx === 0 ? line.replace(/^\s*(?:Q(?:uestion)?\s*)?\d+\s*[\.\):]\s+/i, '') : line;
+      var m;
+      if ((m = t.match(cfbRe))) { correctFb = m[1].trim(); return; }
+      if ((m = t.match(ifbRe))) { incorrectFb = m[1].trim(); return; }
+      if ((m = t.match(ansRe))) {
+        var a = m[1].trim();
+        var letters = a.match(/\b[A-Ha-h]\b/g);
+        if (letters && letters.length) answerLetters = letters.map(function(x) { return x.toUpperCase(); });
+        else answerText = a;
+        return;
+      }
+      if ((m = t.match(fbRe))) { genFb = m[1].trim(); return; }
+      // Bare "True" / "False" option lines (no letter prefix).
+      var tf = t.match(/^\s*([*✓✔]?)\s*(true|false)\s*[.\)]?\s*$/i);
+      if (tf) {
+        inChoices = true;
+        choices.push({ text: /^t/i.test(tf[2]) ? 'True' : 'False', correct: !!tf[1], letter: null, index: choices.length });
+        return;
+      }
+      var mc = t.match(choiceRe), mb = !mc && t.match(bulletRe);
+      if (mc || mb) {
+        inChoices = true;
+        var ctext = (mc ? mc[3] : mb[1]).trim();
+        var correct = !!(mc && mc[1]); // leading * / ✓ before the letter
+        if (/[✓✔]/.test(ctext) || /\((?:correct|right|ans(?:wer)?)\)/i.test(ctext) || /\[(?:correct|x)\]/i.test(ctext) || /^\*+\s*/.test(ctext) || /\s*\*+$/.test(ctext) || /\*\*.+\*\*/.test(ctext)) correct = true;
+        ctext = ctext.replace(/[✓✔]/g, '').replace(/\((?:correct|right|ans(?:wer)?)\)/ig, '').replace(/\[(?:correct|x)\]/ig, '').replace(/\*\*(.+?)\*\*/g, '$1').replace(/^\*+\s*|\s*\*+$/g, '').trim();
+        choices.push({ text: ctext, correct: correct, letter: mc ? mc[2].toUpperCase() : null, index: choices.length });
+        return;
+      }
+      if (!inChoices) { if (t.trim()) stemLines.push(t.trim()); }
+      else if (!genFb && t.trim()) genFb = t.trim();
+    });
+
+    if (answerLetters.length && choices.length) {
+      choices.forEach(function(c) {
+        var cl = c.letter || String.fromCharCode(65 + c.index);
+        if (answerLetters.indexOf(cl) !== -1) c.correct = true;
+      });
+    }
+    if (answerText && choices.length && !choices.some(function(c) { return c.correct; })) {
+      var norm = function(s) { return String(s).toLowerCase().replace(/[^a-z0-9]/g, ''); };
+      var at = norm(answerText);
+      choices.forEach(function(c) { if (norm(c.text) === at) c.correct = true; });
+    }
+
+    var stem = stemLines.join(' ').trim();
+    var clean = choices.map(function(c) { return { text: c.text, correct: !!c.correct }; });
+    var type = 'multiple-choice';
+    if (clean.length === 2 && /^true$/i.test(clean[0].text) && /^false$/i.test(clean[1].text)) type = 'true-false';
+    else if (clean.length === 0) type = 'short-answer';
+
+    if (!correctFb && genFb) correctFb = genFb;
+    if (type === 'short-answer' && answerText && !correctFb) correctFb = 'Sample answer: ' + answerText;
+    if (type === 'multiple-choice') while (clean.length < 2) clean.push({ text: '', correct: false });
+    if (!stem && clean.every(function(c) { return !c.text; })) return null;
+    return { text: stem, type: type, choices: clean, correctFeedback: correctFb, incorrectFeedback: incorrectFb };
+  }
+
+  function parseQuizText(raw) {
+    if (!raw || !raw.trim()) return [];
+    var lines = raw.replace(/\r\n?/g, '\n').split('\n');
+    var out = [];
+    _splitQuizBlocks(lines).forEach(function(b) {
+      var q = _parseQuizBlock(b);
+      if (q) out.push(q);
+    });
+    return out;
+  }
+
+  function openQuizImport(builderId) {
+    if (document.getElementById('quiz-import-overlay')) return;
+    var ov = document.createElement('div');
+    ov.id = 'quiz-import-overlay';
+    ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding-top:6vh;font-family:Inter,sans-serif;';
+    ov.innerHTML =
+      '<div style="background:#fff;border-radius:12px;width:92%;max-width:640px;max-height:84vh;display:flex;flex-direction:column;box-shadow:0 8px 30px rgba(0,0,0,0.25);">' +
+        '<div style="padding:16px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
+          '<h3 style="margin:0;font-size:15px;color:#8c1d40;">📥 Import quiz questions</h3>' +
+          '<button id="qimp-x" style="border:none;background:none;font-size:20px;color:#999;cursor:pointer;">&times;</button>' +
+        '</div>' +
+        '<div style="padding:14px 20px;overflow:auto;">' +
+          '<p style="margin:0 0 8px;font-size:12px;color:#666;line-height:1.5;">Paste questions in almost any format. It recognizes numbered questions, lettered choices (A/B/C…), the correct answer (a leading <code>*</code> / <code>✓</code>, <code>(correct)</code>, or an <code>Answer: B</code> line), True/False, and <code>Feedback:</code> / <code>Rationale:</code> lines. Review and fix anything after importing.</p>' +
+          '<textarea id="qimp-text" style="width:100%;height:260px;box-sizing:border-box;border:1px solid #ddd;border-radius:8px;padding:10px;font-family:ui-monospace,Menlo,monospace;font-size:12px;" placeholder="1. What is the capital of France?&#10;A) London&#10;*B) Paris&#10;C) Berlin&#10;Feedback: Paris has been the capital since 987 AD.&#10;&#10;2. The Earth is flat.&#10;True&#10;False&#10;Answer: False"></textarea>' +
+        '</div>' +
+        '<div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">' +
+          '<button id="qimp-cancel" class="btn-add-row">Cancel</button>' +
+          '<button id="qimp-go" class="btn-add-row" style="background:#8c1d40;color:#fff;border-color:#8c1d40;">Parse &amp; add</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    var close = function() { try { ov.remove(); } catch (e) {} };
+    document.getElementById('qimp-x').onclick = close;
+    document.getElementById('qimp-cancel').onclick = close;
+    ov.addEventListener('click', function(e) { if (e.target === ov) close(); });
+    setTimeout(function() { var ta = document.getElementById('qimp-text'); if (ta) ta.focus(); }, 50);
+    document.getElementById('qimp-go').onclick = function() {
+      var parsed = parseQuizText(document.getElementById('qimp-text').value);
+      if (!parsed.length) { alert('Couldn\'t find any questions to import. Check the formatting and try again.'); return; }
+      var data = quizData[builderId];
+      if (!data) { close(); return; }
+      // Drop a single leftover blank starter question so the import replaces it.
+      var existing = (data.questions || []).filter(function(q) {
+        var hasChoice = (q.choices || []).some(function(c) { return (c.text || '').trim(); });
+        return (q.text || '').trim() || hasChoice;
+      });
+      data.questions = existing.concat(parsed);
+      data.questions.forEach(function(q, i) { q.num = i + 1; });
+      saveQuizDataForBuilder(builderId);
+      var cont = document.getElementById(builderId);
+      if (cont) renderQuizBuilder(cont);
+      close();
+      alert('Imported ' + parsed.length + ' question' + (parsed.length === 1 ? '' : 's') + '. Review and edit them below.');
+    };
+  }
+
   function initQuizBuilder(container) {
     var builderId = container.id;
     // Restore previously saved quizQuestions from the activity, if any.
@@ -11606,6 +11762,7 @@
 
     html += '<div class="quiz-add-btns">';
     html += '<button class="btn-add-row" onclick="addQuizQuestion(\'' + builderId + '\')">+ Add question</button>';
+    html += '<button class="btn-add-row" onclick="openQuizImport(\'' + builderId + '\')" title="Paste existing quiz questions and parse them into the builder">📥 Import questions</button>';
     html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')" title="Generate questions from the course/module objectives">✨ Generate from context</button>';
     html += '<button class="btn-add-row" onclick="openQuizGenModal(\'' + builderId + '\')" title="Upload a transcript, reading, or slides and generate questions from that content">📄 Generate from content</button>';
     html += '</div>';
