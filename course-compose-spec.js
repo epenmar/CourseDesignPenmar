@@ -176,6 +176,10 @@
           id: aid,
           name: a.name || '',
           type: a.contentType || 'assignment',
+          // Grade-weighting category (Canvas assignment group). Intentionally
+          // separate from `type` (the Canvas element designation) — the two are
+          // independent (e.g. a Canvas Assignment weighted under "Discussions").
+          category: a.category || '',
           points: a.points || '',
           due: a.due || '',
           objectives: (a.objectives || []).slice(),

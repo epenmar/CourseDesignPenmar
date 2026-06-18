@@ -6209,7 +6209,7 @@
     var cats = getWeightCategoryNames();
     var current = act.category || '';
     var style = opts.style || 'font-size:11px; padding:2px 4px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; max-width:100%; width:100%; color:#555;';
-    var html = '<select class="activity-input act-category-select" data-managed="true" data-field="category" data-activity-id="' + act.id + '" data-module-num="' + modNum + '" onchange="syncOverviewActivity(this)" title="Assignment weighting category" style="' + style + '">';
+    var html = '<select class="activity-input act-category-select" data-managed="true" data-field="category" data-activity-id="' + act.id + '" data-module-num="' + modNum + '" onchange="syncOverviewActivity(this)" title="Grade weighting category only — this does NOT set the Canvas item type (Assignment / Discussion / Quiz / Page). Set the Canvas type per item in the Canvas Plan." style="' + style + '">';
     html += '<option value="">— Category —</option>';
     var seen = false;
     cats.forEach(function(c) {
@@ -15732,6 +15732,7 @@
             modNum: mod.number,
             actIdx: actIdx,
             actType: actType,
+            category: act.category ? esc(act.category) : '',
             icon: iconForType,
             title: esc(act.name || '(unnamed activity)'),
             meta: meta.join(' · '),
@@ -16089,6 +16090,9 @@
       html += '<option value="' + t[0] + '"' + (opts.actType === t[0] ? ' selected' : '') + '>' + t[1] + '</option>';
     });
     html += '</select>';
+    // Weight category shown next to the type so it's obvious they're separate:
+    // the dropdown is the Canvas element type; this chip is grade weighting.
+    html += '<span title="Grade weighting category (set in Assignments Overview). This is independent of the Canvas element type chosen on the left." style="flex-shrink:0; font-size:10px; color:#999; white-space:nowrap;">⚖ ' + (opts.category ? opts.category : '<span style="color:#c4b5bd;">no weight</span>') + '</span>';
     html += '<div style="flex:1; min-width:0;">';
     html += '<div style="font-size:13px; color:#222; line-height:1.3;">' + opts.title + '</div>';
     if (opts.meta) html += '<div style="font-size:11px; color:#888; margin-top:2px;">' + opts.meta + '</div>';
