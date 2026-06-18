@@ -38,7 +38,16 @@ This is the cleanest fit because the worksheet keeps its current data layer — 
 - `user_courses`: same course-scoped read; write owner/admin only.
 - `dashboard_state`: private keys owner/admin only; `course_overrides` readable when `user_id = (auth.jwt()->>'owner_id')::uuid` (owner id travels in the claim, so the worksheet fetches the owner's overrides without seeing other IDs').
 
-## C2 status — BUILT, dormant (2026-06-18)
+## ⚠ APPROACH REVISION (2026-06-18): project uses ES256 asymmetric JWTs
+The project's JWKS exposes an **ES256** signing key, i.e. Supabase signs JWTs with a managed private key. So the C2 plan of minting our own **HS256** JWT from a shared `SHARE_JWT_SECRET` **will be rejected by PostgREST** — there is no usable shared secret to sign with, and we don't hold the private key. `redeem-share-token` as written + the `SHARE_JWT_SECRET` deploy step are therefore **superseded — do not deploy.**
+
+**Revised approach — anonymous Supabase session + a grants table (no custom signing):**
+1. Worksheet anon load → `supabase.auth.signInAnonymously()` → a *real* Supabase-signed session (accepted because Supabase issued it). Requires enabling Anonymous sign-ins in the dashboard (small one-time toggle).
+2. Call `redeem-share-token` with `{ token, anon_uid }`; the function (service role) validates the token and inserts a row into a new `coursecompose_share_grants(anon_uid, course_id, owner_id, role)`.
+3. The worksheet keeps its real anon session; RLS authorizes via a join: a row is visible when `course_id` matches a grant for `auth.uid()` (and `course_overrides` via the grant's `owner_id`). No custom JWT claims needed.
+This is compatible with asymmetric signing and keeps the "existing .from() calls just work" benefit. `compose-share.js` changes from "set custom JWT" to "anon sign-in + record grant"; the dashboard token-issuing + link decoration stay as-is.
+
+## C2 status — BUILT, dormant (2026-06-18) — JWT-minting variant SUPERSEDED (see revision above)
 All flag-gated on `window.COMPOSE_SHARE_TOKENS_ENABLED = false`; edge function not yet deployed. Nothing live changes.
 - `coursecompose_share_tokens` table created (stores raw `token`, unique per course+owner+role).
 - `supabase/functions/redeem-share-token/index.ts` — token → course-scoped JWT (`course_id`, `owner_id`, `share_role`; 12h).
