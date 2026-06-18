@@ -26,7 +26,8 @@
   function isAdmin() {
     if (!ENABLED) return true;            // single-user mode: owner features stay on
     if (!state.user) return false;
-    if (state.profile && state.profile.is_admin) return true;
+    var role = state.profile && state.profile.role;
+    if (role === 'system_admin' || role === 'super_admin') return true;
     return ADMIN_EMAILS.indexOf(String(state.user.email || '').toLowerCase()) !== -1;
   }
 
@@ -39,26 +40,13 @@
   function isAuthed() { return ENABLED ? !!state.user : true; }
 
   async function _loadProfile(sb) {
+    // Reuse the SHARED user_profiles table — Compose and Curate live in one
+    // Supabase project, so accounts are already unified. A DB trigger
+    // (handle_new_user) auto-creates the row on first sign-in, so we only read.
     try {
-      var resp = await sb.from('profiles').select('*').eq('id', state.user.id);
-      if (resp && resp.data && resp.data.length) { state.profile = resp.data[0]; return; }
+      var resp = await sb.from('user_profiles').select('id,email,role,full_name').eq('id', state.user.id);
+      if (resp && resp.data && resp.data.length) state.profile = resp.data[0];
     } catch (e) { console.warn('[compose-auth] profile load failed:', e && e.message); }
-    await _createProfile(sb);
-  }
-
-  async function _createProfile(sb) {
-    var u = state.user, meta = u.user_metadata || {};
-    var prof = {
-      id: u.id,
-      email: u.email,
-      name: meta.full_name || meta.name || u.email,
-      is_admin: ADMIN_EMAILS.indexOf(String(u.email || '').toLowerCase()) !== -1
-    };
-    try {
-      var r = await sb.from('profiles').upsert(prof, { onConflict: 'id' });
-      if (!r || !r.error) state.profile = prof;
-      else console.warn('[compose-auth] profile create failed:', r.error.message);
-    } catch (e) { console.warn('[compose-auth] profile create threw:', e && e.message); }
   }
 
   async function init(opts) {

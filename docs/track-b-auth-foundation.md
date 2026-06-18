@@ -214,9 +214,19 @@ Nothing is pushed to `main`, so the live tool is unaffected until we deliberatel
 6. Get Elisa's `auth.users.id`; fill `<ELISA_UID>` in `trackb_0002_isolation.sql`; run it.
 7. Verify isolation with a second ASU account (sees own empty dashboard; Canvas Plan greyed/"coming soon").
 
+## 8d. REALITY CHECK (2026-06-18): Compose & Curate share ONE Supabase project
+
+Discovered while configuring auth (the project's Site URL was Curate's Vercel app). `gflnymqjraxonbdtbxma` hosts **both** products. Implications baked into the build:
+
+- **Accounts are already unified.** One `auth.users`; one `user_profiles` table (`id, email, full_name, role, is_active, auth_provider`). The `role` enum is **`id | system_admin | super_admin`**. A trigger `handle_new_user` auto-creates the `user_profiles` row on first sign-in → **any ASU account self-registers automatically** (matches the decision).
+- **No separate `profiles` table** — `compose-auth.js` reads `user_profiles`; admin = `role in (system_admin, super_admin)` OR email in `COMPOSE_ADMIN_EMAILS`. (Your account is currently role `id`, so the email allow-list is what makes you admin for Compose owner-tools like Canvas Plan, without changing your Curate role.)
+- **Owner UID is known:** `epenmar@asu.edu` = `30bb2d7b-000b-440f-87dc-c8d7af826d39` (baked into `trackb_0002_isolation.sql`).
+- **Shared-DB safety:** the additive migration only touches Compose-owned tables (`dashboard_state`, `user_courses`, `worksheets`, `comments`) and creates no shared objects, so it can't affect Curate. RLS tightening in step 2 is likewise scoped to Compose's ID-private tables.
+- **Auth config is shared too:** the Supabase **Site URL must stay `https://canvascurate-v2.vercel.app`** (Curate depends on it). Compose works via `redirectTo: window.location.href` + having the dashboard URL in the **Redirect URLs allow-list**. The Google OAuth client was swapped to the new "Compose Web" client (same Google project as Drive); verify Curate login still works after, since it now flows through that client.
+
 ## 9. Open questions for Elisa
 
-1. **One Supabase project or two?** Consolidate Compose + Curate onto a single project so an ID has one login across both tools, or keep Compose on its own (`gflnymqjraxonbdtbxma`) for now? *(Recommendation: ship B on the existing project; plan consolidation as a separate decision.)*
+1. ~~One Supabase project or two?~~ **RESOLVED:** already one shared project with Curate (see §8d) — accounts are unified, nothing to consolidate.
 2. **Who can self-register?** Any `@asu.edu` Google account, or an invite/allow-list you control? *(Affects the auth hook in B1 and ties into the admin hub.)*
 3. **Comment authorship across IDs** — when backfilling `comments.owner_id`, attribute by course owner, or leave as-is keyed by `author_name/role`?
 
