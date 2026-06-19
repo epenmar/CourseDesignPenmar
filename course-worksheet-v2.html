@@ -20779,6 +20779,10 @@
   // collaborator pausing to read a long passage or hop to another tab for a
   // quick reference doesn't flicker.
   var PRESENCE_IDLE_MS = 5 * 60 * 1000;
+  // After this much inactivity, a remote collaborator's pill is REMOVED (not just
+  // greyed) — so it doesn't linger once they've stopped working, and a stale
+  // entry from a tab that closed without a clean leave eventually clears.
+  var PRESENCE_GONE_MS = 10 * 60 * 1000;
 
   // Re-track presence on local activity, throttled so we don't spam the
   // channel. The throttled re-track lets collaborators see us come back
@@ -20899,6 +20903,13 @@
       _trackPresence(identity);
     }
     if (!editChannel) initLiveEditChannel();
+  });
+
+  // Leave presence cleanly when the tab is closed/hidden for good, so a graceful
+  // exit clears the pill for others immediately (the GONE threshold is the
+  // fallback for ungraceful closes). pagehide fires on close + bfcache unload.
+  window.addEventListener('pagehide', function() {
+    try { if (presenceChannel) presenceChannel.untrack(); } catch (e) {}
   });
 
   // Stable color per collaborator so a user's focus outline and edit badge
@@ -21462,6 +21473,16 @@
 
     // Don't show bar if only current user
     var identity = getCommentIdentity();
+    // Drop collaborators who have stopped working: no tracked activity within
+    // PRESENCE_GONE_MS (covers an idle tab left open AND a stale presence entry
+    // left behind by a tab that closed without a clean leave), so the pill never
+    // lingers indefinitely.
+    var _pNow = Date.now();
+    users = users.filter(function(u) {
+      if (identity && u.name === identity.name) return true; // always keep self
+      var la = u.last_active_at ? new Date(u.last_active_at).getTime() : _pNow;
+      return isNaN(la) || (_pNow - la) <= PRESENCE_GONE_MS;
+    });
     var others = users.filter(function(u) { return u.name !== (identity ? identity.name : ''); });
 
     if (users.length === 0) {
