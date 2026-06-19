@@ -20170,6 +20170,7 @@
   // focus). Used to mark idle status on the presence pill — Google Docs style.
   var _lastLocalActivityAt = Date.now();
   var _lastTrackedLocation = '';
+  var _lastTrackedPage = '';
 
   // A specific, human-readable label for exactly where the local user is — e.g.
   // "Module 2 Discussion content — Climate Debate" — derived from the focused
@@ -20204,10 +20205,11 @@
     if (!presenceChannel) return;
     try {
       _lastTrackedLocation = _currentLocationLabel();
+      _lastTrackedPage = currentViewId || 'dashboard';
       presenceChannel.track({
         name: identity.name,
         role: identity.role,
-        page: currentViewId || 'dashboard',
+        page: _lastTrackedPage,
         location: _lastTrackedLocation,
         online_at: new Date().toISOString(),
         last_active_at: new Date(_lastLocalActivityAt).toISOString()
@@ -20258,6 +20260,19 @@
   setInterval(function() {
     if (typeof renderPresence === 'function' && presenceChannel) renderPresence();
   }, 30000);
+
+  // Reconciler: guarantee the broadcast page/location converges to the actual
+  // current view within a few seconds even if a navigation event was missed
+  // (e.g. the view was restored from the URL hash before presence wrapped
+  // showView). Fixes collaborators showing as stuck on "Dashboard".
+  setInterval(function() {
+    if (!presenceChannel) return;
+    var id = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    if (!id) return;
+    if ((currentViewId || 'dashboard') !== _lastTrackedPage || _currentLocationLabel() !== _lastTrackedLocation) {
+      _trackPresence(id);
+    }
+  }, 4000);
 
   function initPresence() {
     if (!supabaseClient) return;
@@ -20668,7 +20683,14 @@
     var main = document.querySelector('.main');
     if (!main) return;
     var banner = document.getElementById('presence-location-banner');
-    var active = (others || []).filter(function(u) { return u && u.page; });
+    // Only collaborators who are actually active (not idle) belong under
+    // "Working now" — an hours-idle session shouldn't claim a live location.
+    var nowMs = Date.now();
+    var active = (others || []).filter(function(u) {
+      if (!u || !u.page) return false;
+      var la = u.last_active_at ? new Date(u.last_active_at).getTime() : nowMs;
+      return isNaN(la) || (nowMs - la) <= PRESENCE_IDLE_MS;
+    });
     if (!active.length) { if (banner) banner.style.display = 'none'; return; }
     if (!banner) {
       banner = document.createElement('div');
