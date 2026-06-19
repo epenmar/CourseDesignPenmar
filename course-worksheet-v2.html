@@ -3497,8 +3497,16 @@
     if (rows.length === 0) {
       rows = [_defaultRubricHeader(act)];
     }
+    return _rubricGridHtmlFromRows(act.id, tplType, rows);
+  }
+  // Render the rubric grid from an explicit rows array (header = row 0). Used by
+  // _buildRubricGridHtml (rows from saved data) AND by the in-place re-render
+  // after a column +/- (rows read from the live DOM, so an empty just-added row
+  // isn't dropped by the content-gated save).
+  function _rubricGridHtmlFromRows(actId, tplType, rows) {
+    if (!rows.length) rows = [['Criteria', 'Points']];
     var maxCols = rows.reduce(function(w, r) { return Math.max(w, r.length); }, 0) || 1;
-    var html = '<div class="rubric-grid" data-rubric-act="' + escapeHtml(act.id) + '" data-rubric-tpl="' + escapeHtml(tplType) + '">';
+    var html = '<div class="rubric-grid" data-rubric-act="' + escapeHtml(actId) + '" data-rubric-tpl="' + escapeHtml(tplType) + '">';
     html += '<table class="rubric-table"><thead><tr>';
     var header = rows[0];
     // Column index of the "Points" column (if any) — tinted to set it apart
@@ -3663,9 +3671,25 @@
       navigator.clipboard.writeText(text).then(flash, function() { _rubricFallbackCopy(text); flash(); });
     } else { _rubricFallbackCopy(text); flash(); }
   };
+  // Re-render a grid from its CURRENT DOM rows (header + body, including empty
+  // just-added rows), so colspans recompute without round-tripping through the
+  // content-gated save (which would drop an empty row, deleting it).
+  function _rerenderRubricGridFromDom(grid) {
+    if (!grid) return;
+    var actId = grid.getAttribute('data-rubric-act');
+    var tplType = grid.getAttribute('data-rubric-tpl');
+    var rows = Array.prototype.slice.call(grid.querySelectorAll('thead tr, tbody tr')).map(function(tr) {
+      return Array.prototype.slice.call(tr.querySelectorAll('th[contenteditable],td[contenteditable]'))
+        .map(function(c) { return (c.textContent || '').trim(); });
+    });
+    var tmp = document.createElement('div');
+    tmp.innerHTML = _rubricGridHtmlFromRows(actId, tplType, rows);
+    var inner = tmp.firstElementChild;
+    if (inner) grid.innerHTML = inner.innerHTML;
+  }
   // Give one row fewer / more rating columns than the rest (variable column
-  // count per criterion). Edits the DOM row, re-persists, then re-renders so
-  // colspans recompute across the grid.
+  // count per criterion). Edits the DOM row, re-persists, then re-renders from
+  // the DOM so colspans recompute across the grid.
   window._rubricRowAddCol = function(btn) {
     var grid = btn.closest('.rubric-grid');
     var tr = btn.closest('tr');
@@ -3679,8 +3703,8 @@
     td.setAttribute('oninput', '_onRubricCellInput(this)');
     td.setAttribute('onblur', '_onRubricCellBlur(this)');
     tr.insertBefore(td, actions);
+    _rerenderRubricGridFromDom(grid);
     _persistRubricGrid(grid);
-    _refreshRubricGridsForActivity(grid.getAttribute('data-rubric-act'), grid.getAttribute('data-rubric-tpl'));
   };
   window._rubricRowRemoveCol = function(btn) {
     var grid = btn.closest('.rubric-grid');
@@ -3689,8 +3713,8 @@
     var dataCells = tr.querySelectorAll('td[contenteditable]');
     if (dataCells.length <= 2) return; // keep at least criteria + one rating level
     dataCells[dataCells.length - 1].remove();
+    _rerenderRubricGridFromDom(grid);
     _persistRubricGrid(grid);
-    _refreshRubricGridsForActivity(grid.getAttribute('data-rubric-act'), grid.getAttribute('data-rubric-tpl'));
   };
   // Spreadsheet-style paste: a copied row (or block) lands on the clipboard as
   // TAB-separated cells / newline-separated rows. Pasting into one contenteditable
