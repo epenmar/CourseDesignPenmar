@@ -416,7 +416,28 @@ async function findDesigningChild(epicKey) {
   return designing ? designing.key : null;
 }
 
-async function postWorklog(issueKey, seconds, comment) {
+// Local calendar-day key (YYYY-MM-DD) for a ms timestamp, in the machine's
+// timezone (the sync runs on the user's machine, so "local" = the user's day).
+function localDayKey(ms) {
+  const d = new Date(ms);
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+// Jira `started` string for a YYYY-MM-DD work day, anchored at LOCAL NOON with
+// the local UTC offset. Noon keeps the date unambiguous in any reasonable
+// viewer timezone (so work done late Friday, synced after midnight Saturday,
+// still lands on Friday — not Saturday).
+function jiraStartedForDay(dayKey) {
+  const [y, mo, d] = dayKey.split('-').map(Number);
+  const dt = new Date(y, mo - 1, d, 12, 0, 0, 0);
+  const off = -dt.getTimezoneOffset(); // minutes east of UTC
+  const sign = off >= 0 ? '+' : '-';
+  const p = n => String(n).padStart(2, '0');
+  return `${y}-${p(mo)}-${p(d)}T12:00:00.000${sign}${p(Math.floor(Math.abs(off) / 60))}${p(Math.abs(off) % 60)}`;
+}
+
+async function postWorklog(issueKey, seconds, comment, started) {
   const body = {
     timeSpentSeconds: seconds,
     comment: {
@@ -425,6 +446,7 @@ async function postWorklog(issueKey, seconds, comment) {
       content: [{ type: 'paragraph', content: [{ type: 'text', text: comment }] }]
     }
   };
+  if (started) body.started = started; // stamp the day the work happened
   const r = await fetchWithRetry(`${JIRA_BASE}/rest/api/3/issue/${encodeURIComponent(issueKey)}/worklog`, {
     method: 'POST',
     headers: JIRA_HEADERS,
@@ -525,16 +547,20 @@ async function main() {
 
     // 1. Worksheet events: subtract overlap with the FULL meeting interval
     //    set (current + historical).
+    // Bucket BY LOCAL CALENDAR DAY so each worklog is stamped with the day the
+    // work actually happened. A nightly run that fires after midnight — or one
+    // that covers several days — no longer dumps everything onto the run date.
     const courseEvents = events.filter(e => e.course_id === courseId);
-    let worksheetMs = 0;
-    const eventIds = [];
+    const dayMap = {}; // dayKey -> { worksheetMs, meetingMs, eventIds, newMeetingEntries }
+    const ensureDay = k => (dayMap[k] || (dayMap[k] = { worksheetMs: 0, meetingMs: 0, eventIds: [], newMeetingEntries: [] }));
     const newEventIntervals = []; // [[start, end], …] of THIS run's events
     for (const ev of courseEvents) {
       const s = new Date(ev.started_at).getTime();
       const e = new Date(ev.ended_at).getTime();
       if (isNaN(s) || isNaN(e) || e <= s) continue;
-      worksheetMs += nonOverlapMs(s, e, allMeetingIntervals);
-      eventIds.push(ev.id);
+      const day = ensureDay(localDayKey(s));
+      day.worksheetMs += nonOverlapMs(s, e, allMeetingIntervals);
+      day.eventIds.push(ev.id);
       newEventIntervals.push([s, e]);
     }
     // For meeting-side overlap subtraction we want EVERY ID-role event
@@ -556,8 +582,6 @@ async function main() {
     const TOL = 120000; // 2-minute tolerance on start/end match
     const sameInterval = (a0, a1, b0, b1) => Math.abs(a0 - b0) <= TOL && Math.abs(a1 - b1) <= TOL;
     const intervalAlreadyLogged = (s, e) => alreadyIntervals.some(iv => sameInterval(iv[0], iv[1], s, e));
-    let meetingMs = 0;
-    const newMeetingEntries = []; // [{uid, start, end, postedMs}]
     const seenThisRun = [];       // intervals already accepted in this run
     for (const m of meetings) {
       if (!m.uid) continue;
@@ -569,12 +593,11 @@ async function main() {
       if (seenThisRun.some(p => sameInterval(p[0], p[1], mStart, mEnd))) continue;
       seenThisRun.push([mStart, mEnd]);
       const postedMs = nonOverlapMs(mStart, mEnd, eventIntervalsForSubtract);
-      meetingMs += postedMs;
-      newMeetingEntries.push({ uid: m.uid, start: mStart, end: mEnd, postedMs: postedMs });
+      const day = ensureDay(localDayKey(mStart));
+      day.meetingMs += postedMs;
+      day.newMeetingEntries.push({ uid: m.uid, start: mStart, end: mEnd, postedMs: postedMs });
     }
-    if (worksheetMs > 0 || meetingMs > 0 || eventIds.length || newMeetingEntries.length) {
-      buckets[courseId] = { worksheetMs, meetingMs, eventIds, newMeetingEntries };
-    }
+    if (Object.keys(dayMap).length) buckets[courseId] = dayMap;
   }
 
   const overrides = await loadEpicOverrides();
@@ -585,20 +608,14 @@ async function main() {
   let anyMeetingUidsNewlySynced = false;
   for (const courseId of Object.keys(buckets).sort()) {
     try {
-    const bucket = buckets[courseId];
+    const dayMap = buckets[courseId];
     if (!isCourseIdSyncable(courseId)) {
       // Silently skip non-portfolio / room-pattern IDs that older matchers
       // left behind. Don't log noise — they'll keep showing up forever
       // until the underlying session_events get cleaned up.
       continue;
     }
-    const totalMs = bucket.worksheetMs + bucket.meetingMs;
-    const seconds = Math.floor(totalMs / 1000);
-    if (seconds < MIN_SECONDS) {
-      summary.skippedBelowMin++;
-      console.log(`  · ${courseId}: ${seconds}s unsynced — below threshold, skipping`);
-      continue;
-    }
+    // Resolve the Epic + target ONCE per course (not per day).
     let epic = resolveEpic(courseId, overrides);
     if (!epic) {
       // Auto-discover by searching Jira for an Epic whose summary contains
@@ -613,8 +630,9 @@ async function main() {
       }
     }
     if (!epic) {
+      const totMins = Math.round(Object.values(dayMap).reduce((a, d) => a + d.worksheetMs + d.meetingMs, 0) / 60000);
       summary.skippedNoEpic++;
-      console.log(`  · ${courseId}: ${Math.round(seconds/60)}m unsynced — no Jira Epic found, skipping`);
+      console.log(`  · ${courseId}: ${totMins}m unsynced — no Jira Epic found, skipping`);
       continue;
     }
 
@@ -632,46 +650,56 @@ async function main() {
       if (!target) target = epic;
     }
 
-    const mins = Math.round(seconds / 60);
-    const worksheetMins = Math.round(bucket.worksheetMs / 60000);
-    const meetingMins = Math.round(bucket.meetingMs / 60000);
-    const meetingNote = meetingMins > 0 ? ` (worksheet ${worksheetMins}m + meetings ${meetingMins}m across ${bucket.newMeetingEntries.length})` : '';
-    console.log(`  · ${courseId}: ${mins}m${meetingNote} → ${target} (${targetKind})`);
-
-    if (DRY) {
-      summary.minutesLogged += mins;
-      summary.meetingMinutes += meetingMins;
-      continue;
-    }
-
-    try {
-      await postWorklog(target, seconds, `Dashboard time (${courseId}) — nightly sync${meetingNote}`);
-      // Mark every worksheet event in this bucket as synced
-      if (bucket.eventIds.length) {
-        const filter = 'id=in.(' + bucket.eventIds.join(',') + ')';
-        await sbPatch('worksheet_session_events', filter, { synced_to_jira: true });
+    // Post one worklog per work day, stamped with that day's date.
+    for (const dayKey of Object.keys(dayMap).sort()) {
+      const day = dayMap[dayKey];
+      const seconds = Math.floor((day.worksheetMs + day.meetingMs) / 1000);
+      if (seconds < MIN_SECONDS) {
+        summary.skippedBelowMin++;
+        console.log(`  · ${courseId} ${dayKey}: ${seconds}s — below threshold, skipping`);
+        continue;
       }
-      // Persist each new meeting with its [start, end] interval so future
-      // runs can subtract overlap. Existing string-only entries get
-      // migrated to objects on the fly, converging the ledger to the new
-      // shape without a separate migration step.
-      if (bucket.newMeetingEntries.length) {
-        const prev = (syncedUidMap[courseId] || []).map(syncedEntryToObj);
-        const additions = bucket.newMeetingEntries.map(e => ({ uid: e.uid, start: e.start, end: e.end }));
-        const seenUids = new Set();
-        syncedUidMap[courseId] = [...prev, ...additions].filter(e => {
-          if (!e.uid || seenUids.has(e.uid)) return false;
-          seenUids.add(e.uid);
-          return true;
-        });
-        anyMeetingUidsNewlySynced = true;
+      const mins = Math.round(seconds / 60);
+      const worksheetMins = Math.round(day.worksheetMs / 60000);
+      const meetingMins = Math.round(day.meetingMs / 60000);
+      const meetingNote = meetingMins > 0 ? ` (worksheet ${worksheetMins}m + meetings ${meetingMins}m across ${day.newMeetingEntries.length})` : '';
+      console.log(`  · ${courseId} ${dayKey}: ${mins}m${meetingNote} → ${target} (${targetKind})`);
+
+      if (DRY) {
+        summary.minutesLogged += mins;
+        summary.meetingMinutes += meetingMins;
+        continue;
       }
-      summary.posted++;
-      summary.minutesLogged += mins;
-      summary.meetingMinutes += meetingMins;
-    } catch (e) {
-      summary.failed++;
-      console.error(`    ! ${courseId} failed:`, e.message);
+
+      try {
+        await postWorklog(target, seconds, `Dashboard time (${courseId}) for ${dayKey}${meetingNote}`, jiraStartedForDay(dayKey));
+        // Mark this day's worksheet events as synced
+        if (day.eventIds.length) {
+          const filter = 'id=in.(' + day.eventIds.join(',') + ')';
+          await sbPatch('worksheet_session_events', filter, { synced_to_jira: true });
+        }
+        // Persist each new meeting with its [start, end] interval so future
+        // runs can subtract overlap. Existing string-only entries get
+        // migrated to objects on the fly, converging the ledger to the new
+        // shape without a separate migration step.
+        if (day.newMeetingEntries.length) {
+          const prev = (syncedUidMap[courseId] || []).map(syncedEntryToObj);
+          const additions = day.newMeetingEntries.map(e => ({ uid: e.uid, start: e.start, end: e.end }));
+          const seenUids = new Set();
+          syncedUidMap[courseId] = [...prev, ...additions].filter(e => {
+            if (!e.uid || seenUids.has(e.uid)) return false;
+            seenUids.add(e.uid);
+            return true;
+          });
+          anyMeetingUidsNewlySynced = true;
+        }
+        summary.posted++;
+        summary.minutesLogged += mins;
+        summary.meetingMinutes += meetingMins;
+      } catch (e) {
+        summary.failed++;
+        console.error(`    ! ${courseId} ${dayKey} failed:`, e.message);
+      }
     }
     } catch (perCourseErr) {
       // Catches anything that escaped the inner postWorklog try/catch —
