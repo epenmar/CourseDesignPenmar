@@ -3776,6 +3776,34 @@
   }
   window._refreshRubricGridsForActivity = _refreshRubricGridsForActivity;
 
+  // Single-click replace for "TBD" placeholders. When a text input, textarea, or
+  // editable cell whose ENTIRE content is "TBD" gains focus, select it all so the
+  // first keystroke replaces it — no double-click-to-select needed.
+  document.addEventListener('focusin', function(e) {
+    var el = e.target;
+    if (!el || !el.tagName) return;
+    var isField = (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA');
+    var isCE = !isField && el.isContentEditable;
+    if (!isField && !isCE) return;
+    var text = isField ? (el.value || '') : (el.textContent || '');
+    if (text.trim().toUpperCase() !== 'TBD') return;
+    // Defer so the browser's click-to-place-caret runs first; then we override
+    // it with a full selection.
+    setTimeout(function() {
+      try {
+        if (isField) {
+          el.select();
+        } else {
+          var range = document.createRange();
+          range.selectNodeContents(el);
+          var sel = window.getSelection();
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+      } catch (err) {}
+    }, 0);
+  });
+
   // ===== ACTIVITY BLOCK HTML GENERATOR =====
   function buildActivityBlockHtml(act, moduleNum) {
     const id = act.id;
