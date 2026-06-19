@@ -12975,6 +12975,25 @@
     } catch (e) { return iso; }
   }
 
+  // Instructor-selectable DESIGN PARAMETERS for AI Generate, targeted to the
+  // template type. Each selected one is woven into the prompt as a design goal.
+  var AIF_PARAMS = [
+    { key: 'realWorld', label: 'Real-world relevant', def: true, types: ['assignment', 'discussion', 'quiz', 'blank'],
+      prompt: 'Ground it in a real-world / authentic context so the task feels applicable beyond the classroom.' },
+    { key: 'studentChoice', label: 'Student choice', types: ['assignment', 'discussion'],
+      prompt: 'Build in meaningful student choice — let students pick their own focus, example, dataset, case, or angle.' },
+    { key: 'lifeContext', label: 'Student opinion / life context', types: ['assignment', 'discussion'],
+      prompt: 'Invite students to draw on their own opinion, lived experience, or professional/personal context.' },
+    { key: 'variedResponses', label: 'Varied responses (not all the same)', types: ['discussion'],
+      prompt: 'Design it so students naturally produce DIFFERENT responses — assign or let them choose distinct angles, cases, or positions — rather than everyone converging on one identical answer.' },
+    { key: 'multiplePerspectives', label: 'Multiple perspectives / debate', types: ['discussion'],
+      prompt: 'Encourage multiple perspectives, respectful disagreement, or structured debate.' },
+    { key: 'appliedDeliverable', label: 'Authentic / applied deliverable', types: ['assignment'],
+      prompt: 'Frame it as an authentic, applied deliverable (a memo, brief, plan, analysis, or artifact a professional would produce) rather than a generic academic essay.' },
+    { key: 'scaffolded', label: 'Scaffolded steps', types: ['assignment'],
+      prompt: 'Break the work into clear, scaffolded steps students can follow in order.' }
+  ];
+
   window.openAiFillModal = async function(actId, modNum, tplType) {
     var info = _itemForContentPrefix(actId);
     if (!info || info.kind !== 'activity') {
@@ -13051,13 +13070,31 @@
     var actPtsNum = parseFloat(actPtsRaw);
     var hasActPts = !isNaN(actPtsNum) && actPtsNum > 0;
 
+    // Two side-by-side boxes: the static "always included" context (left) and
+    // instructor-selectable design parameters (right), targeted to this type.
+    var _savedParams = (act.aiFillPrefs && act.aiFillPrefs.params) || null;
+    var _paramChecked = function(p) { return (_savedParams && _savedParams.hasOwnProperty(p.key)) ? !!_savedParams[p.key] : !!p.def; };
+    var _typeParams = AIF_PARAMS.filter(function(p) { return p.types.indexOf(tplType) !== -1; });
     html += '<div class="aif-section">';
+    html += '<div style="display:flex; gap:14px; flex-wrap:wrap; align-items:flex-start;">';
+    html += '<div style="flex:1; min-width:210px;">';
     html += '<div class="aif-section-title">Always included as context</div>';
     html += '<div class="aif-section-body">'
       + '• Course: <strong>' + escapeHtml(activeCourse.code || courseId) + '</strong><br>'
       + '• Module ' + modNum + (modTopic ? ': <strong>' + escapeHtml(modTopic) + '</strong>' : '') + '<br>'
       + '• Module Learning Objectives + Course Learning Objectives'
       + '</div>';
+    html += '</div>';
+    html += '<div style="flex:1; min-width:210px;">';
+    html += '<div class="aif-section-title">Design parameters</div>';
+    html += '<div style="display:flex; flex-direction:column; gap:3px;">';
+    _typeParams.forEach(function(p) {
+      html += '<label class="aif-row" style="padding:1px 0;"><input type="checkbox" class="aif-param" data-param="' + p.key + '"' + (_paramChecked(p) ? ' checked' : '') + '> <span>' + escapeHtml(p.label) + '</span></label>';
+    });
+    html += '</div>';
+    html += '<div class="aif-hint">Folded into the generation as design goals.</div>';
+    html += '</div>';
+    html += '</div>';
     html += '</div>';
 
     // Custom instructions — free-entry text the instructor wants the
@@ -13378,10 +13415,13 @@
     var lenCountEl = document.getElementById('aif-length-count');
     var lenUnitEl = document.getElementById('aif-length-unit');
     var _intOrZero = function(el) { var v = parseInt((el && el.value) || '', 10); return isNaN(v) ? 0 : v; };
+    var params = {};
+    document.querySelectorAll('.aif-param').forEach(function(cb) { params[cb.getAttribute('data-param')] = cb.checked; });
     return {
       tool: toolEl ? toolEl.value : '',
       toolCustom: toolCustomEl ? (toolCustomEl.value || '').trim() : '',
       customNotes: customNotesEl ? (customNotesEl.value || '').trim() : '',
+      params: params,
       length: {
         count: _intOrZero(lenCountEl),
         unit: lenUnitEl ? lenUnitEl.value : 'words'
@@ -13596,6 +13636,14 @@
         + 'meeting notes, generic best-practices — conflicts with what the instructor wrote '
         + 'here, the instructor wins.)\n';
       prompt += customNotes + '\n';
+    }
+
+    // Design parameters — instructor-checked goals woven into the task.
+    var _selParams = (prefs && prefs.params) || {};
+    var _paramLines = AIF_PARAMS.filter(function(p) { return _selParams[p.key]; }).map(function(p) { return '- ' + p.prompt; });
+    if (_paramLines.length) {
+      prompt += '\n## Design parameters (instructor-selected — build these into the task)\n';
+      prompt += _paramLines.join('\n') + '\n';
     }
 
     // Target length — optional page/word count the deliverable should aim for.
