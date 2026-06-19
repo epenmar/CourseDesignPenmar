@@ -20769,7 +20769,12 @@
         page: _lastTrackedPage,
         location: _lastTrackedLocation,
         online_at: new Date().toISOString(),
-        last_active_at: new Date(_lastLocalActivityAt).toISOString()
+        last_active_at: new Date(_lastLocalActivityAt).toISOString(),
+        // Liveness beat (fresh on every track, incl. the periodic heartbeat).
+        // Distinguishes a still-open-but-idle tab (keeps beating) from a CLOSED
+        // window (stops beating), so a closed window's pill clears in ~2 min
+        // even if Supabase's own disconnect/leave is slow or missed.
+        heartbeat_at: new Date().toISOString()
       });
     } catch (e) { console.warn('[presence] track failed:', e && e.message); }
   }
@@ -20779,10 +20784,19 @@
   // collaborator pausing to read a long passage or hop to another tab for a
   // quick reference doesn't flicker.
   var PRESENCE_IDLE_MS = 5 * 60 * 1000;
-  // After this much inactivity, a remote collaborator's pill is REMOVED (not just
-  // greyed) — so it doesn't linger once they've stopped working, and a stale
-  // entry from a tab that closed without a clean leave eventually clears.
-  var PRESENCE_GONE_MS = 10 * 60 * 1000;
+  // If we haven't seen a HEARTBEAT from a collaborator in this long, their tab is
+  // gone (closed) and the pill is removed. Heartbeat fires ~every 45s (and ~1/min
+  // even in a backgrounded tab), so 2.5 min tolerates a missed beat while still
+  // clearing a closed window quickly.
+  var PRESENCE_GONE_MS = 150 * 1000;
+  // Periodic heartbeat: re-track while the channel is alive so an idle (but open)
+  // tab keeps signaling liveness. A closed window stops, and the GONE filter
+  // drops it. Runs regardless of activity, unlike the activity-only re-track.
+  setInterval(function() {
+    if (!presenceChannel) return;
+    var id = (typeof getCommentIdentity === 'function') ? getCommentIdentity() : null;
+    if (id) _trackPresence(id);
+  }, 45000);
 
   // Re-track presence on local activity, throttled so we don't spam the
   // channel. The throttled re-track lets collaborators see us come back
@@ -21480,8 +21494,11 @@
     var _pNow = Date.now();
     users = users.filter(function(u) {
       if (identity && u.name === identity.name) return true; // always keep self
-      var la = u.last_active_at ? new Date(u.last_active_at).getTime() : _pNow;
-      return isNaN(la) || (_pNow - la) <= PRESENCE_GONE_MS;
+      // Liveness from the heartbeat; fall back to last_active_at for pre-update
+      // clients (so they aren't dropped mid-rollout).
+      var beat = u.heartbeat_at ? new Date(u.heartbeat_at).getTime()
+               : (u.last_active_at ? new Date(u.last_active_at).getTime() : _pNow);
+      return isNaN(beat) || (_pNow - beat) <= PRESENCE_GONE_MS;
     });
     var others = users.filter(function(u) { return u.name !== (identity ? identity.name : ''); });
 
