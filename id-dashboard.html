@@ -3255,15 +3255,19 @@
     var _previewNewUser = false;
     try { _previewNewUser = new URLSearchParams(location.search).get('preview') === 'newuser'; } catch(e) {}
     try { if (window.ComposeAuth) await window.ComposeAuth.init({ requireLogin: !_previewNewUser }); } catch(e) { console.warn('[compose-auth] init failed:', e && e.message); }
-    // Tenant safety: if a DIFFERENT account is now signed in on this browser,
-    // wipe the previous user's cached data before the pull repopulates this
-    // user's own. First run (no stored uid) preserves existing single-user data.
+    // Is this viewer the owner/admin of the static seed data (hardcoded courses,
+    // dashboard-data.js, and any cached owner localStorage)?
+    var _isOwner;
+    if (_previewNewUser) _isOwner = false;
+    else _isOwner = !window.COMPOSE_AUTH_ENABLED || (window.ComposeAuth && window.ComposeAuth.isAdmin && window.ComposeAuth.isAdmin());
+    // Tenant safety: a NON-OWNER must never inherit the owner's cached data on
+    // this browser (shared machine / prior login). Wipe owner localStorage BEFORE
+    // the pull repopulates this user's OWN data from the cloud. The owner is never
+    // wiped. This is what stops the owner's to-dos / courses leaking to new users.
     try {
       if (window.COMPOSE_AUTH_ENABLED && window.ComposeAuth && window.ComposeAuth.user) {
-        var _uid = window.ComposeAuth.user.id;
-        var _lastUid = localStorage.getItem('compose_last_uid');
-        if (_lastUid && _lastUid !== _uid) _clearComposeLocalData();
-        localStorage.setItem('compose_last_uid', _uid);
+        if (!_isOwner) _clearComposeLocalData();
+        localStorage.setItem('compose_last_uid', window.ComposeAuth.user.id);
       }
     } catch(e) {}
     if (window.SupabaseSync && window.SupabaseSync.pullAllFromCloud) {
@@ -3305,11 +3309,17 @@
     // regardless of RLS. For any non-owner, drop them here — after the cloud pull,
     // before the user_courses re-merge below — so only the signed-in user's own
     // cloud courses (re-merged next) appear. The owner/admin keeps the full set.
-    var _composeIsOwner = !window.COMPOSE_AUTH_ENABLED
-      || (window.ComposeAuth && window.ComposeAuth.isAdmin && window.ComposeAuth.isAdmin());
-    if (!_composeIsOwner) {
+    if (!_isOwner) {
       try { Object.keys(courseData).forEach(function(k) { delete courseData[k]; }); } catch(e) {}
-      window.SYNCED_DATA = { courses: {}, upcomingDeadlines: [], syncedAt: null };
+      // MUTATE the existing object (don't reassign) so the captured `synced`
+      // const — which several renderers read directly — is cleared too.
+      if (window.SYNCED_DATA && typeof window.SYNCED_DATA === 'object') {
+        window.SYNCED_DATA.courses = {};
+        window.SYNCED_DATA.upcomingDeadlines = [];
+        window.SYNCED_DATA.syncedAt = null;
+      } else {
+        window.SYNCED_DATA = { courses: {}, upcomingDeadlines: [], syncedAt: null };
+      }
       try { localStorage.removeItem('dashboard_upcoming_cache'); } catch(e) {}
     }
     // Re-merge user_courses into courseData after the cloud pull. The IIFE at
