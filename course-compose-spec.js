@@ -326,18 +326,40 @@
   // stores files as { name, mimeType, sizeBytes, driveUrl?, dataUrl? };
   // Curate only needs the resolvable URL + metadata, so we drop dataUrl
   // (base64 payloads can balloon the spec into MB territory).
+  // Map a filename extension to a MIME type (the Drive upload meta doesn't store
+  // one). Covers the formats faculty actually attach: PDF/CSV/PPT/DOC/XLS/images/
+  // video/zip. Curate can still re-detect from the Drive file if absent.
+  function _mimeFromName(name) {
+    var m = String(name || '').toLowerCase().match(/\.([a-z0-9]+)$/);
+    var ext = m ? m[1] : '';
+    var map = {
+      pdf: 'application/pdf', csv: 'text/csv', txt: 'text/plain',
+      ppt: 'application/vnd.ms-powerpoint', pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      doc: 'application/msword', docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      xls: 'application/vnd.ms-excel', xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', gif: 'image/gif',
+      mp4: 'video/mp4', mp3: 'audio/mpeg', zip: 'application/zip'
+    };
+    return map[ext] || '';
+  }
   function _fileManifestEntry(file, idx, ownerType, ownerId, moduleNum, titleHint) {
+    var name = (file && file.name) || '';
+    // The stored attachedFiles meta uses { name, size, webViewLink, driveId };
+    // map those onto the manifest's filename/sizeBytes/driveUrl/driveId so the
+    // manifest actually carries what Curate needs to fetch the bytes from Drive.
     return {
       ref: ownerId + '/file-' + idx,
       kind: 'file',
       ownerType: ownerType,
       ownerId: ownerId,
       moduleNum: moduleNum,
-      filename: (file && file.name) || '',
-      mimeType: (file && file.mimeType) || '',
-      sizeBytes: (file && file.sizeBytes) || 0,
-      driveUrl: (file && file.driveUrl) || '',
-      title: titleHint || (file && file.name) || ''
+      filename: name,
+      mimeType: (file && (file.mimeType || file.type)) || _mimeFromName(name),
+      sizeBytes: (file && (file.sizeBytes || file.size)) || 0,
+      driveId: (file && file.driveId) || '',
+      driveUrl: (file && (file.driveUrl || file.webViewLink)) || '',
+      status: (file && file.status) || '',
+      title: titleHint || name
     };
   }
 
