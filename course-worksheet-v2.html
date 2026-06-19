@@ -687,6 +687,9 @@
   .rubric-table { width: 100%; border-collapse: collapse; font-size: 13px; line-height: 1.4; font-family: 'Inter', sans-serif; }
   .rubric-table th, .rubric-table td { border: 1px solid #e8e5dd; padding: 6px 10px; vertical-align: top; min-width: 90px; }
   .rubric-table th { background: #fafaf7; color: #555; font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; }
+  /* Points column tinted so it reads apart from the descriptor columns. */
+  .rubric-table td.rubric-points-col { background: #edf1f8; }
+  .rubric-table th.rubric-points-col { background: #e1e8f3; }
   .rubric-table th[contenteditable]:focus,
   .rubric-table td[contenteditable]:focus { outline: 2px solid #ffc627; outline-offset: -2px; background: #fffde6; }
   .rubric-table th[contenteditable]:empty::before,
@@ -3498,8 +3501,12 @@
     var html = '<div class="rubric-grid" data-rubric-act="' + escapeHtml(act.id) + '" data-rubric-tpl="' + escapeHtml(tplType) + '">';
     html += '<table class="rubric-table"><thead><tr>';
     var header = rows[0];
+    // Column index of the "Points" column (if any) — tinted to set it apart
+    // from the descriptor columns.
+    var pointsCol = -1;
+    header.forEach(function(c, i) { if (String(c).trim().toLowerCase() === 'points') pointsCol = i; });
     header.forEach(function(cell, ci) {
-      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)">' + escapeHtml(cell) + '</th>';
+      html += '<th' + (ci === pointsCol ? ' class="rubric-points-col"' : '') + ' contenteditable="true" data-rubric-r="0" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)">' + escapeHtml(cell) + '</th>';
     });
     // Pad the header out to maxCols so a body row wider than the header still aligns.
     for (var hc = header.length; hc < maxCols; hc++) {
@@ -3509,7 +3516,7 @@
     html += '</tr></thead><tbody>';
     for (var ri = 1; ri < rows.length; ri++) {
       html += '<tr>';
-      html += _rubricBodyCellsHtml(rows[ri], ri, maxCols);
+      html += _rubricBodyCellsHtml(rows[ri], ri, maxCols, pointsCol);
       html += '<td class="rubric-actions">'
         + '<button class="rubric-row-btn" title="Copy row to clipboard" onclick="_copyRubricRow(this)">⧉</button>'
         + '<button class="rubric-row-btn" title="Fewer rating columns in this row" onclick="_rubricRowRemoveCol(this)">&minus;</button>'
@@ -3528,21 +3535,24 @@
   // Render a body row's editable cells, distributing colspans so a row with
   // fewer cells than the grid's widest still fills the full width — the
   // Canvas-style "this criterion has fewer rating levels" look.
-  function _rubricBodyCellsHtml(row, ri, maxCols) {
-    var cell = function(val, ci, span) {
-      return '<td contenteditable="true" data-rubric-r="' + ri + '" data-rubric-c="' + ci + '"'
+  function _rubricBodyCellsHtml(row, ri, maxCols, pointsCol) {
+    var cell = function(val, ci, span, isPoints) {
+      return '<td' + (isPoints ? ' class="rubric-points-col"' : '') + ' contenteditable="true" data-rubric-r="' + ri + '" data-rubric-c="' + ci + '"'
         + (span > 1 ? ' colspan="' + span + '"' : '')
         + ' oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)">' + escapeHtml(val || '') + '</td>';
     };
     var n = row.length;
-    if (n <= 1) return cell(row[0] || '', 0, maxCols);
-    var out = cell(row[0], 0, 1); // criteria column keeps 1 col, aligns with header
+    if (n <= 1) return cell(row[0] || '', 0, maxCols, false);
+    // Only full-width rows have a dedicated Points cell; short (variable-column)
+    // rows merge across that area, so nothing gets the points tint there.
+    var full = (n === maxCols);
+    var out = cell(row[0], 0, 1, false); // criteria column keeps 1 col, aligns with header
     var remCols = Math.max(maxCols - 1, n - 1);
     var remCells = n - 1;
     var base = Math.floor(remCols / remCells);
     var extra = remCols % remCells;
     for (var ci = 1; ci < n; ci++) {
-      out += cell(row[ci], ci, base + ((ci - 1) < extra ? 1 : 0));
+      out += cell(row[ci], ci, base + ((ci - 1) < extra ? 1 : 0), full && ci === pointsCol);
     }
     return out;
   }
@@ -13058,7 +13068,7 @@
       html += '<div class="aif-empty">No meetings synced for this course yet. (Meetings sync via the dashboard\'s Granola pipeline.)</div>';
     } else {
       var activityKeywords = _aiFillActivityKeywords(act);
-      html += '<div class="aif-section-hint">Most recent first. Auto-checked: meetings that name-drop this activity, plus the latest one.</div>';
+      html += '<div class="aif-section-hint">Most recent first. None are selected by default — check any meetings whose notes should inform this generation. (Tags flag ones that mention this activity.)</div>';
       html += '<div class="aif-quick"><button type="button" onclick="_aifSelectAll(\'meeting\', true)">Select all</button><button type="button" onclick="_aifSelectAll(\'meeting\', false)">Clear all</button></div>';
       html += '<div class="aif-context-list">';
       meetings.forEach(function(m, idx) {
@@ -13072,7 +13082,9 @@
         ].join(' ').toLowerCase();
         var mentionsActivity = activityKeywords.some(function(kw) { return hayStack.indexOf(kw) !== -1; });
         var isMostRecent = idx === 0;
-        var defaultChecked = mentionsActivity || isMostRecent;
+        // Meetings start UNSELECTED — the user opts in per generation. The
+        // mentions/most-recent tags below are just hints, not auto-checks.
+        var defaultChecked = false;
         var hint = mentionsActivity ? '<span class="aif-meta" style="color:#2e7d32; font-weight:600;"> · matches this activity</span>'
                  : (isMostRecent ? '<span class="aif-meta"> · most recent</span>' : '');
         html += '<label class="aif-row" title="' + escapeHtml(preview) + '">'
