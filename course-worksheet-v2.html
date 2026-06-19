@@ -15648,13 +15648,17 @@
     if (!btn) return;
     var present = _contentIsPresent(body);
     var info = _itemForContentPrefix(prefix);
-    var complete = present && info && info.item && info.item.contentComplete;
-    btn.classList.toggle('has-content', present);
-    btn.classList.toggle('is-complete', !!complete);
+    // "Complete" is the instructor's explicit sign-off flag — drive the green ✓
+    // off that alone, NOT off re-detecting content in the live DOM. _contentIsPresent
+    // can momentarily read empty while the rich editors paint on open, which used to
+    // flip a marked-complete row's carrot from green back to amber.
+    var complete = !!(info && info.item && info.item.contentComplete);
+    btn.classList.toggle('is-complete', complete);
+    btn.classList.toggle('has-content', present && !complete);
     // Hover tooltip explains what's making the row count as having
     // content — files, links, rich-text length, which template fields
     // are populated, etc. Suffix with the complete-marker state.
-    if (present && info) {
+    if ((present || complete) && info) {
       var reasons = _contentReasons(info.item, info.kind);
       var suffix = complete ? '\n\n— Marked complete' : '\n\n— Not yet marked complete';
       btn.setAttribute('title', (reasons || '') + suffix);
@@ -15756,9 +15760,10 @@
       var info = _itemForContentPrefix(id);
       if (!info) return;
       var has = _hasAnyAttachedContent(info.item, kind);
-      var done = !!(has && info.item.contentComplete);
-      chip.classList.toggle('has-content', !!has);
+      // Green ✓ follows the explicit complete flag, not live content detection.
+      var done = !!info.item.contentComplete;
       chip.classList.toggle('is-complete', done);
+      chip.classList.toggle('has-content', !!has && !done);
       chip.textContent = done ? '✓ Content' : (has ? 'Content' : '+ Content');
     });
   }
