@@ -693,14 +693,18 @@
   .rubric-table td[contenteditable]:empty::before { content: attr(data-placeholder); color: #bbb; }
   /* Actions (delete-row) column is pinned to the right edge so it stays
      reachable even when a wide AI-generated rubric overflows horizontally. */
-  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { border: none; padding: 0 4px; text-align: center; min-width: 88px; width: 88px; position: sticky; right: 0; white-space: nowrap; }
+  /* Pinned actions column. border-left + shadow make it a clean frozen column
+     so on a wide (overflowing) rubric it reads as a separate column instead of
+     the buttons appearing to float over the cell text. Width fits all 4 buttons
+     so they can't spill out of the cell. */
+  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { border: none; border-left: 1px solid #e8e5dd; box-shadow: -3px 0 5px -3px rgba(0,0,0,0.07); padding: 4px 6px; text-align: center; vertical-align: middle; min-width: 104px; width: 104px; position: sticky; right: 0; white-space: nowrap; }
   .rubric-table th.rubric-actions { background: #fafaf7; }
   .rubric-table td.rubric-actions { background: #fff; }
   /* Always visible (was hover-only, which made deleting undiscoverable). */
-  .rubric-row-del { display: inline-block; border: none; background: none; color: #c0392b; font-size: 16px; cursor: pointer; line-height: 1; padding: 0 3px; opacity: 0.55; }
+  .rubric-row-del { display: inline-block; border: none; background: none; color: #c0392b; font-size: 15px; cursor: pointer; line-height: 1; padding: 0 4px; opacity: 0.55; vertical-align: middle; }
   .rubric-table tbody tr:hover .rubric-row-del, .rubric-row-del:hover { opacity: 1; color: #c62828; }
   /* Per-row controls: copy, fewer/more rating columns. */
-  .rubric-row-btn { display: inline-block; border: none; background: none; color: #777; font-size: 13px; font-weight: 600; cursor: pointer; line-height: 1; padding: 0 3px; opacity: 0.5; }
+  .rubric-row-btn { display: inline-block; border: none; background: none; color: #777; font-size: 13px; font-weight: 600; cursor: pointer; line-height: 1; padding: 0 4px; opacity: 0.5; vertical-align: middle; }
   .rubric-table tbody tr:hover .rubric-row-btn, .rubric-table thead tr:hover .rubric-row-btn, .rubric-row-btn:hover { opacity: 1; }
   .rubric-row-btn.copied { color: #2e7d32; opacity: 1; }
   .rubric-grid-actions { display: flex; align-items: center; gap: 12px; padding: 6px 8px; border-top: 1px solid #f0ede5; background: #fafaf7; }
@@ -889,6 +893,14 @@
   .template-preview h4 { font-size: 13px; font-weight: 600; color: #8c1d40; margin-bottom: 8px; }
   .template-preview .template-section { margin-bottom: 10px; }
   .template-preview .template-section-label { font-size: 11px; font-weight: 600; color: #666; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 4px; }
+  /* When a section carries the field-actions toolbar (Copy from / Improve), put
+     the section title on the SAME line as those buttons: title left, buttons
+     right, editor on the next full-width line. Sections without the toolbar
+     (e.g. the rubric grid) are unaffected. */
+  .template-preview .template-section:has(> .tpl-field-actions) { display: flex; flex-wrap: wrap; align-items: center; column-gap: 10px; }
+  .template-preview .template-section:has(> .tpl-field-actions) > .template-section-label { flex: 1 1 auto; margin-bottom: 0; }
+  .template-preview .template-section:has(> .tpl-field-actions) > .tpl-field-actions { flex: 0 0 auto; margin-bottom: 0 !important; }
+  .template-preview .template-section:has(> .tpl-field-actions) > .rich-editor { flex: 1 1 100%; margin-top: 4px; }
   /* Collapsible template section (for optional fields like Activity
      Learning Objective). Default closed; instructors who don't use the
      field never see the body. */
@@ -3464,7 +3476,8 @@
       'complete':   ['Criteria', 'Complete', 'Incomplete'],
       'masteryNot': ['Criteria', 'Mastery', 'Not Yet'],
       'three':      ['Criteria', 'Strong', 'Adequate', 'Developing', 'Points'],
-      'four':       ['Criteria', 'Excellent', 'Proficient', 'Developing', 'Beginning', 'Points']
+      'four':       ['Criteria', 'Excellent', 'Proficient', 'Developing', 'Beginning', 'Points'],
+      'emap':       ['Criteria', 'Exceeds', 'Meets', 'Approaches', 'Does Not Meet', 'Points']
     };
     if (pref) {
       if (pref.style === 'custom' && pref.levels) {
@@ -3486,11 +3499,11 @@
     html += '<table class="rubric-table"><thead><tr>';
     var header = rows[0];
     header.forEach(function(cell, ci) {
-      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)">' + escapeHtml(cell) + '</th>';
+      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + ci + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)">' + escapeHtml(cell) + '</th>';
     });
     // Pad the header out to maxCols so a body row wider than the header still aligns.
     for (var hc = header.length; hc < maxCols; hc++) {
-      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + hc + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)"></th>';
+      html += '<th contenteditable="true" data-rubric-r="0" data-rubric-c="' + hc + '" oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)"></th>';
     }
     html += '<th class="rubric-actions"><button class="rubric-row-btn" title="Copy header row to clipboard" onclick="_copyRubricRow(this)">⧉</button></th>';
     html += '</tr></thead><tbody>';
@@ -3519,7 +3532,7 @@
     var cell = function(val, ci, span) {
       return '<td contenteditable="true" data-rubric-r="' + ri + '" data-rubric-c="' + ci + '"'
         + (span > 1 ? ' colspan="' + span + '"' : '')
-        + ' oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)">' + escapeHtml(val || '') + '</td>';
+        + ' oninput="_onRubricCellInput(this)" onblur="_onRubricCellBlur(this)" onpaste="_onRubricCellPaste(event, this)">' + escapeHtml(val || '') + '</td>';
     };
     var n = row.length;
     if (n <= 1) return cell(row[0] || '', 0, maxCols);
@@ -3593,6 +3606,7 @@
       td.setAttribute('data-rubric-c', ci);
       td.setAttribute('oninput', '_onRubricCellInput(this)');
       td.setAttribute('onblur', '_onRubricCellBlur(this)');
+      td.setAttribute('onpaste', '_onRubricCellPaste(event, this)');
       newRow.appendChild(td);
     });
     var actionTd = document.createElement('td');
@@ -3667,6 +3681,47 @@
     dataCells[dataCells.length - 1].remove();
     _persistRubricGrid(grid);
     _refreshRubricGridsForActivity(grid.getAttribute('data-rubric-act'), grid.getAttribute('data-rubric-tpl'));
+  };
+  // Spreadsheet-style paste: a copied row (or block) lands on the clipboard as
+  // TAB-separated cells / newline-separated rows. Pasting into one contenteditable
+  // cell would otherwise dump the whole blob into that single cell. Here we split
+  // it back out across cells (and rows), starting at the target cell.
+  window._onRubricCellPaste = function(e, cell) {
+    var cd = e.clipboardData || window.clipboardData;
+    if (!cd) return;
+    var text = String(cd.getData('text/plain') || '').replace(/\r/g, '');
+    var body = text.replace(/\n$/, ''); // ignore a single trailing newline from a row copy
+    if (body.indexOf('\t') === -1 && body.indexOf('\n') === -1) return; // single cell → let the browser paste normally
+    e.preventDefault();
+    var grid = cell.closest('.rubric-grid');
+    var tr = cell.closest('tr');
+    if (!grid || !tr) return;
+    var allTrs = Array.prototype.slice.call(grid.querySelectorAll('thead tr, tbody tr'));
+    // Snapshot the whole grid as a 2D array from the DOM (header = row 0).
+    var data = allTrs.map(function(t) {
+      return Array.prototype.slice.call(t.querySelectorAll('th[contenteditable],td[contenteditable]'))
+        .map(function(c) { return (c.textContent || '').trim(); });
+    });
+    var targetRow = allTrs.indexOf(tr);
+    var rowCells = Array.prototype.slice.call(tr.querySelectorAll('th[contenteditable],td[contenteditable]'));
+    var startCol = Math.max(0, rowCells.indexOf(cell));
+    var matrix = body.split('\n').map(function(line) { return line.split('\t'); });
+    matrix.forEach(function(vals, ri) {
+      var r = targetRow + ri;
+      if (!data[r]) data[r] = [];                 // pasted past the end → new body rows
+      var base = (ri === 0) ? startCol : 0;       // first pasted row starts at the clicked cell
+      vals.forEach(function(v, ci) { data[r][base + ci] = String(v).trim(); });
+    });
+    var actId = grid.getAttribute('data-rubric-act');
+    var tplType = grid.getAttribute('data-rubric-tpl');
+    var info = _itemForContentPrefix(actId);
+    if (info && info.item) {
+      if (!info.item.templateData) info.item.templateData = {};
+      if (!info.item.templateData[tplType]) info.item.templateData[tplType] = {};
+      info.item.templateData[tplType]['Rubric'] = _stringifyRubricRows(data);
+      if (typeof saveActivityData === 'function') saveActivityData();
+      _refreshRubricGridsForActivity(actId, tplType);
+    }
   };
   // After AI Fill writes a rubric pipe-string, find every rubric grid
   // bound to that act+tplType and re-render its rows from the new text.
@@ -12822,6 +12877,22 @@
     html += '<div class="aif-hint">Anything you want the AI to weight while generating this content. Overrides default best-practices when in conflict.</div>';
     html += '</div>';
 
+    // Target length — optional page/word count for the student deliverable.
+    var lenPref = (act.aiFillPrefs && act.aiFillPrefs.length) || {};
+    var lenCount = (lenPref.count != null && lenPref.count !== 0) ? lenPref.count : '';
+    var lenUnit = lenPref.unit || 'words';
+    html += '<div class="aif-section">';
+    html += '<div class="aif-section-title">Target length <span class="aif-meta">(optional — sizes the assignment)</span></div>';
+    html += '<div style="display:flex; align-items:center; gap:8px;">';
+    html += '<input type="number" id="aif-length-count" min="0" value="' + escapeHtml(String(lenCount)) + '" placeholder="auto" style="width:100px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;">';
+    html += '<select id="aif-length-unit" class="aif-select" style="width:auto;">';
+    html += '<option value="words"' + (lenUnit === 'words' ? ' selected' : '') + '>words</option>';
+    html += '<option value="pages"' + (lenUnit === 'pages' ? ' selected' : '') + '>pages</option>';
+    html += '</select>';
+    html += '</div>';
+    html += '<div class="aif-hint">Leave blank to let the AI choose. Sets the expected deliverable length (e.g., a 750-word essay or a 2-page memo).</div>';
+    html += '</div>';
+
     // Tool / platform — explicit selection beats letting Claude infer from
     // free-text meeting notes. The chosen tool's instruction conventions
     // (annotate vs post vs record etc.) are baked in as a prompt block.
@@ -12907,6 +12978,7 @@
         ['masteryNot', 'Mastery / Not Yet'],
         ['three',      '3-level (Strong / Adequate / Developing)'],
         ['four',       '4-level (Excellent / Proficient / Developing / Beginning)'],
+        ['emap',       '4-level (Exceeds / Meets / Approaches / Does Not Meet)'],
         ['custom',     'Custom level names…']
       ];
       html += '<div class="aif-field-row">';
@@ -13104,11 +13176,17 @@
     var agReactions = document.getElementById('aif-autograde-reactions');
     var agOther = document.getElementById('aif-autograde-other');
     var customNotesEl = document.getElementById('aif-custom-notes');
+    var lenCountEl = document.getElementById('aif-length-count');
+    var lenUnitEl = document.getElementById('aif-length-unit');
     var _intOrZero = function(el) { var v = parseInt((el && el.value) || '', 10); return isNaN(v) ? 0 : v; };
     return {
       tool: toolEl ? toolEl.value : '',
       toolCustom: toolCustomEl ? (toolCustomEl.value || '').trim() : '',
       customNotes: customNotesEl ? (customNotesEl.value || '').trim() : '',
+      length: {
+        count: _intOrZero(lenCountEl),
+        unit: lenUnitEl ? lenUnitEl.value : 'words'
+      },
       autograde: {
         enabled: !!(agEnabled && agEnabled.checked),
         minWords: _intOrZero(agWords),
@@ -13178,7 +13256,8 @@
       'complete':   'Complete | Incomplete',
       'masteryNot': 'Mastery | Not Yet',
       'three':      'Strong | Adequate | Developing',
-      'four':       'Excellent | Proficient | Developing | Beginning'
+      'four':       'Excellent | Proficient | Developing | Beginning',
+      'emap':       'Exceeds | Meets | Approaches | Does Not Meet'
     };
     if (style === 'custom') {
       var parts = String(customLevels || '').split(',').map(function(s) { return s.trim(); }).filter(Boolean);
@@ -13318,6 +13397,15 @@
         + 'meeting notes, generic best-practices — conflicts with what the instructor wrote '
         + 'here, the instructor wins.)\n';
       prompt += customNotes + '\n';
+    }
+
+    // Target length — optional page/word count the deliverable should aim for.
+    var lenPref = (prefs && prefs.length) || {};
+    if (lenPref.count && lenPref.count > 0) {
+      var lenUnit = lenPref.unit === 'pages' ? 'page' : 'word';
+      prompt += '\n## Expected length (instructor-set — authoritative)\n';
+      prompt += 'The student deliverable should be approximately ' + lenPref.count + ' ' + lenUnit + (lenPref.count === 1 ? '' : 's') + '. '
+        + 'State this length requirement explicitly in the Instructions section, and size the scope of the task to match it (don\'t ask for more work than fits that length).\n';
     }
 
     // Tool / platform — explicit pick from the modal. Authoritative.
