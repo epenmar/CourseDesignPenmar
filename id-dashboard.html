@@ -5099,13 +5099,13 @@
       html += `<a href="${c.devLink}" target="_blank" class="btn-open-dev" style="text-decoration:none; padding:8px 16px;">📄 Open Worksheet</a>`;
     }
     if (c.driveFolder) {
-      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#3c4043; border:1.5px solid #dadce0; text-decoration:none; padding:8px 16px;">${DRIVE_ICON_SVG}Google Drive</a>`;
+      html += `<a href="${c.driveFolder}" target="_blank" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; text-decoration:none; padding:8px 16px;">${DRIVE_ICON_SVG}Google Drive</a>`;
     }
     html += buildCanvasButton(id, c);
     if (c.email) {
       html += buildEmailDropdown(id, c);
     }
-    html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#4caf50; color:#fff; border:none; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
+    html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
     var _copyLinkStyle = 'background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; text-align:left;';
     html += `<span style="display:inline-flex; flex-direction:column; gap:3px; align-self:center; margin-left:4px;">`;
     if (c.devLink) {
