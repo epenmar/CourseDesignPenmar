@@ -13112,6 +13112,9 @@
     html += '</div>';
 
     // Target length — optional page/word count for the student deliverable.
+    // Hidden for discussions: those are sized by the auto-grading word-count /
+    // peer-reply thresholds, so a deliverable length here would be redundant.
+    if (tplType !== 'discussion') {
     var lenPref = (act.aiFillPrefs && act.aiFillPrefs.length) || {};
     var lenCount = (lenPref.count != null && lenPref.count !== 0) ? lenPref.count : '';
     var lenUnit = lenPref.unit || 'words';
@@ -13126,6 +13129,7 @@
     html += '</div>';
     html += '<div class="aif-hint">Leave blank to let the AI choose. Sets the expected deliverable length (e.g., a 750-word essay or a 2-page memo).</div>';
     html += '</div>';
+    } // end: target length (non-discussion only)
 
     // Tool / platform — explicit selection beats letting Claude infer from
     // free-text meeting notes. The chosen tool's instruction conventions
