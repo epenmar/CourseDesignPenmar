@@ -100,6 +100,21 @@
     if (dsErr) errors.push('dashboard_state: ' + dsErr.message);
     else if (dsData) {
       dsData.forEach(function(row) {
+        // starred_courses is a favorites list whose toggleStar cloud upsert is
+        // fire-and-forget. A quick reload (or a failed upsert) could race it, so
+        // blindly overwriting local with cloud here used to silently drop a star
+        // the user had just added. Union-merge instead: cloud as base, plus any
+        // local star not yet reflected in the cloud, so stars never vanish.
+        if (row.key === 'starred_courses') {
+          try {
+            var localStars = parseJson(localStorage.getItem('starred_courses'), []) || [];
+            var cloudStars = Array.isArray(row.data) ? row.data : (parseJson(row.data, []) || []);
+            var union = cloudStars.slice();
+            localStars.forEach(function(s) { if (union.indexOf(s) === -1) union.push(s); });
+            localStorage.setItem('starred_courses', JSON.stringify(union));
+            return;
+          } catch (e) { /* fall through to plain overwrite */ }
+        }
         var v = typeof row.data === 'string' ? row.data : JSON.stringify(row.data);
         localStorage.setItem(row.key, v);
       });
