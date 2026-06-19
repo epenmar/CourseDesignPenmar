@@ -4012,7 +4012,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
-              '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(id) + '</div>' +
+              '<div class="template-section"><div class="template-section-label">Quiz Description</div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(id) + '</div>' +
               '<div id="' + id + '-quiz-builder"></div>' +
               '<div style="margin-top:8px;">' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>' +
@@ -9497,7 +9497,7 @@
     // Quiz template (will be modernized in task 18)
     html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
     html += '<h4>Quiz Template</h4>';
-    html += '<div class="template-section"><div class="template-section-label">Quiz Description <span style="font-weight:400; color:#888; font-size:11px;">— overview shown above the questions: what the quiz covers and what to review to succeed</span></div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(act.id) + '</div>';
+    html += '<div class="template-section"><div class="template-section-label">Quiz Description</div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(act.id) + '</div>';
     html += '<div id="' + id + '-quiz-builder"></div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>';
@@ -13973,9 +13973,61 @@
   // overwrites and on throttled manual edits) so an earlier version can be
   // restored. Stored in localStorage, scoped to the course.
   var _fieldHistLastAt = {};
-  function _fieldHistKey() { return 'tplFieldHistory_' + ((typeof activeCourse !== 'undefined' && activeCourse && activeCourse.code) || 'course'); }
+  function _fieldHistKey() { return 'tplFieldHistory_' + ((typeof courseId !== 'undefined' && courseId) || 'course'); }
   function _loadFieldHist() { try { return JSON.parse(localStorage.getItem(_fieldHistKey()) || '{}'); } catch (e) { return {}; } }
   function _saveFieldHist(h) { try { localStorage.setItem(_fieldHistKey(), JSON.stringify(h)); } catch (e) {} }
+
+  // ---- Shared (cloud) field history ----
+  // Lives in a SEPARATE worksheets row keyed "<courseId>::history" so all
+  // collaborators (instructor included) see it, WITHOUT bloating the main
+  // worksheet blob that's pushed on every keystroke. Pushed (debounced) when
+  // history changes; pulled when the History modal opens.
+  function _mergeFieldHist(a, b) {
+    a = a || {}; b = b || {};
+    var out = {}, ids = {};
+    Object.keys(a).forEach(function(k) { ids[k] = 1; });
+    Object.keys(b).forEach(function(k) { ids[k] = 1; });
+    Object.keys(ids).forEach(function(id) {
+      var combined = (a[id] || []).concat(b[id] || []);
+      combined.sort(function(x, y) { return (y.at || 0) - (x.at || 0); });
+      var seen = {}, merged = [];
+      combined.forEach(function(e) {
+        if (!e || seen[e.value]) return;
+        seen[e.value] = 1;
+        merged.push(e);
+      });
+      out[id] = merged.slice(0, 20);
+    });
+    return out;
+  }
+  var _fieldHistPushTimer = null;
+  function _pushFieldHistCloud() {
+    if (!window._sbClient || typeof courseId === 'undefined' || !courseId) return;
+    if (typeof _isReviewer === 'function' && _isReviewer()) return; // reviewers are read-only
+    clearTimeout(_fieldHistPushTimer);
+    _fieldHistPushTimer = setTimeout(function() {
+      var rowId = courseId + '::history';
+      window._sbClient.from('worksheets').select('data').eq('course_id', rowId).maybeSingle()
+        .then(function(r) {
+          var cloud = (r && r.data && r.data.data) || {};
+          var merged = _mergeFieldHist(_loadFieldHist(), cloud);
+          _saveFieldHist(merged);
+          return window._sbClient.from('worksheets').upsert({ course_id: rowId, data: merged }, { onConflict: 'course_id' });
+        })
+        .then(function(r) { if (r && r.error) console.warn('[field-hist push]', r.error.message); })
+        .catch(function(e) { console.warn('[field-hist push]', e && e.message); });
+    }, 2500);
+  }
+  function _pullFieldHistCloud() {
+    if (!window._sbClient || typeof courseId === 'undefined' || !courseId) return Promise.resolve();
+    var rowId = courseId + '::history';
+    return window._sbClient.from('worksheets').select('data').eq('course_id', rowId).maybeSingle()
+      .then(function(r) {
+        var cloud = (r && r.data && r.data.data) || {};
+        _saveFieldHist(_mergeFieldHist(_loadFieldHist(), cloud));
+      })
+      .catch(function(e) { console.warn('[field-hist pull]', e && e.message); });
+  }
   function _pushFieldHistory(actId, tplType, section, value, label) {
     value = String(value == null ? '' : value);
     if (!value.replace(/<[^>]+>/g, '').trim()) return; // never snapshot an empty value
@@ -13987,6 +14039,7 @@
     if (arr.length > 20) arr = arr.slice(0, 20);
     h[id] = arr;
     _saveFieldHist(h);
+    _pushFieldHistCloud(); // share with collaborators (debounced)
   }
 
   // Write a value into a single template field + its editor (clearing first so
@@ -14013,8 +14066,10 @@
     _fieldHistCtx = { actId: actId, tplType: tplType, section: section };
     var ov = document.getElementById('field-hist-overlay') || _buildFieldHistoryModal();
     document.getElementById('field-hist-title').textContent = section;
-    _renderFieldHistory();
+    _renderFieldHistory();           // show local immediately
     ov.style.display = 'flex';
+    // Then pull the shared (collaborator) history and re-render with it merged in.
+    _pullFieldHistCloud().then(function() { if (_fieldHistCtx && _fieldHistCtx.section === section) _renderFieldHistory(); });
   };
   window.closeFieldHistory = function() { var ov = document.getElementById('field-hist-overlay'); if (ov) ov.style.display = 'none'; };
   function _fieldHistFmt(ms) {

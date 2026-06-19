@@ -91,6 +91,9 @@
     if (wsErr) errors.push('worksheets: ' + wsErr.message);
     else if (wsData) {
       wsData.forEach(function(row) {
+        // Skip side rows like "<courseId>::history" (per-field version history is
+        // stored in its own worksheets row; it's not a course worksheet blob).
+        if (String(row.course_id).indexOf('::') !== -1) return;
         localStorage.setItem('worksheet_' + row.course_id, JSON.stringify(row.data));
       });
       pulled.worksheets = wsData.length;
