@@ -185,11 +185,46 @@
     return !!(accessToken && Date.now() < tokenExpiresAt - 30000);
   }
 
+  // List the (non-folder) files in the course folder root + its immediate
+  // subfolders, so the user can pick an existing Drive file to attach instead of
+  // uploading from their computer. Returns
+  // [{ id, name, mimeType, webViewLink, size, folderName }], sorted by folder
+  // then name. Skips Google-native docs/sheets/slides by default? No — include
+  // everything; the caller decides. Two API call rounds (folders, then files).
+  function listCourseFiles(courseFolderUrl) {
+    var courseId = folderIdFromUrl(courseFolderUrl);
+    if (!courseId) return Promise.reject(new Error('No course Drive folder is set for this course.'));
+    return getAccessToken().then(function(token) {
+      var headers = { Authorization: 'Bearer ' + token };
+      var foldersQ = "'" + courseId + "' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false";
+      var foldersUrl = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(foldersQ) +
+        '&fields=files(id,name)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=100&orderBy=name';
+      return fetch(foldersUrl, { headers: headers }).then(function(r) { return r.json(); }).then(function(fd) {
+        var folders = [{ id: courseId, name: 'Course folder' }].concat(fd.files || []);
+        return Promise.all(folders.map(function(folder) {
+          var q = "'" + folder.id + "' in parents and mimeType!='application/vnd.google-apps.folder' and trashed=false";
+          var fileUrl = 'https://www.googleapis.com/drive/v3/files?q=' + encodeURIComponent(q) +
+            '&fields=files(id,name,mimeType,webViewLink,size)&supportsAllDrives=true&includeItemsFromAllDrives=true&pageSize=200&orderBy=name';
+          return fetch(fileUrl, { headers: headers }).then(function(r) { return r.json(); }).then(function(fdat) {
+            return (fdat.files || []).map(function(f) {
+              return { id: f.id, name: f.name, mimeType: f.mimeType, webViewLink: f.webViewLink, size: f.size ? parseInt(f.size, 10) : 0, folderName: folder.name };
+            });
+          }).catch(function() { return []; });
+        })).then(function(lists) {
+          var out = [];
+          lists.forEach(function(l) { out = out.concat(l); });
+          return out;
+        });
+      });
+    });
+  }
+
   window.GDrive = {
     uploadBlob: uploadBlob,
     uploadBlobToSubfolder: uploadBlobToSubfolder,
     findOrCreateFolder: findOrCreateFolder,
     findFileInCourseTree: findFileInCourseTree,
+    listCourseFiles: listCourseFiles,
     folderIdFromUrl: folderIdFromUrl,
     getAccessToken: getAccessToken,
     hasValidToken: hasValidToken

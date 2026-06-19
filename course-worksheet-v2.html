@@ -903,6 +903,8 @@
   .upload-zone:hover { border-color: #8c1d40; color: #8c1d40; background: #fef3e8; }
   .upload-zone.drag-over-file { border-color: #2e7d32; color: #2e7d32; background: #e8f5e9; border-style: solid; }
   .upload-zone .upload-icon { font-size: 20px; margin-bottom: 4px; }
+  .drive-pick-btn { margin-top: 6px; width: 100%; padding: 7px 10px; border: 1px solid #d6c2cc; background: #fff; color: #8c1d40; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; font-family: 'Inter', sans-serif; }
+  .drive-pick-btn:hover { background: #fdf2f4; }
   .link-input-row { display: flex; gap: 8px; align-items: center; }
   .link-input-row input { flex: 1; }
   .template-preview { background: #fff; border: 1px solid #e0ddd5; border-radius: 8px; padding: 16px; font-size: 13px; }
@@ -4071,6 +4073,7 @@
         '</div>' +
         '<div class="content-attach-body" id="' + id + '-upload">' +
           '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + id + '\')" ondragleave="handleFileDragLeave(event,\'' + id + '\')" ondrop="handleFileDrop(event,\'' + id + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" /></div>' +
+          '<button type="button" class="drive-pick-btn" onclick="openDrivePickerModal(\'' + id + '\')">📁 Choose from shared Drive</button>' +
           '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;">' +
             '<strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. When uploading slide presentations, consider using the original PowerPoint file. For all documents, use built-in heading styles and add alt text to images before uploading.' +
           '</div>' +
@@ -9418,6 +9421,7 @@
     h += '<div class="upload-icon">📄</div>Drop file here or click to upload<br><span style="font-size:10px; color:#bbb;">.docx, .pdf, .xlsx, .pptx, .zip</span>';
     h += '<input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + id + '\')" accept=".docx,.pdf,.xlsx,.pptx,.zip" />';
     h += '</div>';
+    h += '<button type="button" class="drive-pick-btn" onclick="openDrivePickerModal(\'' + id + '\')">📁 Choose from shared Drive</button>';
     h += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
     h += '<div id="' + id + '-files"></div></div>';
     // Link
@@ -9982,6 +9986,7 @@
           html += '</div>';
           html += '<div class="content-attach-body" id="' + ovMatId + '-upload">';
           html += '<div class="upload-zone" onclick="this.querySelector(\'input\').click()" ondragover="handleFileDragOver(event,\'' + ovMatId + '\')" ondragleave="handleFileDragLeave(event,\'' + ovMatId + '\')" ondrop="handleFileDrop(event,\'' + ovMatId + '\')"><div class="upload-icon">📄</div>Drop file or click to upload<br><span style="font-size:10px; color:#bbb;">.pdf, .docx, .pptx, .mp4, .mp3</span><input type="file" style="display:none;" onchange="handleFileAttach(this, \'' + ovMatId + '\')" /></div>';
+          html += '<button type="button" class="drive-pick-btn" onclick="openDrivePickerModal(\'' + ovMatId + '\')">📁 Choose from shared Drive</button>';
           html += '<div style="margin-top:8px; padding:8px 10px; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; font-size:11px; color:#6d5a00; line-height:1.5;"><strong>Accessibility tip:</strong> Word documents (.docx) and PowerPoint files (.pptx) are much easier to remediate for accessibility than PDFs. Use built-in heading styles and add alt text to images before uploading.</div>';
           html += '<div id="' + ovMatId + '-files"></div></div>';
           html += '<div class="content-attach-body hidden" id="' + ovMatId + '-link">';
@@ -15066,6 +15071,92 @@
   // Persist file metadata onto the activity/material so the row survives
   // re-renders + reloads. Without this, attached-file divs are DOM-only and
   // disappear the moment renderAssignmentsOverview() rebuilds innerHTML.
+  // ===== PICK A FILE FROM THE SHARED DRIVE (attach without re-uploading) =====
+  var _dpcState = { prefix: '', files: [] };
+  window.openDrivePickerModal = function(prefix) {
+    if (!activeCourse || !activeCourse.driveFolder) {
+      alert('No Google Drive folder is set for this course yet. Add the course Drive folder link (Course Info) and you can pick files from it here.');
+      return;
+    }
+    if (!window.GDrive || !window.GDrive.listCourseFiles) { alert('Google Drive isn\'t available right now.'); return; }
+    _dpcState = { prefix: prefix, files: [] };
+    var ov = document.getElementById('dpc-overlay') || _buildDrivePickerModal();
+    var search = document.getElementById('dpc-search'); if (search) search.value = '';
+    document.getElementById('dpc-body').innerHTML = '<div style="padding:18px; color:#888; font-size:13px;">Loading files from the course Drive folder…</div>';
+    document.getElementById('dpc-go').disabled = true;
+    ov.style.display = 'flex';
+    window.GDrive.listCourseFiles(activeCourse.driveFolder).then(function(files) {
+      _dpcState.files = files || [];
+      if (!_dpcState.files.length) {
+        document.getElementById('dpc-body').innerHTML = '<div style="padding:18px; color:#888; font-size:13px;">No files found in the course Drive folder or its subfolders.</div>';
+        return;
+      }
+      _dpcRender('');
+    }).catch(function(e) {
+      document.getElementById('dpc-body').innerHTML = '<div style="padding:18px; color:#c0392b; font-size:13px;">Could not load Drive files: ' + escapeHtml((e && e.message) || String(e)) + '</div>';
+    });
+  };
+  function _dpcRender(filter) {
+    var host = document.getElementById('dpc-body'); if (!host) return;
+    filter = (filter || '').toLowerCase();
+    var files = _dpcState.files.filter(function(f) { return !filter || (f.name || '').toLowerCase().indexOf(filter) !== -1; });
+    if (!files.length) { host.innerHTML = '<div style="padding:18px; color:#888; font-size:13px;">No matching files.</div>'; return; }
+    var byFolder = {};
+    files.forEach(function(f) { var k = f.folderName || 'Course folder'; (byFolder[k] = byFolder[k] || []).push(f); });
+    var html = '';
+    Object.keys(byFolder).forEach(function(folder) {
+      html += '<div style="font-size:11px; font-weight:600; color:#888; text-transform:uppercase; letter-spacing:0.03em; margin:10px 0 4px;">📁 ' + escapeHtml(folder) + '</div>';
+      byFolder[folder].forEach(function(f) {
+        var idx = _dpcState.files.indexOf(f);
+        var kb = f.size ? ' · ' + Math.max(1, Math.round(f.size / 1024)) + ' KB' : '';
+        var isGoogle = /application\/vnd\.google-apps\./.test(f.mimeType || '');
+        html += '<label style="display:flex; gap:8px; align-items:center; padding:4px 0; font-size:13px; cursor:pointer;">'
+          + '<input type="radio" name="dpc-file" value="' + idx + '" onchange="_dpcOnSelect()">'
+          + '<span>' + escapeHtml(f.name || '(unnamed)') + '<span style="color:#999; font-size:11px;">' + kb + (isGoogle ? ' · Google Doc' : '') + '</span></span>'
+          + '</label>';
+      });
+    });
+    host.innerHTML = html;
+  }
+  window._dpcOnSearch = function(el) { _dpcRender(el.value); };
+  window._dpcOnSelect = function() { var go = document.getElementById('dpc-go'); if (go) go.disabled = false; };
+  window.closeDrivePickerModal = function() { var ov = document.getElementById('dpc-overlay'); if (ov) ov.style.display = 'none'; };
+  window._dpcAttach = function() {
+    var sel = document.querySelector('#dpc-body input[name="dpc-file"]:checked');
+    if (!sel) return;
+    var f = _dpcState.files[parseInt(sel.value, 10)];
+    if (!f) return;
+    // Same meta shape as an upload, so it flows into the spec manifest the same way.
+    _recordAttachedFile(_dpcState.prefix, {
+      name: f.name, size: f.size || 0, webViewLink: f.webViewLink, driveId: f.id,
+      mimeType: f.mimeType, status: 'linked', folderName: f.folderName
+    });
+    if (typeof _renderAttachedFiles === 'function') _renderAttachedFiles(_dpcState.prefix);
+    if (typeof refreshContentIndicator === 'function') refreshContentIndicator(_dpcState.prefix);
+    closeDrivePickerModal();
+  };
+  function _buildDrivePickerModal() {
+    var ov = document.createElement('div');
+    ov.id = 'dpc-overlay';
+    ov.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:310; align-items:flex-start; justify-content:center; padding-top:40px;';
+    ov.onclick = function(e) { if (e.target === ov) closeDrivePickerModal(); };
+    var h = '';
+    h += '<div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:600px; width:94%; max-height:84vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">';
+    h += '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px;">';
+    h += '<div><div style="font-size:15px; font-weight:600; color:#8c1d40;">📁 Choose a file from the shared Drive</div><div style="font-size:12px; color:#888; margin-top:2px;">Files in this course\'s Drive folder and its module subfolders. The selected file is linked, not re-uploaded.</div></div>';
+    h += '<button onclick="closeDrivePickerModal()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; line-height:1;">&times;</button>';
+    h += '</div>';
+    h += '<input type="text" id="dpc-search" placeholder="Search files…" oninput="_dpcOnSearch(this)" style="width:100%; margin-bottom:8px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; box-sizing:border-box;">';
+    h += '<div id="dpc-body" style="overflow-y:auto; flex:1; min-height:120px; border:1px solid #f0ede5; border-radius:6px; padding:6px 10px;"></div>';
+    h += '<div style="display:flex; justify-content:flex-end; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid #eee;">';
+    h += '<button onclick="closeDrivePickerModal()" style="padding:7px 14px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>';
+    h += '<button id="dpc-go" onclick="_dpcAttach()" disabled style="padding:7px 16px; border:none; background:#8c1d40; color:#fff; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Attach selected file</button>';
+    h += '</div></div>';
+    ov.innerHTML = h;
+    document.body.appendChild(ov);
+    return ov;
+  }
+
   function _recordAttachedFile(prefix, meta) {
     var info = _itemForContentPrefix(prefix);
     if (!info) return;
