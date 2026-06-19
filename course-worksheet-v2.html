@@ -861,6 +861,14 @@
   .tpl-improve-btn[disabled] { opacity: 0.6; cursor: default; }
   .tpl-improve-overlay { position: fixed; inset: 0; background: rgba(20,12,24,0.45); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
   .tpl-improve-modal { background: #fff; border-radius: 12px; max-width: 920px; width: 100%; max-height: 86vh; display: flex; flex-direction: column; box-shadow: 0 12px 40px rgba(0,0,0,0.3); }
+  /* Per-field version-history modal items. */
+  .field-hist-item { border: 1px solid #eee; border-radius: 8px; padding: 8px 10px; margin-bottom: 8px; }
+  .field-hist-current { background: #f6f9f6; border-color: #cfe6cf; }
+  .field-hist-meta { font-size: 11px; font-weight: 600; color: #777; text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 4px; }
+  .field-hist-prev { font-size: 13px; color: #333; line-height: 1.4; }
+  .field-hist-actions { margin-top: 6px; }
+  .field-hist-restore { background: #8c1d40; color: #fff; border: none; padding: 4px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; cursor: pointer; }
+  .field-hist-restore:hover { background: #73152f; }
   .tpl-improve-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #eee; font-size: 15px; }
   .tpl-improve-x { border: none; background: none; font-size: 22px; line-height: 1; cursor: pointer; color: #999; }
   .tpl-improve-notes { margin: 12px 18px 0; padding: 10px 14px; background: #f6f0fa; border: 1px solid #e3d3ee; border-radius: 8px; font-size: 12px; color: #5a3a6a; }
@@ -3178,6 +3186,16 @@
         if (acts[i].id === actId) {
           if (!acts[i].templateData) acts[i].templateData = {};
           if (!acts[i].templateData[tplType]) acts[i].templateData[tplType] = {};
+          // Throttled history snapshot of the value being replaced, so manual
+          // edits build a version history (without one snapshot per keystroke).
+          var _prev = acts[i].templateData[tplType][sectionLabel];
+          var _hid = actId + '|' + tplType + '|' + sectionLabel;
+          var _now = Date.now();
+          if (_prev != null && String(_prev) !== String(value) &&
+              (!_fieldHistLastAt[_hid] || _now - _fieldHistLastAt[_hid] > 15000)) {
+            _pushFieldHistory(actId, tplType, sectionLabel, _prev, 'edit');
+            _fieldHistLastAt[_hid] = _now;
+          }
           acts[i].templateData[tplType][sectionLabel] = value;
           saveActivityData();
           // Rich-text edits inside the activity template (Overview / Materials /
@@ -3410,6 +3428,7 @@
     var toolbar = '<div class="tpl-field-actions" style="display:flex; gap:6px; justify-content:flex-end; align-items:center; margin-bottom:4px;">' +
       '<button class="section-copy-from-btn" type="button" title="Copy this field from another activity" onclick="openCopyFromFieldModal(\'' + aE + '\',\'' + tE + '\',\'' + sE + '\')">📋 Copy from…</button>' +
       '<button class="tpl-improve-btn" type="button" title="Improve this field\'s clarity and formatting with AI" onclick="improveTemplateField(\'' + aE + '\',\'' + tE + '\',\'' + sE + '\',this)">✨ Improve</button>' +
+      '<button class="section-copy-from-btn" type="button" title="View / restore earlier versions of this field" onclick="openFieldHistory(\'' + aE + '\',\'' + tE + '\',\'' + sE + '\')">🕘 History</button>' +
       '</div>';
     return toolbar + '<div class="rich-editor" data-managed="true"' +
       ' data-editor-type="template"' +
@@ -13901,6 +13920,12 @@
     act.contentComplete = false;
     Object.keys(parsed).forEach(function(sectionKey) {
       var content = parsed[sectionKey];
+      // Snapshot the value being replaced into the field's history so it can be
+      // restored. (Captured before the overwrite, so it's the pre-AI version.)
+      var prevVal = act.templateData[tplType][sectionKey];
+      if (prevVal != null && String(prevVal).replace(/<[^>]+>/g, '').trim()) {
+        _pushFieldHistory(act.id, tplType, sectionKey, prevVal, 'before AI');
+      }
       act.templateData[tplType][sectionKey] = content;
       // Rubric is rendered by an editable HTML grid (not Quill). Re-render
       // the grid in place so the user sees the new rows immediately.
@@ -13911,11 +13936,13 @@
         return;
       }
       // Other fields use Quill — find every editor bound to this
-      // (act, tplType, section) and update its content.
+      // (act, tplType, section) and update its content. setContents([]) FIRST so
+      // the new text REPLACES the old; pasting at index 0 alone would prepend it
+      // (the intermittent "append" bug on a non-empty field).
       var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + act.id + '"][data-tpl-type="' + tplType + '"][data-section="' + sectionKey + '"]';
       document.querySelectorAll(sel).forEach(function(el) {
         if (el._quill) {
-          try { el._quill.clipboard.dangerouslyPasteHTML(0, content, 'silent'); }
+          try { el._quill.setContents([]); el._quill.clipboard.dangerouslyPasteHTML(0, content, 'silent'); }
           catch (e) { el._quill.root.innerHTML = content; }
         } else {
           el.setAttribute('data-initial', content);
@@ -13928,6 +13955,125 @@
     });
     if (typeof saveActivityData === 'function') saveActivityData();
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+  }
+
+  // Apply an improve/generate plan directly to the activity's fields — no review
+  // modal. _aiFillApply snapshots the replaced values into history first.
+  function _applyPlanDirect(plan) {
+    if (!plan || !plan.changes) return;
+    var info = _itemForContentPrefix(plan.actId);
+    if (!info || info.kind !== 'activity') return;
+    var parsed = {};
+    plan.changes.forEach(function(ch) { parsed[ch.section] = ch.after; });
+    _aiFillApply(info.item, plan.tplType, parsed);
+  }
+
+  // ===== PER-FIELD VERSION HISTORY =====
+  // Each text field keeps a capped history of prior values (captured before AI
+  // overwrites and on throttled manual edits) so an earlier version can be
+  // restored. Stored in localStorage, scoped to the course.
+  var _fieldHistLastAt = {};
+  function _fieldHistKey() { return 'tplFieldHistory_' + ((typeof activeCourse !== 'undefined' && activeCourse && activeCourse.code) || 'course'); }
+  function _loadFieldHist() { try { return JSON.parse(localStorage.getItem(_fieldHistKey()) || '{}'); } catch (e) { return {}; } }
+  function _saveFieldHist(h) { try { localStorage.setItem(_fieldHistKey(), JSON.stringify(h)); } catch (e) {} }
+  function _pushFieldHistory(actId, tplType, section, value, label) {
+    value = String(value == null ? '' : value);
+    if (!value.replace(/<[^>]+>/g, '').trim()) return; // never snapshot an empty value
+    var h = _loadFieldHist();
+    var id = actId + '|' + tplType + '|' + section;
+    var arr = h[id] || [];
+    if (arr.length && arr[0].value === value) return; // dedupe identical-to-latest
+    arr.unshift({ value: value, at: Date.now(), label: label || '' });
+    if (arr.length > 20) arr = arr.slice(0, 20);
+    h[id] = arr;
+    _saveFieldHist(h);
+  }
+
+  // Write a value into a single template field + its editor (clearing first so
+  // it replaces, not appends). Used by history restore.
+  function _setTemplateFieldValue(act, tplType, section, value) {
+    if (!act.templateData) act.templateData = {};
+    if (!act.templateData[tplType]) act.templateData[tplType] = {};
+    act.templateData[tplType][section] = value;
+    if (section === 'Rubric') {
+      if (typeof _refreshRubricGridsForActivity === 'function') _refreshRubricGridsForActivity(act.id, tplType);
+    } else {
+      var sel = '.rich-editor[data-editor-type="template"][data-act-id="' + act.id + '"][data-tpl-type="' + tplType + '"][data-section="' + section + '"]';
+      document.querySelectorAll(sel).forEach(function(el) {
+        if (el._quill) { try { el._quill.setContents([]); el._quill.clipboard.dangerouslyPasteHTML(0, value, 'silent'); } catch (e) { el._quill.root.innerHTML = value; } }
+        else { el.setAttribute('data-initial', value); }
+      });
+    }
+    if (typeof saveActivityData === 'function') saveActivityData();
+    if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
+  }
+
+  var _fieldHistCtx = null; // { actId, tplType, section }
+  window.openFieldHistory = function(actId, tplType, section) {
+    _fieldHistCtx = { actId: actId, tplType: tplType, section: section };
+    var ov = document.getElementById('field-hist-overlay') || _buildFieldHistoryModal();
+    document.getElementById('field-hist-title').textContent = section;
+    _renderFieldHistory();
+    ov.style.display = 'flex';
+  };
+  window.closeFieldHistory = function() { var ov = document.getElementById('field-hist-overlay'); if (ov) ov.style.display = 'none'; };
+  function _fieldHistFmt(ms) {
+    try {
+      var d = new Date(ms);
+      return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' · ' + d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    } catch (e) { return ''; }
+  }
+  function _renderFieldHistory() {
+    var ctx = _fieldHistCtx; if (!ctx) return;
+    var host = document.getElementById('field-hist-body'); if (!host) return;
+    var info = _itemForContentPrefix(ctx.actId);
+    var curVal = (info && info.item && info.item.templateData && info.item.templateData[ctx.tplType] && info.item.templateData[ctx.tplType][ctx.section]) || '';
+    var arr = _loadFieldHist()[ctx.actId + '|' + ctx.tplType + '|' + ctx.section] || [];
+    var preview = function(v) { var t = String(v || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); return t.length > 220 ? t.slice(0, 220) + '…' : t; };
+    var html = '<div class="field-hist-item field-hist-current"><div class="field-hist-meta">Current version</div><div class="field-hist-prev">' + escapeHtml(preview(curVal) || '(empty)') + '</div></div>';
+    if (!arr.length) {
+      html += '<div style="padding:14px 4px; color:#999; font-size:13px;">No earlier versions yet. History is captured before each AI generate/improve and as you edit.</div>';
+    } else {
+      arr.forEach(function(entry, idx) {
+        var lbl = entry.label ? (entry.label.charAt(0).toUpperCase() + entry.label.slice(1)) : 'Version';
+        html += '<div class="field-hist-item">'
+          + '<div class="field-hist-meta">' + escapeHtml(lbl) + ' · ' + _fieldHistFmt(entry.at) + '</div>'
+          + '<div class="field-hist-prev">' + escapeHtml(preview(entry.value) || '(empty)') + '</div>'
+          + '<div class="field-hist-actions"><button class="field-hist-restore" onclick="restoreFieldVersion(' + idx + ')">Restore this version</button></div>'
+          + '</div>';
+      });
+    }
+    host.innerHTML = html;
+  }
+  window.restoreFieldVersion = function(idx) {
+    var ctx = _fieldHistCtx; if (!ctx) return;
+    var info = _itemForContentPrefix(ctx.actId);
+    if (!info || !info.item) return;
+    var arr = _loadFieldHist()[ctx.actId + '|' + ctx.tplType + '|' + ctx.section] || [];
+    var entry = arr[idx];
+    if (!entry) return;
+    var curVal = (info.item.templateData && info.item.templateData[ctx.tplType] && info.item.templateData[ctx.tplType][ctx.section]) || '';
+    if (String(curVal).replace(/<[^>]+>/g, '').trim()) _pushFieldHistory(ctx.actId, ctx.tplType, ctx.section, curVal, 'before restore');
+    _setTemplateFieldValue(info.item, ctx.tplType, ctx.section, entry.value);
+    _renderFieldHistory();
+  };
+  function _buildFieldHistoryModal() {
+    var ov = document.createElement('div');
+    ov.id = 'field-hist-overlay';
+    ov.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:310; align-items:flex-start; justify-content:center; padding-top:40px;';
+    ov.onclick = function(e) { if (e.target === ov) closeFieldHistory(); };
+    var hh = '';
+    hh += '<div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:640px; width:94%; max-height:84vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">';
+    hh += '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px;">';
+    hh += '<div><div style="font-size:15px; font-weight:600; color:#8c1d40;">🕘 Version history — <span id="field-hist-title"></span></div><div style="font-size:12px; color:#888; margin-top:2px;">Restore an earlier version of this field. The current version is snapshotted before a restore, so it stays reversible.</div></div>';
+    hh += '<button onclick="closeFieldHistory()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; line-height:1;">&times;</button>';
+    hh += '</div>';
+    hh += '<div id="field-hist-body" style="overflow-y:auto; flex:1;"></div>';
+    hh += '<div style="display:flex; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #eee;"><button onclick="closeFieldHistory()" style="padding:7px 16px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-size:13px;">Close</button></div>';
+    hh += '</div>';
+    ov.innerHTML = hh;
+    document.body.appendChild(ov);
+    return ov;
   }
 
   // ===== AI IMPROVE / POLISH (refine faculty-written template text) =====
@@ -14021,7 +14167,7 @@
       var plan = (sectionKey === 'How You Will Be Graded')
         ? await _improveGradingField(act, tplType, current)
         : { actId: actId, tplType: tplType, changes: [{ section: sectionKey, before: current, after: await _improveOneField(sectionKey, tplType, current) }], notes: [] };
-      _openImprovePreview(plan);
+      _applyPlanDirect(plan);
     } catch (e) {
       alert('Improve failed: ' + (e && e.message ? e.message : e));
     } finally {
@@ -14081,7 +14227,7 @@
     if (btn) { btn.disabled = true; btn.textContent = '✨ Polishing…'; }
     try {
       var plan = await _polishWholeTemplate(act, tplType, sections, fields);
-      _openImprovePreview(plan);
+      _applyPlanDirect(plan);
     } catch (e) {
       alert('Polish failed: ' + (e && e.message ? e.message : e));
     } finally {
@@ -14133,9 +14279,8 @@
       var raw = await callCreateAI(p, 'You write concise, encouraging quiz overviews for students. Never reveal answers, never invent sources, never use em-dashes.', 1024);
       var after = _cleanAiHtml(raw);
       var before = (act.templateData && act.templateData['quiz'] && act.templateData['quiz']['Overview']) || '';
-      _openImprovePreview({ actId: actId, tplType: 'quiz',
-        changes: [{ section: 'Overview', before: before, after: after }],
-        notes: ['Drafted from your ' + questions.length + ' quiz question' + (questions.length === 1 ? '' : 's') + (matText ? ' and the linked readings' : '') + '.'] });
+      _applyPlanDirect({ actId: actId, tplType: 'quiz',
+        changes: [{ section: 'Overview', before: before, after: after }] });
     } catch (e) {
       alert('Generate failed: ' + (e && e.message ? e.message : e));
     }
