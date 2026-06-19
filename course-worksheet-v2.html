@@ -23579,6 +23579,23 @@
     return 'general';
   }
 
+  // A STABLE, view-agnostic CSS selector built from the element's data-* identity
+  // (which is identical in card view AND table view), so a comment re-anchors
+  // across views and re-renders. Returns '' if the element has no stable identity.
+  function _stableCommentSelector(el) {
+    if (!el || !el.getAttribute) return '';
+    var actId = el.getAttribute('data-act-id'), tpl = el.getAttribute('data-tpl-type'), sec = el.getAttribute('data-section');
+    if (actId && tpl && sec) return '.rich-editor[data-act-id="' + actId + '"][data-tpl-type="' + tpl + '"][data-section="' + sec + '"]';
+    var fld = el.getAttribute('data-field');
+    var aid = el.getAttribute('data-activity-id');
+    if (aid && fld) return '[data-activity-id="' + aid + '"][data-field="' + fld + '"]';
+    var mid = el.getAttribute('data-material-id');
+    if (mid && fld) return '[data-material-id="' + mid + '"][data-field="' + fld + '"]';
+    var mod = el.getAttribute('data-module-num');
+    if (mod && fld) return '[data-module-num="' + mod + '"][data-field="' + fld + '"]';
+    return '';
+  }
+
   function buildAnchor(range, containerEl) {
     // Build a stable anchor for re-locating the highlight
     const selectedText = range.toString();
@@ -23590,23 +23607,27 @@
     const textBefore = startOffset > 0 ? fullText.substring(Math.max(0, startOffset - ctxLen), startOffset) : '';
     const textAfter = fullText.substring(startOffset + selectedText.length, startOffset + selectedText.length + ctxLen);
 
-    // Build a CSS selector path to the container
-    let selector = '';
-    let el = containerEl;
-    const parts = [];
-    while (el && el !== document.body) {
-      let part = el.tagName.toLowerCase();
-      if (el.id) { parts.unshift('#' + el.id); break; }
-      if (el.parentElement) {
-        const siblings = Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName);
-        if (siblings.length > 1) {
-          part += ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
+    // Prefer a stable data-* selector (works across card/table views); fall back
+    // to a positional path only when the container has no stable identity.
+    let selector = _stableCommentSelector(containerEl)
+      || (containerEl.closest ? _stableCommentSelector(containerEl.closest('.rich-editor, [data-activity-id], [data-material-id]')) : '');
+    if (!selector) {
+      let el = containerEl;
+      const parts = [];
+      while (el && el !== document.body) {
+        let part = el.tagName.toLowerCase();
+        if (el.id) { parts.unshift('#' + el.id); break; }
+        if (el.parentElement) {
+          const siblings = Array.from(el.parentElement.children).filter(s => s.tagName === el.tagName);
+          if (siblings.length > 1) {
+            part += ':nth-of-type(' + (siblings.indexOf(el) + 1) + ')';
+          }
         }
+        parts.unshift(part);
+        el = el.parentElement;
       }
-      parts.unshift(part);
-      el = el.parentElement;
+      selector = parts.join(' > ');
     }
-    selector = parts.join(' > ');
 
     return {
       containerSelector: selector,
@@ -23620,6 +23641,8 @@
   // Build CSS selector for a form field (textarea/input)
   function buildFieldSelector(field) {
     if (field.id) return '#' + field.id;
+    var stable = _stableCommentSelector(field);
+    if (stable) return stable;
     const parts = [];
     let el = field;
     while (el && el !== document.body) {
