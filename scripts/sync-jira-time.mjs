@@ -91,9 +91,19 @@ const JIRA_HEADERS = {
 };
 
 // ---------- Supabase (raw REST; no SDK dep) ----------
+// This runs SERVER-SIDE (nightly cron + local sync-server), so it must use the
+// service-role key, which bypasses RLS. The publishable/anon key is for the
+// browser; RLS on dashboard_state now returns [] to it, which silently emptied
+// the meeting-synced ledger and made the sync re-log every past meeting every
+// run (the TPH501 double-count). Fall back to the anon key only if the service
+// role key is absent — and warn loudly, because dedup can't be trusted then.
+const SB_KEY = ENV.SUPABASE_SERVICE_ROLE_KEY || SUPABASE_ANON_KEY;
+if (!ENV.SUPABASE_SERVICE_ROLE_KEY) {
+  console.warn('[sync-jira-time] SUPABASE_SERVICE_ROLE_KEY not set — falling back to the publishable key. RLS may hide the synced-meeting ledger from it, which risks re-logging meetings. Set SUPABASE_SERVICE_ROLE_KEY in the env.');
+}
 const SB_HEADERS = {
-  apikey: SUPABASE_ANON_KEY,
-  Authorization: 'Bearer ' + SUPABASE_ANON_KEY,
+  apikey: SB_KEY,
+  Authorization: 'Bearer ' + SB_KEY,
   'Content-Type': 'application/json'
 };
 
@@ -535,13 +545,29 @@ async function main() {
     // 2. Meetings: skip UIDs already in the ledger; for new UIDs, post
     //    only the portion NOT overlapping any already-counted event window.
     const alreadyUids = syncedUidSetForCourse(syncedUidMap, courseId);
+    // ROOT-CAUSE FIX (TPH501 double-count): dedup by the meeting's wall-clock
+    // INTERVAL, not just its UID. Outlook recurring instances and calendar
+    // resyncs can hand the same meeting a fresh UID (and the ledger can lose a
+    // UID), which used to make an already-logged meeting look brand-new and get
+    // re-posted. A meeting whose [start,end] matches one already logged for this
+    // course is the same meeting, regardless of UID. We also guard against the
+    // same interval appearing twice within a single feed.
+    const alreadyIntervals = syncedIntervalsForCourse(syncedUidMap, courseId);
+    const TOL = 120000; // 2-minute tolerance on start/end match
+    const sameInterval = (a0, a1, b0, b1) => Math.abs(a0 - b0) <= TOL && Math.abs(a1 - b1) <= TOL;
+    const intervalAlreadyLogged = (s, e) => alreadyIntervals.some(iv => sameInterval(iv[0], iv[1], s, e));
     let meetingMs = 0;
     const newMeetingEntries = []; // [{uid, start, end, postedMs}]
+    const seenThisRun = [];       // intervals already accepted in this run
     for (const m of meetings) {
-      if (!m.uid || alreadyUids.has(m.uid)) continue;
+      if (!m.uid) continue;
       const iv = meetingInterval(m);
       if (!iv) continue;
       const [mStart, mEnd] = iv;
+      if (alreadyUids.has(m.uid)) continue;
+      if (intervalAlreadyLogged(mStart, mEnd)) continue;
+      if (seenThisRun.some(p => sameInterval(p[0], p[1], mStart, mEnd))) continue;
+      seenThisRun.push([mStart, mEnd]);
       const postedMs = nonOverlapMs(mStart, mEnd, eventIntervalsForSubtract);
       meetingMs += postedMs;
       newMeetingEntries.push({ uid: m.uid, start: mStart, end: mEnd, postedMs: postedMs });
