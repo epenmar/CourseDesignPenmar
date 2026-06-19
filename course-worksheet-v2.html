@@ -836,7 +836,10 @@
   .clo-toggle.active-6 .clo-check { background: #555555; border-color: #555555; color: #fff; }
 
   /* ===== CONTENT ATTACH ===== */
-  .content-attach { margin-top: 8px; border: 1px solid #e0ddd5; border-radius: 10px; overflow: hidden; }
+  /* No overflow:hidden here — it was a clipping ancestor that broke the sticky
+     rich-text toolbar (a sticky element can't stick past a clipped ancestor).
+     The collapse uses display:none, not overflow, so clipping isn't needed. */
+  .content-attach { margin-top: 8px; border: 1px solid #e0ddd5; border-radius: 10px; }
   .content-attach-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: #f5f5f0; cursor: pointer; user-select: none; }
   .content-attach-header:hover { background: #eeeee8; }
   .content-attach-header .ca-label { font-size: 11px; font-weight: 600; color: #888; text-transform: uppercase; letter-spacing: 0.05em; }
