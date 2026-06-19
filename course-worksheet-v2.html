@@ -700,7 +700,9 @@
      so on a wide (overflowing) rubric it reads as a separate column instead of
      the buttons appearing to float over the cell text. Width fits all 4 buttons
      so they can't spill out of the cell. */
-  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { border: none; border-left: 1px solid #e8e5dd; box-shadow: -3px 0 5px -3px rgba(0,0,0,0.07); padding: 4px 6px; text-align: center; vertical-align: middle; min-width: 104px; width: 104px; position: sticky; right: 0; white-space: nowrap; }
+  .rubric-table td.rubric-actions, .rubric-table th.rubric-actions { border: none; border-left: 1px solid #e8e5dd; box-shadow: -3px 0 5px -3px rgba(0,0,0,0.07); padding: 4px 5px; text-align: center; vertical-align: middle; min-width: 48px; width: 48px; position: sticky; right: 0; }
+  /* Stack the row controls 2x2 so the actions column stays narrow. */
+  .rubric-actions-grid { display: inline-grid; grid-template-columns: auto auto; gap: 1px 2px; justify-items: center; align-items: center; }
   .rubric-table th.rubric-actions { background: #fafaf7; }
   .rubric-table td.rubric-actions { background: #fff; }
   /* Always visible (was hover-only, which made deleting undiscoverable). */
@@ -3525,17 +3527,13 @@
     for (var ri = 1; ri < rows.length; ri++) {
       html += '<tr>';
       html += _rubricBodyCellsHtml(rows[ri], ri, maxCols, pointsCol);
-      html += '<td class="rubric-actions">'
-        + '<button class="rubric-row-btn" title="Copy row to clipboard" onclick="_copyRubricRow(this)">⧉</button>'
-        + '<button class="rubric-row-btn" title="Fewer rating columns in this row" onclick="_rubricRowRemoveCol(this)">&minus;</button>'
-        + '<button class="rubric-row-btn" title="More rating columns in this row" onclick="_rubricRowAddCol(this)">+</button>'
-        + '<button class="rubric-row-del" title="Delete row" onclick="_removeRubricRow(this)">&times;</button>'
-        + '</td>';
+      html += '<td class="rubric-actions">' + _rubricRowActionsHtml() + '</td>';
       html += '</tr>';
     }
     html += '</tbody></table>';
     html += '<div class="rubric-grid-actions">';
     html += '<button class="btn-add-row" onclick="_addRubricRow(this)">+ Add row</button>';
+    html += '<button class="btn-add-row" onclick="openRubricRowCopyModal(this)">📋 Copy rows from…</button>';
     html += '<span class="rubric-grid-hint">Edit cells in place. Use &minus;/+ on a row to give that criterion fewer or more rating columns (e.g. a Yes/No row). Stored as pipe-separated text for Canvas Curate.</span>';
     html += '</div></div>';
     return html;
@@ -3629,15 +3627,18 @@
     });
     var actionTd = document.createElement('td');
     actionTd.className = 'rubric-actions';
-    actionTd.innerHTML = '<button class="rubric-row-btn" title="Copy row to clipboard" onclick="_copyRubricRow(this)">⧉</button>'
-      + '<button class="rubric-row-btn" title="Fewer rating columns in this row" onclick="_rubricRowRemoveCol(this)">&minus;</button>'
-      + '<button class="rubric-row-btn" title="More rating columns in this row" onclick="_rubricRowAddCol(this)">+</button>'
-      + '<button class="rubric-row-del" title="Delete row" onclick="_removeRubricRow(this)">&times;</button>';
+    actionTd.innerHTML = _rubricRowActionsHtml();
     newRow.appendChild(actionTd);
     grid.querySelector('tbody').appendChild(newRow);
-    var firstCell = newRow.querySelector('td[contenteditable]');
-    if (firstCell) firstCell.focus();
+    // Re-render from the DOM so the new row picks up the Points-column tint,
+    // colspans, and consistent action buttons.
+    _rerenderRubricGridFromDom(grid);
     _persistRubricGrid(grid);
+    // Focus the first cell of the just-added (last) row.
+    var bodyRows = grid.querySelectorAll('tbody tr');
+    var lastRow = bodyRows[bodyRows.length - 1];
+    var firstCell = lastRow && lastRow.querySelector('td[contenteditable]');
+    if (firstCell) firstCell.focus();
   };
   window._removeRubricRow = function(btn) {
     var tr = btn.closest('tr');
@@ -3757,6 +3758,121 @@
       _refreshRubricGridsForActivity(actId, tplType);
     }
   };
+
+  // Per-row action buttons, stacked 2x2 (copy / delete on top, -/+ below) so the
+  // actions column stays narrow.
+  function _rubricRowActionsHtml() {
+    return '<div class="rubric-actions-grid">'
+      + '<button class="rubric-row-btn" title="Copy row to clipboard" onclick="_copyRubricRow(this)">⧉</button>'
+      + '<button class="rubric-row-del" title="Delete row" onclick="_removeRubricRow(this)">&times;</button>'
+      + '<button class="rubric-row-btn" title="Fewer rating columns in this row" onclick="_rubricRowRemoveCol(this)">&minus;</button>'
+      + '<button class="rubric-row-btn" title="More rating columns in this row" onclick="_rubricRowAddCol(this)">+</button>'
+      + '</div>';
+  }
+
+  // ===== COPY ROWS FROM ANOTHER RUBRIC =====
+  var _rrcState = { grid: null, actId: '', tplType: '', sources: [] };
+  window.openRubricRowCopyModal = function(btn) {
+    var grid = btn.closest('.rubric-grid');
+    if (!grid) return;
+    var actId = grid.getAttribute('data-rubric-act');
+    var tplType = grid.getAttribute('data-rubric-tpl');
+    // Every activity's rubric (any template type) except this exact act+type.
+    var sources = [];
+    Object.keys(courseActivities || {}).forEach(function(modKey) {
+      var modNum = parseInt(modKey, 10);
+      (courseActivities[modKey] || []).forEach(function(a) {
+        var td = a.templateData || {};
+        Object.keys(td).forEach(function(tk) {
+          var rub = td[tk] && td[tk]['Rubric'];
+          if (!rub || !String(rub).trim()) return;
+          if (a.id === actId && tk === tplType) return;
+          var rows = _parseRubricPipes(rub);
+          if (rows.length < 2) return; // need header + at least one body row
+          sources.push({ label: 'M' + modNum + ' · ' + ((a.name || '').trim() || '(untitled)') + ' (' + tk + ')', rows: rows });
+        });
+      });
+    });
+    _rrcState = { grid: grid, actId: actId, tplType: tplType, sources: sources };
+    var ov = document.getElementById('rrc-overlay') || _buildRubricRowCopyModal();
+    var sel = document.getElementById('rrc-source');
+    if (!sources.length) {
+      sel.innerHTML = '<option>— none —</option>';
+      document.getElementById('rrc-rows').innerHTML = '<div style="color:#999; font-size:13px; padding:8px;">No other activity has a rubric with rows to copy yet.</div>';
+      document.getElementById('rrc-go').disabled = true;
+    } else {
+      sel.innerHTML = sources.map(function(s, i) { return '<option value="' + i + '">' + escapeHtml(s.label) + '</option>'; }).join('');
+      document.getElementById('rrc-go').disabled = false;
+      _rrcRenderRows(0);
+    }
+    document.getElementById('rrc-status').textContent = '';
+    ov.style.display = 'flex';
+  };
+  function _rrcRenderRows(srcIdx) {
+    var src = _rrcState.sources[srcIdx];
+    var host = document.getElementById('rrc-rows');
+    if (!src || !host) return;
+    var html = '<div style="font-size:12px; color:#888; margin-bottom:6px;">Check the rows to copy:</div>';
+    for (var ri = 1; ri < src.rows.length; ri++) {
+      var cells = src.rows[ri];
+      var crit = (cells[0] || '').trim() || '(no criterion)';
+      var rest = cells.slice(1).map(function(c) { return (c || '').trim(); }).filter(Boolean).join(' · ');
+      html += '<label style="display:flex; gap:8px; align-items:flex-start; padding:4px 0; font-size:13px; cursor:pointer;">'
+        + '<input type="checkbox" class="rrc-row" data-row-idx="' + ri + '" checked style="margin-top:3px;">'
+        + '<span><strong>' + escapeHtml(crit) + '</strong>'
+        + (rest ? '<div style="color:#888; font-size:11px;">' + escapeHtml(rest.slice(0, 150) + (rest.length > 150 ? '…' : '')) + '</div>' : '')
+        + '</span></label>';
+    }
+    host.innerHTML = html;
+  }
+  window._rrcOnSourceChange = function(sel) { _rrcRenderRows(parseInt(sel.value, 10) || 0); };
+  window._rrcSelectAll = function(on) { document.querySelectorAll('#rrc-rows .rrc-row').forEach(function(cb) { cb.checked = on; }); };
+  window.closeRubricRowCopyModal = function() { var ov = document.getElementById('rrc-overlay'); if (ov) ov.style.display = 'none'; };
+  window._rrcInsert = function() {
+    var sel = document.getElementById('rrc-source');
+    var src = _rrcState.sources[parseInt(sel.value, 10) || 0];
+    if (!src) { closeRubricRowCopyModal(); return; }
+    var checked = Array.prototype.slice.call(document.querySelectorAll('#rrc-rows .rrc-row:checked'))
+      .map(function(cb) { return parseInt(cb.getAttribute('data-row-idx'), 10); });
+    if (!checked.length) { document.getElementById('rrc-status').textContent = 'Select at least one row.'; return; }
+    var info = _itemForContentPrefix(_rrcState.actId);
+    if (!info || !info.item) { closeRubricRowCopyModal(); return; }
+    var tplType = _rrcState.tplType;
+    var destRaw = (info.item.templateData && info.item.templateData[tplType] && info.item.templateData[tplType]['Rubric']) || '';
+    var destRows = _parseRubricPipes(destRaw);
+    if (destRows.length === 0) destRows = [_defaultRubricHeader(info.item)];
+    checked.forEach(function(ri) { destRows.push((src.rows[ri] || []).slice()); });
+    if (!info.item.templateData) info.item.templateData = {};
+    if (!info.item.templateData[tplType]) info.item.templateData[tplType] = {};
+    info.item.templateData[tplType]['Rubric'] = _stringifyRubricRows(destRows);
+    if (typeof saveActivityData === 'function') saveActivityData();
+    _refreshRubricGridsForActivity(_rrcState.actId, tplType);
+    closeRubricRowCopyModal();
+  };
+  function _buildRubricRowCopyModal() {
+    var ov = document.createElement('div');
+    ov.id = 'rrc-overlay';
+    ov.style.cssText = 'display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:300; align-items:flex-start; justify-content:center; padding-top:40px;';
+    ov.onclick = function(e) { if (e.target === ov) closeRubricRowCopyModal(); };
+    var h = '';
+    h += '<div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:560px; width:94%; max-height:84vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2);">';
+    h += '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:12px; margin-bottom:8px;">';
+    h += '<div><div style="font-size:15px; font-weight:600; color:#8c1d40;">📋 Copy rubric rows</div><div style="font-size:12px; color:#888; margin-top:2px;">Pick a source rubric, check the rows to copy; they append to this rubric.</div></div>';
+    h += '<button onclick="closeRubricRowCopyModal()" style="background:none; border:none; font-size:22px; color:#999; cursor:pointer; line-height:1;">&times;</button>';
+    h += '</div>';
+    h += '<label style="font-size:12px; color:#666; font-weight:600;">Source rubric</label>';
+    h += '<select id="rrc-source" onchange="_rrcOnSourceChange(this)" style="width:100%; margin:4px 0 10px; padding:6px 10px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px;"></select>';
+    h += '<div style="font-size:12px; margin-bottom:6px;"><a href="#" onclick="event.preventDefault(); _rrcSelectAll(true)" style="color:#8c1d40;">Select all</a> &middot; <a href="#" onclick="event.preventDefault(); _rrcSelectAll(false)" style="color:#8c1d40;">Clear</a></div>';
+    h += '<div id="rrc-rows" style="overflow-y:auto; border:1px solid #f0ede5; border-radius:6px; padding:6px 10px; flex:1; min-height:80px;"></div>';
+    h += '<div style="display:flex; justify-content:flex-end; align-items:center; gap:8px; margin-top:14px; padding-top:12px; border-top:1px solid #eee;">';
+    h += '<div id="rrc-status" style="flex:1; font-size:12px; color:#c0392b;"></div>';
+    h += '<button onclick="closeRubricRowCopyModal()" style="padding:7px 14px; border:1px solid #ccc; background:#fff; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>';
+    h += '<button id="rrc-go" onclick="_rrcInsert()" style="padding:7px 16px; border:none; background:#8c1d40; color:#fff; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">Insert selected rows</button>';
+    h += '</div></div>';
+    ov.innerHTML = h;
+    document.body.appendChild(ov);
+    return ov;
+  }
   // After AI Fill writes a rubric pipe-string, find every rubric grid
   // bound to that act+tplType and re-render its rows from the new text.
   // (Quill-based rich editors update via dangerouslyPasteHTML; the grid
