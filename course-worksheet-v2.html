@@ -10019,13 +10019,14 @@
         html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
       } else {
         // Activity header row — matches the per-row grid template below.
-        html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px 92px 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
+        html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 80px 110px 92px 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
         html += '<div></div>';
         html += '<div></div>';
         html += '<div class="activity-header">Objectives</div>';
         html += '<div class="activity-header">Activity</div>';
         html += '<div class="activity-header">Points</div>';
         html += '<div class="activity-header">Due</div>';
+        html += '<div class="activity-header" style="display:flex; flex-direction:column; align-items:flex-start; gap:2px;"><span>Est. time</span><button class="content-chip" title="AI-estimate time for every activity with no estimate yet — existing values are kept" onclick="estimateMissingTimesForOverview(this)" style="padding:0 6px; font-size:10px; text-transform:none;">✨ Fill</button></div>';
         html += '<div class="activity-header">Category</div>';
         html += '<div></div>';
         html += '<div></div>';
@@ -10034,7 +10035,7 @@
           var act = acts[i];
           html += '<div class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
-          html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px 92px 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
+          html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 80px 110px 92px 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           html += '<span class="link-badge-slot" style="display:flex; align-items:center; min-width:0;"></span>';
           // Objectives picker (interactive)
@@ -10042,6 +10043,7 @@
           html += '<textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Activity name..." style="resize:none; overflow:hidden; min-height:22px; line-height:1.3; white-space:pre-wrap;" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)">' + escapeHtml(act.name) + '</textarea>';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" placeholder="Pts" style="text-align:center;" oninput="syncOverviewActivity(this)" />';
           html += '<input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" placeholder="Due" style="text-align:center; font-size:11px; line-height:1.3;" oninput="syncOverviewActivity(this)" value="' + escapeHtml(act.due) + '">';
+          html += '<textarea class="est-time-input activity-input" data-act-id="' + act.id + '" rows="1" placeholder="—" oninput="saveEstTime(\'' + act.id + '\', this.value); this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\';" style="text-align:center; font-size:11px; line-height:1.3; resize:none; overflow:hidden; min-height:22px;">' + escapeHtml(act.estimatedTime || '') + '</textarea>';
           html += buildCategoryPickerHtml(act, m);
           html += '<button class="overview-act-expand" style="flex-shrink:0;" onclick="var body=this.closest(\'.activity-block\').querySelector(\'.overview-content-body\'); body.classList.toggle(\'open\'); this.textContent=body.classList.contains(\'open\')?\'▾ Content\':\'▸ Content\'; refreshContentIndicator(\'ov-' + act.id + '\');">▸ Content</button>';
           html += '<button class="btn-tiny-x" title="Delete activity" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button>';
