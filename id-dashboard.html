@@ -1957,34 +1957,77 @@
     if (!matched.length) { alert('No open comments mention @' + parts[0] + ' in ' + (c.emailName || c.code) + ' yet.'); return; }
     var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '');
     var firstName = parts[0];
+    var courseLabel = c.emailName || c.code;
+    var sig = getProfile().sig;
     var CAP = 10;
     var shown = matched.slice(0, CAP);
-    var lines = shown.map(function(cm, i) {
+    var hesc = function(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function(ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); };
+    // Comment body → HTML with real links (markdown + bare URLs).
+    var linkifyHtml = function(raw) {
+      var s = hesc(String(raw || '').replace(/\s+/g, ' ').trim());
+      s = s.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, function(_, l, u) { return '<a href="' + u + '">' + l + '</a>'; });
+      s = s.replace(/(^|[^"=>/])(https?:\/\/[^\s<]+)/gi, function(full, pre, u) { var t = ''; var p = u.match(/[.,;:!?)\]]+$/); if (p) { t = p[0]; u = u.slice(0, -p[0].length); } return pre + '<a href="' + u + '">' + u + '</a>' + t; });
+      return s;
+    };
+    var linkFor = function(cm) { return built.url + '&section=' + encodeURIComponent(cm.section_id || '') + '&comment=' + encodeURIComponent(cm.id); };
+
+    // ---- HTML version (clickable, named links) ----
+    var entryHtml = shown.map(function(cm) {
+      var sec = (cm.section_id || 'general').replace(/-/g, ' ');
+      var hl = cm.highlight_text ? (' on “' + hesc(String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 90)) + '”') : '';
+      return '<li style="margin-bottom:10px;"><a href="' + linkFor(cm) + '">[' + hesc(sec) + ']' + hl + '</a> — ' + linkifyHtml(cm.content || '') + '</li>';
+    }).join('');
+    var moreHtml = matched.length > CAP ? ('<p style="color:#888;">…and ' + (matched.length - CAP) + ' more in the worksheet.</p>') : '';
+    var html = '<div style="font-family:Arial,sans-serif; font-size:14px; color:#222; line-height:1.5;">'
+      + '<p>Hi ' + hesc(firstName) + ',</p>'
+      + '<p>I left some comments in the ' + hesc(courseLabel) + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.</p>'
+      + '<p>A couple of quick notes:</p>'
+      + '<ul><li>Each comment title below links straight to its spot in the worksheet.</li>'
+      + '<li>Please mark a comment <strong>Resolve</strong> as soon as you have addressed it.</li>'
+      + '<li>You can reply right there by adding your own comment — no need to reply to this email.</li></ul>'
+      + '<p><strong>The comments (' + matched.length + '):</strong></p>'
+      + '<ol>' + entryHtml + '</ol>' + moreHtml
+      + '<p>Thank you,<br>' + hesc(sig) + '</p></div>';
+
+    // ---- Plain-text version (fallback / mailto body) ----
+    var plainLines = shown.map(function(cm, i) {
       var sec = (cm.section_id || 'general').replace(/-/g, ' ');
       var quote = cm.highlight_text ? ('on “' + String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 70) + '” — ') : '';
-      // Plain-text email can't render [label](url) markdown as a link — render
-      // it as "label (url)" so the brackets don't show and the URL still
-      // auto-links in the mail client.
-      var text = String(cm.content || '')
-        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1 ($2)')
-        .replace(/\s+/g, ' ').trim();
+      var text = String(cm.content || '').replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1 ($2)').replace(/\s+/g, ' ').trim();
       if (text.length > 160) text = text.slice(0, 160) + '…';
-      // Direct link straight to this comment's spot in the worksheet.
-      var link = built.url + '&section=' + encodeURIComponent(cm.section_id || '') + '&comment=' + encodeURIComponent(cm.id);
-      return (i + 1) + '. [' + sec + '] ' + quote + text + '\n   Go to this comment: ' + link;
+      return (i + 1) + '. [' + sec + '] ' + quote + text + '\n   Go to this comment: ' + linkFor(cm);
     });
-    var more = matched.length > CAP ? ('\n\n…and ' + (matched.length - CAP) + ' more in the worksheet.') : '';
-    var subject = 'Comments to address: ' + (c.emailName || c.code);
-    var body = 'Hi ' + firstName + ',\n\n'
-      + 'I left some comments in the ' + (c.emailName || c.code) + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.\n\n'
+    var plainMore = matched.length > CAP ? ('\n\n…and ' + (matched.length - CAP) + ' more in the worksheet.') : '';
+    var subject = 'Comments to address: ' + courseLabel;
+    var plain = 'Hi ' + firstName + ',\n\n'
+      + 'I left some comments in the ' + courseLabel + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.\n\n'
       + 'A couple of quick notes:\n'
       + '• Each comment below links straight to its spot in the worksheet.\n'
       + '• Please mark a comment "Resolve" as soon as you have addressed it.\n'
       + '• You can reply right there by adding your own comment — no need to reply to this email.\n\n'
-      + 'The comments (' + matched.length + '):\n\n' + lines.join('\n\n') + more + '\n\n'
-      + 'Thank you,\n' + getProfile().sig;
-    var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
-    window.open(mailto, '_blank');
+      + 'The comments (' + matched.length + '):\n\n' + plainLines.join('\n\n') + plainMore + '\n\n'
+      + 'Thank you,\n' + sig;
+
+    // mailto bodies are plain text only — to get clickable, named links the
+    // faculty member needs the HTML version, so copy it to the clipboard and
+    // have them paste it into the compose window.
+    var copiedRich = false;
+    try {
+      if (navigator.clipboard && window.ClipboardItem) {
+        await navigator.clipboard.write([new ClipboardItem({
+          'text/html': new Blob([html], { type: 'text/html' }),
+          'text/plain': new Blob([plain], { type: 'text/plain' })
+        })]);
+        copiedRich = true;
+      }
+    } catch (e) { copiedRich = false; }
+    if (copiedRich) {
+      var promptBody = 'Paste here (Cmd/Ctrl + V) — the comments, with clickable links, are on your clipboard. Then delete this line and send.';
+      window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(promptBody), '_blank');
+      alert('Your email opened with the recipient and subject filled in.\n\nThe formatted comments (with clickable links on each title) are on your clipboard — click in the message body and paste (Cmd/Ctrl + V).');
+    } else {
+      window.open('mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(plain), '_blank');
+    }
   }
   window.emailFacultyMentions = emailFacultyMentions;
 
