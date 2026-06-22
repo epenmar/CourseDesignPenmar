@@ -576,6 +576,9 @@
           <button class="account-edit-btn" onclick="document.getElementById('import-data-file').click()" style="margin-top:6px; background:#fff; color:#666; border:1.5px solid #aaa;">📥 Restore from JSON</button>
           <input type="file" id="import-data-file" accept="application/json" style="display:none;" onchange="importAllLocalData(this.files[0])" />
         </div>
+        <div id="account-signout-row" style="margin-top:10px; padding-top:10px; border-top:1px solid #eee; display:none;">
+          <button class="account-edit-btn" onclick="composeSignOut()" style="background:#fff; color:#c62828; border:1.5px solid #c62828;">↩ Sign out</button>
+        </div>
       </div>
       <div class="account-popover-body" id="account-edit-mode" style="display:none;">
         <div class="edit-field"><label>Full Name</label><input type="text" id="acct-name" /></div>
@@ -3392,7 +3395,7 @@
   function _clearComposeLocalData() {
     try {
       var keep = { compose_last_uid: 1 };
-      var dashKeys = ['user_courses','inactive_courses','course_overrides','starred_courses','privateNotes','faculty_directory','course_reviewers','contacts_overrides','meeting_action_items_state','course_action_items','course_airtable_urls','airtable_auto_imports','course_jira_epics','course_jira_phases','dashboard_resource_links','dashboard_hidden_cols','dashboard_col_order','dashboard_filters','dashboard_upcoming_cache','dashboard_synced_cache'];
+      var dashKeys = ['id_profile','user_courses','inactive_courses','course_overrides','starred_courses','privateNotes','faculty_directory','course_reviewers','contacts_overrides','meeting_action_items_state','course_action_items','course_airtable_urls','airtable_auto_imports','course_jira_epics','course_jira_phases','dashboard_resource_links','dashboard_hidden_cols','dashboard_col_order','dashboard_filters','dashboard_upcoming_cache','dashboard_synced_cache'];
       var toRemove = [];
       for (var i = 0; i < localStorage.length; i++) {
         var k = localStorage.key(i);
@@ -7880,7 +7883,22 @@
   };
 
   function getProfile() {
-    try { return Object.assign({}, defaultProfile, JSON.parse(localStorage.getItem('id_profile') || '{}')); } catch(e) { return Object.assign({}, defaultProfile); }
+    var stored = {};
+    try { stored = JSON.parse(localStorage.getItem('id_profile') || '{}'); } catch(e) { stored = {}; }
+    var base = defaultProfile;
+    // A signed-in NON-OWNER must never inherit the owner's hardcoded profile.
+    // Seed from their own auth identity (name/email), with no owner booking/sig.
+    try {
+      if (window.COMPOSE_AUTH_ENABLED && window.ComposeAuth && window.ComposeAuth.user &&
+          !(window.ComposeAuth.isAdmin && window.ComposeAuth.isAdmin())) {
+        base = {
+          name: (window.ComposeAuth.profile && window.ComposeAuth.profile.full_name) || window.ComposeAuth.user.email || 'You',
+          email: window.ComposeAuth.user.email || '',
+          asurite: '', booking: '', sig: ''
+        };
+      }
+    } catch(e) {}
+    return Object.assign({}, base, stored);
   }
 
   function exportAllLocalData() {
@@ -7968,11 +7986,19 @@
       document.getElementById('account-display-email').textContent = p.email;
       document.getElementById('account-display-booking').textContent = p.booking ? 'Configured' : 'Not set';
       document.getElementById('account-display-sig').textContent = p.sig || p.name.split(' ')[0];
+      // Show Sign out only when actually signed in.
+      var so = document.getElementById('account-signout-row');
+      if (so) so.style.display = (window.COMPOSE_AUTH_ENABLED && window.ComposeAuth && window.ComposeAuth.user) ? '' : 'none';
       // Reset to view mode
       document.getElementById('account-view-mode').style.display = '';
       document.getElementById('account-edit-mode').style.display = 'none';
     }
   }
+
+  window.composeSignOut = function() {
+    if (window.ComposeAuth && window.ComposeAuth.signOut) window.ComposeAuth.signOut();
+    else { try { location.reload(); } catch(e) {} }
+  };
 
   function toggleAccountEdit() {
     var viewMode = document.getElementById('account-view-mode');

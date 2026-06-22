@@ -88,7 +88,7 @@
     if (!sb) return;
     await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { queryParams: { hd: 'asu.edu' }, redirectTo: window.location.href }
+      options: { queryParams: { hd: 'asu.edu', prompt: 'select_account' }, redirectTo: window.location.href }
     });
   }
 
