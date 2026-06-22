@@ -1770,7 +1770,7 @@
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
   }
 
-  function addReviewer(courseId) {
+  async function addReviewer(courseId) {
     var nameInput = document.getElementById('reviewer-name-' + courseId);
     var emailInput = document.getElementById('reviewer-email-' + courseId);
     var name = nameInput.value.trim();
@@ -1797,8 +1797,9 @@
 
     // Compose email
     var c = courseData[courseId];
-    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var reviewUrl = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
+    var _built = await _buildShareLink(courseId, 'reviewer', slug);
+    var reviewUrl = _built.url;
+    if (!_confirmTokenless(_built.hasToken)) return;
     var subject = encodeURIComponent('Review Invitation: ' + (c.emailName || c.code));
     var firstName = name.split(/\s+/)[0];
     var bodyText = 'Hi ' + firstName + ',\n\n' +
@@ -1834,31 +1835,35 @@
     renderDetail(courseId);
   }
 
-  function copyReviewerLink(courseId, idx) {
+  async function copyReviewerLink(courseId, idx) {
     var reviewers = getReviewers(courseId);
     var r = reviewers[idx];
     if (!r) return;
-    var c = courseData[courseId];
-    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + '&user=' + r.slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
-    navigator.clipboard.writeText(url).then(function() {
-      // Brief visual feedback
+    var btnEl = (typeof event !== 'undefined' && event) ? event.target : null;
+    var built = await _buildShareLink(courseId, 'reviewer', r.slug);
+    if (!_confirmTokenless(built.hasToken)) return;
+    try {
+      await navigator.clipboard.writeText(built.url);
       var btns = document.querySelectorAll('[onclick*="copyReviewerLink"]');
       btns.forEach(function(b) { if (b.textContent === '✓') b.textContent = '📋'; });
-      event.target.textContent = '✓';
-      setTimeout(function() { event.target.textContent = '📋'; }, 1500);
-    });
+      if (btnEl) { btnEl.textContent = '✓'; setTimeout(function() { btnEl.textContent = '📋'; }, 1500); }
+    } catch (e) {
+      prompt('Copy the reviewer link:', built.url);
+    }
   }
 
-  function copyDetectedReviewerLink(courseId, slug) {
+  async function copyDetectedReviewerLink(courseId, slug) {
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
-    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + '&user=' + slug + '&role=reviewer' + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'reviewer') : '');
-    navigator.clipboard.writeText(url).then(function() {
-      var btn = event && event.target;
+    var btn = (typeof event !== 'undefined' && event) ? event.target : null;
+    var built = await _buildShareLink(courseId, 'reviewer', slug);
+    if (!_confirmTokenless(built.hasToken)) return;
+    try {
+      await navigator.clipboard.writeText(built.url);
       if (btn) { var orig = btn.textContent; btn.textContent = '✓'; setTimeout(function() { btn.textContent = orig; }, 1500); }
-    });
+    } catch (e) {
+      prompt('Copy the reviewer link:', built.url);
+    }
   }
 
   function promoteDetectedReviewer(courseId, name, slug) {
@@ -1879,15 +1884,45 @@
     renderDetail(courseId);
   }
 
-  function copyInstructorLink(courseId) {
+  // Build a worksheet share link guaranteed to carry the ?t= grant token.
+  // prime() is AWAITED (not fire-and-forget) so a freshly-copied link never
+  // ships tokenless — the #1 cause of "instructor/reviewer sees a blank
+  // worksheet": no token -> no anonymous share grant -> RLS denies the read.
+  // Returns { url, hasToken }.
+  async function _buildShareLink(courseId, role, slug) {
+    var c = courseData[courseId];
+    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    var tok = '';
+    if (window.ComposeShare) {
+      try { await window.ComposeShare.prime(courseId); } catch (e) {}
+      tok = window.ComposeShare.tokenParam(courseId, role) || '';
+    }
+    var url = baseUrl + c.devLink + (slug ? '&user=' + slug : '') +
+              (role === 'reviewer' ? '&role=reviewer' : '') + tok;
+    return { url: url, hasToken: !!tok };
+  }
+  // When the token could not be minted (owner not signed in on the dashboard,
+  // or share tokens disabled), warn before handing out a link that would land
+  // the recipient on a blank worksheet.
+  function _confirmTokenless(hasToken) {
+    if (hasToken) return true;
+    return confirm('This share link could not be signed — you may need to sign in on the '
+      + 'dashboard first. If you send it now, the recipient may see a blank worksheet.\n\n'
+      + 'Copy it anyway?');
+  }
+
+  async function copyInstructorLink(courseId) {
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
-    var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-    var url = baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '') + (window.ComposeShare ? window.ComposeShare.tokenParam(courseId, 'instructor') : '');
-    navigator.clipboard.writeText(url).then(function() {
+    var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '');
+    if (!_confirmTokenless(built.hasToken)) return;
+    try {
+      await navigator.clipboard.writeText(built.url);
       var btn = document.querySelector('[onclick*="copyInstructorLink(\\\'' + courseId + '\\\')"]');
       if (btn) { btn.innerHTML = '✓ Copied'; setTimeout(function() { btn.innerHTML = '📋 Copy Instructor Link'; }, 1500); }
-    });
+    } catch (e) {
+      prompt('Copy the instructor link:', built.url);
+    }
   }
 
   // Brand icons for the side-panel link buttons, drawn inline as simple SVG
