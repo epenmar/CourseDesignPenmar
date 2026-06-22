@@ -1083,7 +1083,9 @@
   .inline-highlight { border-bottom: 1.5px dashed #8c1d40; cursor: pointer; border-radius: 0; transition: background 0.15s; position: relative; }
   .inline-highlight:hover { background: rgba(140, 29, 64, 0.08); }
   .inline-highlight.resolved { border-bottom: none; cursor: default; background: transparent !important; }
-  .has-field-comment { box-shadow: inset 0 -3px 0 #ffc627; border-left: 3px solid #ffc627 !important; background: #fffde6 !important; }
+  /* Draw the highlight with inset shadows (not a thicker border) so a commented
+     field keeps the exact same box size as its neighbours and stays aligned. */
+  .has-field-comment { box-shadow: inset 3px 0 0 #ffc627, inset 0 -3px 0 #ffc627; background: #fffde6 !important; }
   .has-field-comment:hover { box-shadow: inset 0 -3px 0 #ffc627, 0 0 0 1px rgba(255,198,39,0.4); }
   /* A collapsed card/accordion that contains a comment highlights its title in
      yellow; opening it reveals the actual inline/field highlight inside. The
@@ -10017,7 +10019,7 @@
         html += '<div style="text-align:center; padding:16px; color:#999; font-style:italic; font-size:12px;">No activities in this module yet.</div>';
       } else {
         // Activity header row — matches the per-row grid template below.
-        html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px auto 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
+        html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px 92px 20px; gap:4px 8px; align-items:center; margin-bottom:4px; padding:4px 0;">';
         html += '<div></div>';
         html += '<div></div>';
         html += '<div class="activity-header">Objectives</div>';
@@ -10032,7 +10034,7 @@
           var act = acts[i];
           html += '<div class="activity-block" draggable="false" data-activity-id="' + act.id + '" data-module-num="' + m + '" data-overview-type="assignments" ';
           html += 'ondragstart="overviewDragStart(event)" ondragend="overviewDragEnd(event)">';
-          html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px auto 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
+          html += '<div style="display:grid; grid-template-columns:24px 28px 1.7fr 2.6fr 60px 80px 110px 92px 20px; gap:4px 8px; align-items:center; padding:4px 0;">';
           html += '<span class="act-drag-handle" title="Drag to reorder or move between modules" style="cursor:grab;">⠿</span>';
           html += '<span class="link-badge-slot" style="display:flex; align-items:center; min-width:0;"></span>';
           // Objectives picker (interactive)
