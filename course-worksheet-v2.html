@@ -14780,14 +14780,17 @@
           lines.push(parts.join(' '));
         });
       }
-      var sys = 'You estimate how long a course activity takes a student to complete. Estimate CONSERVATIVELY for a METHODICAL student who reads carefully and does not rush — err HIGH and round up to a clean number. Account for reading any attached materials at roughly 150 words/min (careful reading) plus time to think and produce the deliverable; for a timed quiz, roughly question-count times ~1.5 minutes unless a limit is stated. Reply with ONLY a short time phrase like "30 minutes", "1.5 hours", or "45-60 minutes" — no explanation, no em-dashes.';
-      var prompt = 'Estimate the time on task. Err high for the methodical student.\n\n' + lines.join('\n') + '\n\nReturn ONLY the time phrase.';
+      var sys = 'You estimate how long a course activity takes a student to complete. Estimate CONSERVATIVELY for a METHODICAL student who reads carefully and does not rush — err HIGH and round up to a clean number. Account for reading any attached materials at roughly 150 words/min (careful reading) plus time to think and produce the deliverable; for a timed quiz, roughly question-count times ~1.5 min unless a limit is stated. Reply with ONLY a short time phrase using the abbreviations "min" and "h" — e.g. "30 min", "1.5 h", or "45-60 min". No explanation, no em-dashes.';
+      var prompt = 'Estimate the time on task. Err high for the methodical student.\n\n' + lines.join('\n') + '\n\nReturn ONLY the time phrase, using "min" / "h".';
       var raw = await callCreateAI(prompt, sys, 120);
       var ans = String(raw || '').replace(/<[^>]+>/g, ' ').replace(/[\r\n]+/g, ' ').replace(/^["'\s]+|["'\s.]+$/g, '').trim();
       if (ans.length > 40) {
-        var mtmp = ans.match(/[\d.]+\s*(?:to|-|–)?\s*[\d.]*\s*(?:minutes?|min|hours?|hrs?)/i);
+        var mtmp = ans.match(/[\d.]+\s*(?:to|-|–)?\s*[\d.]*\s*(?:minutes?|mins?|min|hours?|hrs?|h)\b/i);
         ans = mtmp ? mtmp[0].trim() : ans.slice(0, 40);
       }
+      // Normalize to abbreviations regardless of what the model returned.
+      ans = ans.replace(/\bminutes?\b/gi, 'min').replace(/\bmins\b/gi, 'min')
+               .replace(/\bhours?\b/gi, 'h').replace(/\bhrs?\b/gi, 'h');
       if (!ans) throw new Error('empty estimate');
       act.estimatedTime = ans;
       saveActivityData();
@@ -14808,16 +14811,25 @@
   // Bulk-estimate time for every activity that has no estimate yet (fills
   // blanks, never overwrites). Driven from the Est. time column header.
   async function estimateMissingTimesForOverview(btn) {
+    // In CARD view the button lives inside one module's card, so scope to that
+    // module. In TABLE view it's the single table header — do every module.
+    var modCard = btn && btn.closest ? btn.closest('.card[data-overview-module]') : null;
+    var scopeMod = modCard ? parseInt(modCard.getAttribute('data-overview-module'), 10) : null;
     var targets = [];
     Object.keys(courseActivities || {}).forEach(function(k) {
       var mod = parseInt(k, 10);
+      if (scopeMod != null && mod !== scopeMod) return;
       (courseActivities[k] || []).forEach(function(a) {
         if (a && a.id && !String(a.estimatedTime || '').trim()) {
           targets.push({ actId: a.id, modNum: mod, tplType: a.contentType || 'assignment' });
         }
       });
     });
-    if (!targets.length) { alert('Every activity already has an estimated time — this only fills blanks, it won’t overwrite existing values.'); return; }
+    if (!targets.length) {
+      alert((scopeMod != null ? 'Every activity in this module already has an estimated time' : 'Every activity already has an estimated time')
+        + ' — this only fills blanks, it won’t overwrite existing values.');
+      return;
+    }
     var orig = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; }
     var done = 0;
