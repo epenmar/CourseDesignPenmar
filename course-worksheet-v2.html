@@ -2265,6 +2265,7 @@
   <div class="comment-input-area" id="comment-input-area">
     <div class="comment-input-row">
       <textarea class="comment-input" id="comment-input" placeholder="Add a comment..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();postComment();}"></textarea>
+      <button type="button" class="comment-send" title="Link the selected text (select text first, then paste the URL)" onclick="insertCommentLink()" style="background:#fff; color:#8c1d40; border:1px solid #e0ddd5; padding:0 11px;">🔗</button>
       <button class="comment-send" onclick="postComment()">Post</button>
     </div>
   </div>
@@ -24109,6 +24110,31 @@
     return esc;
   }
 
+  // Wrap the selected text in a comment box as a [label](url) markdown link
+  // (rendered clickable by _linkifyComment). Works on the new-comment box and
+  // the inline edit box. With no selection, inserts a link at the cursor.
+  function insertCommentLink(ta) {
+    ta = ta || document.getElementById('comment-input');
+    if (!ta) return;
+    var start = ta.selectionStart != null ? ta.selectionStart : ta.value.length;
+    var end = ta.selectionEnd != null ? ta.selectionEnd : ta.value.length;
+    var val = ta.value;
+    var sel = val.substring(start, end);
+    var url = prompt('Link URL:', 'https://');
+    if (url == null) return;
+    url = url.trim();
+    if (!url) return;
+    if (!/^https?:\/\//i.test(url) && !/^mailto:/i.test(url)) url = 'https://' + url;
+    var label = sel.trim() ? sel : (prompt('Link text:', url) || url);
+    var md = '[' + label + '](' + url + ')';
+    ta.value = val.slice(0, start) + md + val.slice(end);
+    var pos = start + md.length;
+    ta.focus();
+    try { ta.setSelectionRange(pos, pos); } catch (e) {}
+    ta.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+  window.insertCommentLink = insertCommentLink;
+
   function renderCommentItem(c, isThread) {
     const date = new Date(c.created_at);
     const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -24449,9 +24475,13 @@
     row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-top:6px;';
     var save = document.createElement('button');
     save.className = 'comment-send'; save.textContent = 'Save'; save.style.cssText = 'padding:4px 14px; font-size:12px;';
+    var link = document.createElement('button');
+    link.type = 'button'; link.className = 'comment-action-btn'; link.textContent = '🔗 Link';
+    link.title = 'Link the selected text';
+    link.onclick = function() { insertCommentLink(ta); };
     var cancel = document.createElement('button');
     cancel.className = 'comment-action-btn'; cancel.textContent = 'Cancel';
-    row.appendChild(save); row.appendChild(cancel);
+    row.appendChild(save); row.appendChild(link); row.appendChild(cancel);
     box.appendChild(row);
     ta.focus();
     var reload = function() {
