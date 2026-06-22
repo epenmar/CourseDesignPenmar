@@ -1062,7 +1062,8 @@
   .role-tag.instructor { background: #fef3e8; color: #8c1d40; }
   .role-tag.reviewer { background: #e8f5e9; color: #2e7d32; }
   .comment-date { font-size: 10px; color: #999; }
-  .comment-text { font-size: 13px; line-height: 1.5; color: #333; }
+  .comment-text { font-size: 13px; line-height: 1.5; color: #333; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
+  .comment-text a, .comment-link { color: #8c1d40; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
   .comment-actions { margin-top: 6px; display: flex; gap: 8px; }
   .comment-action-btn { border: none; background: none; font-size: 11px; color: #888; cursor: pointer; padding: 2px 0; }
   .comment-action-btn:hover { color: #8c1d40; }
@@ -24087,6 +24088,27 @@
     }
   }
 
+  // Escape a comment's text, then turn URLs (and [label](url) markdown) into
+  // clickable links — something Google Docs comments don't do. Trailing
+  // sentence punctuation is kept out of the link.
+  function _linkifyComment(raw) {
+    var esc = escapeHtml(String(raw == null ? '' : raw));
+    // [label](http…) markdown links first so the inner URL isn't double-linked.
+    esc = esc.replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, function(_, label, url) {
+      return '<a href="' + url + '" target="_blank" rel="noopener noreferrer" class="comment-link">' + label + '</a>';
+    });
+    // Bare URLs (skip ones already inside an href="…").
+    esc = esc.replace(/(^|[^"=>])(https?:\/\/[^\s<]+|www\.[^\s<]+)/gi, function(full, pre, url) {
+      var trail = '';
+      var punct = url.match(/[.,;:!?)\]]+$/);
+      if (punct) { trail = punct[0]; url = url.slice(0, -punct[0].length); }
+      if (!url) return full;
+      var href = /^https?:\/\//i.test(url) ? url : ('https://' + url);
+      return pre + '<a href="' + href + '" target="_blank" rel="noopener noreferrer" class="comment-link">' + url + '</a>' + trail;
+    });
+    return esc;
+  }
+
   function renderCommentItem(c, isThread) {
     const date = new Date(c.created_at);
     const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' at ' + date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
@@ -24113,7 +24135,7 @@
         '<span class="comment-date">' + dateStr + '</span>' +
       '</div>' +
       highlightBadge +
-      '<div class="comment-text" id="ctext-' + c.id + '"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
+      '<div class="comment-text" id="ctext-' + c.id + '"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : _linkifyComment(c.content)) + '</div>' +
       '<div class="comment-actions">' +
         (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">Reply</button>' : '') +
         (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToCommentInContext(\'' + c.section_id + '\',\'' + (c.id || '') + '\')">View in context</button>' : '') +
