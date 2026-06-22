@@ -195,7 +195,11 @@
           // Quiz questions + question-bank settings (isBank / drawCount) so the
           // build tool can emit a Canvas quiz — and, for a bank, a question
           // group that randomly draws drawCount of the pooled questions.
-          quizQuestions: a.quizQuestions ? _cloneJson(a.quizQuestions) : null
+          quizQuestions: a.quizQuestions ? _cloneJson(a.quizQuestions) : null,
+          // Quiz delivery settings captured in the quiz-page generator
+          // (time limit / attempts / open-book) so the build tool can set them
+          // on the Canvas quiz, not just describe them in the body text.
+          quizMeta: a.quizMeta ? _cloneJson(a.quizMeta) : null
         };
       });
 

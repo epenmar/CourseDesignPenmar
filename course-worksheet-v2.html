@@ -2317,6 +2317,48 @@
   </div>
 </div>
 
+<!-- ===== QUIZ PAGE GENERATOR MODAL =====
+     Parameters + progress for drafting the four quiz pages. Time limit /
+     attempts / open-book aren't stored on the quiz builder, so they're
+     captured here (saved to act.quizMeta and shipped in the handoff) and
+     woven into the generated Instructions / Grading text. -->
+<div id="quiz-gen-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:281; align-items:flex-start; justify-content:center; padding-top:32px;" onclick="if(event.target===this) closeQuizGenModal();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:620px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">✨ Generate quiz pages — <span id="quiz-gen-title">…</span></div>
+        <div style="font-size:12px; color:#888; margin-top:2px;">Drafts the Overview, Instructions, Study Resources, and grading pages from the questions, objectives &amp; linked readings.</div>
+      </div>
+      <button onclick="closeQuizGenModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="quiz-gen-body" style="overflow-y:auto;">
+      <div id="quiz-gen-settings-summary" style="font-size:12px; color:#666; background:#faf7f2; border:1px solid #efe9df; border-radius:8px; padding:8px 12px; margin-bottom:14px;"></div>
+      <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
+        <label style="flex:1 1 160px; font-size:12px; font-weight:600; color:#555;">Time limit
+          <input id="qg-timelimit" type="text" placeholder="e.g., 30 minutes" style="display:block; width:100%; margin-top:4px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-weight:400;" />
+        </label>
+        <label style="flex:1 1 110px; font-size:12px; font-weight:600; color:#555;">Attempts
+          <input id="qg-attempts" type="text" placeholder="e.g., 1" style="display:block; width:100%; margin-top:4px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-weight:400;" />
+        </label>
+        <label style="flex:1 1 180px; font-size:12px; font-weight:600; color:#555;">Resources
+          <select id="qg-book" style="display:block; width:100%; margin-top:4px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-weight:400; background:#fff;">
+            <option value="closed">Closed book / no resources</option>
+            <option value="open">Open book / resources allowed</option>
+          </select>
+        </label>
+      </div>
+      <label style="font-size:12px; font-weight:600; color:#555;">Specific guidance / requirements <span style="font-weight:400; color:#999;">(optional)</span>
+        <textarea id="qg-guidance" rows="4" placeholder="Anything the AI should know or do — tone, what to emphasize, specific wording, what to leave out…" style="display:block; width:100%; margin-top:4px; padding:8px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-weight:400; font-family:'Inter',sans-serif; resize:vertical;"></textarea>
+      </label>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
+      <div id="quiz-gen-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
+      <button onclick="closeQuizGenModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Cancel</button>
+      <button id="quiz-gen-go-btn" onclick="runQuizGen()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">✨ Generate</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== APPLY TEMPLATE TO OTHER ACTIVITIES MODAL =====
      Copy selected template fields (Instructions, Rubric, etc.) from the
      activity the user is currently working on into one or more sibling
@@ -3397,7 +3439,7 @@
   function _buildQuizTemplateSections(actId, modNum) {
     var s = '';
     s += '<div style="margin:2px 0 10px; text-align:right;">'
-      + '<button type="button" class="btn-add-row" onclick="generateQuizSections(\'' + actId + '\',' + modNum + ', this)" '
+      + '<button type="button" class="btn-add-row" onclick="openQuizGenSettingsModal(\'' + actId + '\',' + modNum + ')" '
       + 'title="Draft the Overview, Instructions, Study Resources, and grading text from the quiz questions, settings, tagged objectives, and linked readings">✨ Generate quiz pages with AI</button>'
       + '</div>';
     s += '<div class="template-section"><div class="template-section-label">Overview <span style="font-weight:400; color:#888; font-size:11px;">— About this exam</span></div>'
@@ -13157,10 +13199,9 @@
       return;
     }
     var act = info.item;
-    // The quiz template has no field-fill modal — its "AI Generate" drafts all
-    // four quiz pages (Overview / Instructions / Study Resources / How You Will
-    // Be Graded) from the questions, settings, objectives, and linked readings.
-    if (tplType === 'quiz') { return generateQuizSections(actId, modNum); }
+    // The quiz template opens its own parameters modal (time limit, attempts,
+    // open/closed book, guidance) which then drafts all four quiz pages.
+    if (tplType === 'quiz') { return openQuizGenSettingsModal(actId, modNum); }
     var sections = AI_FILL_TEMPLATE_SECTIONS[tplType];
     if (!sections) {
       alert('AI fill is not yet wired for this template type.');
@@ -14644,16 +14685,28 @@
   // How You Will Be Graded) in one AI call, from the questions, settings,
   // tagged objectives, and linked readings. Applied through _aiFillApply so it
   // snapshots history and clears the reviewed flag like the other AI fills.
-  async function generateQuizSections(actId, modNum, btn) {
+  async function generateQuizSections(actId, modNum, btn, opts) {
+    opts = opts || {};
     var info = _itemForContentPrefix(actId);
-    if (!info || info.kind !== 'activity') return;
+    if (!info || info.kind !== 'activity') return false;
     var act = info.item;
     var qq = act.quizQuestions || {};
     var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
     if (questions.length === 0) {
       alert('Add some quiz questions first — the quiz pages are generated from the questions, settings, and linked readings.');
-      return;
+      return false;
     }
+    // Persist the instructor-supplied settings (time limit / attempts / book /
+    // guidance) so they're remembered, ride into the handoff, and the
+    // generated Instructions/Grading can state them exactly.
+    act.quizMeta = Object.assign({}, act.quizMeta || {}, {
+      timeLimit: (opts.timeLimit || '').trim(),
+      attempts: (opts.attempts || '').trim(),
+      openBook: !!opts.openBook,
+      guidance: (opts.guidance || '').trim()
+    });
+    try { saveActivityData(); } catch (e) {}
+    var meta = act.quizMeta;
     var origLabel = btn ? btn.innerHTML : '';
     if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Generating…'; }
     try {
@@ -14678,13 +14731,17 @@
       p += 'Course: ' + (activeCourse.code || courseId) + (modTopic ? (' — Module ' + modNum + ': ' + modTopic) : '') + '\n';
       p += 'Quiz: "' + (act.name || 'Quiz') + '"\n';
       p += 'Settings: ' + nQ + ' question(s) presented' + (ppq ? (', ' + ppq + ' point(s) each') : '') + (total ? (', ' + total + ' points total') : '') + (qq.isBank ? ', drawn randomly from a question bank' : '') + '.\n';
-      p += '(Time limit and attempt count are not stored — use a bracketed placeholder like "[time limit]" and "[number of] attempt(s)" for the instructor to fill, or default to one attempt.)\n\n';
+      var _tl = meta.timeLimit, _at = meta.attempts;
+      p += 'Time limit: ' + (_tl ? _tl : '[time limit — leave a bracketed placeholder for the instructor]') + '. ';
+      p += 'Attempts: ' + (_at ? _at : 'one (default)') + '. ';
+      p += 'This is ' + (meta.openBook ? 'an OPEN-book exam (resources allowed)' : 'a CLOSED-book exam (no resources)') + '.\n\n';
+      if (meta.guidance) p += 'INSTRUCTOR GUIDANCE (follow this closely, it overrides the defaults below):\n' + meta.guidance + '\n\n';
       p += 'Questions (infer topics; do NOT reveal answers):\n' + qList + '\n\n';
       if (objs) p += 'Objectives this exam assesses:\n' + objs + '\n\n';
       if (matText) p += 'Linked readings / materials (for Study Resources — do not invent others):\n' + matText + '\n\n';
       p += 'Write each section as Canvas-ready HTML (use <p>, <ul><li>, <ol><li>, <strong>; NO headings/<h*> — section titles are added separately). Plain, encouraging, second person. Never use em-dashes.\n';
       p += '- "Overview": About this exam — what students studied and the can-do abilities it assesses (from the questions + objectives). No answers, no mechanics, no grading.\n';
-      p += '- "Instructions": how to take it — attempts, number of questions (' + nQ + '), time limit, that questions are randomized and presented one at a time with backtracking allowed, and whether it is open/closed book (default closed book). Use the known numbers; bracket unknown limits.\n';
+      p += '- "Instructions": how to take it — state the attempts (' + (_at || 'one') + '), number of questions (' + nQ + '), the time limit' + (_tl ? (' (' + _tl + ')') : ' (bracket it if unknown)') + ', that questions are randomized and presented one at a time with backtracking allowed, and that it is ' + (meta.openBook ? 'open book' : 'closed book') + '.\n';
       p += '- "Study Resources": a short intro line plus a <ul> of the linked readings/materials to review. If none are listed, give a one-line prompt to review the module readings.\n';
       p += '- "How You Will Be Graded": points per question' + (ppq ? (' (' + ppq + ')') : '') + ', total points' + (total ? (' (' + total + ')') : '') + ', attempts, and that the score counts toward the final grade.\n\n';
       p += 'Return ONLY: {"Overview":"<html>","Instructions":"<html>","Study Resources":"<html>","How You Will Be Graded":"<html>"}';
@@ -14693,13 +14750,74 @@
       var parsed = _aiFillParseResponse(raw, ['Overview', 'Instructions', 'Study Resources', 'How You Will Be Graded']);
       Object.keys(parsed).forEach(function(k) { if (typeof _cleanAiHtml === 'function') parsed[k] = _cleanAiHtml(parsed[k]); });
       _aiFillApply(act, 'quiz', parsed);
+      return true;
     } catch (e) {
       alert('Generate failed: ' + (e && e.message ? e.message : e));
+      return false;
     } finally {
       if (btn) { btn.disabled = false; btn.innerHTML = origLabel || '✨ Generate quiz pages with AI'; }
     }
   }
   window.generateQuizSections = generateQuizSections;
+
+  // ===== QUIZ PAGE GENERATOR MODAL (parameters + progress) =====
+  var _quizGenState = null;
+  function openQuizGenSettingsModal(actId, modNum) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    var qq = act.quizQuestions || {};
+    var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
+    if (questions.length === 0) {
+      alert('Add some quiz questions first — the quiz pages are generated from the questions, settings, and linked readings.');
+      return;
+    }
+    _quizGenState = { actId: actId, modNum: modNum };
+    var nQ = (qq.isBank && qq.drawCount) ? qq.drawCount : questions.length;
+    var ppq = qq.pointsPerQuestion;
+    var total = (nQ && ppq) ? (nQ * ppq) : null;
+    var meta = act.quizMeta || {};
+    document.getElementById('quiz-gen-title').textContent = (act.name || 'Quiz').trim() || 'Quiz';
+    var summary = nQ + ' question' + (nQ === 1 ? '' : 's') + ' presented';
+    if (ppq) summary += ' · ' + ppq + ' pt' + (ppq === 1 ? '' : 's') + ' each';
+    if (total) summary += ' · ' + total + ' pts total';
+    if (qq.isBank) summary += ' · drawn from a bank';
+    document.getElementById('quiz-gen-settings-summary').textContent = summary;
+    document.getElementById('qg-timelimit').value = meta.timeLimit || '';
+    document.getElementById('qg-attempts').value = meta.attempts || '';
+    document.getElementById('qg-book').value = meta.openBook ? 'open' : 'closed';
+    document.getElementById('qg-guidance').value = meta.guidance || '';
+    document.getElementById('quiz-gen-status').textContent = '';
+    var goBtn = document.getElementById('quiz-gen-go-btn');
+    if (goBtn) { goBtn.disabled = false; goBtn.textContent = '✨ Generate'; }
+    document.getElementById('quiz-gen-overlay').style.display = 'flex';
+  }
+  window.openQuizGenSettingsModal = openQuizGenSettingsModal;
+  function closeQuizGenModal() {
+    var ov = document.getElementById('quiz-gen-overlay');
+    if (ov) ov.style.display = 'none';
+    _quizGenState = null;
+  }
+  window.closeQuizGenModal = closeQuizGenModal;
+  async function runQuizGen() {
+    if (!_quizGenState) return;
+    var st = _quizGenState;
+    var statusEl = document.getElementById('quiz-gen-status');
+    var goBtn = document.getElementById('quiz-gen-go-btn');
+    var opts = {
+      timeLimit: (document.getElementById('qg-timelimit') || {}).value || '',
+      attempts: (document.getElementById('qg-attempts') || {}).value || '',
+      openBook: ((document.getElementById('qg-book') || {}).value === 'open'),
+      guidance: (document.getElementById('qg-guidance') || {}).value || ''
+    };
+    if (statusEl) statusEl.textContent = '⏳ Generating the four quiz pages… this can take a few seconds.';
+    if (goBtn) { goBtn.disabled = true; goBtn.textContent = 'Generating…'; }
+    var ok = await generateQuizSections(st.actId, st.modNum, null, opts);
+    if (goBtn) { goBtn.disabled = false; goBtn.textContent = '✨ Generate'; }
+    if (ok) { closeQuizGenModal(); }
+    else if (statusEl) { statusEl.textContent = ''; }
+  }
+  window.runQuizGen = runQuizGen;
 
   // ===== IMPROVE PREVIEW MODAL =====
   function _openImprovePreview(plan) {
