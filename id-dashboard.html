@@ -805,8 +805,6 @@
       On-going courses will connect out to CanvasCurate for maintenance after development is complete.
     </div>
 
-    <div id="comment-notice-banner" style="display:none;"></div>
-
     <div class="course-table-wrap" id="course-table-wrap">
       <table class="course-table">
         <thead>
@@ -7487,34 +7485,6 @@
     localStorage.setItem('dashboard_comments_seen', JSON.stringify(data));
   }
 
-  // Render the top-of-dashboard "comments to address" notice. These are
-  // comments left FOR the ID (by faculty or reviewers) — the ones the ID acts
-  // on — as distinct from comments the ID @mentioned faculty in (handled by
-  // the "Address My Comments" email).
-  function renderCommentNoticeBanner() {
-    var el = document.getElementById('comment-notice-banner');
-    if (!el) return;
-    var courses = Object.keys(courseCommentCounts).filter(function(cid) { return courseCommentCounts[cid] && courseCommentCounts[cid].total > 0 && courseData[cid]; });
-    var total = courses.reduce(function(s, cid) { return s + courseCommentCounts[cid].total; }, 0);
-    if (!total) { el.style.display = 'none'; el.innerHTML = ''; return; }
-    var newTotal = courses.reduce(function(s, cid) { return s + (courseCommentCounts[cid].newCount || 0); }, 0);
-    courses.sort(function(a, b) { return (courseCommentCounts[b].newCount || 0) - (courseCommentCounts[a].newCount || 0); });
-    var _esc = function(s) { return String(s).replace(/[&<>"]/g, function(ch) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]; }); };
-    var chips = courses.map(function(cid) {
-      var cc = courseCommentCounts[cid], c = courseData[cid];
-      var lbl = (c.code || cid) + ' · ' + cc.total + (cc.newCount > 0 ? (' (' + cc.newCount + ' new)') : '');
-      return '<button onclick="openDetail(\'' + cid + '\')" style="background:#fff; border:1px solid #ffc627; color:#8c1d40; border-radius:14px; padding:3px 10px; font-size:11px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">' + _esc(lbl) + '</button>';
-    }).join(' ');
-    el.style.display = '';
-    el.innerHTML = '<div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; padding:10px 14px; background:#fef3e8; border:1px solid #ffc627; border-radius:8px; margin-bottom:16px;">'
-      + '<span style="font-size:18px;">💬</span>'
-      + '<span style="font-size:13px; color:#333;"><strong>' + total + '</strong> comment' + (total === 1 ? '' : 's') + ' to address'
-      + (newTotal > 0 ? (' <span style="background:#8c1d40; color:#fff; font-size:10px; font-weight:700; padding:1px 7px; border-radius:10px;">' + newTotal + ' new</span>') : '')
-      + ' <span style="color:#888;">— comments not tagged to faculty or a reviewer</span></span>'
-      + '<span style="display:flex; gap:6px; flex-wrap:wrap; margin-left:auto;">' + chips + '</span>'
-      + '</div>';
-  }
-
   // Regex matching "@" + any faculty or reviewer name (first/last token) for a
   // course. A comment that matches is tagged to someone else; one that doesn't
   // is "for me" (the ID). null when there's nobody to tag.
@@ -7575,7 +7545,6 @@
 
       // Re-render table to show badges
       renderTable();
-      renderCommentNoticeBanner();
       // If detail panel is open, update it too
       const overlay = document.getElementById('detail-overlay');
       if (overlay && overlay.classList.contains('open') && overlay._currentId) {
@@ -7589,7 +7558,6 @@
     lastSeen[courseId] = new Date().toISOString();
     saveLastSeenComments(lastSeen);
     if (courseCommentCounts[courseId]) courseCommentCounts[courseId].newCount = 0;
-    if (typeof renderCommentNoticeBanner === 'function') renderCommentNoticeBanner();
   }
 
   // Load comment notifications on init
