@@ -24041,10 +24041,11 @@
         '<span class="comment-date">' + dateStr + '</span>' +
       '</div>' +
       highlightBadge +
-      '<div class="comment-text"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
+      '<div class="comment-text" id="ctext-' + c.id + '"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : escapeHtml(c.content)) + '</div>' +
       '<div class="comment-actions">' +
         (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">Reply</button>' : '') +
         (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToCommentInContext(\'' + c.section_id + '\',\'' + (c.id || '') + '\')">View in context</button>' : '') +
+        (!isDeleted && isOwn ? ' <button class="comment-action-btn" onclick="editComment(\'' + c.id + '\')">Edit</button>' : '') +
         (!c.resolved && !isDeleted && (isOwn || (identity && identity.role === 'id')) ? '<button class="comment-action-btn" onclick="resolveComment(\'' + c.id + '\')">Resolve</button>' : '') +
         statusTag +
         (!isDeleted && isOwn ? ' <button class="comment-action-btn" onclick="deleteComment(\'' + c.id + '\')">Delete</button>' : '') +
@@ -24165,8 +24166,10 @@
       // If we just created a highlight comment, apply visual indicator
       if (pendingHighlight && data && data[0]) {
         if (pendingHighlight.isFieldComment && pendingHighlight.fieldEl) {
-          // Mark the field with a visual indicator
+          // Mark the field with a visual indicator + its comment id so a click
+          // opens THIS thread (not the whole section) right away.
           pendingHighlight.fieldEl.classList.add('has-field-comment');
+          pendingHighlight.fieldEl.setAttribute('data-comment-id', data[0].id);
         } else if (pendingHighlight.range) {
           applyHighlightToRange(pendingHighlight.range, data[0].id);
         }
@@ -24326,6 +24329,60 @@
       });
     }
   }
+
+  function _findCommentById(commentId) {
+    var found = null;
+    try { Object.keys(commentCache || {}).forEach(function(k) { (commentCache[k] || []).forEach(function(c) { if (c && c.id === commentId) found = c; }); }); } catch (e) {}
+    if (!found && Array.isArray(_highlightCache)) _highlightCache.forEach(function(c) { if (c && c.id === commentId) found = c; });
+    if (!found && Array.isArray(window._allCommentsData)) window._allCommentsData.forEach(function(c) { if (c && c.id === commentId) found = c; });
+    return found;
+  }
+
+  // Inline-edit a comment's text (author only). Swaps the body for a textarea
+  // and saves via an UPDATE on the comments row.
+  function editComment(commentId) {
+    var box = document.getElementById('ctext-' + commentId);
+    if (!box) return;
+    var c = _findCommentById(commentId);
+    var current = (c && c.content != null) ? c.content : (box.textContent || '');
+    box.innerHTML = '';
+    var ta = document.createElement('textarea');
+    ta.className = 'comment-input';
+    ta.style.cssText = 'width:100%; min-height:54px; font-size:13px; font-family:\'Inter\',sans-serif; padding:6px 8px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical; box-sizing:border-box;';
+    ta.value = current;
+    box.appendChild(ta);
+    var row = document.createElement('div');
+    row.style.cssText = 'display:flex; gap:8px; align-items:center; margin-top:6px;';
+    var save = document.createElement('button');
+    save.className = 'comment-send'; save.textContent = 'Save'; save.style.cssText = 'padding:4px 14px; font-size:12px;';
+    var cancel = document.createElement('button');
+    cancel.className = 'comment-action-btn'; cancel.textContent = 'Cancel';
+    row.appendChild(save); row.appendChild(cancel);
+    box.appendChild(row);
+    ta.focus();
+    var reload = function() {
+      if (currentCommentSection) loadComments(currentCommentSection, currentHighlightCommentId);
+      else if (typeof openAllCommentsPanel === 'function') openAllCommentsPanel();
+    };
+    cancel.onclick = reload;
+    save.onclick = async function() {
+      var val = ta.value.trim();
+      if (!val) { ta.focus(); return; }
+      if (val === current) { reload(); return; }
+      if (!supabaseClient) { alert('Editing is unavailable — not connected.'); return; }
+      save.disabled = true; save.textContent = 'Saving…';
+      try {
+        var resp = await supabaseClient.from('comments').update({ content: val }).eq('id', commentId);
+        if (resp.error) throw resp.error;
+        if (c) c.content = val;
+        reload();
+      } catch (e) {
+        alert('Could not save the edit: ' + (e && e.message ? e.message : e));
+        save.disabled = false; save.textContent = 'Save';
+      }
+    };
+  }
+  window.editComment = editComment;
 
   async function deleteComment(commentId) {
     if (!supabaseClient) return;
@@ -24527,6 +24584,7 @@
           var innerField = !field.matches('textarea, input, select') ? field.querySelector('textarea, input, select') : null;
           var target = innerField || field;
           target.classList.add('has-field-comment');
+          if (c.id) target.setAttribute('data-comment-id', c.id); // so a click opens THIS thread, not all
         } catch(e) {}
       });
 
@@ -24790,6 +24848,18 @@
     // in a card-header would otherwise collapse the card on click.
     var field = e.target.closest('.has-field-comment');
     if (field) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
+      // The field already carries its comment id (set when the indicator is
+      // applied) — open THAT thread directly. Only fall back to a cache lookup,
+      // then to the whole section, when it's missing.
+      var directId = field.getAttribute('data-comment-id');
+      var sectionId = getViewSectionId(field);
+      if (directId) {
+        try { openCommentPanel(sectionId, directId); } catch (err) { console.error('[field-comment-click]', err); }
+        return;
+      }
       var fieldSelector = buildFieldSelector(field);
       var foundComment = null;
       Object.values(commentCache).forEach(function(comments) {
@@ -24799,15 +24869,9 @@
           }
         });
       });
-      e.preventDefault();
-      e.stopPropagation();
-      if (typeof e.stopImmediatePropagation === 'function') e.stopImmediatePropagation();
       try {
-        if (foundComment) {
-          openCommentPanel(foundComment.section_id, foundComment.id);
-        } else {
-          openCommentPanel(getViewSectionId(field));
-        }
+        if (foundComment) openCommentPanel(foundComment.section_id, foundComment.id);
+        else openCommentPanel(sectionId);
       } catch (err) {
         console.error('[field-comment-click] openCommentPanel threw:', err);
       }
