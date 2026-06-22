@@ -2249,6 +2249,7 @@
   <div class="comment-thread-header">
     <h3 id="comment-panel-title">Comments</h3>
     <div style="display:flex; align-items:center; gap:8px;">
+      <button class="comment-history-toggle" id="comment-viewall-btn" onclick="openAllCommentsPanel()" title="View every comment on this document" style="font-size:11px; padding:3px 8px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; color:#8c1d40; cursor:pointer; font-family:'Inter',sans-serif; display:none;">View all</button>
       <button class="comment-history-toggle" id="comment-history-toggle" onclick="toggleCommentHistory()" title="Show resolved comments" style="font-size:11px; padding:3px 8px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; color:#999; cursor:pointer; font-family:'Inter',sans-serif;">History</button>
       <button class="comment-thread-close" onclick="closeCommentPanel()">×</button>
     </div>
@@ -23808,6 +23809,8 @@
 
     titleEl.textContent = 'All Comments';
     panel.classList.add('open');
+    var _vaBtn = document.getElementById('comment-viewall-btn');
+    if (_vaBtn) _vaBtn.style.display = 'none'; // already viewing all
     // Reply input doesn't apply to the all-comments view — comments belong to a specific section.
     if (inputArea) inputArea.style.display = 'none';
     msgContainer.innerHTML = '<div class="comment-empty">Loading...</div>';
@@ -23882,6 +23885,8 @@
       titleEl.textContent = 'Comments — ' + sectionId.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
     }
     panel.classList.add('open');
+    var _vaBtn = document.getElementById('comment-viewall-btn');
+    if (_vaBtn) _vaBtn.style.display = ''; // offer "View all" out of a single thread / section
 
     await loadComments(sectionId, highlightId);
   }
