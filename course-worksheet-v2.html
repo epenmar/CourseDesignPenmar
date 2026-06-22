@@ -9236,9 +9236,9 @@
     if (prefix === 'module') {
       renderModuleOverviewCards();
     } else if (prefix === 'assignments') {
-      try { renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards')); } catch (e) {}
+      try { renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'), mode); } catch (e) {}
     } else if (prefix === 'materials') {
-      try { renderMaterialsOverview(getOpenOverviewModules('materials-overview-cards')); } catch (e) {}
+      try { renderMaterialsOverview(getOpenOverviewModules('materials-overview-cards'), mode); } catch (e) {}
     }
     // Auto-size textareas now that they're visible (scrollHeight is 0 while display:none)
     if (mode === 'table' && tableEl) {
@@ -9776,7 +9776,7 @@
     host.innerHTML = html;
   }
 
-  function renderAssignmentsOverview(openModules) {
+  function renderAssignmentsOverview(openModules, onlyView) {
     // The content popup transplants .overview-act-content out of the cards
     // container; if we re-render while it's open, the original parent gets
     // destroyed and we'd leave the popup body orphaned. Snap it back first.
@@ -9787,6 +9787,15 @@
     var cardsContainer = document.getElementById('assignments-overview-cards');
     var tableContainer = document.getElementById('assignments-overview-table');
     if (!cardsContainer) return;
+    // Only one of the two views is visible at a time. When a caller targets a
+    // single view (the card<->table toggle), skip rebuilding + re-initializing
+    // the hidden one — the card view alone carries the rich editors and quiz
+    // builders, so rebuilding it just to show the table was the switch lag.
+    // The hidden view is rebuilt from the data model when it's next shown, so
+    // no edit is lost. Default (no onlyView) keeps rendering both.
+    var doCard = onlyView !== 'table';
+    var doTable = onlyView !== 'card';
+    var _asn = activeCourse.moduleStartZero ? 0 : 1;
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
     var savedMods = loadField('moduleOverviewData') || {};
@@ -9804,6 +9813,7 @@
     renderCourseObjectivesAccordion();
 
     // Card view
+    if (doCard) {
     var html = '';
     // If no openModules passed, check saved accordion states
     if (!openModules) {
@@ -9897,9 +9907,10 @@
     cardsContainer.querySelectorAll('[id$="-quiz-builder"]').forEach(function(el) {
       if (!el.hasChildNodes()) initQuizBuilder(el);
     });
+    } // end if (doCard)
 
     // Table view — fully editable with objective picker, add, delete, multi-select
-    if (tableContainer) {
+    if (doTable && tableContainer) {
       var thtml = '';
       thtml += '<div class="overview-bulk-toolbar" id="assignments-bulk-toolbar">';
       thtml += '<span id="assignments-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
@@ -9937,12 +9948,12 @@
     }
 
     if (window.RichEditor) {
-      if (cardsContainer) window.RichEditor.initAll(cardsContainer);
-      if (tableContainer) window.RichEditor.initAll(tableContainer);
+      if (doCard && cardsContainer) window.RichEditor.initAll(cardsContainer);
+      if (doTable && tableContainer) window.RichEditor.initAll(tableContainer);
     }
     if (typeof attachAllDuePickers === 'function') {
-      if (cardsContainer) attachAllDuePickers(cardsContainer);
-      if (tableContainer) attachAllDuePickers(tableContainer);
+      if (doCard && cardsContainer) attachAllDuePickers(cardsContainer);
+      if (doTable && tableContainer) attachAllDuePickers(tableContainer);
     }
     // Grow every activity-name textarea to fit its current content so
     // long names don't render clipped at the 22px min-height and then
@@ -9951,8 +9962,8 @@
     // taller; with vertical-align:top, other cells in the same row
     // snapped upward), which read as the table "skewing."
     if (typeof autoGrowTextarea === 'function') {
-      if (cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
-      if (tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (doCard && cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (doTable && tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
     }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
     // Keep the MLO coverage report in step with the rendered activities — a
@@ -9961,13 +9972,18 @@
     if (typeof renderMloCoverageReport === 'function') { try { renderMloCoverageReport(); } catch (e) {} }
   }
 
-  function renderMaterialsOverview(openModules) {
+  function renderMaterialsOverview(openModules, onlyView) {
     if (typeof _contentPopupState !== 'undefined' && _contentPopupState && _contentPopupState.kind === 'material') {
       try { closeContentPopup(); } catch (e) {}
     }
     var cardsContainer = document.getElementById('materials-overview-cards');
     var tableContainer = document.getElementById('materials-overview-table');
     if (!cardsContainer) return;
+    // Render only the visible view when a caller targets one (card<->table
+    // toggle); the hidden view is rebuilt from data when next shown. See
+    // renderAssignmentsOverview for the rationale.
+    var doCard = onlyView !== 'table';
+    var doTable = onlyView !== 'card';
     renderCourseObjectivesAccordion();
     var modules = activeCourse.modules || [];
     var modCount = activeCourse.moduleCount || modules.length || 7;
@@ -10005,6 +10021,7 @@
     Object.keys(courseMaterials || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n) && (courseMaterials[k] || []).length > 0) matModSet[n] = true; });
     Object.keys(matSavedMods || {}).forEach(function(k) { var n = parseInt(k, 10); if (!isNaN(n)) matModSet[n] = true; });
     var matModList = Object.keys(matModSet).map(function(k) { return parseInt(k, 10); }).sort(function(a, b) { return a - b; });
+    if (doCard) {
     for (var _mli = 0; _mli < matModList.length; _mli++) {
       var m = matModList[_mli];
       var mod = modules[m - _msn] || null;
@@ -10078,9 +10095,10 @@
       html += '</div></div>';
     }
     cardsContainer.innerHTML = html;
+    } // end if (doCard)
 
     // Table view — fully editable with multi-select
-    if (tableContainer) {
+    if (doTable && tableContainer) {
       var thtml = '';
       thtml += '<div class="overview-bulk-toolbar" id="materials-bulk-toolbar">';
       thtml += '<span id="materials-bulk-count" style="font-size:13px; font-weight:600; color:#e65100;">0 selected</span>';
@@ -10115,14 +10133,14 @@
     }
 
     if (window.RichEditor) {
-      if (cardsContainer) window.RichEditor.initAll(cardsContainer);
-      if (tableContainer) window.RichEditor.initAll(tableContainer);
+      if (doCard && cardsContainer) window.RichEditor.initAll(cardsContainer);
+      if (doTable && tableContainer) window.RichEditor.initAll(tableContainer);
     }
     // Same auto-grow pass as renderAssignmentsOverview — prevents the
     // click-to-skew artifact on long material titles.
     if (typeof autoGrowTextarea === 'function') {
-      if (cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
-      if (tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (doCard && cardsContainer) cardsContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
+      if (doTable && tableContainer) tableContainer.querySelectorAll('textarea').forEach(autoGrowTextarea);
     }
     if (typeof refreshAllContentIndicators === 'function') refreshAllContentIndicators();
   }
