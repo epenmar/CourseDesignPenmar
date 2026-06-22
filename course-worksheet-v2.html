@@ -4761,6 +4761,63 @@
     return tags;
   }
 
+  // ===== Keep ELO tags following their MLO when the MLO list changes =====
+  // Tags live in eloMloAlignment keyed by POSITIONAL id "<mod>.<idx+1>". When
+  // MLOs are reordered or deleted, those ids must be rewritten or the tag drifts
+  // to the wrong objective (reorder) and a deleted MLO leaves an orphan tag that
+  // a newly-added MLO at the same position inherits.
+  function _remapModuleEloTagsByMap(modNum, oldToNew) {
+    var em = activeCourse.eloMloAlignment;
+    if (!em) return;
+    Object.keys(em).forEach(function(eloKey) {
+      em[eloKey] = (em[eloKey] || []).map(function(mloId) {
+        var m = String(mloId).match(/^(\d+)\.(\d+)$/);
+        if (!m || parseInt(m[1], 10) !== modNum) return mloId; // other module — untouched
+        var oldIdx = parseInt(m[2], 10) - 1;
+        var nv = oldToNew[oldIdx];
+        return (nv == null) ? null : (modNum + '.' + (nv + 1));
+      }).filter(function(x) { return x !== null; });
+    });
+  }
+  function _reindexEloTagsForDelete(modNum, idx, origCount) {
+    if (!activeCourse.eloMloAlignment) return;
+    var map = {};
+    for (var i = 0; i < origCount; i++) map[i] = (i === idx) ? null : (i < idx ? i : i - 1);
+    _remapModuleEloTagsByMap(modNum, map);
+    saveField('eloMloAlignment', activeCourse.eloMloAlignment);
+  }
+  function _reindexEloTagsForMove(srcMod, srcIdx, tgtMod, insertIdx, srcOrigLen, tgtOrigLen) {
+    var em = activeCourse.eloMloAlignment;
+    if (!em) return;
+    if (srcMod === tgtMod) {
+      // Permutation within one module: build the new order of old indices.
+      var order = [];
+      for (var k = 0; k < srcOrigLen; k++) order.push(k);
+      order.splice(srcIdx, 1);
+      order.splice(insertIdx, 0, srcIdx);
+      var map = {};
+      order.forEach(function(oldIdx, newIdx) { map[oldIdx] = newIdx; });
+      _remapModuleEloTagsByMap(srcMod, map);
+    } else {
+      // Capture the moved MLO's tags, delete it from src, make room in tgt, re-add.
+      var movedId = srcMod + '.' + (srcIdx + 1);
+      var movedElos = [];
+      Object.keys(em).forEach(function(eloKey) { if ((em[eloKey] || []).indexOf(movedId) !== -1) movedElos.push(eloKey); });
+      var srcMap = {};
+      for (var i = 0; i < srcOrigLen; i++) srcMap[i] = (i === srcIdx) ? null : (i < srcIdx ? i : i - 1);
+      _remapModuleEloTagsByMap(srcMod, srcMap);
+      var tgtMap = {};
+      for (var j = 0; j < tgtOrigLen; j++) tgtMap[j] = (j < insertIdx ? j : j + 1);
+      _remapModuleEloTagsByMap(tgtMod, tgtMap);
+      var newId = tgtMod + '.' + (insertIdx + 1);
+      movedElos.forEach(function(eloKey) {
+        if (!em[eloKey]) em[eloKey] = [];
+        if (em[eloKey].indexOf(newId) === -1) em[eloKey].push(newId);
+      });
+    }
+    saveField('eloMloAlignment', activeCourse.eloMloAlignment);
+  }
+
   function getEloText(eloId) {
     // eloId is like "ELO 1", "ELO 2" etc.
     var match = eloId.match(/(\d+)/);
@@ -5862,6 +5919,7 @@
     var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_arrayIdx] ? activeCourse.modules[_arrayIdx].mlos || [] : []);
     mlos = mlos.slice();
     mlos.splice(idx, 1);
+    _reindexEloTagsForDelete(modNum, idx, mlos.length + 1);
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
     if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
@@ -5881,6 +5939,7 @@
     var mlos = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_arrayIdx] ? activeCourse.modules[_arrayIdx].mlos || [] : []);
     mlos = mlos.slice();
     mlos.splice(idx, 1);
+    _reindexEloTagsForDelete(modNum, idx, mlos.length + 1);
     savedMods[modNum].mlos = mlos;
     saveField('moduleOverviewData', savedMods);
     if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
@@ -5952,18 +6011,21 @@
         var savedMods = loadField('moduleOverviewData') || {};
         if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var _srcOrigLen = srcMlos.length;
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
         var _dsn = activeCourse.moduleStartZero ? 0 : 1;
         if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = (dragSrcMod === targetMod ? srcMlos : getMloDataForMod(targetMod)).slice();
+        var _tgtOrigLen = (dragSrcMod === targetMod) ? _srcOrigLen : tgtMlos.length;
         var adjIdx = targetIdx;
         if (dragSrcMod === targetMod && dragSrcIdx < targetIdx) adjIdx--;
         var insertIdx = insertAfter ? adjIdx + 1 : adjIdx;
         tgtMlos.splice(insertIdx, 0, movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
         if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
+        _reindexEloTagsForMove(dragSrcMod, dragSrcIdx, targetMod, insertIdx, _srcOrigLen, _tgtOrigLen);
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
