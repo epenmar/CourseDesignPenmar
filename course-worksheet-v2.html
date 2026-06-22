@@ -6078,16 +6078,20 @@
         var savedMods = loadField('moduleOverviewData') || {};
         if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var _srcOrigLen = srcMlos.length;
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
         var _dsn = activeCourse.moduleStartZero ? 0 : 1;
         if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = getMloDataForMod(targetMod).slice();
+        var _tgtOrigLen = tgtMlos.length;
         if (dragSrcMod === targetMod) tgtMlos = srcMlos.slice();
+        var _insertIdx = (dragSrcMod === targetMod) ? srcMlos.length : _tgtOrigLen;
         tgtMlos.push(movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
         if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
+        _reindexEloTagsForMove(dragSrcMod, dragSrcIdx, targetMod, _insertIdx, _srcOrigLen, _tgtOrigLen);
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -6119,15 +6123,19 @@
         var savedMods = loadField('moduleOverviewData') || {};
         if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
         var srcMlos = getMloDataForMod(dragSrcMod).slice();
+        var _srcOrigLen = srcMlos.length;
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         var _sn = activeCourse.moduleStartZero ? 0 : 1;
         savedMods[dragSrcMod].mlos = srcMlos;
         if (activeCourse.modules[dragSrcMod - _sn]) activeCourse.modules[dragSrcMod - _sn].mlos = srcMlos;
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
         var tgtMlos = (savedMods[targetMod].mlos || []).slice();
+        var _tgtOrigLen = tgtMlos.length;
+        var _insertIdx = tgtMlos.length;
         tgtMlos.push(movedMlo);
         savedMods[targetMod].mlos = tgtMlos;
         if (activeCourse.modules[targetMod - _sn]) activeCourse.modules[targetMod - _sn].mlos = tgtMlos;
+        _reindexEloTagsForMove(dragSrcMod, dragSrcIdx, targetMod, _insertIdx, _srcOrigLen, _tgtOrigLen);
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
@@ -6245,25 +6253,31 @@
         // Remove from source
         if (!savedMods[dragSrcMod]) savedMods[dragSrcMod] = {};
         var srcMlos = getMloData(dragSrcMod).slice();
+        var _srcOrigLen = srcMlos.length;
         var movedMlo = srcMlos.splice(dragSrcIdx, 1)[0];
         savedMods[dragSrcMod].mlos = srcMlos;
         var _dsn = activeCourse.moduleStartZero ? 0 : 1;
         if (activeCourse.modules[dragSrcMod - _dsn]) activeCourse.modules[dragSrcMod - _dsn].mlos = srcMlos;
         // Insert into target
         if (!savedMods[targetMod]) savedMods[targetMod] = {};
+        var _tgtOrigLen = (dragSrcMod === targetMod) ? _srcOrigLen : getMloData(targetMod).length;
         var tgtMlos = (dragSrcMod === targetMod ? srcMlos : getMloData(targetMod)).slice();
+        var _insertIdxFinal;
         if (targetIdxAttr !== null) {
           var targetIdx = parseInt(targetIdxAttr);
           // If same module and source was before target, adjust
           if (dragSrcMod === targetMod && dragSrcIdx < targetIdx) targetIdx--;
           var insertIdx = insertAfter ? targetIdx + 1 : targetIdx;
           tgtMlos.splice(insertIdx, 0, movedMlo);
+          _insertIdxFinal = insertIdx;
         } else {
           // Dropped on empty module
           tgtMlos.push(movedMlo);
+          _insertIdxFinal = tgtMlos.length - 1;
         }
         savedMods[targetMod].mlos = tgtMlos;
         if (activeCourse.modules[targetMod - _dsn]) activeCourse.modules[targetMod - _dsn].mlos = tgtMlos;
+        _reindexEloTagsForMove(dragSrcMod, dragSrcIdx, targetMod, _insertIdxFinal, _srcOrigLen, _tgtOrigLen);
         saveField('moduleOverviewData', savedMods);
         dragSrcMod = null;
         dragSrcIdx = null;
