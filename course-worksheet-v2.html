@@ -11953,9 +11953,21 @@
           if (typeof v === 'string' && v.trim()) { saveTemplateField(actId, type, sec, v.trim()); filled++; }
         });
         if (!filled) throw new Error('The AI could not map the document to template sections.');
-        // Re-render so the populated fields show.
-        if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
-        else if (typeof renderModuleDetail === 'function' && currentViewId === 'module') renderModuleDetail(currentModuleNum);
+        // Re-render so the populated fields show. renderAssignmentsOverview
+        // closes the content popup (it transplants DOM out of the cards view),
+        // so if the import was launched from an open popup, re-open it
+        // afterward — the user wants to review what was imported in place,
+        // not have to hunt down the activity and reopen it.
+        var _popupActId = (typeof _contentPopupState !== 'undefined' && _contentPopupState && _contentPopupState.kind === 'activity') ? _contentPopupState.itemId : null;
+        if (currentViewId === 'assignments-overview' && typeof renderAssignmentsOverview === 'function') {
+          renderAssignmentsOverview(getOpenOverviewModules('assignments-overview-cards'));
+          if (_popupActId === actId && typeof openContentPopup === 'function') {
+            var _info = (typeof _itemForContentPrefix === 'function') ? _itemForContentPrefix(actId) : null;
+            try { openContentPopup(actId, 'activity', _info ? _info.modNum : moduleNum); } catch (e) {}
+          }
+        } else if (typeof renderModuleDetail === 'function' && currentViewId === 'module') {
+          renderModuleDetail(currentModuleNum);
+        }
         alert('Imported "' + file.name + '" into ' + filled + ' template section' + (filled === 1 ? '' : 's') + '. Review and edit as needed.');
       } catch (e) {
         alert('Import failed: ' + (e && e.message ? e.message : e));
@@ -22072,13 +22084,23 @@
     if (!payload || !payload.data) return;
     if (_isStaleRemoteBroadcast('moduleOverviewData', payload.at)) return;
     try {
-      saveField('moduleOverviewData', payload.data);
+      // MERGE, don't wholesale-replace. A broadcast that carries an EMPTY
+      // topic/mlos/overviewPageHtml for a module (the sender's copy was
+      // momentarily incomplete) must not clobber our good value — that's what
+      // made module titles flicker to "Module N" until the next cloud pull's
+      // safe merge restored them. Reuse the same per-module merge as the blob
+      // merge: the remote edit drives, but a non-empty local field survives.
+      var _localMov = loadField('moduleOverviewData') || {};
+      var _mergedMov = (typeof _mergeModuleOverviewData === 'function')
+        ? _mergeModuleOverviewData(_localMov, payload.data, false)
+        : payload.data;
+      saveField('moduleOverviewData', _mergedMov);
       var startN = activeCourse.moduleStartZero ? 0 : 1;
-      Object.keys(payload.data).forEach(function(k) {
+      Object.keys(_mergedMov).forEach(function(k) {
         var idx = parseInt(k) - startN;
-        if (activeCourse.modules && activeCourse.modules[idx]) {
-          if (payload.data[k].mlos) activeCourse.modules[idx].mlos = payload.data[k].mlos;
-          if (payload.data[k].topic) activeCourse.modules[idx].title = payload.data[k].topic;
+        if (activeCourse.modules && activeCourse.modules[idx] && _mergedMov[k]) {
+          if (_mergedMov[k].mlos) activeCourse.modules[idx].mlos = _mergedMov[k].mlos;
+          if (_mergedMov[k].topic) activeCourse.modules[idx].title = _mergedMov[k].topic;
         }
       });
     } catch(e) {}
