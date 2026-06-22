@@ -1981,10 +1981,14 @@
     var html = '<div style="font-family:Arial,sans-serif; font-size:14px; color:#222; line-height:1.5;">'
       + '<p>Hi ' + hesc(firstName) + ',</p>'
       + '<p>I left some comments in the ' + hesc(courseLabel) + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.</p>'
-      + '<p>A couple of quick notes:</p>'
-      + '<ul><li>Each comment title below links straight to its spot in the worksheet.</li>'
-      + '<li>Please mark a comment <strong>Resolve</strong> as soon as you have addressed it.</li>'
-      + '<li>You can reply right there by adding your own comment — no need to reply to this email.</li></ul>'
+      + '<p>How to work with the comments:</p>'
+      + '<ul>'
+      + '<li>Open any link below — each one jumps straight to that comment in the worksheet.</li>'
+      + '<li>Comments are attached to highlighted text. To browse them on your own, click any <span style="background:#fffde6; box-shadow:inset 3px 0 0 #ffc627; padding:0 4px;">highlighted</span> spot in the worksheet to open the comment on it.</li>'
+      + '<li>To see every comment at once, use the <strong>View all</strong> button at the top of the comment panel.</li>'
+      + '<li>To respond, add your own comment right there in the worksheet — no need to reply to this email.</li>'
+      + '<li>Mark a comment <strong>Resolve</strong> once you have addressed it.</li>'
+      + '</ul>'
       + '<p><strong>The comments (' + matched.length + '):</strong></p>'
       + '<ol>' + entryHtml + '</ol>' + moreHtml
       + '<p>Thank you,<br>' + hesc(sig) + '</p></div>';
@@ -2001,10 +2005,12 @@
     var subject = 'Comments to address: ' + courseLabel;
     var plain = 'Hi ' + firstName + ',\n\n'
       + 'I left some comments in the ' + courseLabel + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.\n\n'
-      + 'A couple of quick notes:\n'
-      + '• Each comment below links straight to its spot in the worksheet.\n'
-      + '• Please mark a comment "Resolve" as soon as you have addressed it.\n'
-      + '• You can reply right there by adding your own comment — no need to reply to this email.\n\n'
+      + 'How to work with the comments:\n'
+      + '• Open any link below — each one jumps straight to that comment in the worksheet.\n'
+      + '• Comments are attached to highlighted text. To browse them on your own, click any highlighted spot in the worksheet to open the comment on it.\n'
+      + '• To see every comment at once, use the "View all" button at the top of the comment panel.\n'
+      + '• To respond, add your own comment right there in the worksheet — no need to reply to this email.\n'
+      + '• Mark a comment "Resolve" once you have addressed it.\n\n'
       + 'The comments (' + matched.length + '):\n\n' + plainLines.join('\n\n') + plainMore + '\n\n'
       + 'Thank you,\n' + sig;
 
