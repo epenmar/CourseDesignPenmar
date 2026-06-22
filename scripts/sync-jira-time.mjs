@@ -108,9 +108,26 @@ const SB_HEADERS = {
 };
 
 async function sbSelect(table, query) {
-  const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, { headers: SB_HEADERS });
-  if (!r.ok) throw new Error(`Supabase ${table} GET ${r.status}: ${await r.text()}`);
-  return r.json();
+  // PostgREST caps a single response at ~1000 rows (Supabase `db-max-rows`).
+  // The unsynced-events ledger has grown past that, so a plain fetch silently
+  // dropped everything beyond the first 1000 rows (ordered started_at.asc =
+  // the OLDEST), which meant recent days never synced. Page through with the
+  // Range header until a short page signals the end.
+  const PAGE = 1000;
+  let offset = 0;
+  let all = [];
+  for (;;) {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${query}`, {
+      headers: { ...SB_HEADERS, 'Range-Unit': 'items', Range: `${offset}-${offset + PAGE - 1}` }
+    });
+    if (!r.ok) throw new Error(`Supabase ${table} GET ${r.status}: ${await r.text()}`);
+    const chunk = await r.json();
+    if (!Array.isArray(chunk)) return chunk; // non-array (shouldn't happen for selects)
+    all = all.concat(chunk);
+    if (chunk.length < PAGE) break;          // last (short) page
+    offset += PAGE;
+  }
+  return all;
 }
 
 async function sbPatch(table, filterQuery, body) {
@@ -399,7 +416,9 @@ async function fetchWithRetry(url, opts, attempts = 3) {
   throw lastErr;
 }
 
-async function findDesigningChild(epicKey) {
+// The Epic's child task for a work phase: 'design' -> the "Designing" child,
+// 'build' -> the "Building" child. Returns the child key, or null if no match.
+async function findPhaseChild(epicKey, phase) {
   const r = await fetchWithRetry(`${JIRA_BASE}/rest/api/3/search/jql`, {
     method: 'POST',
     headers: JIRA_HEADERS,
@@ -412,8 +431,9 @@ async function findDesigningChild(epicKey) {
   if (!r.ok) return null;
   const data = await r.json();
   const kids = (data && data.issues) || [];
-  const designing = kids.find(i => /\bdesigning\b/i.test((i.fields && i.fields.summary) || ''));
-  return designing ? designing.key : null;
+  const needle = phase === 'build' ? /\bbuilding\b/i : /\bdesigning\b/i;
+  const hit = kids.find(i => needle.test((i.fields && i.fields.summary) || ''));
+  return hit ? hit.key : null;
 }
 
 // Local calendar-day key (YYYY-MM-DD) for a ms timestamp, in the machine's
@@ -476,7 +496,7 @@ async function main() {
   let events = [];
   try {
     events = await sbSelect('worksheet_session_events',
-      'select=id,course_id,identity_name,identity_role,started_at,ended_at&synced_to_jira=eq.false&identity_role=eq.id&order=started_at.asc');
+      'select=id,course_id,identity_name,identity_role,started_at,ended_at,phase&synced_to_jira=eq.false&identity_role=eq.id&order=started_at.asc');
   } catch (e) {
     if (/PGRST205|Could not find|does not exist/.test(e.message)) {
       console.warn('[sync-jira-time] worksheet_session_events table not found — run the schema migration. Continuing with meeting time only.');
@@ -551,18 +571,26 @@ async function main() {
     // work actually happened. A nightly run that fires after midnight — or one
     // that covers several days — no longer dumps everything onto the run date.
     const courseEvents = events.filter(e => e.course_id === courseId);
-    const dayMap = {}; // dayKey -> { worksheetMs, meetingMs, eventIds, newMeetingEntries }
-    const ensureDay = k => (dayMap[k] || (dayMap[k] = { worksheetMs: 0, meetingMs: 0, eventIds: [], newMeetingEntries: [] }));
-    const newEventIntervals = []; // [[start, end], …] of THIS run's events
+    // Split by work phase: 'design' (Compose worksheet) and 'build' (Curate).
+    // Each phase routes to its own Epic child (Designing / Building). Meeting
+    // time is added to design only (it's logged once); both phases subtract
+    // meeting overlap so the same hour isn't billed twice.
+    const phaseMaps = {}; // phase -> dayMap
+    const ensureDay = (dm, k) => (dm[k] || (dm[k] = { worksheetMs: 0, meetingMs: 0, eventIds: [], newMeetingEntries: [] }));
+    const newEventIntervals = []; // [[start, end], …] of THIS run's events (all phases)
     for (const ev of courseEvents) {
       const s = new Date(ev.started_at).getTime();
       const e = new Date(ev.ended_at).getTime();
       if (isNaN(s) || isNaN(e) || e <= s) continue;
-      const day = ensureDay(localDayKey(s));
+      const phase = ev.phase === 'build' ? 'build' : 'design';
+      const dm = (phaseMaps[phase] = phaseMaps[phase] || {});
+      const day = ensureDay(dm, localDayKey(s));
       day.worksheetMs += nonOverlapMs(s, e, allMeetingIntervals);
       day.eventIds.push(ev.id);
       newEventIntervals.push([s, e]);
     }
+    // Meetings live in the design bucket (logged once, under "Designing").
+    const dayMap = (phaseMaps.design = phaseMaps.design || {});
     // For meeting-side overlap subtraction we want EVERY ID-role event
     // interval that's been posted, which is historical + this run's
     // about-to-be-posted ones.
@@ -593,11 +621,14 @@ async function main() {
       if (seenThisRun.some(p => sameInterval(p[0], p[1], mStart, mEnd))) continue;
       seenThisRun.push([mStart, mEnd]);
       const postedMs = nonOverlapMs(mStart, mEnd, eventIntervalsForSubtract);
-      const day = ensureDay(localDayKey(mStart));
+      const day = ensureDay(dayMap, localDayKey(mStart));
       day.meetingMs += postedMs;
       day.newMeetingEntries.push({ uid: m.uid, start: mStart, end: mEnd, postedMs: postedMs });
     }
-    if (Object.keys(dayMap).length) buckets[courseId] = dayMap;
+    // One bucket per phase, keyed "<courseId>::<phase>".
+    for (const [phase, dm] of Object.entries(phaseMaps)) {
+      if (Object.keys(dm).length) buckets[courseId + '::' + phase] = dm;
+    }
   }
 
   const overrides = await loadEpicOverrides();
@@ -606,9 +637,12 @@ async function main() {
 
   const summary = { posted: 0, skippedNoEpic: 0, skippedBelowMin: 0, failed: 0, minutesLogged: 0, meetingMinutes: 0 };
   let anyMeetingUidsNewlySynced = false;
-  for (const courseId of Object.keys(buckets).sort()) {
+  for (const bucketKey of Object.keys(buckets).sort()) {
     try {
-    const dayMap = buckets[courseId];
+    const sep = bucketKey.lastIndexOf('::');
+    const courseId = sep >= 0 ? bucketKey.slice(0, sep) : bucketKey;
+    const phase = sep >= 0 ? bucketKey.slice(sep + 2) : 'design';
+    const dayMap = buckets[bucketKey];
     if (!isCourseIdSyncable(courseId)) {
       // Silently skip non-portfolio / room-pattern IDs that older matchers
       // left behind. Don't log noise — they'll keep showing up forever
@@ -645,8 +679,9 @@ async function main() {
       target = phaseKey;
       targetKind = (phaseKey === String(epic).toUpperCase()) ? 'Epic (phase override)' : 'phase override';
     } else {
-      target = await findDesigningChild(epic);
-      targetKind = target ? 'Designing' : 'Epic';
+      // Route by the event phase: design -> Designing child, build -> Building.
+      target = await findPhaseChild(epic, phase);
+      targetKind = target ? (phase === 'build' ? 'Building' : 'Designing') : 'Epic';
       if (!target) target = epic;
     }
 
@@ -672,7 +707,7 @@ async function main() {
       }
 
       try {
-        await postWorklog(target, seconds, `Dashboard time (${courseId}) for ${dayKey}${meetingNote}`, jiraStartedForDay(dayKey));
+        await postWorklog(target, seconds, `Dashboard time (${courseId} · ${phase}) for ${dayKey}${meetingNote}`, jiraStartedForDay(dayKey));
         // Mark this day's worksheet events as synced
         if (day.eventIds.length) {
           const filter = 'id=in.(' + day.eventIds.join(',') + ')';
