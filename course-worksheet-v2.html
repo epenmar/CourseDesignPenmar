@@ -2395,7 +2395,7 @@
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
       <div style="min-width:0;">
         <div style="font-size:15px; font-weight:600; color:#8c1d40;">✅ AI review &amp; feedback — <span id="quiz-review-title">…</span></div>
-        <div style="font-size:12px; color:#888; margin-top:2px;">Checks the marked correct answers and writes feedback. Correct-answer markings are flagged, never changed for you.</div>
+        <div style="font-size:12px; color:#888; margin-top:2px;">Checks the marked correct answers and writes feedback. Fills in a correct answer where none is marked; flags (never overrides) any existing marking it disputes.</div>
       </div>
       <button onclick="closeQuizReviewModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
     </div>
@@ -12093,9 +12093,15 @@
     if (!loc) return;
     var data = quizData[builderId];
     if (!data) return;
+    // Keep auto points in step with the current question count / quiz total.
+    if (!data.pointsManual) {
+      var _ap = _quizAutoPoints(builderId, data);
+      if (_ap != null) data.pointsPerQuestion = _ap;
+    }
     // Strip the DOM-only `num` field; recompute on render.
     loc.item.quizQuestions = {
       pointsPerQuestion: data.pointsPerQuestion,
+      pointsManual: !!data.pointsManual,
       isBank: !!data.isBank,
       drawCount: data.drawCount || null,
       questions: (data.questions || []).map(function(q) {
@@ -12295,7 +12301,8 @@
     if (!quizData[builderId]) {
       if (saved && Array.isArray(saved.questions) && saved.questions.length > 0) {
         quizData[builderId] = {
-          pointsPerQuestion: saved.pointsPerQuestion || 5,
+          pointsPerQuestion: saved.pointsPerQuestion || 1,
+          pointsManual: !!saved.pointsManual,
           isBank: !!saved.isBank,
           drawCount: saved.drawCount || null,
           questions: saved.questions.map(function(q, i) {
@@ -12317,7 +12324,7 @@
         if (_quizRepaired) { try { saveQuizDataForBuilder(builderId); } catch (e) {} }
       } else {
         quizData[builderId] = {
-          pointsPerQuestion: 5,
+          pointsPerQuestion: 1,
           questions: [createEmptyQuestion(1)]
         };
       }
@@ -12341,15 +12348,52 @@
     };
   }
 
+  // Total points the quiz is worth, parsed from the activity's points field
+  // (Assignments Overview). null when unset/non-numeric.
+  function _quizTotalPoints(builderId) {
+    var actId = _quizActIdFromBuilderId(builderId);
+    var loc = actId ? _quizFindActivity(actId) : null;
+    var raw = loc && loc.item ? loc.item.points : null;
+    var n = parseFloat(String(raw == null ? '' : raw).replace(/[^0-9.]/g, ''));
+    return (!n || isNaN(n)) ? null : n;
+  }
+  // Points per question derived from the quiz total ÷ the number of questions
+  // students answer (the draw count for a bank). Decimals are fine for Canvas.
+  function _quizAutoPoints(builderId, data) {
+    var total = _quizTotalPoints(builderId);
+    if (total == null) return null;
+    var n = (data.isBank && data.drawCount) ? data.drawCount : (data.questions ? data.questions.length : 0);
+    if (!n) return null;
+    return Math.round((total / n) * 100) / 100;
+  }
+  function _fmtNum(n) { return (Math.round(n * 100) / 100).toString(); }
+
   function renderQuizBuilder(container) {
     var builderId = container.id;
     var data = quizData[builderId];
     if (!data) return;
 
+    // Auto-derive points per question from the quiz's total points unless the
+    // instructor has manually overridden it.
+    var _autoPer = _quizAutoPoints(builderId, data);
+    if (_autoPer != null && !data.pointsManual) data.pointsPerQuestion = _autoPer;
+    var _effN = (data.isBank && data.drawCount) ? data.drawCount : data.questions.length;
+
     var html = '<div class="quiz-builder">';
     html += '<div class="quiz-points-row">';
     html += '<label>Points per question:</label>';
-    html += '<input type="number" class="quiz-points-input" data-managed="true" value="' + data.pointsPerQuestion + '" onchange="quizData[\'' + builderId + '\'].pointsPerQuestion=parseInt(this.value)||1; saveQuizDataForBuilder(\'' + builderId + '\')" />';
+    html += '<input type="number" step="any" min="0" class="quiz-points-input" data-managed="true" value="' + data.pointsPerQuestion + '" onchange="var d=quizData[\'' + builderId + '\']; d.pointsPerQuestion=parseFloat(this.value)||0; d.pointsManual=true; saveQuizDataForBuilder(\'' + builderId + '\'); renderQuizBuilder(document.getElementById(\'' + builderId + '\'))" />';
+    if (_autoPer != null) {
+      html += '<span style="font-size:11px; color:#888; margin-left:8px;">';
+      if (data.pointsManual) {
+        html += 'manual · <button class="btn-add-row" style="padding:1px 7px; font-size:10px;" title="Recalculate from the quiz total" onclick="var d=quizData[\'' + builderId + '\']; d.pointsManual=false; saveQuizDataForBuilder(\'' + builderId + '\'); renderQuizBuilder(document.getElementById(\'' + builderId + '\'))">↺ auto (' + _fmtNum(_autoPer) + ')</button>';
+      } else {
+        html += 'auto: ' + _fmtNum(_quizTotalPoints(builderId)) + ' pts ÷ ' + _effN + ' question' + (_effN === 1 ? '' : 's');
+      }
+      html += '</span>';
+    } else {
+      html += '<span style="font-size:11px; color:#aaa; margin-left:8px;">Set the quiz’s total points (Assignments Overview) to auto-calculate</span>';
+    }
     html += '</div>';
 
     // Question-bank mode: the questions below become a POOL, and Canvas draws a
@@ -12633,7 +12677,7 @@
       var jsonMatch = text.match(/\[[\s\S]*\]/);
       if (jsonMatch) {
         var questions = JSON.parse(jsonMatch[0]);
-        quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 5, questions: [] };
+        quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 1, questions: [] };
         quizData[builderId].questions = questions.map(function(q, i) {
           return {
             num: i + 1,
@@ -12870,7 +12914,7 @@
       var mapped = raw.map(function (q) { return _quizGenNormalize(q, allowed); }).filter(function (q) { return q.text; });
       if (!mapped.length) throw new Error('No usable questions were generated.');
 
-      quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 5, questions: [] };
+      quizData[builderId] = quizData[builderId] || { pointsPerQuestion: 1, questions: [] };
       if (mode === 'replace') quizData[builderId].questions = mapped;
       else quizData[builderId].questions = (quizData[builderId].questions || []).concat(mapped);
       quizData[builderId].questions.forEach(function (q, i) { q.num = i + 1; });
@@ -15023,7 +15067,7 @@
         return s;
       }).join('\n\n');
       var tasks = [];
-      if (doReview) tasks.push('- Verify the marked-correct answer. Set "verdict" to "ok" if it is correct, "wrong" if a different choice is clearly correct, or "unsure" if ambiguous/opinion-based. For wrong/unsure, set "correct" to the letter you believe is right and explain briefly in "note". Short-answer questions: verdict "ok".');
+      if (doReview) tasks.push('- For multiple-choice and true/false: determine the correct answer and ALWAYS put its letter (A, B, C, …) in "correct", even when none is currently marked. Set "verdict" to "ok" if the currently marked choice matches your answer (or if none is marked yet), "wrong" if a marked choice is clearly incorrect, or "unsure" if it is ambiguous/opinion-based; explain briefly in "note" when not ok. Short-answer: verdict "ok" and leave "correct" empty.');
       if (doFeedback) tasks.push('- Write one-sentence student-facing feedback: "correctFeedback" reinforces why the answer is right; "incorrectFeedback" gently guides toward the concept WITHOUT stating the answer verbatim.');
       var prompt = 'You are reviewing quiz questions for a university course (ASU Online). For each question return one JSON object.\n\nDo the following for every question:\n' + tasks.join('\n') + '\n\nQuestions:\n' + lines + '\n\nReturn ONLY a JSON array, one object per question IN ORDER, each shaped: {"index":<n>,"verdict":"ok|wrong|unsure","correct":"<letter or empty>","note":"<short or empty>","correctFeedback":"<one sentence or empty>","incorrectFeedback":"<one sentence or empty>"}. Never use em-dashes.';
       var raw = (await callCreateAI(prompt, 'You are a careful instructional-design assistant for ASU Online. Return only valid JSON. Never reveal the correct option inside incorrect-answer feedback. Never use em-dashes.', 2048)).trim();
@@ -15032,7 +15076,7 @@
       var arr = JSON.parse(match[0]);
       var byIndex = {};
       arr.forEach(function(o) { if (o && typeof o.index === 'number') byIndex[o.index] = o; });
-      var fbCount = 0, flagged = [];
+      var fbCount = 0, flagged = [], autoMarked = [];
       data.questions.forEach(function(q, qi) {
         var o = byIndex[qi];
         if (!o) return;
@@ -15042,8 +15086,19 @@
           if (o.incorrectFeedback && (overwrite || !(q.incorrectFeedback || '').trim())) { q.incorrectFeedback = String(o.incorrectFeedback); did = true; }
           if (did) fbCount++;
         }
-        if (doReview && o.verdict && o.verdict !== 'ok') {
-          flagged.push({ qi: qi, verdict: o.verdict, correct: o.correct || '', note: o.note || '' });
+        if (doReview && (q.type === 'multiple-choice' || q.type === 'true-false')) {
+          var choices = q.choices || [];
+          var anyMarked = choices.some(function(c) { return c && c.correct; });
+          var sugIdx = (o.correct && /^[A-Za-z]$/.test(String(o.correct).trim()))
+            ? (String(o.correct).trim().toUpperCase().charCodeAt(0) - 65) : -1;
+          if (!anyMarked && sugIdx >= 0 && sugIdx < choices.length) {
+            // Instructor forgot to mark a correct answer — set the AI's choice.
+            choices.forEach(function(c, ci) { if (c) c.correct = (ci === sugIdx); });
+            autoMarked.push({ qi: qi, letter: String(o.correct).trim().toUpperCase() });
+          } else if (anyMarked && o.verdict && o.verdict !== 'ok') {
+            // A deliberate marking the AI disputes — flag, never auto-change.
+            flagged.push({ qi: qi, verdict: o.verdict, correct: o.correct || '', note: o.note || '' });
+          }
         }
       });
       saveQuizDataForBuilder(builderId);
@@ -15053,6 +15108,9 @@
       var h = '';
       if (doFeedback) h += '<div style="font-size:13px; color:#2e7d32; margin-bottom:8px;">✓ Feedback written for ' + fbCount + ' question' + (fbCount === 1 ? '' : 's') + (overwrite ? '' : ' (blank fields only)') + '.</div>';
       if (doReview) {
+        if (autoMarked.length) {
+          h += '<div style="font-size:13px; color:#2e7d32; margin-bottom:6px;">✓ Set the correct answer on ' + autoMarked.length + ' question' + (autoMarked.length === 1 ? '' : 's') + ' that had none marked: ' + autoMarked.map(function(a) { return 'Q' + (a.qi + 1) + ' (' + escapeHtml(a.letter) + ')'; }).join(', ') + '.</div>';
+        }
         if (!flagged.length) {
           h += '<div style="font-size:13px; color:#2e7d32;">✓ All marked answers look correct.</div>';
         } else {
