@@ -2333,6 +2333,20 @@
     </div>
     <div id="quiz-gen-body" style="overflow-y:auto;">
       <div id="quiz-gen-settings-summary" style="font-size:12px; color:#666; background:#faf7f2; border:1px solid #efe9df; border-radius:8px; padding:8px 12px; margin-bottom:14px;"></div>
+      <div style="margin-bottom:14px;">
+        <div style="font-size:12px; font-weight:600; color:#555; margin-bottom:6px;">Sections to generate</div>
+        <div style="display:flex; flex-wrap:wrap; gap:6px 16px;">
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#444; cursor:pointer;"><input type="checkbox" class="qg-section" value="Overview" checked style="accent-color:#8c1d40;" /> Overview</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#444; cursor:pointer;"><input type="checkbox" class="qg-section" value="Instructions" checked style="accent-color:#8c1d40;" /> Instructions</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#444; cursor:pointer;"><input type="checkbox" class="qg-section" value="Study Resources" checked style="accent-color:#8c1d40;" /> Study Resources</label>
+          <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:#444; cursor:pointer;"><input type="checkbox" class="qg-section" value="How You Will Be Graded" checked style="accent-color:#8c1d40;" /> How You Will Be Graded</label>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <label for="qg-detail" style="font-size:12px; font-weight:600; color:#555; display:block; margin-bottom:6px;">Brevity vs. detail</label>
+        <input type="range" id="qg-detail" min="1" max="5" value="3" style="width:100%; accent-color:#8c1d40;" />
+        <div style="display:flex; justify-content:space-between; font-size:11px; color:#999; margin-top:2px;"><span>Brief</span><span>Balanced</span><span>Detailed</span></div>
+      </div>
       <div style="display:flex; gap:12px; flex-wrap:wrap; margin-bottom:14px;">
         <label style="flex:1 1 160px; font-size:12px; font-weight:600; color:#555;">Time limit
           <input id="qg-timelimit" type="text" placeholder="e.g., 30 minutes" style="display:block; width:100%; margin-top:4px; padding:6px 8px; border:1px solid #e0ddd5; border-radius:6px; font-size:13px; font-weight:400;" />
@@ -14715,7 +14729,9 @@
       openBook: !!opts.openBook,
       guidance: (opts.guidance || '').trim(),
       remindWeight: !!opts.remindWeight,
-      integrityNote: !!opts.integrityNote
+      integrityNote: !!opts.integrityNote,
+      sections: (Array.isArray(opts.sections) && opts.sections.length) ? opts.sections.slice() : undefined,
+      detail: opts.detail || undefined
     });
     try { saveActivityData(); } catch (e) {}
     var meta = act.quizMeta;
@@ -14739,7 +14755,7 @@
       var modTopic = '';
       try { var smo = loadField('moduleOverviewData') || {}; modTopic = (smo[modNum] && smo[modNum].topic) || ''; } catch (e) {}
 
-      var p = 'Draft the four student-facing pages for a Canvas EXAM/QUIZ. Return JSON only.\n\n';
+      var p = 'Draft the requested student-facing pages for a Canvas EXAM/QUIZ. Return JSON only.\n\n';
       p += 'Course: ' + (activeCourse.code || courseId) + (modTopic ? (' — Module ' + modNum + ': ' + modTopic) : '') + '\n';
       p += 'Quiz: "' + (act.name || 'Quiz') + '"\n';
       p += 'Settings: ' + nQ + ' question(s) presented' + (ppq ? (', ' + ppq + ' point(s) each') : '') + (total ? (', ' + total + ' points total') : '') + (qq.isBank ? ', drawn randomly from a question bank' : '') + '.\n';
@@ -14753,19 +14769,24 @@
       p += 'Questions (infer topics; do NOT reveal answers):\n' + qList + '\n\n';
       if (objs) p += 'Objectives this exam assesses:\n' + objs + '\n\n';
       if (matText) p += 'Linked readings / materials (for Study Resources — do not invent others):\n' + matText + '\n\n';
+      // Only the sections the instructor selected (default: all four), at the
+      // chosen brevity/detail level.
+      var sel = (Array.isArray(meta.sections) && meta.sections.length) ? meta.sections.slice() : ['Overview', 'Instructions', 'Study Resources', 'How You Will Be Graded'];
+      var detailMap = { 1: 'very brief — one or two short sentences per section, the essentials only', 2: 'brief and tight', 3: 'balanced — clear but not padded', 4: 'fairly detailed', 5: 'thorough and detailed, but never padded with filler' };
+      var detailInstr = detailMap[meta.detail] || detailMap[3];
+      var secInstr = {
+        'Overview': '- "Overview": About this exam — what students studied and the can-do abilities it assesses (from the questions + objectives). No answers, no mechanics, no grading.',
+        'Instructions': '- "Instructions": how to take it — state the attempts (' + (_at || 'one') + '), number of questions (' + nQ + '), the time limit' + (_tl ? (' (' + _tl + ')') : ' (bracket it if unknown)') + ', that questions are randomized and presented one at a time with backtracking allowed, and that it is ' + (meta.openBook ? 'open book' : 'closed book') + '.' + (meta.integrityNote ? ' End with a brief, warm academic-integrity note (1-2 sentences): acknowledge students could use AI to answer, but encourage them to answer honestly on their own so the quiz is a genuine self-check of their readiness before they move on to the assignment. Non-accusatory, supportive.' : ''),
+        'Study Resources': '- "Study Resources": a short intro line followed by a bulleted <ul> with one <li> per linked reading/material to review (ALWAYS use a <ul><li> list, never a paragraph). If none are listed, give a one-line prompt to review the module readings.',
+        'How You Will Be Graded': '- "How You Will Be Graded": points per question' + (ppq ? (' (' + ppq + ')') : '') + ', total points' + (total ? (' (' + total + ')') : '') + ', attempts, and that the score counts toward the final grade.' + (_hasWeight ? (' Also state that the "' + _wInfo.category + '" category is worth ' + _wInfo.weight + '% of the overall course grade.') : '')
+      };
       p += 'Write each section as Canvas-ready HTML (use <p>, <ul><li>, <ol><li>, <strong>; NO headings/<h*> — section titles are added separately). Plain, encouraging, second person. Never use em-dashes.\n';
-      p += '- "Overview": About this exam — what students studied and the can-do abilities it assesses (from the questions + objectives). No answers, no mechanics, no grading.\n';
-      p += '- "Instructions": how to take it — state the attempts (' + (_at || 'one') + '), number of questions (' + nQ + '), the time limit' + (_tl ? (' (' + _tl + ')') : ' (bracket it if unknown)') + ', that questions are randomized and presented one at a time with backtracking allowed, and that it is ' + (meta.openBook ? 'open book' : 'closed book') + '.';
-      if (meta.integrityNote) p += ' End the Instructions with a brief, warm academic-integrity note (1-2 sentences): acknowledge that students could use AI to answer, but encourage them to answer honestly on their own so the quiz works as a genuine self-check of their readiness before they move on to the assignment. Non-accusatory, supportive tone.';
-      p += '\n';
-      p += '- "Study Resources": a short intro line followed by a bulleted <ul> with one <li> per linked reading/material to review (ALWAYS use a <ul><li> list, never a paragraph). If none are listed, give a one-line prompt to review the module readings.\n';
-      p += '- "How You Will Be Graded": points per question' + (ppq ? (' (' + ppq + ')') : '') + ', total points' + (total ? (' (' + total + ')') : '') + ', attempts, and that the score counts toward the final grade.';
-      if (_hasWeight) p += ' Also state that the "' + _wInfo.category + '" category is worth ' + _wInfo.weight + '% of the overall course grade.';
-      p += '\n\n';
-      p += 'Return ONLY: {"Overview":"<html>","Instructions":"<html>","Study Resources":"<html>","How You Will Be Graded":"<html>"}';
+      p += 'Length / detail level: ' + detailInstr + '. Apply this to every section.\n';
+      sel.forEach(function(k) { if (secInstr[k]) p += secInstr[k] + '\n'; });
+      p += '\nReturn ONLY a JSON object with EXACTLY these keys (no others): ' + sel.map(function(k) { return '"' + k + '":"<html>"'; }).join(', ') + '.';
       var sys = 'You write clear, encouraging, student-facing Canvas exam pages for ASU Online. Never reveal answers, never invent readings beyond those listed, never use em-dashes. Return only valid JSON with the exact requested keys.';
       var raw = await callCreateAI(p, sys, 2048);
-      var parsed = _aiFillParseResponse(raw, ['Overview', 'Instructions', 'Study Resources', 'How You Will Be Graded']);
+      var parsed = _aiFillParseResponse(raw, sel);
       Object.keys(parsed).forEach(function(k) { if (typeof _cleanAiHtml === 'function') parsed[k] = _cleanAiHtml(parsed[k]); });
       _aiFillApply(act, 'quiz', parsed);
       return true;
@@ -14836,6 +14857,12 @@
     }
     var iEl = document.getElementById('qg-integrity');
     iEl.checked = (meta.integrityNote !== undefined) ? !!meta.integrityNote : true;
+    // Section checklist — all on by default, or the instructor's saved subset.
+    var selSecs = Array.isArray(meta.sections) ? meta.sections : null;
+    document.querySelectorAll('#quiz-gen-overlay .qg-section').forEach(function(cb) {
+      cb.checked = selSecs ? (selSecs.indexOf(cb.value) !== -1) : true;
+    });
+    document.getElementById('qg-detail').value = meta.detail || 3;
     document.getElementById('quiz-gen-status').textContent = '';
     var goBtn = document.getElementById('quiz-gen-go-btn');
     if (goBtn) { goBtn.disabled = false; goBtn.textContent = '✨ Generate'; }
@@ -14853,15 +14880,23 @@
     var st = _quizGenState;
     var statusEl = document.getElementById('quiz-gen-status');
     var goBtn = document.getElementById('quiz-gen-go-btn');
+    var sections = [];
+    document.querySelectorAll('#quiz-gen-overlay .qg-section').forEach(function(cb) { if (cb.checked) sections.push(cb.value); });
+    if (sections.length === 0) {
+      if (statusEl) statusEl.textContent = 'Select at least one section to generate.';
+      return;
+    }
     var opts = {
       timeLimit: (document.getElementById('qg-timelimit') || {}).value || '',
       attempts: (document.getElementById('qg-attempts') || {}).value || '',
       openBook: ((document.getElementById('qg-book') || {}).value === 'open'),
       guidance: (document.getElementById('qg-guidance') || {}).value || '',
       remindWeight: !!(document.getElementById('qg-weight') || {}).checked,
-      integrityNote: !!(document.getElementById('qg-integrity') || {}).checked
+      integrityNote: !!(document.getElementById('qg-integrity') || {}).checked,
+      sections: sections,
+      detail: parseInt((document.getElementById('qg-detail') || {}).value || '3', 10)
     };
-    if (statusEl) statusEl.textContent = '⏳ Generating the four quiz pages… this can take a few seconds.';
+    if (statusEl) statusEl.textContent = '⏳ Generating ' + sections.length + ' quiz page' + (sections.length === 1 ? '' : 's') + '… this can take a few seconds.';
     if (goBtn) { goBtn.disabled = true; goBtn.textContent = 'Generating…'; }
     var ok = await generateQuizSections(st.actId, st.modNum, null, opts);
     if (goBtn) { goBtn.disabled = false; goBtn.textContent = '✨ Generate'; }
