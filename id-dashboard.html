@@ -7510,9 +7510,30 @@
       + '<span style="font-size:18px;">💬</span>'
       + '<span style="font-size:13px; color:#333;"><strong>' + total + '</strong> comment' + (total === 1 ? '' : 's') + ' to address'
       + (newTotal > 0 ? (' <span style="background:#8c1d40; color:#fff; font-size:10px; font-weight:700; padding:1px 7px; border-radius:10px;">' + newTotal + ' new</span>') : '')
-      + ' <span style="color:#888;">— left for you by faculty/reviewers</span></span>'
+      + ' <span style="color:#888;">— comments not tagged to faculty or a reviewer</span></span>'
       + '<span style="display:flex; gap:6px; flex-wrap:wrap; margin-left:auto;">' + chips + '</span>'
       + '</div>';
+  }
+
+  // Regex matching "@" + any faculty or reviewer name (first/last token) for a
+  // course. A comment that matches is tagged to someone else; one that doesn't
+  // is "for me" (the ID). null when there's nobody to tag.
+  function _buildMentionRegex(courseId) {
+    var c = courseData[courseId];
+    var names = [];
+    function addName(full) {
+      if (!full) return;
+      String(full).split(/\s+/).forEach(function(p) {
+        var t = p.replace(/[^A-Za-z0-9'’\-]/g, '');
+        if (t.length >= 2) names.push(t.toLowerCase());
+      });
+    }
+    if (c) addName(c.instructor);
+    try { (typeof getReviewers === 'function' ? getReviewers(courseId) : []).forEach(function(r) { addName(r && r.name); }); } catch (e) {}
+    if (!names.length) return null;
+    var uniq = names.filter(function(n, i) { return names.indexOf(n) === i; });
+    var esc = function(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+    return new RegExp('@\\s*(' + uniq.map(esc).join('|') + ')\\b', 'i');
   }
 
   async function loadCommentNotifications() {
@@ -7521,11 +7542,11 @@
     var client = window._sbClient || dashSupabase;
     if (!client) return;
     try {
-      // Unresolved, non-deleted comments left for the ID (faculty + reviewers).
+      // All unresolved, non-deleted comments — a comment is "for me" (the ID)
+      // unless it @mentions a faculty member or reviewer.
       const { data, error } = await client
         .from('comments')
-        .select('id, course_id, author_role, created_at, section_id, resolved, deleted_at')
-        .in('author_role', ['instructor', 'reviewer'])
+        .select('id, course_id, content, author_role, created_at, section_id, resolved, deleted_at')
         .is('resolved', false)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
@@ -7533,15 +7554,19 @@
       if (error || !data) return;
 
       const lastSeen = getLastSeenComments();
+      const _reCache = {};
 
       // Group by course
       Object.keys(courseData).forEach(cid => { courseCommentCounts[cid] = { total: 0, newCount: 0, comments: [] }; });
       data.forEach(c => {
         const cid = c.course_id;
+        if (!courseData[cid]) return; // only my courses
+        if (!(cid in _reCache)) _reCache[cid] = _buildMentionRegex(cid);
+        const re = _reCache[cid];
+        if (re && c.content && re.test(c.content)) return; // tagged to faculty/reviewer — not for me
         if (!courseCommentCounts[cid]) courseCommentCounts[cid] = { total: 0, newCount: 0, comments: [] };
         courseCommentCounts[cid].total++;
         courseCommentCounts[cid].comments.push(c);
-        // Check if this comment is newer than last seen
         const seenAt = lastSeen[cid];
         if (!seenAt || new Date(c.created_at) > new Date(seenAt)) {
           courseCommentCounts[cid].newCount++;

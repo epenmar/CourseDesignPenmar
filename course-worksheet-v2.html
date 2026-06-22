@@ -10068,7 +10068,7 @@
       thtml += '<button class="bulk-btn bulk-btn-delete" onclick="deleteSelectedOverviewActivities()">🗑 Delete selected</button>';
       thtml += '<button class="bulk-btn bulk-btn-plain" onclick="clearOverviewSelection(\'assignments\')">Clear</button>';
       thtml += '</div>';
-      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:50px;">Mod</th><th style="width:150px;">Objectives</th><th>Activity</th><th style="width:80px;">Content</th><th style="width:55px;">Points</th><th style="width:80px;">Due</th><th style="width:120px;">Category</th><th style="width:24px;"></th></tr></thead>';
+      thtml += '<table class="timeline-table" style="table-layout:fixed;"><thead><tr><th style="width:32px; text-align:center;"><input type="checkbox" id="assignments-select-all" onchange="toggleSelectAllOverview(\'assignments\', this.checked)" title="Select all" /></th><th style="width:50px;">Mod</th><th style="width:150px;">Objectives</th><th>Activity</th><th style="width:70px;">Content</th><th style="width:48px;">Points</th><th style="width:58px;">Due</th><th style="width:66px;">Est. time</th><th style="width:108px;">Category</th><th style="width:24px;"></th></tr></thead>';
       for (var _ti = 0; _ti < modNumList.length; _ti++) {
         var m = modNumList[_ti];
         var mod = modules[m - _asn] || null;
@@ -10083,15 +10083,16 @@
           thtml += '<td><div style="display:flex; align-items:flex-start; gap:6px;"><textarea class="activity-input" data-managed="true" data-field="name" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\'; syncOverviewActivity(this)" style="flex:1; border:none; background:transparent; width:100%; min-height:22px; resize:none; overflow:hidden; font-size:13px; line-height:1.4;">' + escapeHtml(act.name) + '</textarea><span class="link-badge-slot" style="display:inline-flex; align-items:center; flex-shrink:0; margin-top:2px;"></span></div></td>';
           thtml += '<td style="text-align:center;"><button class="content-chip" data-content-chip="' + act.id + '" data-content-kind="activity" data-content-mod="' + m + '" onclick="openContentPopup(\'' + act.id + '\',\'activity\',' + m + ')">+ Content</button></td>';
           thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="points" data-activity-id="' + act.id + '" data-module-num="' + m + '" value="' + escapeHtml(act.points) + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; text-align:center;" /></td>';
-          thtml += '<td><input type="text" class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" oninput="syncOverviewActivity(this)" style="border:none; background:transparent; width:100%; font-size:10px; line-height:1.3; text-align:center;" value="' + escapeHtml(act.due) + '"></td>';
+          thtml += '<td><textarea class="activity-input" data-managed="true" data-field="due" data-activity-id="' + act.id + '" data-module-num="' + m + '" rows="1" placeholder="Due" oninput="syncOverviewActivity(this); this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\';" style="border:none; background:transparent; width:100%; font-size:10px; line-height:1.3; text-align:center; resize:none; overflow:hidden; white-space:normal;">' + escapeHtml(act.due) + '</textarea></td>';
+          thtml += '<td><div style="display:flex; align-items:center; gap:2px; justify-content:center;"><textarea class="est-time-input activity-input" data-act-id="' + act.id + '" rows="1" placeholder="—" oninput="saveEstTime(\'' + act.id + '\', this.value); this.style.height=\'auto\'; this.style.height=this.scrollHeight+\'px\';" style="border:none; background:transparent; width:100%; font-size:10px; line-height:1.3; text-align:center; resize:none; overflow:hidden;">' + escapeHtml(act.estimatedTime || '') + '</textarea><button class="content-chip" title="AI estimate — conservative, for the methodical student" onclick="estimateTimeOnTask(\'' + act.id + '\',' + m + ',\'' + (act.contentType || 'assignment') + '\', this)" style="padding:0 4px; font-size:10px; flex-shrink:0; line-height:1.4;">✨</button></div></td>';
           thtml += '<td>' + buildCategoryPickerHtml(act, m, { style: 'font-size:11px; padding:2px 4px; border:1px solid #e0ddd5; border-radius:4px; background:#fff; width:100%; color:#555;' }) + '</td>';
           thtml += '<td><button class="btn-tiny-x" title="Delete" onclick="deleteOverviewActivity(\'' + act.id + '\',' + m + ')">×</button></td>';
           thtml += '</tr>';
         }
         if (acts.length === 0) {
-          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="7" style="color:#999; font-style:italic;">No activities</td></tr>';
+          thtml += '<tr><td></td><td style="font-weight:600; color:#8c1d40;">M' + m + '</td><td colspan="8" style="color:#999; font-style:italic;">No activities</td></tr>';
         }
-        thtml += '<tr><td></td><td></td><td colspan="7"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
+        thtml += '<tr><td></td><td></td><td colspan="8"><button class="btn-add-row" onclick="addActivityToModule(' + m + ')">+ Add activity</button></td></tr>';
         thtml += '</tbody>';
       }
       thtml += '</table>';
@@ -10359,6 +10360,9 @@
 
   function _dueAttachPicker(el) {
     if (!el || el._flatpickr || typeof flatpickr === 'undefined') return;
+    // The table-view Due field is a wrapping <textarea> (so the date can wrap
+    // into a narrow column); flatpickr only attaches to single-line inputs.
+    if (el.tagName === 'TEXTAREA') return;
     var sessionStartIso = _dueGetSessionStartIso();
     var existing = el.value || '';
     var parsedIso = _dueParseWeekDay(existing, sessionStartIso);
