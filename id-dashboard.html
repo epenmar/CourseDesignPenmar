@@ -1962,7 +1962,12 @@
     var lines = shown.map(function(cm, i) {
       var sec = (cm.section_id || 'general').replace(/-/g, ' ');
       var quote = cm.highlight_text ? ('on “' + String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 80) + '” — ') : '';
-      var text = String(cm.content || '').replace(/\s+/g, ' ').trim();
+      // Plain-text email can't render [label](url) markdown as a link — render
+      // it as "label (url)" so the brackets don't show and the URL still
+      // auto-links in the mail client.
+      var text = String(cm.content || '')
+        .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1 ($2)')
+        .replace(/\s+/g, ' ').trim();
       if (text.length > 200) text = text.slice(0, 200) + '…';
       return (i + 1) + '. [' + sec + '] ' + quote + text;
     });
