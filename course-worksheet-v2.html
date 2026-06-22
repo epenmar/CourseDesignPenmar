@@ -2318,7 +2318,7 @@
 </div>
 
 <!-- ===== QUIZ PAGE GENERATOR MODAL =====
-     Parameters + progress for drafting the four quiz pages. Time limit /
+     Parameters + progress for drafting the quiz detail sections. Time limit /
      attempts / open-book aren't stored on the quiz builder, so they're
      captured here (saved to act.quizMeta and shipped in the handoff) and
      woven into the generated Instructions / Grading text. -->
@@ -2326,8 +2326,8 @@
   <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:620px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
     <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
       <div style="min-width:0;">
-        <div style="font-size:15px; font-weight:600; color:#8c1d40;">✨ Generate quiz pages — <span id="quiz-gen-title">…</span></div>
-        <div style="font-size:12px; color:#888; margin-top:2px;">Drafts the Overview, Instructions, Study Resources, and grading pages from the questions, objectives &amp; linked readings.</div>
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">✨ Generate quiz details — <span id="quiz-gen-title">…</span></div>
+        <div style="font-size:12px; color:#888; margin-top:2px;">Drafts the Overview, Instructions, Study Resources, and grading sections from the questions, objectives &amp; linked readings.</div>
       </div>
       <button onclick="closeQuizGenModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
     </div>
@@ -3502,10 +3502,6 @@
   // Section keys are stable storage keys; "Overview" preserves prior data.
   function _buildQuizTemplateSections(actId, modNum) {
     var s = '';
-    s += '<div style="margin:2px 0 10px; text-align:right;">'
-      + '<button type="button" class="btn-add-row" onclick="openQuizGenSettingsModal(\'' + actId + '\',' + modNum + ')" '
-      + 'title="Draft the Overview, Instructions, Study Resources, and grading text from the quiz questions, settings, tagged objectives, and linked readings">✨ Generate quiz pages with AI</button>'
-      + '</div>';
     s += '<div class="template-section"><div class="template-section-label">Overview <span style="font-weight:400; color:#888; font-size:11px;">— About this exam</span></div>'
       + buildTplTextarea(actId, 'quiz', 'Overview', 'About this exam — what students studied and what the exam assesses...') + _quizObjectivesBtnRow(actId) + '</div>';
     s += '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(actId, 'quiz', 'Instructions') + '</div>'
@@ -12370,6 +12366,14 @@
     }
     html += '</div>';
 
+    // AI answer-check / feedback — sits with the questions, where you'd look to
+    // verify the marked answers and fill in feedback.
+    if (data.questions.length) {
+      html += '<div style="display:flex; justify-content:flex-end; margin:8px 0 4px;">';
+      html += '<button class="btn-add-row" onclick="openQuizReviewModal(\'' + builderId + '\')" title="AI: check the marked correct answers and/or write the correct/incorrect feedback for these questions">✅ AI: review answers &amp; feedback</button>';
+      html += '</div>';
+    }
+
     for (var q = 0; q < data.questions.length; q++) {
       var question = data.questions[q];
       html += '<div class="quiz-question-card" data-q-idx="' + q + '">';
@@ -12423,7 +12427,6 @@
     html += '<button class="btn-add-row" onclick="openQuizImport(\'' + builderId + '\')" title="Paste existing quiz questions as text and parse them into the builder">📋 Batch paste</button>';
     html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')" title="Generate questions from the course/module objectives">✨ Generate from context</button>';
     html += '<button class="btn-add-row" onclick="openQuizGenModal(\'' + builderId + '\')" title="Upload a transcript, reading, or slides and generate questions from that content">📄 Generate from content</button>';
-    html += '<button class="btn-add-row" onclick="openQuizReviewModal(\'' + builderId + '\')" title="AI: check the marked correct answers and/or write feedback for the question bank">✅ AI review &amp; feedback</button>';
     html += '</div>';
     html += '</div>';
 
@@ -13265,7 +13268,7 @@
     }
     var act = info.item;
     // The quiz template opens its own parameters modal (time limit, attempts,
-    // open/closed book, guidance) which then drafts all four quiz pages.
+    // open/closed book, guidance) which then drafts the quiz detail sections.
     if (tplType === 'quiz') { return openQuizGenSettingsModal(actId, modNum); }
     var sections = AI_FILL_TEMPLATE_SECTIONS[tplType];
     if (!sections) {
@@ -14746,7 +14749,7 @@
   }
   window.estimateTimeOnTask = estimateTimeOnTask;
 
-  // Generate all four quiz pages (Overview / Instructions / Study Resources /
+  // Generate the quiz detail sections (Overview / Instructions / Study Resources /
   // How You Will Be Graded) in one AI call, from the questions, settings,
   // tagged objectives, and linked readings. Applied through _aiFillApply so it
   // snapshots history and clears the reviewed flag like the other AI fills.
@@ -14758,7 +14761,7 @@
     var qq = act.quizQuestions || {};
     var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
     if (questions.length === 0) {
-      alert('Add some quiz questions first — the quiz pages are generated from the questions, settings, and linked readings.');
+      alert('Add some quiz questions first — the quiz details are generated from the questions, settings, and linked readings.');
       return false;
     }
     // Persist the instructor-supplied settings (time limit / attempts / book /
@@ -14841,7 +14844,7 @@
       alert('Generate failed: ' + (e && e.message ? e.message : e));
       return false;
     } finally {
-      if (btn) { btn.disabled = false; btn.innerHTML = origLabel || '✨ Generate quiz pages with AI'; }
+      if (btn) { btn.disabled = false; btn.innerHTML = origLabel || '✨ Generate quiz details with AI'; }
     }
   }
   window.generateQuizSections = generateQuizSections;
@@ -14870,7 +14873,7 @@
     var qq = act.quizQuestions || {};
     var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
     if (questions.length === 0) {
-      alert('Add some quiz questions first — the quiz pages are generated from the questions, settings, and linked readings.');
+      alert('Add some quiz questions first — the quiz details are generated from the questions, settings, and linked readings.');
       return;
     }
     _quizGenState = { actId: actId, modNum: modNum };
@@ -14954,7 +14957,7 @@
       sections: sections,
       detail: parseInt((document.getElementById('qg-detail') || {}).value || '3', 10)
     };
-    if (statusEl) statusEl.textContent = '⏳ Generating ' + sections.length + ' quiz page' + (sections.length === 1 ? '' : 's') + '… this can take a few seconds.';
+    if (statusEl) statusEl.textContent = '⏳ Generating ' + sections.length + ' quiz section' + (sections.length === 1 ? '' : 's') + '… this can take a few seconds.';
     if (goBtn) { goBtn.disabled = true; goBtn.textContent = 'Generating…'; }
     var ok = await generateQuizSections(st.actId, st.modNum, null, opts);
     if (goBtn) { goBtn.disabled = false; goBtn.textContent = '✨ Generate'; }
