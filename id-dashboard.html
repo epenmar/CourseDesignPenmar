@@ -1925,6 +1925,59 @@
     }
   }
 
+  // Email the faculty a digest of OPEN comments where the ID @mentioned them.
+  // Matches "@" followed by the instructor's first or last name (or full name)
+  // in the comment text, then opens a pre-filled email with a preview + the
+  // worksheet link.
+  async function emailFacultyMentions(courseId) {
+    var c = courseData[courseId];
+    if (!c) return;
+    var faculty = (c.instructor || '').trim();
+    var email = (c.email || '').trim();
+    if (!email) { alert('No faculty email on file for this course.'); return; }
+    var parts = faculty.split(/\s+/).filter(function(p) { return p.replace(/[^A-Za-z0-9]/g, '').length >= 2; });
+    if (!parts.length) { alert('No faculty name on file to match @mentions against.'); return; }
+    var esc = function(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); };
+    var names = parts.map(function(p) { return esc(p.replace(/[^A-Za-z0-9'’\-]/g, '')); }).filter(Boolean);
+    if (parts.length >= 2) names.push(parts.map(esc).join('\\s+'));
+    var re = new RegExp('@\\s*(' + names.join('|') + ')\\b', 'i');
+    var client = window._sbClient || (typeof dashSupabase !== 'undefined' ? dashSupabase : null);
+    if (!client) { alert('Comments are unavailable right now (no database connection).'); return; }
+    var resp;
+    try {
+      resp = await client.from('comments')
+        .select('id, content, author_name, author_role, section_id, highlight_text, created_at')
+        .eq('course_id', courseId)
+        .is('resolved', false)
+        .is('deleted_at', null)
+        .order('created_at', { ascending: true });
+    } catch (e) { alert('Could not load comments: ' + (e && e.message || e)); return; }
+    if (resp.error) { alert('Could not load comments: ' + resp.error.message); return; }
+    var matched = (resp.data || []).filter(function(cm) { return cm.content && re.test(cm.content); });
+    if (!matched.length) { alert('No open comments mention @' + parts[0] + ' in ' + (c.emailName || c.code) + ' yet.'); return; }
+    var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '');
+    var firstName = parts[0];
+    var CAP = 15;
+    var shown = matched.slice(0, CAP);
+    var lines = shown.map(function(cm, i) {
+      var sec = (cm.section_id || 'general').replace(/-/g, ' ');
+      var quote = cm.highlight_text ? ('on “' + String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 80) + '” — ') : '';
+      var text = String(cm.content || '').replace(/\s+/g, ' ').trim();
+      if (text.length > 200) text = text.slice(0, 200) + '…';
+      return (i + 1) + '. [' + sec + '] ' + quote + text;
+    });
+    var more = matched.length > CAP ? ('\n\n…and ' + (matched.length - CAP) + ' more.') : '';
+    var subject = 'Comments to address: ' + (c.emailName || c.code);
+    var body = 'Hi ' + firstName + ',\n\n'
+      + 'I left some comments in the ' + (c.emailName || c.code) + ' course worksheet and tagged you in each. When you have a moment, could you take a look and respond to or address them?\n\n'
+      + 'Open the worksheet:\n' + built.url + '\n\n'
+      + 'The comments (' + matched.length + '):\n' + lines.join('\n\n') + more + '\n\n'
+      + 'Thank you,\n' + getProfile().sig;
+    var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
+    window.open(mailto, '_blank');
+  }
+  window.emailFacultyMentions = emailFacultyMentions;
+
   // Brand icons for the side-panel link buttons, drawn inline as simple SVG
   // (brand-colored geometric marks) so they render crisply at any size with no
   // external image files. Used purely to label the link to that service.
@@ -5209,6 +5262,9 @@
       html += `<button onclick="copyInstructorLink('${id}')" style="${_copyLinkStyle}" title="Copy instructor-specific worksheet link">📋 Copy Instructor Link</button>`;
     }
     html += `<button id="copy-asurite-btn-${id}" onclick="copyInstructorAsuriteEmail('${id}')" style="${_copyLinkStyle}" title="Copy the instructor's ASURITE email (asurite@asu.edu)">📋 Copy Instructor ASURITE</button>`;
+    if (c.email) {
+      html += `<button onclick="emailFacultyMentions('${id}')" style="${_copyLinkStyle}" title="Email the faculty a digest of open comments where you @mentioned them, with a preview and the worksheet link">✉️ Email faculty re: my comments</button>`;
+    }
     html += `</span>`;
     html += `</div>`;
 
