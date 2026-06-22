@@ -356,6 +356,16 @@
   .activity-role-chip.id         { background: #fde8ee; color: #8c1d40; }
   .activity-role-chip.reviewer   { background: #e8f0fe; color: #1565c0; }
   .activity-empty { font-size: 12px; color: #999; font-style: italic; }
+  /* Designer effort split: worksheet "design" time vs Curate "build" time */
+  .effort-summary { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  .effort-total { font-size: 13px; font-weight: 700; color: #8c1d40; cursor: help; border-bottom: 1px dotted #c99; }
+  .effort-split { display: inline-flex; gap: 6px; }
+  .effort-chip { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; font-weight: 600; padding: 3px 9px; border-radius: 12px; }
+  .effort-chip .dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .effort-chip.design { background: #fde8ee; color: #8c1d40; }
+  .effort-chip.design .dot { background: #8c1d40; }
+  .effort-chip.build  { background: #e8f0fe; color: #1565c0; }
+  .effort-chip.build  .dot { background: #1565c0; }
 
   /* ===== JIRA STATUS WIDGET ===== */
   .jira-status-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
@@ -3402,7 +3412,9 @@
     } catch(e) { console.warn('[airtable auto] banner render failed:', e && e.message); }
     // Fire-and-forget: load activity data and re-render detail if open
     loadWorksheetSessions();
+    loadCoursePhaseTotals();
     setInterval(loadWorksheetSessions, 120000); // refresh every 2 min
+    setInterval(loadCoursePhaseTotals, 120000);
   })();
 
   // ===== LIVE SYNC =====
@@ -4612,6 +4624,46 @@
       console.warn('[sessions] load error:', e && e.message || e);
     }
   }
+  // Per-course designer effort, split design (worksheet) vs build (Curate).
+  // Reads the `course_phase_totals` view (id-role events aggregated by phase),
+  // which bypasses the per-course RLS on worksheet_session_events so the
+  // dashboard sees totals across every course. Keyed by the same course code
+  // as _worksheetSessions, so _coursePhaseTotals[id] lines up.
+  window._coursePhaseTotals = window._coursePhaseTotals || {};
+  window._coursePhaseTotalsLoaded = false;
+  async function loadCoursePhaseTotals() {
+    if (!window._sbClient) return;
+    try {
+      var r = await window._sbClient
+        .from('course_phase_totals')
+        .select('course_id, phase, total_ms, event_count, last_event_at');
+      if (r.error) {
+        // View not migrated yet — stay quiet, the summary just won't render.
+        if (!/course_phase_totals|does not exist|Could not find|schema cache/i.test(r.error.message || ''))
+          console.warn('[phase-totals] load failed:', r.error.message);
+        return;
+      }
+      var bucket = {};
+      (r.data || []).forEach(function(row) {
+        var cid = row.course_id;
+        if (!bucket[cid]) bucket[cid] = { design_ms: 0, build_ms: 0, build_last: null };
+        if (row.phase === 'build') {
+          bucket[cid].build_ms += Number(row.total_ms) || 0;
+          if (row.last_event_at) bucket[cid].build_last = row.last_event_at;
+        } else {
+          bucket[cid].design_ms += Number(row.total_ms) || 0;
+        }
+      });
+      window._coursePhaseTotals = bucket;
+      window._coursePhaseTotalsLoaded = true;
+      var overlay = document.getElementById('detail-overlay');
+      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+        renderDetail(overlay._currentId);
+      }
+    } catch (e) {
+      console.warn('[phase-totals] load error:', e && e.message || e);
+    }
+  }
   function fmtSessionDuration(ms) {
     if (!ms || ms < 0) return '0m';
     var min = Math.round(ms / 60000);
@@ -5231,6 +5283,20 @@
 
     // ===== Activity: who has opened the worksheet, how long, how recently =====
     html += `<div class="detail-section" style="margin-top:16px;"><h3>Activity</h3>`;
+    // Designer effort split — your worksheet (design) time vs Curate (build)
+    // time. Hover the total for the breakdown. Sourced from course_phase_totals
+    // (id-role events), independent of who else opened the worksheet below.
+    var pt = (window._coursePhaseTotals && window._coursePhaseTotals[id]) || null;
+    if (pt && ((pt.design_ms || 0) > 0 || (pt.build_ms || 0) > 0)) {
+      var dMs = pt.design_ms || 0, bMs = pt.build_ms || 0, tMs = dMs + bMs;
+      html += `<div class="effort-summary">
+        <span class="effort-total" title="Designing ${fmtSessionDuration(dMs)} · Building ${fmtSessionDuration(bMs)}">${fmtSessionDuration(tMs)} total</span>
+        <span class="effort-split">
+          <span class="effort-chip design"><span class="dot"></span>Design ${fmtSessionDuration(dMs)}</span>
+          <span class="effort-chip build"><span class="dot"></span>Build ${fmtSessionDuration(bMs)}</span>
+        </span>
+      </div>`;
+    }
     var sessions = (window._worksheetSessions && window._worksheetSessions[id]) || [];
     if (!window._worksheetSessionsLoaded) {
       html += `<div class="activity-empty">Loading activity…</div>`;
@@ -6483,6 +6549,7 @@
     setTodoPanelCollapsed(true);
     // Opportunistic refresh — picks up visits made since the last poll
     loadWorksheetSessions();
+    loadCoursePhaseTotals();
     // Pull live Jira status + children + worklog sync state
     loadJiraStatus(courseId);
     // Pull fresh Granola meetings from Supabase. Without this, the panel
