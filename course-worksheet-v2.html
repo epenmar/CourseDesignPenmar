@@ -2383,6 +2383,44 @@
   </div>
 </div>
 
+<!-- ===== QUIZ ANSWER REVIEW / FEEDBACK MODAL =====
+     AI checks the marked correct answers (flags only — never auto-changes
+     them) and writes student-facing correct/incorrect feedback for the
+     question bank. -->
+<div id="quiz-review-overlay" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:281; align-items:flex-start; justify-content:center; padding-top:32px;" onclick="if(event.target===this) closeQuizReviewModal();">
+  <div style="background:#fff; border-radius:12px; padding:18px 22px; max-width:600px; width:94%; max-height:90vh; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.2); font-family:'Inter',sans-serif;">
+    <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:12px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid #f0ede5;">
+      <div style="min-width:0;">
+        <div style="font-size:15px; font-weight:600; color:#8c1d40;">✅ AI review &amp; feedback — <span id="quiz-review-title">…</span></div>
+        <div style="font-size:12px; color:#888; margin-top:2px;">Checks the marked correct answers and writes feedback. Correct-answer markings are flagged, never changed for you.</div>
+      </div>
+      <button onclick="closeQuizReviewModal()" style="background:none; border:none; color:#999; font-size:22px; cursor:pointer; padding:0 4px; line-height:1;">&times;</button>
+    </div>
+    <div id="quiz-review-body" style="overflow-y:auto;">
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; color:#444; cursor:pointer;">
+          <input type="checkbox" id="qr-review" checked style="margin-top:3px; accent-color:#8c1d40;" />
+          <span>Review the marked correct answers <span style="color:#888;">— flag any that look wrong or ambiguous</span></span>
+        </label>
+        <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; color:#444; cursor:pointer;">
+          <input type="checkbox" id="qr-feedback" checked style="margin-top:3px; accent-color:#8c1d40;" />
+          <span>Write answer feedback <span style="color:#888;">— a correct-answer and an incorrect-answer message per question</span></span>
+        </label>
+        <label style="display:flex; align-items:flex-start; gap:8px; font-size:13px; color:#444; cursor:pointer; margin-left:26px;">
+          <input type="checkbox" id="qr-overwrite" style="margin-top:3px; accent-color:#8c1d40;" />
+          <span>Overwrite feedback that's already filled in <span style="color:#888;">(otherwise only blanks are filled)</span></span>
+        </label>
+      </div>
+      <div id="quiz-review-results" style="display:none; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;"></div>
+    </div>
+    <div style="display:flex; gap:8px; justify-content:flex-end; margin-top:14px; padding-top:12px; border-top:1px solid #f0ede5;">
+      <div id="quiz-review-status" style="flex:1; font-size:12px; color:#666; align-self:center;"></div>
+      <button onclick="closeQuizReviewModal()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 16px; border-radius:6px; cursor:pointer; font-size:13px;">Close</button>
+      <button id="quiz-review-go-btn" onclick="runQuizReview()" style="background:#8c1d40; color:#fff; border:none; padding:7px 18px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600;">✨ Run</button>
+    </div>
+  </div>
+</div>
+
 <!-- ===== APPLY TEMPLATE TO OTHER ACTIVITIES MODAL =====
      Copy selected template fields (Instructions, Rubric, etc.) from the
      activity the user is currently working on into one or more sibling
@@ -12383,6 +12421,7 @@
     html += '<button class="btn-add-row" onclick="openQuizImport(\'' + builderId + '\')" title="Paste existing quiz questions as text and parse them into the builder">📋 Batch paste</button>';
     html += '<button class="btn-add-row" onclick="generateQuizAI(\'' + builderId + '\')" title="Generate questions from the course/module objectives">✨ Generate from context</button>';
     html += '<button class="btn-add-row" onclick="openQuizGenModal(\'' + builderId + '\')" title="Upload a transcript, reading, or slides and generate questions from that content">📄 Generate from content</button>';
+    html += '<button class="btn-add-row" onclick="openQuizReviewModal(\'' + builderId + '\')" title="AI: check the marked correct answers and/or write feedback for the question bank">✅ AI review &amp; feedback</button>';
     html += '</div>';
     html += '</div>';
 
@@ -14910,6 +14949,115 @@
     else if (statusEl) { statusEl.textContent = ''; }
   }
   window.runQuizGen = runQuizGen;
+
+  // ===== QUIZ ANSWER REVIEW / FEEDBACK =====
+  var _quizReviewState = null;
+  function openQuizReviewModal(builderId) {
+    var data = quizData[builderId];
+    var qs = (data && data.questions) || [];
+    if (!qs.length || !qs.some(function(q) { return (q.text || '').trim(); })) {
+      alert('Add some question text first — the review works on the questions in the bank.');
+      return;
+    }
+    _quizReviewState = { builderId: builderId };
+    var actId = _quizActIdFromBuilderId(builderId);
+    var loc = actId ? _quizFindActivity(actId) : null;
+    document.getElementById('quiz-review-title').textContent = (loc && loc.item && (loc.item.name || '').trim()) ? loc.item.name : 'Quiz';
+    document.getElementById('qr-review').checked = true;
+    document.getElementById('qr-feedback').checked = true;
+    document.getElementById('qr-overwrite').checked = false;
+    var res = document.getElementById('quiz-review-results'); res.style.display = 'none'; res.innerHTML = '';
+    document.getElementById('quiz-review-status').textContent = '';
+    var go = document.getElementById('quiz-review-go-btn'); if (go) { go.disabled = false; go.textContent = '✨ Run'; }
+    document.getElementById('quiz-review-overlay').style.display = 'flex';
+  }
+  window.openQuizReviewModal = openQuizReviewModal;
+  function closeQuizReviewModal() {
+    var ov = document.getElementById('quiz-review-overlay');
+    if (ov) ov.style.display = 'none';
+    _quizReviewState = null;
+  }
+  window.closeQuizReviewModal = closeQuizReviewModal;
+  async function runQuizReview() {
+    if (!_quizReviewState) return;
+    var builderId = _quizReviewState.builderId;
+    var data = quizData[builderId];
+    if (!data) return;
+    var doReview = !!document.getElementById('qr-review').checked;
+    var doFeedback = !!document.getElementById('qr-feedback').checked;
+    var overwrite = !!document.getElementById('qr-overwrite').checked;
+    var statusEl = document.getElementById('quiz-review-status');
+    var go = document.getElementById('quiz-review-go-btn');
+    if (!doReview && !doFeedback) { statusEl.textContent = 'Pick at least one task.'; return; }
+    statusEl.textContent = '⏳ Reviewing ' + data.questions.length + ' question' + (data.questions.length === 1 ? '' : 's') + '… this can take a few seconds.';
+    if (go) { go.disabled = true; go.textContent = 'Working…'; }
+    try {
+      var letter = function(i) { return String.fromCharCode(65 + i); };
+      var lines = data.questions.map(function(q, qi) {
+        var s = '#' + qi + ' (' + (q.type || 'multiple-choice') + ')\nQ: ' + String(q.text || '').replace(/\s+/g, ' ').trim();
+        if (q.type !== 'short-answer') {
+          var ch = (q.type === 'true-false')
+            ? [{ text: 'True', correct: q.choices[0] && q.choices[0].correct }, { text: 'False', correct: q.choices[1] && q.choices[1].correct }]
+            : (q.choices || []);
+          s += '\nChoices: ' + ch.map(function(c, ci) { return letter(ci) + '. ' + String(c.text || '').trim() + (c.correct ? ' [MARKED CORRECT]' : ''); }).join('   ');
+        }
+        s += '\nExisting correct feedback: ' + ((q.correctFeedback || '').trim() || '(none)');
+        s += '\nExisting incorrect feedback: ' + ((q.incorrectFeedback || '').trim() || '(none)');
+        return s;
+      }).join('\n\n');
+      var tasks = [];
+      if (doReview) tasks.push('- Verify the marked-correct answer. Set "verdict" to "ok" if it is correct, "wrong" if a different choice is clearly correct, or "unsure" if ambiguous/opinion-based. For wrong/unsure, set "correct" to the letter you believe is right and explain briefly in "note". Short-answer questions: verdict "ok".');
+      if (doFeedback) tasks.push('- Write one-sentence student-facing feedback: "correctFeedback" reinforces why the answer is right; "incorrectFeedback" gently guides toward the concept WITHOUT stating the answer verbatim.');
+      var prompt = 'You are reviewing quiz questions for a university course (ASU Online). For each question return one JSON object.\n\nDo the following for every question:\n' + tasks.join('\n') + '\n\nQuestions:\n' + lines + '\n\nReturn ONLY a JSON array, one object per question IN ORDER, each shaped: {"index":<n>,"verdict":"ok|wrong|unsure","correct":"<letter or empty>","note":"<short or empty>","correctFeedback":"<one sentence or empty>","incorrectFeedback":"<one sentence or empty>"}. Never use em-dashes.';
+      var raw = (await callCreateAI(prompt, 'You are a careful instructional-design assistant for ASU Online. Return only valid JSON. Never reveal the correct option inside incorrect-answer feedback. Never use em-dashes.', 2048)).trim();
+      var match = raw.match(/\[[\s\S]*\]/);
+      if (!match) throw new Error('Could not parse the AI response.');
+      var arr = JSON.parse(match[0]);
+      var byIndex = {};
+      arr.forEach(function(o) { if (o && typeof o.index === 'number') byIndex[o.index] = o; });
+      var fbCount = 0, flagged = [];
+      data.questions.forEach(function(q, qi) {
+        var o = byIndex[qi];
+        if (!o) return;
+        if (doFeedback) {
+          var did = false;
+          if (o.correctFeedback && (overwrite || !(q.correctFeedback || '').trim())) { q.correctFeedback = String(o.correctFeedback); did = true; }
+          if (o.incorrectFeedback && (overwrite || !(q.incorrectFeedback || '').trim())) { q.incorrectFeedback = String(o.incorrectFeedback); did = true; }
+          if (did) fbCount++;
+        }
+        if (doReview && o.verdict && o.verdict !== 'ok') {
+          flagged.push({ qi: qi, verdict: o.verdict, correct: o.correct || '', note: o.note || '' });
+        }
+      });
+      saveQuizDataForBuilder(builderId);
+      var cont = document.getElementById(builderId);
+      if (cont) renderQuizBuilder(cont);
+      var res = document.getElementById('quiz-review-results');
+      var h = '';
+      if (doFeedback) h += '<div style="font-size:13px; color:#2e7d32; margin-bottom:8px;">✓ Feedback written for ' + fbCount + ' question' + (fbCount === 1 ? '' : 's') + (overwrite ? '' : ' (blank fields only)') + '.</div>';
+      if (doReview) {
+        if (!flagged.length) {
+          h += '<div style="font-size:13px; color:#2e7d32;">✓ All marked answers look correct.</div>';
+        } else {
+          h += '<div style="font-size:13px; color:#b9770e; font-weight:600; margin-bottom:6px;">⚠ ' + flagged.length + ' question' + (flagged.length === 1 ? '' : 's') + ' to double-check (correct markings were NOT changed):</div>';
+          h += '<ul style="margin:0; padding-left:18px; font-size:12px; color:#444; line-height:1.5;">';
+          flagged.forEach(function(f) {
+            h += '<li style="margin-bottom:4px;"><strong>Q' + (f.qi + 1) + '</strong> (' + escapeHtml(f.verdict) + (f.correct ? (', AI suggests ' + escapeHtml(String(f.correct))) : '') + '): ' + escapeHtml(f.note || '') + '</li>';
+          });
+          h += '</ul>';
+        }
+      }
+      res.innerHTML = h;
+      res.style.display = 'block';
+      statusEl.textContent = '';
+      if (go) { go.disabled = false; go.textContent = '✨ Run again'; }
+    } catch (e) {
+      statusEl.textContent = '';
+      if (go) { go.disabled = false; go.textContent = '✨ Run'; }
+      alert('Review failed: ' + (e && e.message ? e.message : e));
+    }
+  }
+  window.runQuizReview = runQuizReview;
 
   // ===== IMPROVE PREVIEW MODAL =====
   function _openImprovePreview(plan) {
