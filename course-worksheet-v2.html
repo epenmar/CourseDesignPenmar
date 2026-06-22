@@ -25172,8 +25172,15 @@
       // would race the async fetch and skip the yellow field highlights.
       loadAllCommentCounts();
       loadAndApplyHighlights();
-      // Auto-open comment panel if URL param requests it
-      if (urlParams.get('openComments') === '1') {
+      // Deep-link straight to one comment (from the faculty email), else the
+      // generic "open all comments" request.
+      var _deepComment = urlParams.get('comment');
+      if (_deepComment) {
+        var _deepSection = urlParams.get('section') || getCurrentSection();
+        setTimeout(function() {
+          try { openCommentPanel(_deepSection, _deepComment); navigateToCommentInContext(_deepSection, _deepComment); } catch (e) {}
+        }, 450);
+      } else if (urlParams.get('openComments') === '1') {
         setTimeout(function() { openCommentPanel(getCurrentSection()); }, 300);
       }
     }, 500);

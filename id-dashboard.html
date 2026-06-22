@@ -1957,26 +1957,31 @@
     if (!matched.length) { alert('No open comments mention @' + parts[0] + ' in ' + (c.emailName || c.code) + ' yet.'); return; }
     var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '');
     var firstName = parts[0];
-    var CAP = 15;
+    var CAP = 10;
     var shown = matched.slice(0, CAP);
     var lines = shown.map(function(cm, i) {
       var sec = (cm.section_id || 'general').replace(/-/g, ' ');
-      var quote = cm.highlight_text ? ('on “' + String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 80) + '” — ') : '';
+      var quote = cm.highlight_text ? ('on “' + String(cm.highlight_text).replace(/\s+/g, ' ').trim().slice(0, 70) + '” — ') : '';
       // Plain-text email can't render [label](url) markdown as a link — render
       // it as "label (url)" so the brackets don't show and the URL still
       // auto-links in the mail client.
       var text = String(cm.content || '')
         .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/gi, '$1 ($2)')
         .replace(/\s+/g, ' ').trim();
-      if (text.length > 200) text = text.slice(0, 200) + '…';
-      return (i + 1) + '. [' + sec + '] ' + quote + text;
+      if (text.length > 160) text = text.slice(0, 160) + '…';
+      // Direct link straight to this comment's spot in the worksheet.
+      var link = built.url + '&section=' + encodeURIComponent(cm.section_id || '') + '&comment=' + encodeURIComponent(cm.id);
+      return (i + 1) + '. [' + sec + '] ' + quote + text + '\n   Go to this comment: ' + link;
     });
-    var more = matched.length > CAP ? ('\n\n…and ' + (matched.length - CAP) + ' more.') : '';
+    var more = matched.length > CAP ? ('\n\n…and ' + (matched.length - CAP) + ' more in the worksheet.') : '';
     var subject = 'Comments to address: ' + (c.emailName || c.code);
     var body = 'Hi ' + firstName + ',\n\n'
-      + 'I left some comments in the ' + (c.emailName || c.code) + ' course worksheet and tagged you in each. When you have a moment, could you take a look and respond to or address them?\n\n'
-      + 'Open the worksheet:\n' + built.url + '\n\n'
-      + 'The comments (' + matched.length + '):\n' + lines.join('\n\n') + more + '\n\n'
+      + 'I left some comments in the ' + (c.emailName || c.code) + ' course worksheet and tagged you in each. When you have a moment, please take a look and address them.\n\n'
+      + 'A couple of quick notes:\n'
+      + '• Each comment below links straight to its spot in the worksheet.\n'
+      + '• Please mark a comment "Resolve" as soon as you have addressed it.\n'
+      + '• You can reply right there by adding your own comment — no need to reply to this email.\n\n'
+      + 'The comments (' + matched.length + '):\n\n' + lines.join('\n\n') + more + '\n\n'
       + 'Thank you,\n' + getProfile().sig;
     var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
     window.open(mailto, '_blank');
