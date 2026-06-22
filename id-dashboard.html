@@ -4314,11 +4314,23 @@
     }
   };
 
+  // Derive the dashboard course key from an Airtable code, the same way the
+  // importer does ("LSC598/STP494" -> "lsc598stp494", "TPH 555" -> "tph555").
+  function _airtableCodeToKey(code) {
+    return String(code || '').toLowerCase().replace(/[\s\/]+/g, '');
+  }
   function getAirtableNewCandidates() {
     var state = getAirtableSyncState();
     var imported = getImportedAirtableRecordIds();
     return (state.candidates || []).filter(function(c) {
-      return !imported[c.recordId] && state.dismissedRecordIds.indexOf(c.recordId) === -1;
+      if (imported[c.recordId]) return false;
+      if (state.dismissedRecordIds.indexOf(c.recordId) !== -1) return false;
+      // Also hide it if a course with the same code is already on the dashboard
+      // (e.g. it was added via the Add-Course form, or its record id never got
+      // stamped) — that's why TPH 555 kept reappearing after it was added.
+      var key = _airtableCodeToKey(c.code);
+      if (key && courseData[key]) return false;
+      return true;
     });
   }
 
@@ -4391,9 +4403,14 @@
       // lingered, the previous unconditional skip prevented the importer
       // from rebuilding the entry.
       var existingKey = imported[rid];
+      if (!existingKey) { var _k = _airtableCodeToKey(info.code); if (_k && courseData[_k]) existingKey = _k; }
       if (existingKey && courseData[existingKey]) {
-        // Already on dashboard — flip both flags so the banner also stops
-        // surfacing it.
+        // Already on dashboard — heal a missing record-id link so it's
+        // recognized next time, then flip both flags so the banner stops.
+        if (!courseData[existingKey].airtableRecordId) {
+          courseData[existingKey].airtableRecordId = info.recordId || rid;
+          try { setCourseAirtableUrl(existingKey, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + (info.recordId || rid)); } catch (e) {}
+        }
         info.addedToDashboard = true;
         info.seen = true;
         changed = true;
@@ -4632,6 +4649,44 @@
     return { ok: true, key: key, existed: false };
   }
 
+  // Attach an Airtable record to a course that already exists on the dashboard
+  // (e.g. one you created manually before it was approved in Airtable). Keeps
+  // the existing course's id and all its work; stamps the record id (so the
+  // sync dedups it), records any cross-listed code, and fills blanks only —
+  // your manual edits are never overwritten.
+  function linkAirtableToExisting(cand, targetKey) {
+    var t = courseData[targetKey];
+    if (!t) return { ok: false, error: 'Target course not found' };
+    t.airtableRecordId = cand.recordId;
+    var atCode = (cand.code || '').trim();
+    if (atCode) {
+      t.airtableCode = atCode;
+      var ownCode = (t.code || '').replace(/\s+/g, '').toUpperCase();
+      var others = atCode.split(/[\/,]+/).map(function(s) { return s.trim(); })
+        .filter(function(s) { return s && s.replace(/\s+/g, '').toUpperCase() !== ownCode; });
+      if (others.length) {
+        t.crossListedAs = (t.crossListedAs || []).concat(others).filter(function(v, i, a) { return a.indexOf(v) === i; });
+      }
+    }
+    // Fill blanks only — never clobber manual edits.
+    if (cand.college && !t.college) t.college = collegeAbbr(cand.college);
+    if (cand.program && !t.program) t.program = cand.program;
+    if (cand.instructor && (!t.instructor || t.instructor === 'TBD')) t.instructor = cand.instructor;
+    if (cand.email && !t.email) t.email = cand.email;
+    if (cand.sessionStart && !t.session) { var lbl = airtableDateToSessionLabel(cand.sessionStart); if (lbl) t.session = lbl; }
+    if (cand.qaAlertStatus !== undefined) t.qaAlertStatus = cand.qaAlertStatus || '';
+    if (cand.qaKickoffStatus !== undefined) t.qaKickoffStatus = cand.qaKickoffStatus || '';
+    // Persist to user_courses + cloud, stamp the Airtable URL, backfill Jira.
+    var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    saved[targetKey] = Object.assign({}, saved[targetKey] || {}, t);
+    localStorage.setItem('user_courses', JSON.stringify(saved));
+    if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(targetKey, saved[targetKey]);
+    try { setCourseAirtableUrl(targetKey, 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + cand.recordId); } catch (e) {}
+    if (cand.jiraEpic && !getCourseJiraEpic(targetKey)) setCourseJiraEpic(targetKey, cand.jiraEpic);
+    return { ok: true, key: targetKey, linked: true };
+  }
+  window.linkAirtableToExisting = linkAirtableToExisting;
+
   window.openAirtableSyncModal = function() {
     var modal = document.getElementById('airtable-sync-modal');
     if (!modal) return;
@@ -4640,15 +4695,22 @@
     if (newOnes.length === 0) {
       list.innerHTML = '<div style="padding:24px; text-align:center; color:#999; font-size:13px;">No new courses found. Click sync again to refresh.</div>';
     } else {
+      var esc = function(s) { return String(s || '').replace(/[&<>"']/g, function(m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
+      var courseOpts = Object.keys(courseData).sort(function(a, b) { return String(courseData[a].code || a).localeCompare(String(courseData[b].code || b)); })
+        .map(function(k) { return '<option value="' + esc(k) + '">' + esc(courseData[k].code || k) + '</option>'; }).join('');
       list.innerHTML = newOnes.map(function(c, i) {
-        var esc = function(s) { return String(s || '').replace(/[&<>"']/g, function(m) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]; }); };
         var pct = Math.round((c.completion || 0) * 100);
-        return '<label class="airtable-sync-row"><input type="checkbox" class="airtable-sync-cb" data-rid="' + c.recordId + '" checked>' +
-          '<div class="airtable-sync-info">' +
+        return '<div class="airtable-sync-row">' +
+          '<input type="checkbox" class="airtable-sync-cb" data-rid="' + c.recordId + '" checked>' +
+          '<div class="airtable-sync-info" style="flex:1;" onclick="var cb=this.parentElement.querySelector(\'.airtable-sync-cb\'); if(cb) cb.checked=!cb.checked;">' +
             '<div class="airtable-sync-title"><strong>' + esc(c.code) + '</strong> · ' + esc(c.title) + '</div>' +
             '<div class="airtable-sync-meta">' + esc(c.instructor || 'TBD') + (c.sessionStart ? ' · ' + esc(airtableDateToSessionLabel(c.sessionStart) || c.sessionStart) : '') + (pct ? ' · ' + pct + '%' : '') + '</div>' +
           '</div>' +
-        '</label>';
+          '<select class="airtable-link-target" data-rid="' + c.recordId + '" title="Add as a new course, or attach this Airtable record to a course you already created" onclick="event.stopPropagation();" style="font-size:11px; max-width:180px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:6px; background:#fff; align-self:center;">' +
+            '<option value="">Add as new course</option>' +
+            '<optgroup label="…or attach to existing">' + courseOpts + '</optgroup>' +
+          '</select>' +
+        '</div>';
       }).join('');
     }
     modal.style.display = 'flex';
@@ -4663,13 +4725,19 @@
     var state = getAirtableSyncState();
     var candMap = {};
     (state.candidates || []).forEach(function(c) { candMap[c.recordId] = c; });
-    var added = 0, skipped = 0;
+    var added = 0, skipped = 0, linked = 0;
     cbs.forEach(function(cb) {
       var rid = cb.getAttribute('data-rid');
       var c = candMap[rid];
       if (!c) return;
-      var res = importAirtableCourseRecord(c);
-      if (res.ok && !res.existed) added++; else if (res.ok && res.existed) skipped++;
+      var sel = document.querySelector('#airtable-sync-list .airtable-link-target[data-rid="' + rid + '"]');
+      var target = sel ? sel.value : '';
+      if (target && courseData[target]) {
+        if (linkAirtableToExisting(c, target).ok) linked++;
+      } else {
+        var res = importAirtableCourseRecord(c);
+        if (res.ok && !res.existed) added++; else if (res.ok && res.existed) skipped++;
+      }
     });
     closeAirtableSyncModal();
     renderSummary();
@@ -4677,7 +4745,11 @@
     renderFilters();
     renderColumnFilters();
     renderAirtableSyncBanner();
-    if (added) alert(added + ' course' + (added === 1 ? '' : 's') + ' added to your dashboard.' + (skipped ? ' ' + skipped + ' already existed (linked to Airtable for comments).' : ''));
+    var msgs = [];
+    if (added) msgs.push(added + ' added');
+    if (linked) msgs.push(linked + ' attached to an existing course');
+    if (skipped) msgs.push(skipped + ' already existed');
+    if (msgs.length) alert(msgs.join(' · ') + '.');
   };
 
   // ===== ADD-COURSE MODAL: AIRTABLE PICKER =====
