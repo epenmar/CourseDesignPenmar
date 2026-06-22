@@ -2842,7 +2842,7 @@
     }
     if (typeof renderTable === 'function') renderTable();
     var ov = document.getElementById('detail-overlay');
-    if (ov && ov._currentId && typeof renderDetail === 'function') renderDetail(ov._currentId);
+    if (ov && ov._currentId && typeof renderDetail === 'function' && !_detailIsBeingEdited()) renderDetail(ov._currentId);
     setTimeout(function() {
       modal.style.display = 'none';
       modal.dataset.phase = '';
@@ -3796,7 +3796,7 @@
       if (typeof renderTable === 'function') renderTable();
       // If a side panel is open, refresh it so the new meetings show up.
       var ov = document.getElementById('detail-overlay');
-      if (ov && ov._currentId && typeof renderDetail === 'function') renderDetail(ov._currentId);
+      if (ov && ov._currentId && typeof renderDetail === 'function' && !_detailIsBeingEdited()) renderDetail(ov._currentId);
     } catch(e) {
       console.warn('[meetings sb] load failed:', e && e.message);
     }
@@ -4736,6 +4736,18 @@
   // ===== WORKSHEET ACTIVITY (per-identity time tracking) =====
   // Cached Supabase view of the worksheet_sessions table, bucketed by course_id.
   // Populated on dashboard init + polled every 2 min + refreshed when a detail opens.
+  // While the user is typing in a field inside the open detail panel (e.g. a
+  // Development Note), a background poll must NOT re-render the panel — that
+  // wipes the in-progress text and loses their work. Skip the opportunistic
+  // refresh; the next poll (or their own save) repaints once they're done.
+  function _detailIsBeingEdited() {
+    var overlay = document.getElementById('detail-overlay');
+    if (!overlay || !overlay.classList.contains('open')) return false;
+    var ae = document.activeElement;
+    if (!ae || !overlay.contains(ae)) return false;
+    var tag = (ae.tagName || '').toLowerCase();
+    return tag === 'textarea' || tag === 'input' || tag === 'select' || ae.isContentEditable === true;
+  }
   window._worksheetSessions = window._worksheetSessions || {};
   window._worksheetSessionsLoaded = false;
   async function loadWorksheetSessions() {
@@ -4767,7 +4779,7 @@
       window._worksheetSessionsLoaded = true;
       // If the detail panel is currently open, re-render so the widget fills in
       var overlay = document.getElementById('detail-overlay');
-      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+      if (overlay && overlay.classList.contains('open') && overlay._currentId && !_detailIsBeingEdited()) {
         renderDetail(overlay._currentId);
       }
     } catch (e) {
@@ -4807,7 +4819,7 @@
       window._coursePhaseTotals = bucket;
       window._coursePhaseTotalsLoaded = true;
       var overlay = document.getElementById('detail-overlay');
-      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+      if (overlay && overlay.classList.contains('open') && overlay._currentId && !_detailIsBeingEdited()) {
         renderDetail(overlay._currentId);
       }
     } catch (e) {
@@ -6492,7 +6504,7 @@
       renderTodoPanel();
     }
     var ov = document.getElementById('detail-overlay');
-    if (ov && ov._currentId === courseId && typeof renderDetail === 'function') {
+    if (ov && ov._currentId === courseId && typeof renderDetail === 'function' && !_detailIsBeingEdited()) {
       try { renderDetail(courseId); } catch(e) {}
     }
   };
@@ -7609,7 +7621,7 @@
       renderTable();
       // If detail panel is open, update it too
       const overlay = document.getElementById('detail-overlay');
-      if (overlay && overlay.classList.contains('open') && overlay._currentId) {
+      if (overlay && overlay.classList.contains('open') && overlay._currentId && !_detailIsBeingEdited()) {
         renderDetail(overlay._currentId);
       }
     } catch(e) { console.error('Failed to load comment notifications:', e); }

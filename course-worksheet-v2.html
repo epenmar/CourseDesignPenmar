@@ -11918,6 +11918,12 @@
     var type = _activeTplTypeFor(prefix);
     if (type === 'quiz') { importDocToQuiz(prefix); return; }
     var sections = TEMPLATE_SECTIONS[type] || TEMPLATE_SECTIONS.assignment;
+    // Assignments and discussions render a structured Rubric grid (stored as
+    // pipe text in templateData[type]['Rubric']). Give the AI a 'Rubric' key so
+    // a rubric in the document lands in the grid instead of being dumped as a
+    // raw table into "How You Will Be Graded".
+    var hasRubric = (type === 'assignment' || type === 'discussion');
+    var aiSections = hasRubric ? sections.concat(['Rubric']) : sections;
     var inp = document.createElement('input');
     inp.type = 'file';
     inp.accept = '.docx,.pdf,.md,.markdown,.txt';
@@ -11933,14 +11939,15 @@
         if (importBtn) importBtn.textContent = '⏳ AI sorting…';
         var prompt = 'A faculty member uploaded the document below describing a course ' + type + '. '
           + 'Organize its content into these syllabus/page sections (use the section names verbatim as JSON keys): '
-          + sections.join(', ') + '. '
+          + aiSections.join(', ') + '. '
           + 'Format each section value as clean HTML for a rich-text editor: wrap every paragraph in <p>...</p>, use <strong> for bold and <em> for italics, and <ul>/<ol> with <li> for lists. '
           + 'Preserve the document\'s structure — put each distinct prompt, question, requirement, or list item in its OWN <p> or <li> so the content stays visually separated. Do NOT run multiple prompts or items together in one block of text. '
           + 'If the source labels items (e.g. "Prompt 1", "Part A"), keep that label in <strong> at the start of its paragraph. '
           + 'Do NOT use Markdown syntax (no **bold**, *italics*, # headings, or "- " bullets as plain text) — use the HTML tags above. '
+          + (hasRubric ? 'IMPORTANT — if the document contains a grading RUBRIC (a table or grid of criteria and performance levels, including one rendered as a graphic/image-described table), do NOT place it in "How You Will Be Graded". Put it ONLY in the "Rubric" key, formatted as a PIPE-SEPARATED table: one rubric row per line, cells separated by " | ", with the FIRST line as the column headers (e.g. "Criteria | Excellent | Proficient | Developing | Points"). Keep each criterion on its own line and match the instructor\'s level structure. The "Rubric" value must be PLAIN PIPE TEXT, not HTML. Put only narrative grading guidance (weighting, late policy, expectations) — never the rubric table itself — in "How You Will Be Graded". If the document has no rubric, set "Rubric" to an empty string. ' : '')
           + 'Use ONLY information present in the document — do not invent details, and never add due dates. '
           + 'If a section has no relevant content, use an empty string.\n\n'
-          + 'Return ONLY a JSON object mapping each section name to its HTML content. No code fences, no other text.\n\n'
+          + 'Return ONLY a JSON object mapping each section name to its content. No code fences, no other text.\n\n'
           + '=== DOCUMENT ===\n' + docText.slice(0, 12000);
         var raw = (await callCreateAI(prompt, 'You are an instructional designer importing an assignment document into a course template. Never invent due dates.', 4096)).trim();
         var jsonMatch = raw.match(/\{[\s\S]*\}/);
@@ -11948,9 +11955,17 @@
         if (!jsonStr) throw new Error('AI returned no usable content.');
         var parsed = _lenientJsonParse(jsonStr);
         var filled = 0;
-        sections.forEach(function (sec) {
+        aiSections.forEach(function (sec) {
           var v = parsed[sec];
-          if (typeof v === 'string' && v.trim()) { saveTemplateField(actId, type, sec, v.trim()); filled++; }
+          if (typeof v !== 'string' || !v.trim()) return;
+          if (sec === 'Rubric') {
+            // Coerce whatever the AI returned (pipe text OR an HTML table) into
+            // the canonical pipe-separated rows the rubric grid stores.
+            var rubricRows = _parseRubricPipes(v.trim());
+            if (rubricRows.length) { saveTemplateField(actId, type, 'Rubric', _stringifyRubricRows(rubricRows)); filled++; }
+          } else {
+            saveTemplateField(actId, type, sec, v.trim()); filled++;
+          }
         });
         if (!filled) throw new Error('The AI could not map the document to template sections.');
         // Re-render so the populated fields show. renderAssignmentsOverview
