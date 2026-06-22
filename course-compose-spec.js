@@ -182,6 +182,7 @@
           category: a.category || '',
           points: a.points || '',
           due: a.due || '',
+          estimatedTime: a.estimatedTime || '',
           objectives: (a.objectives || []).slice(),
           contentComplete: !!a.contentComplete,
           editToken: a.editToken,

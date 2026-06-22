@@ -3369,6 +3369,48 @@
       + '</div>';
   }
 
+  // Compact "Estimated time on task" row, rendered at the top of the
+  // assignment / discussion / quiz templates. Stored per-activity
+  // (act.estimatedTime) so it survives switching template type and rides
+  // along in the Canvas handoff. The ✨ Estimate button asks AI for a
+  // conservative figure (the methodical student), reading any attached
+  // readings when present.
+  function _estTimeFieldHtml(actId, modNum, tplType) {
+    var val = '';
+    try { var inf = _itemForContentPrefix(actId); if (inf && inf.item) val = inf.item.estimatedTime || ''; } catch (e) {}
+    var aE = escapeHtml(actId), tE = escapeHtml(tplType);
+    return '<div class="template-section est-time-row" style="display:flex; align-items:center; gap:10px; flex-wrap:wrap; background:#faf7f2; border:1px solid #efe9df; border-radius:8px; padding:8px 12px; margin-bottom:12px;">'
+      + '<span class="template-section-label" style="margin:0; display:flex; align-items:center; gap:6px;">⏱️ Estimated time on task</span>'
+      + '<input type="text" class="est-time-input" data-act-id="' + aE + '" value="' + escapeHtml(val) + '" placeholder="e.g., 30 minutes" '
+      + 'oninput="saveEstTime(\'' + aE + '\', this.value)" '
+      + 'style="flex:0 1 180px; font-size:13px; padding:5px 8px; border:1px solid #e0ddd5; border-radius:6px; background:#fff;" />'
+      + '<button type="button" class="btn-add-row" onclick="estimateTimeOnTask(\'' + aE + '\',' + modNum + ',\'' + tE + '\', this)" '
+      + 'title="Estimate conservatively from this activity and any attached readings, for the methodical student">✨ Estimate</button>'
+      + '<span style="font-size:11px; color:#999;">Conservative — for the methodical student</span>'
+      + '</div>';
+  }
+
+  // The built-in quiz template sections (matches the Canvas "About This Exam /
+  // Instructions / Study Resources / How You Will Be Graded" page). Shared by
+  // the card-overview and module-detail renderers so they stay in lockstep.
+  // Section keys are stable storage keys; "Overview" preserves prior data.
+  function _buildQuizTemplateSections(actId, modNum) {
+    var s = '';
+    s += '<div style="margin:2px 0 10px; text-align:right;">'
+      + '<button type="button" class="btn-add-row" onclick="generateQuizSections(\'' + actId + '\',' + modNum + ', this)" '
+      + 'title="Draft the Overview, Instructions, Study Resources, and grading text from the quiz questions, settings, tagged objectives, and linked readings">✨ Generate quiz pages with AI</button>'
+      + '</div>';
+    s += '<div class="template-section"><div class="template-section-label">Overview <span style="font-weight:400; color:#888; font-size:11px;">— About this exam</span></div>'
+      + buildTplTextarea(actId, 'quiz', 'Overview', 'About this exam — what students studied and what the exam assesses...') + _quizObjectivesBtnRow(actId) + '</div>';
+    s += '<div class="template-section"><div class="template-section-label">Instructions' + _sectionCopyFromBtnHtml(actId, 'quiz', 'Instructions') + '</div>'
+      + buildTplTextarea(actId, 'quiz', 'Instructions', 'How to take the exam: attempts, number of questions, time limit, randomization, open/closed book...') + '</div>';
+    s += '<div class="template-section"><div class="template-section-label">Study Resources' + _sectionCopyFromBtnHtml(actId, 'quiz', 'Study Resources') + '</div>'
+      + buildTplTextarea(actId, 'quiz', 'Study Resources', 'Recommended materials to prepare — readings, lectures, etc.') + '</div>';
+    s += '<div class="template-section"><div class="template-section-label">How You Will Be Graded' + _sectionCopyFromBtnHtml(actId, 'quiz', 'How You Will Be Graded') + '</div>'
+      + buildTplTextarea(actId, 'quiz', 'How You Will Be Graded', 'Points per question, total points, attempts, and how the score counts...') + '</div>';
+    return s;
+  }
+
   // Called from rich-editor.js — persists rich text into courseMaterials.
   // Also exposed on `window` so the rich-editor's `window.saveMaterialField`
   // dispatch resolves; without the alias, material rich-text edits silently
@@ -3987,6 +4029,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">' +
               '<h4>Discussion Template</h4>' +
+              _estTimeFieldHtml(id, moduleNum, 'discussion') +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>' +
               '<details class="template-section template-collapsible"><summary class="template-section-label">Activity Learning Objective <span style="font-weight:400; color:#888; font-size:11px;">— Optional · what this specific discussion targets</span></summary><div style="margin-top:8px;"><button class="btn-add-row" style="float:right; padding:2px 8px; font-size:10px; margin-bottom:6px;" onclick="generateObjectiveAI(this, \'' + id + '\',' + moduleNum + ',\'discussion\')">✨ Generate with AI</button>' + buildTplTextarea(id, 'discussion', 'Activity Objective', 'By the end of this discussion, students will be able to...') + '</div></details>' +
               '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>' +
@@ -4001,6 +4044,7 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">' +
               '<h4>Assignment Template</h4>' +
+              _estTimeFieldHtml(id, moduleNum, 'assignment') +
               '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>' +
               // MLO listing intentionally omitted — covered by the objective
               // tag chips in the activity row, so a separate textarea is just
@@ -4017,7 +4061,8 @@
             '</div>' +
             '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">' +
               '<h4>Quiz Template</h4>' +
-              '<div class="template-section"><div class="template-section-label">Quiz Description</div>' + buildTplTextarea(id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(id) + '</div>' +
+              _estTimeFieldHtml(id, moduleNum, 'quiz') +
+              _buildQuizTemplateSections(id, moduleNum) +
               '<div id="' + id + '-quiz-builder"></div>' +
               '<div style="margin-top:8px;">' +
                 '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>' +
@@ -9553,6 +9598,7 @@
     // Discussion template
     html += '<div class="template-preview' + (activeType !== 'discussion' ? ' hidden' : '') + '" id="' + id + '-tpl-discussion">';
     html += '<h4>Discussion Template</h4>';
+    html += _estTimeFieldHtml(act.id, moduleNum, 'discussion');
     html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'discussion', 'Overview', 'Describe the discussion topic and purpose...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Discussion Prompt</div>' + buildTplTextarea(act.id, 'discussion', 'Discussion Prompt', 'Central question or task for students...') + '</div>';
     html += '<div class="template-section"><div class="template-section-label">Peer Reply Requirements</div>' + buildTplTextarea(act.id, 'discussion', 'Peer Reply Requirements', 'e.g., Reply to at least two classmates...') + '</div>';
@@ -9566,6 +9612,7 @@
     // Assignment template
     html += '<div class="template-preview' + (activeType !== 'assignment' ? ' hidden' : '') + '" id="' + id + '-tpl-assignment">';
     html += '<h4>Assignment Template</h4>';
+    html += _estTimeFieldHtml(act.id, moduleNum, 'assignment');
     html += '<div class="template-section"><div class="template-section-label">Overview</div>' + buildTplTextarea(act.id, 'assignment', 'Overview', 'Describe the assignment purpose and context...') + '</div>';
     // MLO listing covered by the activity row's objective chips — no need
     // for a separate textarea here.
@@ -9580,7 +9627,8 @@
     // Quiz template (will be modernized in task 18)
     html += '<div class="template-preview' + (activeType !== 'quiz' ? ' hidden' : '') + '" id="' + id + '-tpl-quiz">';
     html += '<h4>Quiz Template</h4>';
-    html += '<div class="template-section"><div class="template-section-label">Quiz Description</div>' + buildTplTextarea(act.id, 'quiz', 'Overview', 'Describe the quiz and what students should review from the readings to do well...') + _quizObjectivesBtnRow(act.id) + '</div>';
+    html += _estTimeFieldHtml(act.id, moduleNum, 'quiz');
+    html += _buildQuizTemplateSections(act.id, moduleNum);
     html += '<div id="' + id + '-quiz-builder"></div>';
     html += '<div style="margin-top:8px; display:flex; gap:8px;">';
     html += '<button class="btn-add-row" onclick="exportTemplateToGDrive(\'' + id + '-tpl-quiz\', this)">📂 Export to Google Drive</button>';
@@ -11632,7 +11680,7 @@
   var TEMPLATE_SECTIONS = {
     discussion: ['Overview', 'Discussion Prompt', 'Peer Reply Requirements', 'Materials', 'How You Will Be Graded'],
     assignment: ['Overview', 'Instructions', 'Materials', 'How You Will Be Graded'],
-    quiz: ['Overview'],
+    quiz: ['Overview', 'Instructions', 'Study Resources', 'How You Will Be Graded'],
     blank: ['Content']
   };
 
@@ -12957,6 +13005,12 @@
       { key: 'How You Will Be Graded',    hint: 'Plain-language summary of grading approach (1-2 sentences) for the Canvas page body.' },
       { key: 'Rubric',                    hint: 'Pipe-separated grading table whose level structure and row count match the instructor\'s rubric design.' },
       { key: 'Activity Objective',        hint: 'One sentence: "By the end of this discussion, students will be able to…" with a Bloom\'s verb.' }
+    ],
+    quiz: [
+      { key: 'Overview',                hint: 'About this exam: what students studied and the can-do abilities the exam assesses (inferred from the questions + tagged objectives). No answers, no mechanics.' },
+      { key: 'Instructions',            hint: 'How to take it: attempts, number of questions, time limit, randomization/backtracking, open/closed book. Use known settings; bracket unknown limits for the instructor.' },
+      { key: 'Study Resources',         hint: 'Recommended prep materials (the linked readings/lectures). Do not invent sources beyond those listed.' },
+      { key: 'How You Will Be Graded',  hint: 'Points per question, total points, attempts, and whether the score counts toward the grade.' }
     ]
   };
 
@@ -13103,9 +13157,10 @@
       return;
     }
     var act = info.item;
-    // The quiz template has no field-fill modal — its "AI Generate" writes the
-    // Quiz Description from the questions + linked readings.
-    if (tplType === 'quiz') { return generateQuizOverview(actId, modNum); }
+    // The quiz template has no field-fill modal — its "AI Generate" drafts all
+    // four quiz pages (Overview / Instructions / Study Resources / How You Will
+    // Be Graded) from the questions, settings, objectives, and linked readings.
+    if (tplType === 'quiz') { return generateQuizSections(actId, modNum); }
     var sections = AI_FILL_TEMPLATE_SECTIONS[tplType];
     if (!sections) {
       alert('AI fill is not yet wired for this template type.');
@@ -14495,6 +14550,156 @@
     }
   }
   window.generateQuizOverview = generateQuizOverview;
+
+  // Persist the per-activity "Estimated time on task" value (plain string).
+  function saveEstTime(actId, val) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || !info.item) return;
+    info.item.estimatedTime = val;
+    saveActivityData();
+    // The same activity renders one est-time input per template type (only the
+    // active one is visible); keep the hidden siblings in sync so switching the
+    // template type never shows a stale value.
+    document.querySelectorAll('.est-time-input').forEach(function(inp) {
+      if (inp.getAttribute('data-act-id') === actId && inp.value !== val) inp.value = val;
+    });
+    if (typeof broadcastItemUpdate === 'function') {
+      try { broadcastItemUpdate('activity', info.modNum, info.item); } catch (e) {}
+    }
+  }
+  window.saveEstTime = saveEstTime;
+
+  // AI estimate of time on task. Conservative by design (methodical student,
+  // round up), and reads any attached/linked readings to factor in reading time.
+  async function estimateTimeOnTask(actId, modNum, tplType, btn) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || !info.item) return;
+    var act = info.item;
+    var origLabel = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Estimating…'; }
+    try {
+      var strip = function(h) { return String(h || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); };
+      var lines = [];
+      lines.push('Activity type: ' + tplType);
+      lines.push('Title: ' + (act.name || '(untitled)'));
+      var td = (act.templateData && act.templateData[tplType]) || {};
+      if (tplType === 'quiz') {
+        var qq = act.quizQuestions || {};
+        var qs = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
+        var nQ = (qq.isBank && qq.drawCount) ? qq.drawCount : qs.length;
+        if (nQ) lines.push('Number of questions students answer: ' + nQ);
+        var types = {};
+        qs.forEach(function(q) { if (q.type) types[q.type] = (types[q.type] || 0) + 1; });
+        var typeStr = Object.keys(types).map(function(k) { return types[k] + ' ' + k; }).join(', ');
+        if (typeStr) lines.push('Question types: ' + typeStr);
+      } else {
+        ['Instructions', 'Discussion Prompt', 'Overview'].forEach(function(sec) {
+          var t = strip(td[sec]); if (t) lines.push(sec + ': ' + t.slice(0, 600));
+        });
+        var pref = act.aiFillPrefs || {};
+        if (pref.length && pref.length.count) lines.push('Target length: ' + pref.length.count + ' ' + (pref.length.unit || 'words'));
+        if (pref.autograde && pref.autograde.enabled) {
+          if (pref.autograde.minWords) lines.push('Minimum word count: ' + pref.autograde.minWords);
+          if (pref.autograde.peerReplies) lines.push('Peer replies required: ' + pref.autograde.peerReplies + (pref.autograde.replyWords ? (' (~' + pref.autograde.replyWords + ' words each)') : ''));
+        }
+      }
+      var mats = (typeof _getLinkedMaterialsForActivity === 'function') ? (_getLinkedMaterialsForActivity(act) || []) : [];
+      if (mats.length) {
+        lines.push('Attached readings / materials (factor in careful reading time):');
+        mats.forEach(function(row) {
+          var m = row.mat || row;
+          var body = strip(m.richText) || strip(m.notes);
+          var wc = body ? body.split(/\s+/).length : 0;
+          var parts = ['- ' + (m.title || m.type || 'material')];
+          if (m.type) parts.push('(' + m.type + ')');
+          if (wc) parts.push('~' + wc + ' words of notes');
+          (m.attachedFiles || []).forEach(function(f) { if (f && f.name) parts.push('file: ' + f.name + (f.size ? (' (' + Math.round(f.size / 1024) + 'KB)') : '')); });
+          lines.push(parts.join(' '));
+        });
+      }
+      var sys = 'You estimate how long a course activity takes a student to complete. Estimate CONSERVATIVELY for a METHODICAL student who reads carefully and does not rush — err HIGH and round up to a clean number. Account for reading any attached materials at roughly 150 words/min (careful reading) plus time to think and produce the deliverable; for a timed quiz, roughly question-count times ~1.5 minutes unless a limit is stated. Reply with ONLY a short time phrase like "30 minutes", "1.5 hours", or "45-60 minutes" — no explanation, no em-dashes.';
+      var prompt = 'Estimate the time on task. Err high for the methodical student.\n\n' + lines.join('\n') + '\n\nReturn ONLY the time phrase.';
+      var raw = await callCreateAI(prompt, sys, 120);
+      var ans = String(raw || '').replace(/<[^>]+>/g, ' ').replace(/[\r\n]+/g, ' ').replace(/^["'\s]+|["'\s.]+$/g, '').trim();
+      if (ans.length > 40) {
+        var mtmp = ans.match(/[\d.]+\s*(?:to|-|–)?\s*[\d.]*\s*(?:minutes?|min|hours?|hrs?)/i);
+        ans = mtmp ? mtmp[0].trim() : ans.slice(0, 40);
+      }
+      if (!ans) throw new Error('empty estimate');
+      act.estimatedTime = ans;
+      saveActivityData();
+      if (typeof broadcastItemUpdate === 'function') { try { broadcastItemUpdate('activity', modNum, act); } catch (e) {} }
+      document.querySelectorAll('.est-time-input').forEach(function(inp) {
+        if (inp.getAttribute('data-act-id') === actId) inp.value = ans;
+      });
+    } catch (e) {
+      alert('Estimate failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = origLabel || '✨ Estimate'; }
+    }
+  }
+  window.estimateTimeOnTask = estimateTimeOnTask;
+
+  // Generate all four quiz pages (Overview / Instructions / Study Resources /
+  // How You Will Be Graded) in one AI call, from the questions, settings,
+  // tagged objectives, and linked readings. Applied through _aiFillApply so it
+  // snapshots history and clears the reviewed flag like the other AI fills.
+  async function generateQuizSections(actId, modNum, btn) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || info.kind !== 'activity') return;
+    var act = info.item;
+    var qq = act.quizQuestions || {};
+    var questions = (qq.questions || []).filter(function(q) { return q && (q.text || '').trim(); });
+    if (questions.length === 0) {
+      alert('Add some quiz questions first — the quiz pages are generated from the questions, settings, and linked readings.');
+      return;
+    }
+    var origLabel = btn ? btn.innerHTML : '';
+    if (btn) { btn.disabled = true; btn.innerHTML = '⏳ Generating…'; }
+    try {
+      var qList = questions.map(function(q, i) {
+        var l = (i + 1) + '. ' + String(q.text).replace(/\s+/g, ' ').trim();
+        if (q.type) l += ' [' + q.type + ']';
+        return l;
+      }).join('\n');
+      var nQ = (qq.isBank && qq.drawCount) ? qq.drawCount : questions.length;
+      var ppq = qq.pointsPerQuestion;
+      var total = (nQ && ppq) ? (nQ * ppq) : null;
+      var mats = (typeof _getLinkedMaterialsForActivity === 'function') ? (_getLinkedMaterialsForActivity(act) || []) : [];
+      var matText = mats.map(function(row) { var m = row.mat || row; return '- ' + ((m && (m.title || m.type)) || 'material'); }).join('\n');
+      var objs = (act.objectives || []).map(function(id) {
+        var t = (typeof getObjectiveText === 'function') ? getObjectiveText(id) : '';
+        return t ? ('- ' + t) : null;
+      }).filter(Boolean).join('\n');
+      var modTopic = '';
+      try { var smo = loadField('moduleOverviewData') || {}; modTopic = (smo[modNum] && smo[modNum].topic) || ''; } catch (e) {}
+
+      var p = 'Draft the four student-facing pages for a Canvas EXAM/QUIZ. Return JSON only.\n\n';
+      p += 'Course: ' + (activeCourse.code || courseId) + (modTopic ? (' — Module ' + modNum + ': ' + modTopic) : '') + '\n';
+      p += 'Quiz: "' + (act.name || 'Quiz') + '"\n';
+      p += 'Settings: ' + nQ + ' question(s) presented' + (ppq ? (', ' + ppq + ' point(s) each') : '') + (total ? (', ' + total + ' points total') : '') + (qq.isBank ? ', drawn randomly from a question bank' : '') + '.\n';
+      p += '(Time limit and attempt count are not stored — use a bracketed placeholder like "[time limit]" and "[number of] attempt(s)" for the instructor to fill, or default to one attempt.)\n\n';
+      p += 'Questions (infer topics; do NOT reveal answers):\n' + qList + '\n\n';
+      if (objs) p += 'Objectives this exam assesses:\n' + objs + '\n\n';
+      if (matText) p += 'Linked readings / materials (for Study Resources — do not invent others):\n' + matText + '\n\n';
+      p += 'Write each section as Canvas-ready HTML (use <p>, <ul><li>, <ol><li>, <strong>; NO headings/<h*> — section titles are added separately). Plain, encouraging, second person. Never use em-dashes.\n';
+      p += '- "Overview": About this exam — what students studied and the can-do abilities it assesses (from the questions + objectives). No answers, no mechanics, no grading.\n';
+      p += '- "Instructions": how to take it — attempts, number of questions (' + nQ + '), time limit, that questions are randomized and presented one at a time with backtracking allowed, and whether it is open/closed book (default closed book). Use the known numbers; bracket unknown limits.\n';
+      p += '- "Study Resources": a short intro line plus a <ul> of the linked readings/materials to review. If none are listed, give a one-line prompt to review the module readings.\n';
+      p += '- "How You Will Be Graded": points per question' + (ppq ? (' (' + ppq + ')') : '') + ', total points' + (total ? (' (' + total + ')') : '') + ', attempts, and that the score counts toward the final grade.\n\n';
+      p += 'Return ONLY: {"Overview":"<html>","Instructions":"<html>","Study Resources":"<html>","How You Will Be Graded":"<html>"}';
+      var sys = 'You write clear, encouraging, student-facing Canvas exam pages for ASU Online. Never reveal answers, never invent readings beyond those listed, never use em-dashes. Return only valid JSON with the exact requested keys.';
+      var raw = await callCreateAI(p, sys, 2048);
+      var parsed = _aiFillParseResponse(raw, ['Overview', 'Instructions', 'Study Resources', 'How You Will Be Graded']);
+      Object.keys(parsed).forEach(function(k) { if (typeof _cleanAiHtml === 'function') parsed[k] = _cleanAiHtml(parsed[k]); });
+      _aiFillApply(act, 'quiz', parsed);
+    } catch (e) {
+      alert('Generate failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (btn) { btn.disabled = false; btn.innerHTML = origLabel || '✨ Generate quiz pages with AI'; }
+    }
+  }
+  window.generateQuizSections = generateQuizSections;
 
   // ===== IMPROVE PREVIEW MODAL =====
   function _openImprovePreview(plan) {
