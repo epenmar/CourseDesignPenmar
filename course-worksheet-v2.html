@@ -1573,9 +1573,12 @@
             </div>
           </div>
         </div>
-        <div class="view-toggle">
-          <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
-          <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
+        <div style="display:flex; align-items:center; gap:12px; margin-bottom:16px;">
+          <div class="view-toggle" style="margin-bottom:0;">
+            <button class="view-btn active" onclick="switchOverviewMode('assignments','card',this)">📋 Card View</button>
+            <button class="view-btn" onclick="switchOverviewMode('assignments','table',this)">📊 Table View</button>
+          </div>
+          <button class="btn-add-row" id="assignments-expand-all" onclick="toggleAllOverviewCards('assignments', this)">⊕ Expand all</button>
         </div>
         <div id="assignments-overview-cards"></div>
         <div id="assignments-overview-table" style="display:none;"></div>
@@ -10784,6 +10787,31 @@
       }
     });
   }
+
+  // Expand or collapse every module card in an overview at once — expands if
+  // any card is collapsed, otherwise collapses them all.
+  function toggleAllOverviewCards(prefix, btn) {
+    var container = document.getElementById(prefix + '-overview-cards');
+    if (!container) return;
+    var cards = container.querySelectorAll('.card[data-overview-module]');
+    if (!cards.length) return;
+    var expand = false;
+    cards.forEach(function(card) { var b = card.querySelector('.card-body'); if (b && b.classList.contains('collapsed')) expand = true; });
+    cards.forEach(function(card) {
+      var body = card.querySelector('.card-body');
+      var toggle = card.querySelector('.card-toggle');
+      if (!body) return;
+      body.classList.toggle('collapsed', !expand);
+      if (toggle) toggle.classList.toggle('open', expand);
+    });
+    if (expand) {
+      setTimeout(function() { container.querySelectorAll('textarea').forEach(function(el) { if (typeof autoGrowTextarea === 'function') autoGrowTextarea(el); }); }, 20);
+      if (typeof reapplyHighlightsFromCache === 'function') reapplyHighlightsFromCache();
+    }
+    if (typeof saveAccordionStates === 'function') saveAccordionStates();
+    if (btn) btn.textContent = expand ? '⊖ Collapse all' : '⊕ Expand all';
+  }
+  window.toggleAllOverviewCards = toggleAllOverviewCards;
 
   function toggleCard(h) {
     if (_suppressCardToggle) { _suppressCardToggle = false; return; }
