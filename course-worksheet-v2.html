@@ -8525,7 +8525,20 @@
     // local sync-server. That preserves the existing behavior for the
     // dashboard owner while making remote collaborators work.
     try {
-      return await _post(CREATE_AI_CONFIG.edgeUrl);
+      // Retry the edge function on TRANSIENT upstream errors — the ASU AIML
+      // platform intermittently returns a 5xx "error with the model response"
+      // that succeeds on a quick retry. Don't retry 4xx (client errors) or
+      // timeouts (re-waiting the full timeout would be too slow).
+      var _attempts = 3, _edgeErr;
+      for (var _a = 0; _a < _attempts; _a++) {
+        try { return await _post(CREATE_AI_CONFIG.edgeUrl); }
+        catch (e) {
+          _edgeErr = e;
+          var _retryable = /HTTP 5\d\d/.test((e && e.message) || '') || /Failed to fetch|NetworkError/i.test((e && e.message) || '');
+          if (!_retryable || _a === _attempts - 1) throw e;
+          await new Promise(function(r) { setTimeout(r, 700 * (_a + 1)); });
+        }
+      }
     } catch (edgeErr) {
       console.warn('[callCreateAI] edge function failed, trying local:', edgeErr && edgeErr.message);
       try {

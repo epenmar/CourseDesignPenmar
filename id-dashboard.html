@@ -1773,6 +1773,87 @@
     if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
   }
 
+  // ===== ADDITIONAL FACULTY (co-instructors) =====
+  // Mirrors the reviewer flow, but grants INSTRUCTOR access: each added faculty
+  // gets their own personalized link (?user=<slug>&t=<instructor token>), their
+  // own identity in the worksheet (presence, comment attribution), and edit
+  // rights — so a course can have more than one faculty "login."
+  function getFaculty(courseId) {
+    try { var all = JSON.parse(localStorage.getItem('course_faculty') || '{}'); return all[courseId] || []; } catch(e) { return []; }
+  }
+  function saveFaculty(courseId, list) {
+    var all = JSON.parse(localStorage.getItem('course_faculty') || '{}');
+    all[courseId] = list;
+    localStorage.setItem('course_faculty', JSON.stringify(all));
+  }
+  function toggleFacultyForm(courseId) {
+    var form = document.getElementById('faculty-form-' + courseId);
+    if (form) form.style.display = form.style.display === 'none' ? 'block' : 'none';
+  }
+  async function addFaculty(courseId) {
+    var nameInput = document.getElementById('faculty-name-' + courseId);
+    var emailInput = document.getElementById('faculty-email-' + courseId);
+    var name = nameInput.value.trim();
+    var email = emailInput.value.trim();
+    if (!name || !email) { alert('Enter both name and email.'); return; }
+    var slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    var faculty = getFaculty(courseId);
+    if (faculty.some(function(f) { return f.slug === slug; })) { alert(name + ' is already added.'); return; }
+    faculty.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
+    saveFaculty(courseId, faculty);
+    // Register as an instructor in the worksheet's user map so it recognizes
+    // them with edit access (not reviewer/read-only).
+    var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    if (userCourses[courseId] && userCourses[courseId]._worksheet) {
+      if (!userCourses[courseId]._worksheet.users) userCourses[courseId]._worksheet.users = {};
+      userCourses[courseId]._worksheet.users[slug] = { name: name, role: 'instructor' };
+      localStorage.setItem('user_courses', JSON.stringify(userCourses));
+    }
+    var c = courseData[courseId];
+    var built = await _buildShareLink(courseId, 'instructor', slug);
+    if (!_confirmTokenless(built.hasToken)) return;
+    var subject = encodeURIComponent((c.emailName || c.code) + ' Worksheet Access');
+    var firstName = name.split(/\s+/)[0];
+    var bodyText = 'Hi ' + firstName + ',\n\n' +
+      'You\'ve been added as faculty on the ' + (c.emailName || c.code) + ' course development worksheet.\n\n' +
+      'Your personalized link:\n' + built.url + '\n\n' +
+      'This link is your access to the worksheet — you can edit course content (CLOs, ELOs, module objectives, assignments) and leave comments. Your work is attributed to your name.\n\n' +
+      'Please bookmark this link for easy access.\n\n' +
+      'Thank you,\n' + getProfile().sig;
+    var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
+    window.open(mailto, '_blank');
+    nameInput.value = '';
+    emailInput.value = '';
+    renderDetail(courseId);
+  }
+  function removeFaculty(courseId, idx) {
+    var faculty = getFaculty(courseId);
+    var removed = faculty.splice(idx, 1)[0];
+    saveFaculty(courseId, faculty);
+    if (removed) {
+      var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      if (userCourses[courseId] && userCourses[courseId]._worksheet && userCourses[courseId]._worksheet.users) {
+        delete userCourses[courseId]._worksheet.users[removed.slug];
+        localStorage.setItem('user_courses', JSON.stringify(userCourses));
+      }
+    }
+    renderDetail(courseId);
+  }
+  async function copyFacultyLink(courseId, idx) {
+    var faculty = getFaculty(courseId);
+    var f = faculty[idx];
+    if (!f) return;
+    var btnEl = (typeof event !== 'undefined' && event) ? event.target : null;
+    var built = await _buildShareLink(courseId, 'instructor', f.slug);
+    if (!_confirmTokenless(built.hasToken)) return;
+    try {
+      await navigator.clipboard.writeText(built.url);
+      if (btnEl) { btnEl.textContent = '✓'; setTimeout(function() { btnEl.textContent = '📋'; }, 1500); }
+    } catch (e) {
+      prompt('Copy the faculty link:', built.url);
+    }
+  }
+
   async function addReviewer(courseId) {
     var nameInput = document.getElementById('reviewer-name-' + courseId);
     var emailInput = document.getElementById('reviewer-email-' + courseId);
@@ -5474,6 +5555,7 @@
       html += buildEmailDropdown(id, c);
     }
     html += `<button onclick="toggleReviewerForm('${id}')" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;">👤 Invite Reviewer</button>`;
+    html += `<button onclick="toggleFacultyForm('${id}')" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;">👥 Add Faculty</button>`;
     var _copyLinkStyle = 'background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; text-align:left;';
     html += `<span style="display:inline-flex; flex-direction:column; gap:3px; align-self:center; margin-left:4px;">`;
     if (c.devLink) {
@@ -5542,6 +5624,32 @@
           <span style="color:#888; font-size:11px; font-style:italic;" title="Detected from worksheet activity">auto-detected</span>
           <button onclick="copyDetectedReviewerLink('${id}', '${r.slug}')" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
           <button onclick="promoteDetectedReviewer('${id}', '${safeName}', '${r.slug}')" title="Add email / save as invited reviewer" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">➕</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+
+    // Faculty (co-instructor) form + list — additional faculty, each with their
+    // own edit-access login link.
+    html += `<div id="faculty-form-${id}" style="display:none; margin-top:10px; padding:12px 14px; background:#fdf0f4; border:1px solid #e6c8d4; border-radius:8px;">
+      <div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:8px;">Add Faculty</div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap;">
+        <input type="text" id="faculty-name-${id}" placeholder="Full name" style="flex:1; min-width:120px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <input type="email" id="faculty-email-${id}" placeholder="Email" style="flex:1; min-width:160px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <button onclick="addFaculty('${id}')" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif; white-space:nowrap;">Send Link</button>
+      </div>
+      <div style="font-size:11px; color:#999; margin-top:6px;">They get their own login link with edit access — work is attributed to their name.</div>
+    </div>`;
+    var _facultyList = getFaculty(id);
+    if (_facultyList.length > 0) {
+      html += `<div style="margin-top:10px;">
+        <div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">Faculty</div>`;
+      _facultyList.forEach(function(f, fi) {
+        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+          <span style="flex:1; font-weight:500;">${f.name.replace(/</g,'&lt;')}</span>
+          <span style="color:#888; font-size:11px;">${(f.email||'').replace(/</g,'&lt;')}</span>
+          <button onclick="copyFacultyLink('${id}', ${fi})" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
+          <button onclick="removeFaculty('${id}', ${fi})" title="Remove faculty" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
         </div>`;
       });
       html += `</div>`;
@@ -6394,6 +6502,14 @@
       }
       followUpBody += warmOpen;
 
+      // Bring the ACTUAL meeting notes into the email — a recap straight from
+      // the meeting summary, so the follow-up reflects what was really
+      // discussed instead of reading like a stock template. (The ID can trim
+      // it before sending — it's a draft.)
+      if (summary) {
+        followUpBody += `Here's a quick recap of what we covered:\n${summary}\n\n`;
+      }
+
       const allActions = m.actionItems || [];
       const theirPending = [];
       const myPending = [];
@@ -6508,7 +6624,7 @@
         </a>`;
     }
     if (followUpBody) {
-      templateLinks += `<a href="${makeMailto('Checking In — ' + courseLabel, followUpBody)}" onclick="this.parentElement.classList.remove('open');">
+      templateLinks += `<a href="${makeMailto((c.code || id.toUpperCase()) + ' Meeting Follow-Up', followUpBody)}" onclick="this.parentElement.classList.remove('open');">
           <span class="em-icon">📋</span><div><div>Meeting Follow-Up</div><div class="em-desc">Personalized check-in from latest meeting</div></div>
         </a>`;
     }
