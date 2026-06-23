@@ -1817,14 +1817,18 @@
       localStorage.setItem('user_courses', JSON.stringify(userCourses));
     }
     var c = courseData[courseId];
-    var built = await _buildShareLink(courseId, 'instructor', slug);
+    var built = await _buildShareLink(courseId, 'instructor', slug, { email: email });
     if (!_confirmTokenless(built.hasToken)) return;
+    var _identityLogin = (window.COMPOSE_IDENTITY_LOGIN_ENABLED === true && !built.forceToken && built.clean);
     var subject = encodeURIComponent((c.emailName || c.code) + ' Worksheet Access');
     var firstName = name.split(/\s+/)[0];
+    var _accessLine = _identityLogin
+      ? 'Open this link and sign in with your ASU Google account (' + email + ') to access the worksheet — you can edit course content (CLOs, ELOs, module objectives, assignments) and leave comments. Your work is attributed to your name.'
+      : 'This link is your access to the worksheet — you can edit course content (CLOs, ELOs, module objectives, assignments) and leave comments. Your work is attributed to your name.';
     var bodyText = 'Hi ' + firstName + ',\n\n' +
       'You\'ve been added as faculty on the ' + (c.emailName || c.code) + ' course development worksheet.\n\n' +
-      'Your personalized link:\n' + built.url + '\n\n' +
-      'This link is your access to the worksheet — you can edit course content (CLOs, ELOs, module objectives, assignments) and leave comments. Your work is attributed to your name.\n\n' +
+      'Worksheet link:\n' + built.url + '\n\n' +
+      _accessLine + '\n\n' +
       'Please bookmark this link for easy access.\n\n' +
       'Thank you,\n' + getProfile().sig;
     var mailto = 'mailto:' + encodeURIComponent(email) + '?subject=' + subject + '&body=' + encodeURIComponent(bodyText);
@@ -1851,7 +1855,7 @@
     var f = faculty[idx];
     if (!f) return;
     var btnEl = (typeof event !== 'undefined' && event) ? event.target : null;
-    var built = await _buildShareLink(courseId, 'instructor', f.slug);
+    var built = await _buildShareLink(courseId, 'instructor', f.slug, { email: f.email });
     if (!_confirmTokenless(built.hasToken)) return;
     try {
       await navigator.clipboard.writeText(built.url);
@@ -1891,15 +1895,19 @@
 
     // Compose email
     var c = courseData[courseId];
-    var _built = await _buildShareLink(courseId, 'reviewer', slug);
+    var _built = await _buildShareLink(courseId, 'reviewer', slug, { email: email });
     var reviewUrl = _built.url;
     if (!_confirmTokenless(_built.hasToken)) return;
+    var _identityLogin = (window.COMPOSE_IDENTITY_LOGIN_ENABLED === true && !_built.forceToken && _built.clean);
     var subject = encodeURIComponent('Review Invitation: ' + (c.emailName || c.code));
     var firstName = name.split(/\s+/)[0];
+    var _openLine = _identityLogin
+      ? 'Open this link and sign in with your ASU Google account (' + email + ') to:'
+      : 'You can use this link to:';
     var bodyText = 'Hi ' + firstName + ',\n\n' +
       'You\'ve been invited to review the ' + (c.emailName || c.code) + ' course development worksheet.\n\n' +
-      'Your personalized reviewer link:\n' + reviewUrl + '\n\n' +
-      'You can use this link to:\n' +
+      'Worksheet link:\n' + reviewUrl + '\n\n' +
+      _openLine + '\n' +
       '• Review course content including CLOs, ELOs, module objectives, and assignments\n' +
       '• Leave comments and feedback on any section\n\n' +
       'Your comments will be attributed to your name. Please bookmark this link for easy access.\n\n' +
@@ -1934,7 +1942,7 @@
     var r = reviewers[idx];
     if (!r) return;
     var btnEl = (typeof event !== 'undefined' && event) ? event.target : null;
-    var built = await _buildShareLink(courseId, 'reviewer', r.slug);
+    var built = await _buildShareLink(courseId, 'reviewer', r.slug, { email: r.email });
     if (!_confirmTokenless(built.hasToken)) return;
     try {
       await navigator.clipboard.writeText(built.url);
@@ -1950,7 +1958,9 @@
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
     var btn = (typeof event !== 'undefined' && event) ? event.target : null;
-    var built = await _buildShareLink(courseId, 'reviewer', slug);
+    // Auto-detected reviewers have only a slug (no email on file), so we can't
+    // create an identity grant — keep them on the legacy signed-token link.
+    var built = await _buildShareLink(courseId, 'reviewer', slug, { forceToken: true });
     if (!_confirmTokenless(built.hasToken)) return;
     try {
       await navigator.clipboard.writeText(built.url);
@@ -1983,9 +1993,23 @@
   // ships tokenless — the #1 cause of "instructor/reviewer sees a blank
   // worksheet": no token -> no anonymous share grant -> RLS denies the read.
   // Returns { url, hasToken }.
-  async function _buildShareLink(courseId, role, slug) {
+  async function _buildShareLink(courseId, role, slug, opts) {
+    opts = opts || {};
     var c = courseData[courseId];
     var baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
+    // New model (single-URL Google login): hand out a CLEAN link — just the
+    // course. The recipient signs in with their ASU Google account and their
+    // grant decides their role, so no secret token and no per-person slug is
+    // needed. Best-effort ensure their identity grant exists (by email) so the
+    // sign-in lands them straight in the course. hasToken:true so the
+    // tokenless-blank-worksheet warning (a legacy-model failure) doesn't fire.
+    if (window.COMPOSE_IDENTITY_LOGIN_ENABLED === true && !opts.forceToken) {
+      if (opts.email && window.ComposeGrants) {
+        try { await window.ComposeGrants.grant(courseId, opts.email, role === 'reviewer' ? 'reviewer' : 'instructor'); } catch (e) {}
+      }
+      return { url: baseUrl + c.devLink, hasToken: true, clean: true };
+    }
+    // Legacy model: signed share token + per-person slug.
     var tok = '';
     if (window.ComposeShare) {
       try { await window.ComposeShare.prime(courseId); } catch (e) {}
@@ -2008,7 +2032,7 @@
   async function copyInstructorLink(courseId) {
     var c = courseData[courseId];
     if (!c || !c.devLink) return;
-    var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '');
+    var built = await _buildShareLink(courseId, 'instructor', c.instructorSlug || '', { email: c.email });
     if (!_confirmTokenless(built.hasToken)) return;
     try {
       await navigator.clipboard.writeText(built.url);
@@ -6486,7 +6510,13 @@
 
       // Build course-specific links
       const baseUrl = window.location.origin + window.location.pathname.replace(/[^/]*$/, '');
-      const worksheetUrl = c.devLink ? (baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '') + (window.ComposeShare ? window.ComposeShare.tokenParam(id, 'instructor') : '')) : '';
+      // Single-URL Google login: clean course link (faculty sign in with ASU
+      // Google). Falls back to the legacy slug + signed token when login is off.
+      const worksheetUrl = c.devLink
+        ? (window.COMPOSE_IDENTITY_LOGIN_ENABLED === true
+            ? (baseUrl + c.devLink)
+            : (baseUrl + c.devLink + (c.instructorSlug ? '&user=' + c.instructorSlug : '') + (window.ComposeShare ? window.ComposeShare.tokenParam(id, 'instructor') : '')))
+        : '';
       const driveUrl = c.driveFolder || '';
       const facLinks = getFacultyResourceLinks();
       const slideshowUrl = facLinks['kickoff slideshow'] || '[SLIDESHOW_LINK]';
