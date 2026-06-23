@@ -5657,6 +5657,19 @@
         <button onclick="document.getElementById('invite-menu-${id}').style.display='none'; toggleFacultyForm('${id}');" style="display:block; width:100%; text-align:left; padding:9px 14px; border:none; background:none; cursor:pointer; font-size:12px; font-family:Inter,sans-serif; border-top:1px solid #f0f0f0;">👥 Faculty <span style="color:#999;">— edit access</span></button>
       </div>
     </span>`;
+    // Preview-as (masquerade): open the worksheet rendering the faculty
+    // experience while you stay signed in as yourself. Owner/admin only — RLS
+    // still governs real data access; ?as= only changes the on-screen role so you
+    // can verify persistence and collaboration as faculty/reviewer see it.
+    if (c.devLink) {
+      html += `<span style="position:relative; display:inline-block;">
+        <button onclick="event.stopPropagation(); var m=document.getElementById('preview-menu-${id}'); m.style.display=(m.style.display==='block'?'none':'block');" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;" title="Open the worksheet as a faculty member or reviewer would see it">👁 Preview as ▾</button>
+        <div id="preview-menu-${id}" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; z-index:30; background:#fff; border:1px solid #e0ddd5; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.14); overflow:hidden; min-width:230px;">
+          <a href="${c.devLink}&as=instructor" target="_blank" onclick="document.getElementById('preview-menu-${id}').style.display='none';" style="display:block; padding:9px 14px; text-decoration:none; color:inherit; cursor:pointer; font-size:12px; font-family:Inter,sans-serif;">👥 Faculty <span style="color:#999;">— edit view</span></a>
+          <a href="${c.devLink}&as=reviewer" target="_blank" onclick="document.getElementById('preview-menu-${id}').style.display='none';" style="display:block; padding:9px 14px; text-decoration:none; color:inherit; cursor:pointer; font-size:12px; font-family:Inter,sans-serif; border-top:1px solid #f0f0f0;">👤 Reviewer <span style="color:#999;">— comment-only view</span></a>
+        </div>
+      </span>`;
+    }
     var _copyLinkStyle = 'background:none; color:#8c1d40; border:none; padding:0; cursor:pointer; font-size:11px; font-family:Inter,sans-serif; text-decoration:underline; white-space:nowrap; text-align:left;';
     html += `<span style="display:inline-flex; flex-direction:column; gap:3px; align-self:center; margin-left:4px;">`;
     if (c.devLink) {

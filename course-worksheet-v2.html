@@ -4427,6 +4427,24 @@
     // worksheet stays anonymous for faculty/reviewers). No-op while auth is off.
     // Lets owner-only tools like Canvas Plan show "coming soon" to other IDs.
     try { if (window.ComposeAuth) await window.ComposeAuth.init(); } catch(e) { console.warn('[compose-auth] worksheet init failed:', e && e.message); }
+    // Masquerade / "Preview as" (owner/admin only): ?as=instructor|reviewer opens
+    // the worksheet rendering the FACULTY experience while you stay signed in as
+    // yourself, so you can verify persistence and collaboration the way faculty
+    // see it — replacing the old ?user= secret-link masquerade. Independent of the
+    // login flag. RLS still governs real data access; this only sets the on-screen
+    // role. When honoured it also satisfies access, so the login gate is skipped.
+    var _masqActive = false;
+    try {
+      var _asParam = null;
+      try { var _a = new URLSearchParams(window.location.search).get('as'); if (_a === 'instructor' || _a === 'reviewer') _asParam = _a; } catch(e) {}
+      if (_asParam && window.ComposeWorksheetLogin && window.ComposeWorksheetLogin.isOwnerOrAdmin &&
+          await window.ComposeWorksheetLogin.isOwnerOrAdmin(courseId)) {
+        urlIdentity = { name: (activeCourse && activeCourse.instructor) || 'Faculty', role: _asParam };
+        if (_asParam === 'reviewer') { try { document.body.classList.add('reviewer-mode'); } catch(e) {} }
+        try { window.ComposeWorksheetLogin.showMasqueradeBanner(_asParam); } catch(e) {}
+        _masqActive = true;
+      }
+    } catch(e) { console.warn('[masquerade] failed:', e && e.message); }
     // Single-URL Google login (identity model): a faculty member opening a
     // token-less worksheet URL signs in and is recognized by their grant. Skipped
     // when a ?t= secret-link token is present (old flow) and while the flag is off.
@@ -4435,7 +4453,7 @@
     try {
       var _tokenPresent = false;
       try { _tokenPresent = !!new URLSearchParams(window.location.search).get('t'); } catch(e) {}
-      if (!_tokenPresent && window.ComposeWorksheetLogin && window.ComposeWorksheetLogin.enabled()) {
+      if (!_masqActive && !_tokenPresent && window.ComposeWorksheetLogin && window.ComposeWorksheetLogin.enabled()) {
         var _gate = await window.ComposeWorksheetLogin.gate(courseId);
         if (_gate && _gate.blocked) return;
         if (_gate && _gate.identity) {

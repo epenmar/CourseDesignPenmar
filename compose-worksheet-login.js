@@ -147,9 +147,37 @@
     if (sw) sw.onclick = switchAccount;
   }
 
+  // ---------- masquerade / preview-as ----------
+  // A thin banner so the owner never forgets they're viewing AS faculty (edits
+  // save to the real course). "Exit preview" reloads the same URL without ?as=.
+  function showMasqueradeBanner(role) {
+    if (document.getElementById('compose-masq-banner')) return;
+    var isReviewer = role === 'reviewer';
+    var label = isReviewer ? 'Reviewer (comment-only view)' : 'Faculty (edit view)';
+    var bar = document.createElement('div');
+    bar.id = 'compose-masq-banner';
+    bar.style.cssText = 'position:fixed; top:0; left:0; right:0; z-index:2147483000; background:' + MAROON +
+      '; color:#fff; font-family:Inter,system-ui,sans-serif; font-size:12px; padding:5px 14px; ' +
+      'display:flex; align-items:center; justify-content:center; gap:14px; box-shadow:0 1px 4px rgba(0,0,0,0.2);';
+    var exitHref;
+    try {
+      var p = new URLSearchParams(window.location.search); p.delete('as');
+      exitHref = window.location.pathname + (p.toString() ? '?' + p.toString() : '');
+    } catch (e) { exitHref = window.location.pathname; }
+    bar.innerHTML =
+      '<span>👁 Previewing as <strong>' + label + '</strong>' +
+      (isReviewer ? '' : ' — your edits save to the live course') + '</span>' +
+      '<a href="' + exitHref + '" style="color:#fff; text-decoration:underline; white-space:nowrap;">Exit preview</a>';
+    document.body.appendChild(bar);
+    // Nudge the page down so the banner doesn't cover the top of the worksheet.
+    try { document.body.style.paddingTop = ((parseInt(getComputedStyle(document.body).paddingTop) || 0) + 28) + 'px'; } catch (e) {}
+  }
+
   window.ComposeWorksheetLogin = {
     enabled: enabled,
     gate: gate,
     signIn: signIn,
+    isOwnerOrAdmin: _ownerOrAdmin,
+    showMasqueradeBanner: showMasqueradeBanner,
   };
 })();
