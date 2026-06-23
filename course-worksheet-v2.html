@@ -390,7 +390,8 @@
   .ai-msg.assistant .ai-msg-body { background: #fef3e8; }
   .ai-msg.user .ai-msg-body { background: #f5f5f0; }
   .ai-input-area { padding: 12px 16px; border-top: 1px solid #e0ddd5; display: flex; gap: 8px; }
-  .ai-input { flex: 1; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; }
+  .ai-input { flex: 1; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; line-height: 1.4; max-height: 120px; overflow-y: auto; }
+  .ai-input-area { align-items: flex-end; }
   .ai-input:focus { outline: none; border-color: #8c1d40; }
   .ai-send { padding: 10px 16px; background: #8c1d40; color: #fff; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .ai-quick-actions { padding: 8px 16px 4px; border-top: 1px solid #f0f0f0; display: flex; gap: 6px; flex-wrap: wrap; }
@@ -2245,7 +2246,7 @@
       <div class="ai-quick" onclick="sendQuickAction('Review my activities and suggest improvements')">Review activities</div>
     </div>
     <div class="ai-input-area">
-      <input type="text" class="ai-input" id="ai-input" placeholder="Ask about objectives, Bloom's, alignment..." onkeydown="if(event.key==='Enter')sendAIMessage()" />
+      <textarea class="ai-input" id="ai-input" rows="1" placeholder="Ask about objectives, Bloom's, alignment…  (Shift+Enter for a new line)" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendAIMessage();}" oninput="this.style.height='auto'; this.style.height=Math.min(this.scrollHeight,120)+'px';"></textarea>
       <button class="ai-send" onclick="sendAIMessage()">Send</button>
     </div>
   </div>
@@ -8602,6 +8603,7 @@
     const message = input.value.trim();
     if (!message) return;
     input.value = '';
+    input.style.height = 'auto'; // reset the auto-grown textarea
 
     doSendAIMessage(message);
   }
