@@ -4355,6 +4355,25 @@
   };
 
   // Public: run a full sync. Updates state, refreshes the banner, optionally opens modal.
+  // Refresh the Airtable single-selects (QA Alert ID, Kickoff status) + Jira on
+  // an already-linked course WITHOUT recreating it — used when a course is
+  // matched to its Airtable record by record id rather than by code (e.g. a
+  // merged or cross-listed course whose key no longer matches the code).
+  function _refreshLinkedAirtableFields(key, cand) {
+    var t = courseData[key];
+    if (!t) return;
+    if (cand.qaAlertStatus !== undefined) t.qaAlertStatus = cand.qaAlertStatus || '';
+    if (cand.qaKickoffStatus !== undefined) t.qaKickoffStatus = cand.qaKickoffStatus || '';
+    if (!t.airtableRecordId) t.airtableRecordId = cand.recordId;
+    if (cand.jiraEpic && !getCourseJiraEpic(key)) setCourseJiraEpic(key, cand.jiraEpic);
+    var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    saved[key] = Object.assign({}, saved[key] || {}, {
+      qaAlertStatus: t.qaAlertStatus, qaKickoffStatus: t.qaKickoffStatus, airtableRecordId: t.airtableRecordId
+    });
+    localStorage.setItem('user_courses', JSON.stringify(saved));
+    if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(key, saved[key]);
+  }
+
   window.syncAirtableCourses = async function(opts) {
     opts = opts || {};
     if (!hasAirtableAuth()) {
@@ -4373,18 +4392,22 @@
       // a course that was linked once never picked up subsequent Airtable
       // edits — meaning a Jira key added to Airtable after import never
       // connected.
+      var imported0 = getImportedAirtableRecordIds();
       var autoLinked = 0;
       candidates.forEach(function(c) {
-        var codeKey = (c.code || '').toLowerCase().replace(/\s+/g, '');
-        if (!codeKey || !courseData[codeKey]) return;
-        // Always re-run the import for matching candidates — the existed
-        // branch is idempotent for clean fields, and "always" lets us pick
-        // up changes Airtable made to single-selects (QA Alert ID, Kickoff
-        // Email status) that don't change any of our gating values.
-        // Previously gating on "missing field" meant once a course was
-        // fully linked, those single-selects never refreshed.
-        importAirtableCourseRecord(c);
-        autoLinked++;
+        var codeKey = _airtableCodeToKey(c.code);
+        if (codeKey && courseData[codeKey]) {
+          // Same code already on the dashboard — idempotent backfill that also
+          // refreshes single-selects (QA Alert ID, Kickoff Email status).
+          importAirtableCourseRecord(c);
+          autoLinked++;
+        } else if (imported0[c.recordId] && courseData[imported0[c.recordId]]) {
+          // Linked by record id under a different key (a merged / cross-listed
+          // course, e.g. MNS 521 carrying the code MNS521/MNS494) — refresh the
+          // single-selects directly, never recreating a duplicate.
+          _refreshLinkedAirtableFields(imported0[c.recordId], c);
+          autoLinked++;
+        }
       });
       var imported = getImportedAirtableRecordIds();
       var state = getAirtableSyncState();
@@ -4761,12 +4784,14 @@
     // 1) carry the identity onto the target (in-memory + overrides store)
     tgt.code = newCode; tgt.courseName = newName; tgt.emailName = newCode;
     if (src.airtableRecordId) tgt.airtableRecordId = src.airtableRecordId;
+    if (src.qaAlertStatus !== undefined) tgt.qaAlertStatus = src.qaAlertStatus;
+    if (src.qaKickoffStatus !== undefined) tgt.qaKickoffStatus = src.qaKickoffStatus;
     var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
     overrides[targetKey] = Object.assign({}, overrides[targetKey] || {}, { code: newCode, courseName: newName });
     // 2) Airtable link + Jira on the target
     if (src.airtableRecordId) {
       var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
-      saved[targetKey] = Object.assign({}, saved[targetKey] || {}, { airtableRecordId: src.airtableRecordId });
+      saved[targetKey] = Object.assign({}, saved[targetKey] || {}, { airtableRecordId: src.airtableRecordId, qaAlertStatus: tgt.qaAlertStatus, qaKickoffStatus: tgt.qaKickoffStatus });
       localStorage.setItem('user_courses', JSON.stringify(saved));
       if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(targetKey, saved[targetKey]);
       var srcUrl = '';
