@@ -27,6 +27,9 @@ model: one link → Google sign-in → access decided by who they are, not by th
   `instructor_blank_worksheet_rls`. This is the system the new model replaces.
 - **Multi-tenant roadmap**: `docs/track-b-auth-foundation.md`; memory
   `compose_multitenant_roadmap` (Track A shipped, Track B auth design in that doc).
+- **Reference implementation exists:** marsenea's Curate stack already has a
+  working Google sign-in flow (epenmar's lacks it). Study it before building from
+  scratch. See memory `curate_dual_deploy`.
 
 ## Deploy facts
 - Compose worksheet `course-worksheet-v2.html` + dashboard `id-dashboard.html`
