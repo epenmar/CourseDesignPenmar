@@ -6114,7 +6114,10 @@
     mlos.splice(idx, 1);
     _reindexEloTagsForDelete(modNum, idx, mlos.length + 1);
     savedMods[modNum].mlos = mlos;
-    saveField('moduleOverviewData', savedMods);
+    // Explicit user deletion — allow it to persist even if it empties the last
+    // MLO (the destructive-empty guard otherwise blocks it).
+    window._allowEmptyDestructive = true;
+    try { saveField('moduleOverviewData', savedMods); } finally { window._allowEmptyDestructive = false; }
     if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
       activeCourse.modules[_arrayIdx].mlos = mlos;
     }
@@ -6134,7 +6137,8 @@
     mlos.splice(idx, 1);
     _reindexEloTagsForDelete(modNum, idx, mlos.length + 1);
     savedMods[modNum].mlos = mlos;
-    saveField('moduleOverviewData', savedMods);
+    window._allowEmptyDestructive = true;
+    try { saveField('moduleOverviewData', savedMods); } finally { window._allowEmptyDestructive = false; }
     if (activeCourse.modules && activeCourse.modules[_arrayIdx]) {
       activeCourse.modules[_arrayIdx].mlos = mlos;
     }
@@ -7873,11 +7877,14 @@
       var base = localNewer ? lm : cm;       // newer side drives mlos/topic
       var other = localNewer ? cm : lm;
       var merged = Object.assign({}, other, base);
-      // A non-empty overview always survives, preferring the newer side.
+      // A non-empty overview always survives, preferring the newer side (it's
+      // generated content, not something the user deletes inline).
       merged.overviewPageHtml = ovText(base) || ovText(other) || '';
-      // Don't let the newer side's empty mlos/topic erase the other's content.
-      if ((!merged.mlos || !merged.mlos.length) && other.mlos && other.mlos.length) merged.mlos = other.mlos;
-      if ((!merged.topic || !String(merged.topic).trim()) && other.topic) merged.topic = other.topic;
+      // mlos/topic follow NEWEST-WINS — the newer side's values win even when
+      // they're empty, so an intentional deletion isn't resurrected from the
+      // older copy on reload. (Stale/pre-pull empty saves are already blocked
+      // at the source: saveModuleOverviewSync only overlays rendered cards, and
+      // saveField suppresses empty destructive writes before the cloud pull.)
       out[k] = merged;
     });
     return out;
@@ -8037,7 +8044,7 @@
       // Data-loss guard: refuse to overwrite a populated destructive-key with
       // an empty value. This is what kept wiping POP644's CLOs/ELOs/etc. on
       // tab-hide while the page was mid-load.
-      if (_SAVE_DESTRUCTIVE_KEYS[key] && _destructiveValueEmpty(key, value) && !_destructiveValueEmpty(key, data[key])) {
+      if (_SAVE_DESTRUCTIVE_KEYS[key] && _destructiveValueEmpty(key, value) && !_destructiveValueEmpty(key, data[key]) && !window._allowEmptyDestructive) {
         console.warn('[saveField] refusing to wipe populated "' + key + '" with empty value');
         return;
       }
@@ -8072,6 +8079,18 @@
       }
       var _prevFormData = (key === 'formData') ? data.formData : null;
       data[key] = value;
+      // Intentional-shrink token. The server-side guards (protect_worksheet_shrink
+      // / protect_worksheet_destructive_keys) revert a moduleOverviewData that
+      // loses MLOs and bump __modifiedAt to clock+1s, which makes the cloud copy
+      // look newer than our local delete and resurrects the MLOs on the next
+      // pull. Those guards must stay on to block *accidental* wipes — which never
+      // carry user intent — so a deliberate MLO delete sets _allowEmptyDestructive
+      // and we stamp a short-lived token the server honors to let this one shrink
+      // through. Recency-gated server-side (120s) so a stale token can't disarm
+      // protection later.
+      if (window._allowEmptyDestructive && key === 'moduleOverviewData') {
+        data.__intentionalShrink = Date.now();
+      }
       // Stamp the per-key modification time so the pre-push merge can decide
       // whether our value or the cloud's value is newer for this field. The
       // map lives inside the same blob so it rides along with every push/pull.
