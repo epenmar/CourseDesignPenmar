@@ -8945,7 +8945,7 @@
 
     // ===== RESPONSE FORMAT =====
     prompt += '## RESPONSE GUIDELINES\n';
-    prompt += 'Keep responses concise and practical. Use bullet points and bold for emphasis. When suggesting changes, reference specific objectives by number (e.g., MLO 2.3). Format with HTML tags (use <br> for line breaks, <strong> for bold, <ul>/<li> for lists). When identifying issues, classify severity: Critical (must fix), Major (should fix), Minor (nice to fix).\n\n';
+    prompt += 'Answer the request directly and nothing more. If the user asks you to PRODUCE something (e.g. "turn these into MLOs", "rewrite this objective"), reply with just that output — no preamble, no explanation of your reasoning, no Bloom\'s analysis, no severity ratings, no extra suggestions. Do NOT explain WHY unless the user explicitly asks (e.g. "why?", "explain", "what\'s wrong with these"). Default to brief. Match the scope of the question: a quick question gets a one or two sentence answer. Use minimal formatting — a plain list for items, <strong> only when genuinely needed. Keep all the expertise above as background to get the answer right; do not narrate it.\n\n';
 
     // ===== APPLYABLE ACTIONS =====
     prompt += '## OFFERING TO APPLY A CHANGE\n';
