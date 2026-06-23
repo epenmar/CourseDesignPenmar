@@ -5978,8 +5978,11 @@
       }
 
       html += '</div>';
-      html += '<div style="display:flex; justify-content:space-between; align-items:center;">';
+      html += '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">';
+      html += '<div style="display:flex; gap:8px; align-items:center;">';
       html += '<button class="btn-add-row" onclick="addObjective(' + modNum + ')" style="margin:0;">+ Add objective</button>';
+      html += '<button onclick="openBulkMloPaste(' + modNum + ')" title="Paste a list of objectives" style="padding:5px 10px; border:1px solid #e0ddd5; border-radius:6px; background:#fafaf7; color:#8c1d40; font-size:11px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">⎘ Paste list</button>';
+      html += '</div>';
       if ((activeCourse.flatElos || []).length > 0 && mloCount > 0) {
         html += '<button onclick="aiSuggestEloTags(' + modNum + ', this)" style="padding:5px 12px; border:1px solid #e0ddd5; border-radius:6px; background:#fafaf7; color:#8c1d40; font-size:11px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif;">✨ Suggest ELO Tags</button>';
       }
@@ -6044,6 +6047,7 @@
         // Add MLO row
         thtml += '<tr data-mod="' + modNum + '"' + bandClass + '><td style="padding:2px 8px; border-bottom:2px solid #e0ddd5;">' +
           '<button onclick="addTableMlo(' + modNum + ')" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; font-weight:600; padding:2px 0;">+ Add objective</button>' +
+          '<button onclick="openBulkMloPaste(' + modNum + ')" title="Paste a list of objectives" style="border:none; background:none; color:#8c1d40; cursor:pointer; font-size:11px; font-weight:600; padding:2px 0; margin-left:14px;">⎘ Paste list</button>' +
           '</td><td style="border-bottom:2px solid #e0ddd5;"></td></tr>';
       }
       thtml += '</tbody></table>';
@@ -6101,6 +6105,72 @@
       var lastCell = cells[cells.length - 1];
       if (lastCell) { var inp = lastCell.querySelector('input'); if (inp) inp.focus(); }
     });
+  }
+
+  // ===== BATCH PASTE OBJECTIVES =====
+  // Open a small modal to paste many objectives at once into one module.
+  window.openBulkMloPaste = function(modNum) {
+    var ex = document.getElementById('bulk-mlo-overlay'); if (ex) ex.remove();
+    var ov = document.createElement('div');
+    ov.id = 'bulk-mlo-overlay';
+    ov.style.cssText = 'position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:10000; display:flex; align-items:center; justify-content:center;';
+    ov.innerHTML =
+      '<div style="background:#fff; border-radius:10px; padding:20px; width:min(560px,92vw); max-height:88vh; overflow:auto; box-shadow:0 10px 40px rgba(0,0,0,0.25); font-family:Inter,sans-serif;">'
+      + '<div style="font-size:16px; font-weight:700; color:#8c1d40; margin-bottom:4px;">Paste objectives — Module ' + modNum + '</div>'
+      + '<div style="font-size:12px; color:#666; margin-bottom:10px;">One objective per line. Leading numbers or bullets (<code>1.</code> , <code>-</code> , <code>•</code>) are stripped automatically. Blank lines are ignored.</div>'
+      + '<textarea id="bulk-mlo-text" rows="8" style="width:100%; box-sizing:border-box; font-family:Inter,sans-serif; font-size:13px; padding:8px; border:1px solid #e0ddd5; border-radius:6px; resize:vertical;" placeholder="Describe the structure and function of DNA, genes, and chromosomes...&#10;Explain the flow of genetic information through replication...&#10;Compare next-generation sequencing technologies..."></textarea>'
+      + '<label style="display:flex; align-items:center; gap:6px; font-size:12px; color:#333; margin:10px 0;"><input type="checkbox" id="bulk-mlo-replace"> Replace this module’s existing objectives (otherwise append to them)</label>'
+      + '<div style="display:flex; justify-content:flex-end; gap:8px;">'
+      + '<button onclick="document.getElementById(\'bulk-mlo-overlay\').remove()" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:13px; font-family:inherit;">Cancel</button>'
+      + '<button onclick="confirmBulkMloPaste(' + modNum + ')" style="background:#8c1d40; color:#fff; border:none; padding:7px 14px; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit;">Add objectives</button>'
+      + '</div></div>';
+    document.body.appendChild(ov);
+    ov.addEventListener('click', function(e) { if (e.target === ov) ov.remove(); });
+    setTimeout(function() { var t = document.getElementById('bulk-mlo-text'); if (t) t.focus(); }, 30);
+  };
+  function _parseMloLines(text) {
+    return String(text || '').split(/\r?\n/).map(function(l) {
+      return l.replace(/^\s*(?:\d+[.)]\s*|[-*•▪◦]\s*)/, '').trim();
+    }).filter(function(l) { return l; });
+  }
+  window.confirmBulkMloPaste = function(modNum) {
+    var ta = document.getElementById('bulk-mlo-text');
+    var replace = !!(document.getElementById('bulk-mlo-replace') && document.getElementById('bulk-mlo-replace').checked);
+    var lines = _parseMloLines(ta ? ta.value : '');
+    if (!lines.length) { if (ta) { ta.style.borderColor = '#c62828'; ta.focus(); } return; }
+    _applyBulkMlos(modNum, lines, replace);
+    var ov = document.getElementById('bulk-mlo-overlay'); if (ov) ov.remove();
+  };
+  function _applyBulkMlos(modNum, newMlos, replace) {
+    modNum = parseInt(modNum, 10);
+    captureUndoOnEdit('paste objectives');
+    if (typeof saveModuleOverviewSync === 'function') saveModuleOverviewSync();
+    var _sn = activeCourse.moduleStartZero ? 0 : 1;
+    var _ai = modNum - _sn;
+    var savedMods = loadField('moduleOverviewData') || {};
+    if (!savedMods[modNum]) savedMods[modNum] = {};
+    var existing = savedMods[modNum].mlos || (activeCourse.modules && activeCourse.modules[_ai] ? activeCourse.modules[_ai].mlos || [] : []);
+    existing = existing.slice();
+    var mlos;
+    if (replace) {
+      mlos = newMlos.slice();
+      // Replacing can drop objectives the old ELO tags pointed at — clear this
+      // module's tags so they don't dangle.
+      var em = activeCourse.eloMloAlignment;
+      if (em) {
+        Object.keys(em).forEach(function(k) { em[k] = (em[k] || []).filter(function(id) { var m = String(id).match(/^(\d+)\./); return !(m && parseInt(m[1], 10) === modNum); }); });
+        saveField('eloMloAlignment', em);
+      }
+    } else {
+      // Append after the module's real objectives, dropping any blank starter row.
+      mlos = existing.filter(function(x) { return String(x || '').trim(); }).concat(newMlos);
+    }
+    savedMods[modNum].mlos = mlos;
+    window._allowEmptyDestructive = true;
+    try { saveField('moduleOverviewData', savedMods); } finally { window._allowEmptyDestructive = false; }
+    if (activeCourse.modules && activeCourse.modules[_ai]) activeCourse.modules[_ai].mlos = mlos;
+    renderModuleOverviewCards();
+    if (typeof broadcastModuleOverview === 'function') broadcastModuleOverview();
   }
 
   function deleteTableMlo(modNum, idx) {
@@ -8967,26 +9037,59 @@
     prompt += 'Answer the request directly and nothing more. If the user asks you to PRODUCE something (e.g. "turn these into MLOs", "rewrite this objective"), reply with just that output — no preamble, no explanation of your reasoning, no Bloom\'s analysis, no severity ratings, no extra suggestions. Do NOT explain WHY unless the user explicitly asks (e.g. "why?", "explain", "what\'s wrong with these"). Default to brief. Match the scope of the question: a quick question gets a one or two sentence answer. Use minimal formatting — a plain list for items, <strong> only when genuinely needed. Keep all the expertise above as background to get the answer right; do not narrate it.\n\n';
 
     // ===== APPLYABLE ACTIONS =====
-    prompt += '## OFFERING TO APPLY A CHANGE\n';
-    prompt += 'When you propose a COMPLETE replacement set of Module Learning Objectives for a specific module, you may offer to apply it directly. To do so, end your reply with a fenced action block on its own lines:\n';
-    prompt += '```action\n{"action":"replaceModuleObjectives","module":<number>,"objectives":["full objective text", "..."]}\n```\n';
-    prompt += 'Rules: only emit an action block when you are proposing the FULL new objective set for ONE module (not a partial tweak, not multiple modules). Put the complete, final objective text in the array (measurable verbs, no numbering prefixes). Write your normal prose first (explain the change), THEN the action block. Do not mention the block itself in your prose — the interface turns it into an "Apply" button. Only this one action type is supported; never invent other actions. If the user has not asked for a concrete objective rewrite, just advise normally with no block.';
+    prompt += '## OFFERING TO APPLY OBJECTIVES\n';
+    prompt += 'Whenever your reply contains a COMPLETE set of Module Learning Objectives — the user asked you to draft, turn-something-into, or rewrite a module\'s objectives — ALWAYS append a fenced action block so they can apply it in one click. Do NOT wait for them to say "write them" or "save them"; offer it the moment you produce the set. End your reply with the block on its own lines:\n';
+    prompt += '```action\n{"action":"replaceModuleObjectives","module":<number or null>,"objectives":["full objective text", "..."]}\n```\n';
+    prompt += 'Rules:\n';
+    prompt += '- Emit the block any time you produce a full objective set for ONE module. Skip it only for a partial tweak to a single objective, or when the objectives span multiple modules.\n';
+    prompt += '- "module": if the user named a module, or the conversation makes it unambiguous, put that number. If you do NOT know which module these are for, set it to null — the interface will ask the user to pick the module before applying. NEVER guess a module number.\n';
+    prompt += '- Put the complete, final objective text in the array (measurable verbs, no "1." numbering prefixes).\n';
+    prompt += '- Keep your prose to just the objectives themselves (or a one-line lead-in) per the response guidelines. Do NOT describe or even mention the action block — the interface renders it as an Apply button.\n';
+    prompt += '- Only this action type exists; never invent others.';
     return prompt;
   }
 
   // ===== AI ASSISTANT APPLYABLE ACTIONS =====
   var _aiActionSeq = 0;
   var _aiPendingActions = {};
+  // Build the module list (number + topic) for the AI action picker.
+  function _aiModuleList() {
+    var startNum = (activeCourse && activeCourse.moduleStartZero) ? 0 : 1;
+    var modules = (activeCourse && activeCourse.modules) || [];
+    var saved = (typeof loadField === 'function' && loadField('moduleOverviewData')) || {};
+    var out = [];
+    for (var i = 0; i < modules.length; i++) {
+      var num = i + startNum;
+      var topic = (saved[num] && saved[num].topic) || (modules[i] && modules[i].title) || '';
+      out.push({ num: num, topic: topic });
+    }
+    return out;
+  }
   function _buildAiActionCard(action) {
     var aid = '_aiact_' + (++_aiActionSeq);
     _aiPendingActions[aid] = action;
     var items = action.objectives.map(function(o) { return '<li>' + escapeHtml(String(o)) + '</li>'; }).join('');
-    var mod = escapeHtml(String(action.module));
+    var modKnown = action.module !== null && action.module !== undefined && action.module !== '' && !isNaN(parseInt(action.module, 10));
+    var head, controls;
+    if (modKnown) {
+      var mod = escapeHtml(String(parseInt(action.module, 10)));
+      head = '✨ Replace Module ' + mod + '’s objectives?';
+      controls = '<button onclick="applyAssistantAction(\'' + aid + '\')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">✓ Apply to Module ' + mod + '</button>';
+    } else {
+      head = '✨ Replace a module’s objectives with these?';
+      var opts = _aiModuleList().map(function(m) {
+        var lbl = 'Module ' + m.num + (m.topic ? ' — ' + m.topic : '');
+        return '<option value="' + m.num + '">' + escapeHtml(lbl) + '</option>';
+      }).join('');
+      if (!opts) opts = '<option value="">(no modules yet)</option>';
+      controls = '<select id="' + aid + '_modsel" style="font-family:Inter,sans-serif; font-size:12px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:6px; background:#fff; color:#333; max-width:170px;">' + opts + '</select>'
+        + '<button onclick="applyAssistantAction(\'' + aid + '\')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">✓ Apply</button>';
+    }
     return '<div class="ai-action-card" id="' + aid + '" style="margin-top:10px; border:1px solid #ffc627; background:#fffdf5; border-radius:8px; padding:10px 12px;">'
-      + '<div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:4px;">✨ Replace Module ' + mod + '’s objectives?</div>'
+      + '<div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:4px;">' + head + '</div>'
       + '<ol style="margin:4px 0 8px 18px; padding:0; font-size:12px; color:#333; line-height:1.4;">' + items + '</ol>'
-      + '<div style="display:flex; gap:8px;">'
-      + '<button onclick="applyAssistantAction(\'' + aid + '\')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">✓ Apply to Module ' + mod + '</button>'
+      + '<div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">'
+      + controls
       + '<button onclick="dismissAssistantAction(\'' + aid + '\')" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px;">Dismiss</button>'
       + '</div></div>';
   }
@@ -9020,10 +9123,27 @@
     var action = _aiPendingActions[aid];
     var card = document.getElementById(aid);
     if (!action) { if (card) card.remove(); return; }
-    var res = (action.action === 'replaceModuleObjectives') ? _applyMloReplace(action.module, action.objectives) : { ok: false, error: 'unsupported action' };
+    // Module may come from the action itself or from the picker dropdown (when
+    // the assistant didn't know which module the objectives were for).
+    var mod = action.module;
+    var sel = document.getElementById(aid + '_modsel');
+    if (sel) mod = sel.value;
+    if (mod === null || mod === undefined || mod === '' || isNaN(parseInt(mod, 10))) {
+      var hint = card && card.querySelector('.ai-act-pick-hint');
+      if (!hint && card) {
+        var d = document.createElement('div');
+        d.className = 'ai-act-pick-hint';
+        d.style.cssText = 'font-size:11px; color:#c62828; margin-top:6px;';
+        d.textContent = 'Pick a module first.';
+        card.appendChild(d);
+      }
+      return;
+    }
+    mod = parseInt(mod, 10);
+    var res = (action.action === 'replaceModuleObjectives') ? _applyMloReplace(mod, action.objectives) : { ok: false, error: 'unsupported action' };
     if (card) {
       card.innerHTML = res.ok
-        ? '<div style="font-size:12px; color:#2e7d32;">✓ Replaced Module ' + escapeHtml(String(action.module)) + '’s objectives (' + action.objectives.length + '). Re-tag the ELOs for this module when you get a chance.</div>'
+        ? '<div style="font-size:12px; color:#2e7d32;">✓ Replaced Module ' + escapeHtml(String(mod)) + '’s objectives (' + action.objectives.length + '). Re-tag the ELOs for this module when you get a chance.</div>'
         : '<div style="font-size:12px; color:#c62828;">Could not apply: ' + escapeHtml(res.error || 'unknown') + '</div>';
     }
     delete _aiPendingActions[aid];
