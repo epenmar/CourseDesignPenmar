@@ -12,6 +12,7 @@
 <script src="supabase-sync.js"></script>
 <script src="compose-auth.js"></script>
 <script src="compose-share.js"></script>
+<script src="compose-grants.js"></script>
 <script src="course-directory.js"></script>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
@@ -1803,6 +1804,10 @@
     if (faculty.some(function(f) { return f.slug === slug; })) { alert(name + ' is already added.'); return; }
     faculty.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
     saveFaculty(courseId, faculty);
+    // New identity model: also record a Google-login grant keyed to this email,
+    // so when they sign in (no secret link needed) they're recognized as
+    // instructor on this course. Additive — the mailto link below still works.
+    try { if (window.ComposeGrants) await window.ComposeGrants.grant(courseId, email, 'instructor'); } catch (e) {}
     // Register as an instructor in the worksheet's user map so it recognizes
     // them with edit access (not reviewer/read-only).
     var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
@@ -1872,6 +1877,9 @@
     }
     reviewers.push({ name: name, email: email, slug: slug, added: new Date().toISOString() });
     saveReviewers(courseId, reviewers);
+    // New identity model: also record a Google-login grant (comment-only) keyed
+    // to this email, so they're recognized on sign-in without a secret link.
+    try { if (window.ComposeGrants) await window.ComposeGrants.grant(courseId, email, 'reviewer'); } catch (e) {}
 
     // Also add to worksheet user_courses so the worksheet recognizes this reviewer
     var userCourses = JSON.parse(localStorage.getItem('user_courses') || '{}');
@@ -5738,6 +5746,11 @@
 
     html += `</div>`;
 
+    // Sign-in access (identity-grant model): who can open this course by signing
+    // in with their ASU Google account. Filled asynchronously by
+    // _renderSigninAccess() after the panel paints (it reads the course_grants DB).
+    html += `<div id="signin-access-${id}"></div>`;
+
     // Stats
     html += `<div class="detail-stat-row" style="margin-top:16px;">
       <div class="detail-stat"><div class="label">Overall Progress</div><div class="value" style="color:${c.progressColor};">${c.progress}%</div></div>
@@ -6330,6 +6343,46 @@
     html += buildGCalSection(id, c);
 
     document.getElementById('detail-content').innerHTML = html;
+
+    // Fill the "Sign-in access" list from the course_grants DB (async; owner only).
+    _renderSigninAccess(id);
+  }
+
+  // ===== SIGN-IN ACCESS (identity grants) =====
+  // Lists everyone who can open this course by signing in with their ASU Google
+  // account (the new model that replaces per-person secret links). Reads/writes
+  // the course_grants table via ComposeGrants. No-op (renders nothing) while the
+  // feature is off or no owner is signed in.
+  async function _renderSigninAccess(courseId) {
+    var box = document.getElementById('signin-access-' + courseId);
+    if (!box) return;
+    if (!window.ComposeGrants || !window.ComposeGrants.enabled() ||
+        !(window.ComposeAuth && window.ComposeAuth.user)) { box.innerHTML = ''; return; }
+    var grants = [];
+    try { grants = await window.ComposeGrants.list(courseId); } catch (e) { grants = []; }
+    // The panel may have been re-rendered for another course while we awaited.
+    if (box !== document.getElementById('signin-access-' + courseId)) return;
+    var roleLabel = { instructor: 'Faculty · can edit', reviewer: 'Reviewer · comment only' };
+    var rows = grants.map(function (g) {
+      var who = String(g.email || '').replace(/</g, '&lt;');
+      var lbl = roleLabel[g.role] || g.role;
+      return `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+        <span style="flex:1; font-weight:500;">${who}</span>
+        <span style="color:#888; font-size:11px;">${lbl}</span>
+        <button onclick="revokeSigninAccess('${courseId}','${g.id}')" title="Remove sign-in access" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
+      </div>`;
+    }).join('');
+    var header = `<div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">🔑 Sign-in Access <span style="font-weight:400; text-transform:none; letter-spacing:0;">— ASU Google login</span></div>`;
+    box.innerHTML = `<div style="margin-top:14px;">${header}` +
+      (rows || `<div style="font-size:12px; color:#aaa; padding:4px 0;">No one yet. Use “Invite / Add” above — added faculty &amp; reviewers can sign in with their ASU Google account.</div>`) +
+      `</div>`;
+  }
+
+  async function revokeSigninAccess(courseId, grantId) {
+    if (!window.ComposeGrants) return;
+    var ok = await window.ComposeGrants.revoke(grantId);
+    if (!ok) { alert('Could not remove access. Try again, or check you are signed in.'); return; }
+    _renderSigninAccess(courseId);
   }
 
   // ===== EMAIL TEMPLATE DROPDOWN =====

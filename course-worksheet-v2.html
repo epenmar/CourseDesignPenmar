@@ -12,6 +12,8 @@
 <script src="supabase-sync.js"></script>
 <script src="compose-auth.js"></script>
 <script src="compose-share.js"></script>
+<script src="compose-grants.js"></script>
+<script src="compose-worksheet-login.js"></script>
 <script src="https://accounts.google.com/gsi/client" async defer></script>
 <script src="gdrive-config.js"></script>
 <script src="gdrive.js"></script>
@@ -4425,6 +4427,23 @@
     // worksheet stays anonymous for faculty/reviewers). No-op while auth is off.
     // Lets owner-only tools like Canvas Plan show "coming soon" to other IDs.
     try { if (window.ComposeAuth) await window.ComposeAuth.init(); } catch(e) { console.warn('[compose-auth] worksheet init failed:', e && e.message); }
+    // Single-URL Google login (identity model): a faculty member opening a
+    // token-less worksheet URL signs in and is recognized by their grant. Skipped
+    // when a ?t= secret-link token is present (old flow) and while the flag is off.
+    // When the gate blocks (sign-in overlay / course picker shown), stop booting
+    // this course so no content flashes behind the overlay.
+    try {
+      var _tokenPresent = false;
+      try { _tokenPresent = !!new URLSearchParams(window.location.search).get('t'); } catch(e) {}
+      if (!_tokenPresent && window.ComposeWorksheetLogin && window.ComposeWorksheetLogin.enabled()) {
+        var _gate = await window.ComposeWorksheetLogin.gate(courseId);
+        if (_gate && _gate.blocked) return;
+        if (_gate && _gate.identity) {
+          urlIdentity = _gate.identity;
+          if (urlIdentity.role === 'reviewer') { try { document.body.classList.add('reviewer-mode'); } catch(e) {} }
+        }
+      }
+    } catch(e) { console.warn('[identity-login] gate failed:', e && e.message); }
     // Track C: anonymous faculty/reviewers redeem a ?t= share token into a
     // course-scoped Supabase session BEFORE any data reads. No-op while share
     // tokens are off or for logged-in IDs (who use their own session).
