@@ -28,7 +28,7 @@ window.COMPOSE_IDENTITY_GRANTS_ENABLED = true;
 // shown only the course(s) they've been granted. Existing ?t= links always bypass
 // this gate, so the two models run side-by-side. Per-load override: ?identitylogin=1
 // to force on, ?identitylogin=0 to force off.
-window.COMPOSE_IDENTITY_LOGIN_ENABLED = false;
+window.COMPOSE_IDENTITY_LOGIN_ENABLED = true;
 // dashboard_state upsert conflict target. Stays 'key' until the C3 isolation
 // cutover changes the primary key to (user_id, key); set to 'user_id,key' then.
 window.COMPOSE_DS_CONFLICT = 'user_id,key';
