@@ -173,11 +173,74 @@
     try { document.body.style.paddingTop = ((parseInt(getComputedStyle(document.body).paddingTop) || 0) + 28) + 'px'; } catch (e) {}
   }
 
+  // ---------- invite / add user (header 👤 button) ----------
+  // Owner/admin only: reveal the 👤 button and wire its dropdown so the course's
+  // ID can grant a faculty member or reviewer access (by ASU email) without going
+  // back to the dashboard. Writes an identity grant via ComposeGrants; RLS lets
+  // only an owner/admin do this, so the button stays hidden for everyone else.
+  var _inviteCourseId = null;
+
+  async function setupInvite(courseId) {
+    _inviteCourseId = courseId;
+    var btn = document.getElementById('ws-invite-btn');
+    if (!btn || !window.ComposeGrants || !window.ComposeGrants.enabled()) return;
+    var ok = false;
+    try { ok = await _ownerOrAdmin(courseId); } catch (e) {}
+    if (ok) btn.style.display = '';
+  }
+
+  function toggleInvite() {
+    var existing = document.getElementById('ws-invite-pop');
+    if (existing) { existing.remove(); return; }
+    var anchor = document.getElementById('ws-invite-btn');
+    if (!anchor) return;
+    var pop = document.createElement('div');
+    pop.id = 'ws-invite-pop';
+    pop.style.cssText = 'position:absolute; top:100%; right:0; margin-top:6px; z-index:200; background:#fff; ' +
+      'color:#333; border:1px solid #e0ddd5; border-radius:8px; box-shadow:0 4px 16px rgba(0,0,0,0.18); ' +
+      'padding:12px; width:250px; font-family:Inter,system-ui,sans-serif;';
+    pop.innerHTML =
+      '<div style="font-size:12px; font-weight:600; color:' + MAROON + '; margin-bottom:8px;">Invite / add a user</div>' +
+      '<input id="ws-invite-email" type="email" placeholder="name@asu.edu" style="width:100%; box-sizing:border-box; ' +
+        'padding:7px 9px; border:1px solid #ddd; border-radius:6px; font-size:12px; margin-bottom:6px;" />' +
+      '<select id="ws-invite-role" style="width:100%; box-sizing:border-box; padding:7px 9px; border:1px solid #ddd; ' +
+        'border-radius:6px; font-size:12px; margin-bottom:8px;">' +
+        '<option value="instructor">Faculty — can edit</option>' +
+        '<option value="reviewer">Reviewer — comment only</option>' +
+      '</select>' +
+      '<button id="ws-invite-send" style="width:100%; background:' + MAROON + '; color:#fff; border:none; ' +
+        'padding:8px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer;">Grant access</button>' +
+      '<div id="ws-invite-msg" style="font-size:11px; margin-top:7px; min-height:14px; color:#666;"></div>';
+    var wrap = anchor.parentElement; // #ws-header-icons (position:relative chain on sidebar-header)
+    wrap.style.position = wrap.style.position || 'relative';
+    wrap.appendChild(pop);
+    var emailEl = pop.querySelector('#ws-invite-email');
+    if (emailEl) emailEl.focus();
+    pop.querySelector('#ws-invite-send').onclick = async function () {
+      var email = (emailEl.value || '').trim();
+      var role = pop.querySelector('#ws-invite-role').value;
+      var msg = pop.querySelector('#ws-invite-msg');
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { msg.style.color = '#c0392b'; msg.textContent = 'Enter a valid email.'; return; }
+      msg.style.color = '#666'; msg.textContent = 'Saving…';
+      var res = await window.ComposeGrants.grant(_inviteCourseId, email, role);
+      if (res && res.ok) {
+        msg.style.color = '#2e7d32';
+        msg.textContent = '✓ ' + email + ' can now sign in with ASU Google.';
+        emailEl.value = '';
+      } else {
+        msg.style.color = '#c0392b';
+        msg.textContent = 'Could not add: ' + ((res && res.error) || 'unknown error');
+      }
+    };
+  }
+
   window.ComposeWorksheetLogin = {
     enabled: enabled,
     gate: gate,
     signIn: signIn,
     isOwnerOrAdmin: _ownerOrAdmin,
     showMasqueradeBanner: showMasqueradeBanner,
+    setupInvite: setupInvite,
+    toggleInvite: toggleInvite,
   };
 })();

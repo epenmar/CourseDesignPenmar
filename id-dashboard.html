@@ -990,6 +990,8 @@
         <div class="edit-field" style="flex:1;"><label>Progress (%)</label><input type="number" id="edit-progress" min="0" max="100" placeholder="0"></div>
       </div>
       <div class="edit-field"><label>Phase</label><input type="text" id="edit-phase" placeholder="e.g. Assignments Review"></div>
+      <!-- Faculty & sign-in access (moved here from the Course Overview panel) -->
+      <div id="edit-faculty-access" style="margin-top:6px;"></div>
     </div>
     <div class="edit-modal-footer">
       <button class="edit-btn-cancel" onclick="closeEditCourse()">Cancel</button>
@@ -1835,7 +1837,7 @@
     window.open(mailto, '_blank');
     nameInput.value = '';
     emailInput.value = '';
-    renderDetail(courseId);
+    _afterRosterChange(courseId);
   }
   function removeFaculty(courseId, idx) {
     var faculty = getFaculty(courseId);
@@ -1848,7 +1850,7 @@
         localStorage.setItem('user_courses', JSON.stringify(userCourses));
       }
     }
-    renderDetail(courseId);
+    _afterRosterChange(courseId);
   }
   async function copyFacultyLink(courseId, idx) {
     var faculty = getFaculty(courseId);
@@ -5660,7 +5662,7 @@
     } catch(e) {}
     html += `<div class="detail-header">
       <h2>${c.title}</h2>
-      <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span></p>
+      <p>${c.subtitle} &bull; <span class="status-pill ${detailStatusClass}">${detailStatus}</span> <span onclick="openCourseInfo('${id}')" title="Course info, faculty & sign-in access" style="display:inline-flex; align-items:center; gap:3px; cursor:pointer; background:#fff; color:#8c1d40; border:1px solid #8c1d40; border-radius:999px; padding:1px 10px; font-size:11px; font-weight:600; vertical-align:middle; margin-left:4px;">ℹ️ Course Info</span></p>
       ${c.id ? `<p style="font-size:12px; color:#888; margin-top:-6px;">ID: <span style="color:#8c1d40; font-weight:600;">${c.id}</span></p>` : ''}
       ${_sideSln ? `<p style="font-size:12px; color:#888; margin-top:-6px;">SLN: <span style="color:#8c1d40; font-weight:600;">${String(_sideSln).replace(/</g,'&lt;')}</span></p>` : ''}
       <div style="margin-top:12px; display:flex; gap:8px; flex-wrap:wrap; align-items:center;">`;
@@ -5678,7 +5680,7 @@
       <button onclick="event.stopPropagation(); var m=document.getElementById('invite-menu-${id}'); m.style.display=(m.style.display==='block'?'none':'block');" class="btn-open-dev" style="background:#fff; color:#8c1d40; border:1.5px solid #8c1d40; padding:8px 16px; cursor:pointer;">👤 Invite / Add ▾</button>
       <div id="invite-menu-${id}" style="display:none; position:absolute; top:100%; left:0; margin-top:4px; z-index:30; background:#fff; border:1px solid #e0ddd5; border-radius:8px; box-shadow:0 4px 14px rgba(0,0,0,0.14); overflow:hidden; min-width:210px;">
         <button onclick="document.getElementById('invite-menu-${id}').style.display='none'; toggleReviewerForm('${id}');" style="display:block; width:100%; text-align:left; padding:9px 14px; border:none; background:none; cursor:pointer; font-size:12px; font-family:Inter,sans-serif;">👤 Reviewer <span style="color:#999;">— comment only</span></button>
-        <button onclick="document.getElementById('invite-menu-${id}').style.display='none'; toggleFacultyForm('${id}');" style="display:block; width:100%; text-align:left; padding:9px 14px; border:none; background:none; cursor:pointer; font-size:12px; font-family:Inter,sans-serif; border-top:1px solid #f0f0f0;">👥 Faculty <span style="color:#999;">— edit access</span></button>
+        <button onclick="document.getElementById('invite-menu-${id}').style.display='none'; openCourseInfo('${id}');" style="display:block; width:100%; text-align:left; padding:9px 14px; border:none; background:none; cursor:pointer; font-size:12px; font-family:Inter,sans-serif; border-top:1px solid #f0f0f0;">👥 Faculty <span style="color:#999;">— edit access</span></button>
       </div>
     </span>`;
     // Preview-as (masquerade): open the worksheet rendering the faculty
@@ -5755,38 +5757,11 @@
       html += `</div>`;
     }
 
-    // Faculty (co-instructor) form + list — additional faculty, each with their
-    // own edit-access login link.
-    html += `<div id="faculty-form-${id}" style="display:none; margin-top:10px; padding:12px 14px; background:#fdf0f4; border:1px solid #e6c8d4; border-radius:8px;">
-      <div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:8px;">Add Faculty</div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap;">
-        <input type="text" id="faculty-name-${id}" placeholder="Full name" style="flex:1; min-width:120px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
-        <input type="email" id="faculty-email-${id}" placeholder="Email" style="flex:1; min-width:160px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
-        <button onclick="addFaculty('${id}')" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif; white-space:nowrap;">Send Link</button>
-      </div>
-      <div style="font-size:11px; color:#999; margin-top:6px;">They get their own login link with edit access — work is attributed to their name.</div>
-    </div>`;
-    var _facultyList = getFaculty(id);
-    if (_facultyList.length > 0) {
-      html += `<div style="margin-top:10px;">
-        <div style="font-size:11px; font-weight:600; color:#888; margin-bottom:6px; text-transform:uppercase; letter-spacing:0.03em;">Faculty</div>`;
-      _facultyList.forEach(function(f, fi) {
-        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
-          <span style="flex:1; font-weight:500;">${f.name.replace(/</g,'&lt;')}</span>
-          <span style="color:#888; font-size:11px;">${(f.email||'').replace(/</g,'&lt;')}</span>
-          <button onclick="copyFacultyLink('${id}', ${fi})" title="Copy link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
-          <button onclick="removeFaculty('${id}', ${fi})" title="Remove faculty" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
-        </div>`;
-      });
-      html += `</div>`;
-    }
+    // Faculty roster + Sign-in Access now live in the Course Info modal
+    // (renderEditCourseFacultyAccess), reachable via the "Course Info" pill in the
+    // header and right-click → Edit Course Info.
 
     html += `</div>`;
-
-    // Sign-in access (identity-grant model): who can open this course by signing
-    // in with their ASU Google account. Filled asynchronously by
-    // _renderSigninAccess() after the panel paints (it reads the course_grants DB).
-    html += `<div id="signin-access-${id}"></div>`;
 
     // Stats
     html += `<div class="detail-stat-row" style="margin-top:16px;">
@@ -6380,9 +6355,6 @@
     html += buildGCalSection(id, c);
 
     document.getElementById('detail-content').innerHTML = html;
-
-    // Fill the "Sign-in access" list from the course_grants DB (async; owner only).
-    _renderSigninAccess(id);
   }
 
   // ===== SIGN-IN ACCESS (identity grants) =====
@@ -8181,8 +8153,12 @@
   // ===== EDIT COURSE MODAL =====
   var editCourseId = null;
 
-  function ctxEditCourse() {
-    editCourseId = ctxCourseId;
+  function ctxEditCourse() { openCourseInfo(ctxCourseId); }
+
+  // Open the Course Info modal for a specific course (used by the right-click
+  // menu, the detail-panel "Course Info" pill, and the Invite/Add → Faculty item).
+  function openCourseInfo(id) {
+    editCourseId = id;
     var c = courseData[editCourseId];
     if (!c) return;
     document.getElementById('edit-course-title').textContent = 'Edit ' + c.code;
@@ -8215,6 +8191,48 @@
     document.getElementById('edit-progress').value = c.progress || 0;
     document.getElementById('edit-phase').value = c.phase || '';
     document.getElementById('edit-course-overlay').classList.add('open');
+    renderEditCourseFacultyAccess(editCourseId);
+  }
+
+  // Render the Faculty roster + Sign-in Access lists inside the Course Info modal
+  // (moved here from the Course Overview panel to declutter it). Reuses the same
+  // add/remove/copy handlers, which now refresh this section via _afterRosterChange.
+  function renderEditCourseFacultyAccess(id) {
+    var box = document.getElementById('edit-faculty-access');
+    if (!box) return;
+    var html = `<div style="margin-top:14px; padding-top:14px; border-top:1px solid #eee;">
+      <div style="font-size:12px; font-weight:700; color:#8c1d40; margin-bottom:8px;">👥 Faculty &amp; Sign-in Access</div>`;
+    // Add-faculty form (same input IDs addFaculty() reads)
+    html += `<div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:6px;">
+        <input type="text" id="faculty-name-${id}" placeholder="Full name" style="flex:1; min-width:120px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <input type="email" id="faculty-email-${id}" placeholder="ASU email (asurite@asu.edu)" style="flex:1; min-width:160px; padding:6px 10px; border:1px solid #e6c8d4; border-radius:6px; font-size:12px; font-family:Inter,sans-serif;" />
+        <button onclick="addFaculty('${id}')" style="padding:6px 14px; background:#8c1d40; color:#fff; border:none; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; font-family:Inter,sans-serif; white-space:nowrap;">Add</button>
+      </div>
+      <div style="font-size:11px; color:#999; margin-bottom:6px;">They sign in with their ASU Google account — use the email they log in with.</div>`;
+    var _facultyList = getFaculty(id);
+    if (_facultyList.length > 0) {
+      html += `<div style="margin-bottom:6px;"><div style="font-size:11px; font-weight:600; color:#888; margin-bottom:4px; text-transform:uppercase; letter-spacing:0.03em;">Faculty</div>`;
+      _facultyList.forEach(function(f, fi) {
+        html += `<div style="display:flex; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid #f0f0f0; font-size:12px;">
+          <span style="flex:1; font-weight:500;">${f.name.replace(/</g,'&lt;')}</span>
+          <span style="color:#888; font-size:11px;">${(f.email||'').replace(/</g,'&lt;')}</span>
+          <button onclick="copyFacultyLink('${id}', ${fi})" title="Copy sign-in link" style="border:none; background:none; cursor:pointer; font-size:13px; padding:2px 4px;">📋</button>
+          <button onclick="removeFaculty('${id}', ${fi})" title="Remove faculty" style="border:none; background:none; cursor:pointer; font-size:13px; color:#c62828; padding:2px 4px;">×</button>
+        </div>`;
+      });
+      html += `</div>`;
+    }
+    // Sign-in access list container (filled async by _renderSigninAccess)
+    html += `<div id="signin-access-${id}"></div>`;
+    html += `</div>`;
+    box.innerHTML = html;
+    _renderSigninAccess(id);
+  }
+
+  // Refresh whichever surface is showing the roster after an add/remove.
+  function _afterRosterChange(courseId) {
+    try { if (document.getElementById('edit-course-overlay').classList.contains('open')) renderEditCourseFacultyAccess(courseId); } catch (e) {}
+    try { var d = document.getElementById('detail-overlay'); if (d && d.classList.contains('open')) renderDetail(courseId); } catch (e) {}
   }
 
   function closeEditCourse() {

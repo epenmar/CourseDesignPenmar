@@ -1133,7 +1133,8 @@
           <div class="course-name">MNS 521 — AI Technologies</div>
         </div>
         <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
-          <div style="display:flex; gap:2px; align-items:center;">
+          <div style="display:flex; gap:2px; align-items:center;" id="ws-header-icons">
+            <button class="comment-btn" id="ws-invite-btn" title="Invite / add a user to this course" onclick="ComposeWorksheetLogin.toggleInvite()" style="display:none;">👤</button>
             <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
             <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
               💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
@@ -4463,6 +4464,8 @@
         }
       }
     } catch(e) { console.warn('[identity-login] gate failed:', e && e.message); }
+    // Reveal the header 👤 invite button for the course owner/admin (no-op otherwise).
+    try { if (window.ComposeWorksheetLogin && window.ComposeWorksheetLogin.setupInvite) window.ComposeWorksheetLogin.setupInvite(courseId); } catch(e) {}
     // Track C: anonymous faculty/reviewers redeem a ?t= share token into a
     // course-scoped Supabase session BEFORE any data reads. No-op while share
     // tokens are off or for logged-in IDs (who use their own session).
