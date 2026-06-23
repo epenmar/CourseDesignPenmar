@@ -2543,17 +2543,21 @@
         }
         return '';
       };
+      // cellFormat=string wraps any value containing a comma in double quotes
+      // (CSV style), so a program like Biological Data Science, MS came back as
+      // "Biological Data Science, MS" with literal quotes. Strip a surrounding pair.
+      var stripQuotes = function(s) { return String(s == null ? '' : s).trim().replace(/^"([\s\S]*)"$/, '$1').trim(); };
       var toStr = function(v) {
         if (!v) return '';
         if (Array.isArray(v)) {
           var uniq = [];
           v.forEach(function(x) {
-            var s = (x == null) ? '' : String(x).trim();
+            var s = stripQuotes(x);
             if (s && uniq.indexOf(s) === -1) uniq.push(s);
           });
           return uniq.join(', ');
         }
-        return String(v).trim();
+        return stripQuotes(v);
       };
       return records.map(function(r) {
         var f = r.fields || {};
@@ -4172,17 +4176,21 @@
       var f = r.fields || {};
       var sessionArr = f['Session Launch (Start Date)'] || [];
       // Lookup fields return arrays; dedupe and join.
+      // cellFormat=string wraps any value containing a comma in double quotes
+      // (CSV style), so a program like Biological Data Science, MS came back as
+      // "Biological Data Science, MS" with literal quotes. Strip a surrounding pair.
+      var stripQuotes = function(s) { return String(s == null ? '' : s).trim().replace(/^"([\s\S]*)"$/, '$1').trim(); };
       var toStr = function(v) {
         if (!v) return '';
         if (Array.isArray(v)) {
           var uniq = [];
           v.forEach(function(x) {
-            var s = (x == null) ? '' : String(x).trim();
+            var s = stripQuotes(x);
             if (s && uniq.indexOf(s) === -1) uniq.push(s);
           });
           return uniq.join(', ');
         }
-        return String(v).trim();
+        return stripQuotes(v);
       };
       // Field name drift — try explicit aliases first, then any field whose
       // name matches a regex. Covers cases where a record has, say,
@@ -4649,6 +4657,70 @@
     return { ok: true, key: key, existed: false };
   }
 
+  function _saveCourseOverrides(overrides) {
+    localStorage.setItem('course_overrides', JSON.stringify(overrides));
+    if (window._sbClient) {
+      window._sbClient.from('dashboard_state').upsert({ key: 'course_overrides', data: overrides }, { onConflict: (window.COMPOSE_DS_CONFLICT || 'key') })
+        .then(function(r) { if (r.error) console.warn('[course_overrides] cloud sync failed:', r.error.message); });
+    }
+  }
+
+  // Merge one course's identity into another. The TARGET keeps ALL of its work
+  // but takes on the SOURCE's code, name, and Airtable link; the source course
+  // is then removed. Reconciles a manually-made course with the official
+  // (often cross-listed) record Airtable added later.
+  function mergeCourseInto(sourceKey, targetKey) {
+    if (!sourceKey || !targetKey || sourceKey === targetKey) return { ok: false, error: 'Pick a different course' };
+    var src = courseData[sourceKey], tgt = courseData[targetKey];
+    if (!src || !tgt) return { ok: false, error: 'Course not found' };
+    var newCode = src.code || tgt.code;
+    var newName = src.courseName || tgt.courseName;
+    // 1) carry the identity onto the target (in-memory + overrides store)
+    tgt.code = newCode; tgt.courseName = newName; tgt.emailName = newCode;
+    if (src.airtableRecordId) tgt.airtableRecordId = src.airtableRecordId;
+    var overrides = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+    overrides[targetKey] = Object.assign({}, overrides[targetKey] || {}, { code: newCode, courseName: newName });
+    // 2) Airtable link + Jira on the target
+    if (src.airtableRecordId) {
+      var saved = JSON.parse(localStorage.getItem('user_courses') || '{}');
+      saved[targetKey] = Object.assign({}, saved[targetKey] || {}, { airtableRecordId: src.airtableRecordId });
+      localStorage.setItem('user_courses', JSON.stringify(saved));
+      if (window.SupabaseSync && window.SupabaseSync.pushUserCourse) window.SupabaseSync.pushUserCourse(targetKey, saved[targetKey]);
+      var srcUrl = '';
+      try { srcUrl = getCourseAirtableUrl(sourceKey); } catch (e) {}
+      if (!srcUrl) srcUrl = 'https://airtable.com/' + AIRTABLE_BASE_ID + '/' + AIRTABLE_DEVELOPMENTS_TABLE + '/' + src.airtableRecordId;
+      try { setCourseAirtableUrl(targetKey, srcUrl); } catch (e) {}
+      var epic = getCourseJiraEpic(sourceKey);
+      if (epic && !getCourseJiraEpic(targetKey)) setCourseJiraEpic(targetKey, epic);
+    }
+    // 3) remove the source course (local + cloud)
+    delete courseData[sourceKey];
+    var uc = JSON.parse(localStorage.getItem('user_courses') || '{}');
+    if (uc[sourceKey]) { delete uc[sourceKey]; localStorage.setItem('user_courses', JSON.stringify(uc)); }
+    if (overrides[sourceKey]) delete overrides[sourceKey];
+    _saveCourseOverrides(overrides);
+    if (window._sbClient) window._sbClient.from('user_courses').delete().eq('course_id', sourceKey)
+      .then(function(r) { if (r && r.error) console.warn('[merge] cloud delete failed:', r.error.message); });
+    return { ok: true, code: newCode };
+  }
+  window.mergeCourseInto = mergeCourseInto;
+
+  window.runMergeCourse = function(sourceKey) {
+    var sel = document.getElementById('merge-target-' + sourceKey);
+    var targetKey = sel ? sel.value : '';
+    if (!targetKey) { alert('Choose the course to keep (it keeps all its work).'); return; }
+    var src = courseData[sourceKey], tgt = courseData[targetKey];
+    if (!src || !tgt) return;
+    var srcPct = Number(src.progress) || 0, tgtPct = Number(tgt.progress) || 0;
+    var warn = (srcPct > tgtPct) ? ('\n\n⚠ Heads up: the course being REMOVED ("' + (src.code || sourceKey) + '", ' + srcPct + '%) shows MORE progress than the one you are keeping ("' + (tgt.code || targetKey) + '", ' + tgtPct + '%). Double-check you picked the right one.') : '';
+    if (!confirm('Merge "' + (src.code || sourceKey) + '" into "' + (tgt.code || targetKey) + '"?\n\n"' + (tgt.code || targetKey) + '" keeps all its work and takes on this course\'s code, name, and Airtable link. "' + (src.code || sourceKey) + '" is then removed.' + warn)) return;
+    var res = mergeCourseInto(sourceKey, targetKey);
+    if (!res.ok) { alert('Merge failed: ' + (res.error || 'unknown')); return; }
+    var ov = document.getElementById('detail-overlay'); if (ov) { ov.classList.remove('open'); ov._currentId = null; }
+    renderSummary(); renderTable(); renderFilters(); renderColumnFilters(); renderAirtableSyncBanner();
+    alert('Merged. "' + (tgt.code || targetKey) + '" now carries the code, name, and Airtable link, with all its work intact.');
+  };
+
   // Attach an Airtable record to a course that already exists on the dashboard
   // (e.g. one you created manually before it was approved in Airtable). Keeps
   // the existing course's id and all its work; stamps the record id (so the
@@ -4658,16 +4730,16 @@
     var t = courseData[targetKey];
     if (!t) return { ok: false, error: 'Target course not found' };
     t.airtableRecordId = cand.recordId;
-    var atCode = (cand.code || '').trim();
-    if (atCode) {
-      t.airtableCode = atCode;
-      var ownCode = (t.code || '').replace(/\s+/g, '').toUpperCase();
-      var others = atCode.split(/[\/,]+/).map(function(s) { return s.trim(); })
-        .filter(function(s) { return s && s.replace(/\s+/g, '').toUpperCase() !== ownCode; });
-      if (others.length) {
-        t.crossListedAs = (t.crossListedAs || []).concat(others).filter(function(v, i, a) { return a.indexOf(v) === i; });
-      }
-    }
+    // Carry over the official Airtable code + name (these win — the manual
+    // course usually had a placeholder); persist to the overrides store so it
+    // sticks. The course KEY (and all its work) stays the same.
+    if (cand.code) { t.code = cand.code; t.emailName = cand.code; }
+    if (cand.title) t.courseName = cand.title;
+    try {
+      var ov = JSON.parse(localStorage.getItem('course_overrides') || '{}');
+      ov[targetKey] = Object.assign({}, ov[targetKey] || {}, { code: t.code, courseName: t.courseName });
+      _saveCourseOverrides(ov);
+    } catch (e) {}
     // Fill blanks only — never clobber manual edits.
     if (cand.college && !t.college) t.college = collegeAbbr(cand.college);
     if (cand.program && !t.program) t.program = cand.program;
@@ -5410,6 +5482,21 @@
     html += `<button id="copy-asurite-btn-${id}" onclick="copyInstructorAsuriteEmail('${id}')" style="${_copyLinkStyle}" title="Copy the instructor's ASURITE email (asurite@asu.edu)">📋 Copy Instructor ASURITE</button>`;
     html += `</span>`;
     html += `</div>`;
+
+    // Merge / duplicate cleanup — move this course's code, name & Airtable link
+    // onto another course (which keeps all its work), then remove this one.
+    var _mergeOpts = Object.keys(courseData).filter(function(k) { return k !== id; })
+      .sort(function(a, b) { return String(courseData[a].code || a).localeCompare(String(courseData[b].code || b)); })
+      .map(function(k) { return `<option value="${k}">${(courseData[k].code || k)}</option>`; }).join('');
+    html += `<details style="margin-top:10px; font-size:11px;"><summary style="cursor:pointer; color:#8c1d40; font-weight:600;">⛓ Merge into another course…</summary>
+      <div style="margin-top:8px; padding:10px 12px; background:#faf7f2; border:1px solid #efe9df; border-radius:8px;">
+        <div style="color:#555; margin-bottom:6px;">Move <strong>this</strong> course's code, name &amp; Airtable link onto the course you choose (it keeps all its work). This course is then removed.</div>
+        <div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap;">
+          <span style="color:#666;">Keep all work on:</span>
+          <select id="merge-target-${id}" style="font-size:11px; padding:4px 6px; border:1px solid #e0ddd5; border-radius:6px; background:#fff;"><option value="">— choose course —</option>${_mergeOpts}</select>
+          <button onclick="runMergeCourse('${id}')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:11px; font-weight:600;">Merge</button>
+        </div>
+      </div></details>`;
 
     // Reviewer invite form (hidden by default)
     html += `<div id="reviewer-form-${id}" style="display:none; margin-top:10px; padding:12px 14px; background:#f0faf0; border:1px solid #c8e6c9; border-radius:8px;">
