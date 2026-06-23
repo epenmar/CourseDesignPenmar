@@ -4307,9 +4307,17 @@
         // with random text from a misnamed column. Note the lowercase
         // "Jira key" alias — that's the actual field name in our base.
         jiraEpic: (function() {
-          var raw = toStr(pickField(['Jira key', 'Jira Key', 'Jira Epic', 'Epic Key', 'Jira Epic Key', 'Jira'], /jira/i));
-          var m = String(raw || '').toUpperCase().trim().match(/\b([A-Z][A-Z0-9]+-\d+)\b/);
-          return m ? m[1] : '';
+          // Scan only epic / jira-key fields (skip "Jira Creation Date", the
+          // ASUO user-id, etc.) and return the first value that contains a Jira
+          // key like EDL-7828 — including one embedded in a Jira Epic Link URL
+          // (.../browse/EDL-7828). The link is empty (".../browse/") until the
+          // epic is created in Airtable, so this stays blank until then.
+          var keys = Object.keys(f).filter(function(k) { return /epic|jira\s*key/i.test(k); });
+          for (var i = 0; i < keys.length; i++) {
+            var m = String(toStr(f[keys[i]])).toUpperCase().match(/\b([A-Z][A-Z0-9]+-\d+)\b/);
+            if (m) return m[1];
+          }
+          return '';
         })(),
         // "QA: Alert ID of this New Dev" — single-select that drives whether
         // the kickoff email has been sent. We can read it but not mutate it
