@@ -8943,9 +8943,75 @@
 
     // ===== RESPONSE FORMAT =====
     prompt += '## RESPONSE GUIDELINES\n';
-    prompt += 'Keep responses concise and practical. Use bullet points and bold for emphasis. When suggesting changes, reference specific objectives by number (e.g., MLO 2.3). Format with HTML tags (use <br> for line breaks, <strong> for bold, <ul>/<li> for lists). When identifying issues, classify severity: Critical (must fix), Major (should fix), Minor (nice to fix).';
+    prompt += 'Keep responses concise and practical. Use bullet points and bold for emphasis. When suggesting changes, reference specific objectives by number (e.g., MLO 2.3). Format with HTML tags (use <br> for line breaks, <strong> for bold, <ul>/<li> for lists). When identifying issues, classify severity: Critical (must fix), Major (should fix), Minor (nice to fix).\n\n';
+
+    // ===== APPLYABLE ACTIONS =====
+    prompt += '## OFFERING TO APPLY A CHANGE\n';
+    prompt += 'When you propose a COMPLETE replacement set of Module Learning Objectives for a specific module, you may offer to apply it directly. To do so, end your reply with a fenced action block on its own lines:\n';
+    prompt += '```action\n{"action":"replaceModuleObjectives","module":<number>,"objectives":["full objective text", "..."]}\n```\n';
+    prompt += 'Rules: only emit an action block when you are proposing the FULL new objective set for ONE module (not a partial tweak, not multiple modules). Put the complete, final objective text in the array (measurable verbs, no numbering prefixes). Write your normal prose first (explain the change), THEN the action block. Do not mention the block itself in your prose — the interface turns it into an "Apply" button. Only this one action type is supported; never invent other actions. If the user has not asked for a concrete objective rewrite, just advise normally with no block.';
     return prompt;
   }
+
+  // ===== AI ASSISTANT APPLYABLE ACTIONS =====
+  var _aiActionSeq = 0;
+  var _aiPendingActions = {};
+  function _buildAiActionCard(action) {
+    var aid = '_aiact_' + (++_aiActionSeq);
+    _aiPendingActions[aid] = action;
+    var items = action.objectives.map(function(o) { return '<li>' + escapeHtml(String(o)) + '</li>'; }).join('');
+    var mod = escapeHtml(String(action.module));
+    return '<div class="ai-action-card" id="' + aid + '" style="margin-top:10px; border:1px solid #ffc627; background:#fffdf5; border-radius:8px; padding:10px 12px;">'
+      + '<div style="font-size:12px; font-weight:600; color:#8c1d40; margin-bottom:4px;">✨ Replace Module ' + mod + '’s objectives?</div>'
+      + '<ol style="margin:4px 0 8px 18px; padding:0; font-size:12px; color:#333; line-height:1.4;">' + items + '</ol>'
+      + '<div style="display:flex; gap:8px;">'
+      + '<button onclick="applyAssistantAction(\'' + aid + '\')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px; font-weight:600;">✓ Apply to Module ' + mod + '</button>'
+      + '<button onclick="dismissAssistantAction(\'' + aid + '\')" style="background:#fff; color:#666; border:1px solid #e0ddd5; padding:5px 12px; border-radius:6px; cursor:pointer; font-size:12px;">Dismiss</button>'
+      + '</div></div>';
+  }
+  // Replace a module's MLOs from an assistant-proposed list. Clears that
+  // module's ELO tags (the old objectives they pointed at are gone).
+  function _applyMloReplace(modNum, objectives) {
+    modNum = parseInt(modNum, 10);
+    if (isNaN(modNum) || !Array.isArray(objectives)) return { ok: false, error: 'invalid input' };
+    var mlos = objectives.map(function(o) { return String(o == null ? '' : o).trim(); }).filter(function(o) { return o; });
+    if (!mlos.length) return { ok: false, error: 'no objectives' };
+    try {
+      if (typeof saveModuleOverviewSync === 'function') saveModuleOverviewSync(); // flush pending edits
+      if (typeof captureUndoOnEdit === 'function') captureUndoOnEdit('AI: replace Module ' + modNum + ' objectives');
+      var data = loadField('moduleOverviewData') || {};
+      if (!data[modNum]) data[modNum] = {};
+      data[modNum].mlos = mlos.slice();
+      saveField('moduleOverviewData', data);
+      var sn = activeCourse.moduleStartZero ? 0 : 1;
+      if (activeCourse.modules && activeCourse.modules[modNum - sn]) activeCourse.modules[modNum - sn].mlos = mlos.slice();
+      var em = activeCourse.eloMloAlignment;
+      if (em) {
+        Object.keys(em).forEach(function(k) { em[k] = (em[k] || []).filter(function(id) { var m = String(id).match(/^(\d+)\./); return !(m && parseInt(m[1], 10) === modNum); }); });
+        saveField('eloMloAlignment', em);
+      }
+      if (typeof renderModuleOverviewCards === 'function') { try { renderModuleOverviewCards(); } catch (e) {} }
+      if (typeof broadcastModuleOverview === 'function') { try { broadcastModuleOverview(); } catch (e) {} }
+      return { ok: true };
+    } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  }
+  window.applyAssistantAction = function(aid) {
+    var action = _aiPendingActions[aid];
+    var card = document.getElementById(aid);
+    if (!action) { if (card) card.remove(); return; }
+    var res = (action.action === 'replaceModuleObjectives') ? _applyMloReplace(action.module, action.objectives) : { ok: false, error: 'unsupported action' };
+    if (card) {
+      card.innerHTML = res.ok
+        ? '<div style="font-size:12px; color:#2e7d32;">✓ Replaced Module ' + escapeHtml(String(action.module)) + '’s objectives (' + action.objectives.length + '). Re-tag the ELOs for this module when you get a chance.</div>'
+        : '<div style="font-size:12px; color:#c62828;">Could not apply: ' + escapeHtml(res.error || 'unknown') + '</div>';
+    }
+    delete _aiPendingActions[aid];
+  };
+  window.dismissAssistantAction = function(aid) {
+    delete _aiPendingActions[aid];
+    var card = document.getElementById(aid);
+    if (card) card.innerHTML = '<div style="font-size:12px; color:#999;">Dismissed — nothing was changed.</div>';
+  };
 
   async function doSendAIMessage(message) {
     appendAIMessage('user', message);
@@ -8966,17 +9032,35 @@
 
     try {
       const assistantText = await callCreateAI(query, systemPrompt, 1024);
-      chatHistory.push({ role: 'assistant', content: assistantText });
 
-      // Replace typing indicator with response. Markdown-ish patterns first,
-      // then sanitize so any HTML the model emits is restricted to our
-      // allow-list (no <script>, no event handlers, no inline JS).
-      const htmlText = assistantText
+      // Pull out an optional ```action {json}``` block the assistant may append
+      // to offer a one-click apply. Strip it from the displayed prose (and from
+      // history, so follow-ups aren't confused by raw JSON).
+      var actionData = null;
+      var proseText = assistantText;
+      var amatch = assistantText.match(/```action\s*([\s\S]*?)```/i);
+      if (amatch) {
+        proseText = assistantText.replace(amatch[0], '').trim();
+        try {
+          var parsed = JSON.parse(amatch[1].trim());
+          if (parsed && parsed.action === 'replaceModuleObjectives' && parsed.module != null && Array.isArray(parsed.objectives) && parsed.objectives.length) {
+            actionData = parsed;
+          }
+        } catch (e) { /* malformed block — ignore */ }
+      }
+      chatHistory.push({ role: 'assistant', content: proseText });
+
+      // Markdown-ish patterns first, then sanitize so any HTML the model emits
+      // is restricted to our allow-list (no <script>, no event handlers).
+      const htmlText = proseText
         .replace(/\n\n/g, '<br><br>')
         .replace(/\n/g, '<br>')
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>');
-      typingMsg.querySelector('.ai-msg-body').innerHTML = sanitizeAIHtml(htmlText);
+      var _bodyEl = typingMsg.querySelector('.ai-msg-body');
+      _bodyEl.innerHTML = sanitizeAIHtml(htmlText);
+      // Append the apply card AFTER sanitizing (we build it, so its button is safe).
+      if (actionData) _bodyEl.insertAdjacentHTML('beforeend', _buildAiActionCard(actionData));
     } catch (err) {
       var safeMsg = (err && err.message) ? String(err.message).replace(/[&<>"']/g, function(c) {
         return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c];
