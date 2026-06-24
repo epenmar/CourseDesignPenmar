@@ -7078,7 +7078,7 @@
       var groupCollapsed = !!collapsedGroups[g.id];
       html += '<div class="todo-course-group">';
       html += '<div class="todo-course-header" onclick="toggleTodoGroup(\'' + esc(g.id) + '\')" title="Collapse/expand ' + esc(g.code) + '">';
-      html += '<span class="todo-course-badge" style="background:' + color + ';">' + esc(g.code) + '</span>';
+      html += '<span class="todo-course-badge" style="background:' + color + '; cursor:pointer;" onclick="event.stopPropagation(); openTodoCourse(\'' + esc(g.id) + '\')" title="Open ' + esc(g.code) + ' course worksheet">' + esc(g.code) + '</span>';
       html += '<span class="todo-course-name">' + esc(g.name) + '</span>';
       if (g.nextMeetingLabel) {
         html += '<span class="todo-course-next" title="Next meeting">' + esc(g.nextMeetingLabel) + '</span>';
@@ -7115,6 +7115,14 @@
     body.innerHTML = html;
   }
   window.renderTodoPanel = renderTodoPanel;
+
+  // Click a course pill in the to-do panel → open that course's worksheet
+  // (same devLink the dashboard uses elsewhere; owner access, no token needed).
+  window.openTodoCourse = function(id) {
+    var c = courseData && courseData[id];
+    var url = (c && c.devLink) || ('course-worksheet-v2.html?course=' + encodeURIComponent(id));
+    window.open(url, '_blank');
+  };
 
   // Initialize panel state from localStorage on first paint.
   (function _initTodoPanel() {
