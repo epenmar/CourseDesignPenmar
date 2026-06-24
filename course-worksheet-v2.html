@@ -4176,7 +4176,7 @@
           '<div class="content-top-actions">' +
             '<button class="content-action-btn" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>' +
             '<button class="content-action-btn" onclick="polishTemplate(\'' + id + '\',_activeTplTypeFor(\'' + id + '\'),this)" title="Improve clarity + formatting of what is already written, and move any misplaced content to the right field (with a review step)">✨ Polish &amp; reorganize</button>' +
-            '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + id + '\',' + moduleNum + ',\'' + id + '\')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>' +
+            '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + id + '\',' + moduleNum + ',\'' + id + '\')" title="Import from a file on your computer or a Google Doc / Drive link (.docx, .pdf, .md) — questions parse into the quiz; other content is sorted into the template by AI">⬆ Import doc</button>' +
             '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>' +
           '</div>' +
           _buildAttachMenuHtml(id) +
@@ -10017,7 +10017,7 @@
     html += '<div class="content-top-actions">';
     html += '<button class="content-action-btn" onclick="openAiFillModal(\'' + act.id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>';
     html += '<button class="content-action-btn" onclick="polishTemplate(\'' + act.id + '\',_activeTplTypeFor(\'' + id + '\'),this)" title="Improve clarity + formatting of what is already written, and move any misplaced content to the right field (with a review step)">✨ Polish &amp; reorganize</button>';
-    html += '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + act.id + '\',' + moduleNum + ')" title="Import a .docx, .pdf, or .md and let AI fill the template (formatting preserved where possible)">⬆ Import doc</button>';
+    html += '<button class="content-action-btn" data-import-btn="' + id + '" onclick="importDocToTemplate(\'' + act.id + '\',' + moduleNum + ')" title="Import from a file on your computer or a Google Doc / Drive link (.docx, .pdf, .md) — questions parse into the quiz; other content is sorted into the template by AI">⬆ Import doc</button>';
     html += '<button class="content-action-btn" onclick="toggleAttachMenu(\'' + id + '\')" title="Attach a file, link, or existing course material">📎 Attach ▾</button>';
     html += '</div>';
     // Single "Attach" menu — Upload / Link / existing Materials in one popover
@@ -12237,6 +12237,120 @@
     throw new Error('Unsupported file type. Use .docx, .pdf, or .md.');
   }
 
+  // Pull a Drive/Docs share URL down to a bare file id. Handles Docs/Sheets/
+  // Slides (/d/<id>), generic /file/d/<id>, and ?id=<id> links, plus a raw id.
+  function _driveIdFromUrl(url) {
+    if (!url) return null;
+    var s = String(url).trim();
+    var m = s.match(/\/d\/([a-zA-Z0-9_-]{10,})/) || s.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+    if (m) return m[1];
+    return /^[a-zA-Z0-9_-]{20,}$/.test(s) ? s : null;
+  }
+
+  // Fetch a Drive file's text. Google Docs are exported to plain text; uploaded
+  // .docx/.pdf/.txt/.md are downloaded and run through _extractDocText so the
+  // result matches a local-file import. Uses the full `drive` scope (gdrive.js),
+  // so it reaches anything the signed-in ASU account can open — My Drive or any
+  // shared drive, not just the course's linked folder. Returns { text, name }.
+  async function _fetchDriveDocText(url) {
+    var fileId = _driveIdFromUrl(url);
+    if (!fileId) throw new Error('That doesn\'t look like a Google Doc or Drive link. Expected something like https://docs.google.com/document/d/…');
+    if (!window.GDrive) throw new Error('Google Drive integration isn\'t loaded — reload the page and try again.');
+    var token = await window.GDrive.getAccessToken();
+    var hdr = { Authorization: 'Bearer ' + token };
+    var metaResp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?fields=name,mimeType&supportsAllDrives=true', { headers: hdr });
+    if (!metaResp.ok) {
+      if (metaResp.status === 404) throw new Error('Couldn\'t open that file — check the link and make sure your ASU account has access to it.');
+      throw new Error('Drive error ' + metaResp.status + ' opening that file.');
+    }
+    var meta = await metaResp.json();
+    var name = meta.name || 'Google Doc';
+    var mime = meta.mimeType || '';
+    if (mime === 'application/vnd.google-apps.document') {
+      var exp = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '/export?mimeType=text/plain&supportsAllDrives=true', { headers: hdr });
+      if (!exp.ok) throw new Error('Drive export failed (' + exp.status + ').');
+      return { text: (await exp.text()).trim(), name: name };
+    }
+    if (mime === 'application/vnd.google-apps.spreadsheet' || mime === 'application/vnd.google-apps.presentation') {
+      throw new Error('That\'s a Google ' + (mime.indexOf('spreadsheet') > -1 ? 'Sheet' : 'Slides deck') + ' — please use a Google Doc, .docx, or PDF.');
+    }
+    // Binary upload (docx/pdf/txt/md): download the bytes and reuse the same
+    // extractor a local upload uses. _extractDocText keys off the file name's
+    // extension, which Drive preserves.
+    var dl = await fetch('https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media&supportsAllDrives=true', { headers: hdr });
+    if (!dl.ok) throw new Error('Couldn\'t download that file (' + dl.status + ').');
+    var file = new File([await dl.blob()], name, { type: mime });
+    return { text: await _extractDocText(file), name: name };
+  }
+
+  // Chooser for the "⬆ Import doc" action: a file from the computer OR any
+  // Google Doc / Drive file by link. Resolves { text, name } (text in the shape
+  // _extractDocText returns), or null if the user cancels.
+  function _pickImportDoc() {
+    return new Promise(function (resolve) {
+      if (document.getElementById('import-doc-overlay')) { resolve(null); return; }
+      var ov = document.createElement('div');
+      ov.id = 'import-doc-overlay';
+      ov.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100000;display:flex;align-items:flex-start;justify-content:center;padding-top:8vh;font-family:Inter,sans-serif;';
+      ov.innerHTML =
+        '<div style="background:#fff;border-radius:12px;width:92%;max-width:520px;box-shadow:0 8px 30px rgba(0,0,0,0.25);">' +
+          '<div style="padding:16px 20px;border-bottom:1px solid #eee;display:flex;justify-content:space-between;align-items:center;">' +
+            '<h3 style="margin:0;font-size:15px;color:#8c1d40;">⬆ Import a document</h3>' +
+            '<button id="impdoc-x" style="border:none;background:none;font-size:20px;color:#999;cursor:pointer;">&times;</button>' +
+          '</div>' +
+          '<div style="padding:18px 20px;">' +
+            '<button id="impdoc-file" class="btn-add-row" style="width:100%;padding:12px;background:#8c1d40;color:#fff;border-color:#8c1d40;font-size:13px;">📁 Choose a file from your computer</button>' +
+            '<div style="font-size:11px;color:#999;margin-top:4px;text-align:center;">.docx, .pdf, .md, or .txt</div>' +
+            '<div style="display:flex;align-items:center;gap:10px;margin:16px 0;color:#bbb;font-size:11px;"><div style="flex:1;height:1px;background:#eee;"></div>OR<div style="flex:1;height:1px;background:#eee;"></div></div>' +
+            '<label style="font-size:12px;font-weight:600;color:#444;">Import from Google Drive</label>' +
+            '<div style="font-size:11px;color:#888;margin:2px 0 8px;">Paste a link to any Google Doc or Drive file you can open — including My Drive, not just the course\'s shared folder.</div>' +
+            '<input id="impdoc-url" type="url" placeholder="https://docs.google.com/document/d/… or https://drive.google.com/file/d/…" style="width:100%;box-sizing:border-box;border:1px solid #ddd;border-radius:8px;padding:9px 10px;font-size:12px;" />' +
+            '<div id="impdoc-err" style="display:none;color:#c0392b;font-size:11px;margin-top:6px;line-height:1.4;"></div>' +
+          '</div>' +
+          '<div style="padding:12px 20px;border-top:1px solid #eee;display:flex;gap:8px;justify-content:flex-end;">' +
+            '<button id="impdoc-cancel" class="btn-add-row">Cancel</button>' +
+            '<button id="impdoc-go" class="btn-add-row" style="background:#8c1d40;color:#fff;border-color:#8c1d40;">Import from Google</button>' +
+          '</div>' +
+        '</div>';
+      document.body.appendChild(ov);
+      var done = false;
+      var close = function (val) { if (done) return; done = true; try { ov.remove(); } catch (e) {} resolve(val); };
+      var showErr = function (m) { var e = document.getElementById('impdoc-err'); if (e) { e.textContent = m; e.style.display = 'block'; } };
+      document.getElementById('impdoc-x').onclick = function () { close(null); };
+      document.getElementById('impdoc-cancel').onclick = function () { close(null); };
+      ov.addEventListener('click', function (e) { if (e.target === ov) close(null); });
+      document.getElementById('impdoc-file').onclick = function () {
+        var inp = document.createElement('input');
+        inp.type = 'file';
+        inp.accept = '.docx,.pdf,.md,.markdown,.txt';
+        inp.onchange = async function () {
+          var file = inp.files && inp.files[0];
+          if (!file) return;
+          try { close({ text: await _extractDocText(file), name: file.name }); }
+          catch (e) { showErr(e && e.message ? e.message : String(e)); }
+        };
+        inp.click();
+      };
+      var go = document.getElementById('impdoc-go');
+      var runGoogle = async function () {
+        var url = (document.getElementById('impdoc-url').value || '').trim();
+        if (!url) { showErr('Paste a Google Doc or Drive link first.'); return; }
+        go.disabled = true; var orig = go.textContent; go.textContent = '⏳ Loading…';
+        try {
+          var r = await _fetchDriveDocText(url);
+          if (!r.text || !r.text.trim()) throw new Error('That file appears to be empty.');
+          close(r);
+        } catch (e) {
+          showErr(e && e.message ? e.message : String(e));
+          go.disabled = false; go.textContent = orig;
+        }
+      };
+      go.onclick = runGoogle;
+      document.getElementById('impdoc-url').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); runGoogle(); } });
+      setTimeout(function () { var u = document.getElementById('impdoc-url'); if (u) u.focus(); }, 50);
+    });
+  }
+
   // Import a faculty instructions document into the active template via AI.
   async function importDocToTemplate(actId, moduleNum, explicitPrefix) {
     // The overview uses an 'ov-' prefix; the module-detail view uses the raw
@@ -12251,18 +12365,15 @@
     // raw table into "How You Will Be Graded".
     var hasRubric = (type === 'assignment' || type === 'discussion');
     var aiSections = hasRubric ? sections.concat(['Rubric']) : sections;
-    var inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = '.docx,.pdf,.md,.markdown,.txt';
-    inp.onchange = async function () {
-      var file = inp.files && inp.files[0];
-      if (!file) return;
+    var picked = await _pickImportDoc();
+    if (!picked) return;
+    (async function () {
       var importBtn = document.querySelector('[data-import-btn="' + prefix + '"]');
       var origLabel = importBtn ? importBtn.textContent : null;
       if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Reading…'; }
       try {
-        var docText = await _extractDocText(file);
-        if (!docText || !docText.trim()) throw new Error('No readable text found in that file.');
+        var docText = picked.text;
+        if (!docText || !docText.trim()) throw new Error('No readable text found in that document.');
         if (importBtn) importBtn.textContent = '⏳ AI sorting…';
         var prompt = 'A faculty member uploaded the document below describing a course ' + type + '. '
           + 'Organize its content into these syllabus/page sections (use the section names verbatim as JSON keys): '
@@ -12310,46 +12421,40 @@
         } else if (typeof renderModuleDetail === 'function' && currentViewId === 'module') {
           renderModuleDetail(currentModuleNum);
         }
-        alert('Imported "' + file.name + '" into ' + filled + ' template section' + (filled === 1 ? '' : 's') + '. Review and edit as needed.');
+        alert('Imported "' + picked.name + '" into ' + filled + ' template section' + (filled === 1 ? '' : 's') + '. Review and edit as needed.');
       } catch (e) {
         alert('Import failed: ' + (e && e.message ? e.message : e));
       } finally {
         if (importBtn) { importBtn.disabled = false; if (origLabel) importBtn.textContent = origLabel; }
       }
-    };
-    inp.click();
+    })();
   }
 
-  // Import a .docx / .pdf / .md / .txt of existing quiz questions and parse them
-  // straight into the quiz builder (no AI — uses the same parser as Batch paste).
+  // Import existing quiz questions from a .docx / .pdf / .md / .txt OR a Google
+  // Doc / Drive file and parse them straight into the quiz builder (no AI — uses
+  // the same parser as Batch paste).
   async function importDocToQuiz(prefix) {
     var builderId = prefix + '-quiz-builder';
     var bc = document.getElementById(builderId);
     if (bc && !bc.hasChildNodes()) { try { initQuizBuilder(bc); } catch (e) {} }
     if (!quizData[builderId]) { alert('Open the Quiz template first, then try the import.'); return; }
-    var inp = document.createElement('input');
-    inp.type = 'file';
-    inp.accept = '.docx,.pdf,.md,.markdown,.txt';
-    inp.onchange = async function () {
-      var file = inp.files && inp.files[0];
-      if (!file) return;
-      var importBtn = document.querySelector('[data-import-btn="' + prefix + '"]');
-      var orig = importBtn ? importBtn.textContent : null;
-      if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Reading…'; }
-      try {
-        var text = _htmlToPlainLines(await _extractDocText(file));
-        if (!text || !text.trim()) throw new Error('No readable text found in that file.');
-        var parsed = parseQuizText(text);
-        if (!parsed.length) throw new Error('Couldn\'t find quiz questions in that document. Check the formatting, or try Batch paste.');
-        var n = _applyParsedQuizQuestions(builderId, parsed);
-        alert('Imported ' + n + ' question' + (n === 1 ? '' : 's') + ' from "' + file.name + '". Review and edit below.');
-      } catch (e) {
-        alert('Import failed: ' + (e && e.message ? e.message : e));
-      } finally {
-        if (importBtn) { importBtn.disabled = false; if (orig) importBtn.textContent = orig; }
-      }
-    };
-    inp.click();
+    var picked = await _pickImportDoc();
+    if (!picked) return;
+    var importBtn = document.querySelector('[data-import-btn="' + prefix + '"]');
+    var orig = importBtn ? importBtn.textContent : null;
+    if (importBtn) { importBtn.disabled = true; importBtn.textContent = '⏳ Reading…'; }
+    try {
+      var text = _htmlToPlainLines(picked.text);
+      if (!text || !text.trim()) throw new Error('No readable text found in that document.');
+      var parsed = parseQuizText(text);
+      if (!parsed.length) throw new Error('Couldn\'t find quiz questions in that document. Check the formatting, or try Batch paste.');
+      var n = _applyParsedQuizQuestions(builderId, parsed);
+      alert('Imported ' + n + ' question' + (n === 1 ? '' : 's') + ' from "' + picked.name + '". Review and edit below.');
+    } catch (e) {
+      alert('Import failed: ' + (e && e.message ? e.message : e));
+    } finally {
+      if (importBtn) { importBtn.disabled = false; if (orig) importBtn.textContent = orig; }
+    }
   }
 
   // ===== CONTENT ATTACHMENT TABS =====
