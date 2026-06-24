@@ -99,7 +99,8 @@
   function _renderSignInGate() {
     var d = _overlay(
       '<div style="text-align:center; max-width:400px;">' +
-        '<h1 style="color:' + MAROON + '; font-size:26px; margin:0 0 6px;">CourseCompose</h1>' +
+        '<img src="asu-edplus-logo.png" alt="ASU EdPlus" style="width:210px; max-width:80%; height:auto; display:block; margin:0 auto 22px;" />' +
+        '<h1 style="color:' + MAROON + '; font-size:26px; margin:0 0 6px;">Course<span style="background:#FFC627; color:' + MAROON + '; padding:0 6px; border-radius:2px;">Compose</span></h1>' +
         '<p style="color:#666; margin:0 0 24px; font-size:14px; line-height:1.5;">Sign in with your ASU Google account to open your course worksheet.</p>' +
         '<button id="compose-ws-login-btn" style="background:' + MAROON + '; color:#fff; border:none; ' +
         'padding:12px 24px; border-radius:8px; font-size:15px; cursor:pointer;">Sign in with ASU Google</button>' +
