@@ -32,6 +32,7 @@ assumes the caller has already done that check.
 
 from __future__ import annotations
 
+import html
 import uuid
 from datetime import datetime, timezone
 from typing import Any, Dict, List
@@ -85,6 +86,22 @@ def _module_metadata(module: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _prepend_assessment_tags(html_body: str, activity: Dict[str, Any]) -> str:
+    """Place program-assessment tags (e.g. #NH_GR-NHBSTMS.LO1.M1_2261#) at the
+    very TOP of the Canvas description. ASU's assessment database captures tags
+    from roughly the first 4000 characters of the assignment/quiz description,
+    one tag per line, so each is emitted as its own paragraph ahead of the body.
+    No-op when the activity carries no tags."""
+    tags = activity.get("assessmentTags")
+    if not isinstance(tags, list):
+        return html_body or ""
+    clean = [str(t).strip() for t in tags if str(t).strip()]
+    if not clean:
+        return html_body or ""
+    tag_html = "".join(f"<p>{html.escape(t)}</p>" for t in clean)
+    return tag_html + (html_body or "")
+
+
 def _activity_metadata(activity: Dict[str, Any], module: Dict[str, Any]) -> Dict[str, Any]:
     return {
         "created_from_coursecompose": True,
@@ -95,6 +112,7 @@ def _activity_metadata(activity: Dict[str, Any], module: Dict[str, Any]) -> Dict
         "points": activity.get("points") or None,
         "due": activity.get("due") or None,
         "linked_material_ids": activity.get("linkedMaterialIds") or [],
+        "assessment_tags": activity.get("assessmentTags") or [],
     }
 
 
@@ -291,7 +309,7 @@ def ingest_bundle(supabase, handoff_row: Dict[str, Any], user_id: str) -> str:
                     canvas_id_prefix="activity",
                     title=title,
                     content_type=_normalize_content_type(activity.get("type")),
-                    html_body=activity.get("richText") or "",
+                    html_body=_prepend_assessment_tags(activity.get("richText") or "", activity),
                     item_metadata=_activity_metadata(activity, module),
                     position=position,
                     module_db_id=module_db_id,

@@ -4161,6 +4161,7 @@
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
           _buildContentCompleteBarHtml(id) +
+          _buildAssessmentTagHtml(id) +
           '<div class="content-top-actions">' +
             '<button class="content-action-btn" onclick="openAiFillModal(\'' + id + '\',' + moduleNum + ',_activeTplTypeFor(\'' + id + '\'))" title="Draft the template with AI from your worksheet data">✨ AI Generate</button>' +
             '<button class="content-action-btn" onclick="polishTemplate(\'' + id + '\',_activeTplTypeFor(\'' + id + '\'),this)" title="Improve clarity + formatting of what is already written, and move any misplaced content to the right field (with a review step)">✨ Polish &amp; reorganize</button>' +
@@ -9986,6 +9987,7 @@
     html += '<div class="content-attach" id="attach-' + id + '" style="margin-top:0;">';
     html += '<div class="content-attach-inner open" style="display:block;">';
     html += _buildContentCompleteBarHtml(id);
+    html += _buildAssessmentTagHtml(id);
     // Top action row — the template is the main page; AI Generate + Import sit
     // above it, and Upload/Link/Materials are the "attach" tabs below.
     html += '<div class="content-top-actions">';
@@ -15070,6 +15072,30 @@
     }
   }
   window.generateQuizOverview = generateQuizOverview;
+
+  // Program-assessment tags for an activity (e.g. #NH_GR-NHBSTMS.LO1.M1_2261#).
+  // Stored as an array of plain-text tags; Curate prepends them, one per line,
+  // to the TOP of the Canvas assignment/quiz description so ASU's assessment
+  // database captures them (it reads the first ~4000 chars of the description).
+  function _buildAssessmentTagHtml(actId) {
+    var tags = '';
+    try { var inf = _itemForContentPrefix(actId); if (inf && inf.item && Array.isArray(inf.item.assessmentTags)) tags = inf.item.assessmentTags.join('\n'); } catch (e) {}
+    var open = tags.trim() ? ' open' : '';
+    return '<details class="template-section template-collapsible"' + open + '>' +
+      '<summary class="template-section-label">Program Assessment Tag(s) <span style="font-weight:400; color:#888; font-size:11px;">— Optional · placed at the top of the Canvas description for outcome tracking</span></summary>' +
+      '<div style="margin-top:8px;">' +
+      '<div class="field-hint" style="margin-bottom:6px;">One tag per line, e.g. <code>#NH_GR-NHBSTMS.LO1.M1_2261#</code>. Pasted as plain text at the very top of the Canvas description so the program-assessment database captures them.</div>' +
+      '<textarea class="activity-input" data-no-autogrow="1" rows="2" placeholder="#NH_GR-...#" oninput="saveAssessmentTags(\'' + actId + '\', this.value)" style="width:100%; box-sizing:border-box; font-family:ui-monospace,Menlo,monospace; font-size:12px; resize:vertical; min-height:42px;">' + escapeHtml(tags) + '</textarea>' +
+      '</div></details>';
+  }
+  function saveAssessmentTags(actId, val) {
+    var info = _itemForContentPrefix(actId);
+    if (!info || !info.item) return;
+    info.item.assessmentTags = String(val || '').split(/\r?\n/).map(function(t) { return t.trim(); }).filter(Boolean);
+    saveActivityData();
+    if (typeof broadcastItemUpdate === 'function') { try { broadcastItemUpdate('activity', info.modNum, info.item); } catch (e) {} }
+  }
+  window.saveAssessmentTags = saveAssessmentTags;
 
   // Persist the per-activity "Estimated time on task" value (plain string).
   function saveEstTime(actId, val) {

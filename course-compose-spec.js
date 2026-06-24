@@ -183,6 +183,10 @@
           points: a.points || '',
           due: a.due || '',
           estimatedTime: a.estimatedTime || '',
+          // Program-assessment outcome tags (e.g. #NH_GR-NHBSTMS.LO1.M1_2261#).
+          // Curate prepends these, one per line, to the TOP of the Canvas
+          // assignment/quiz description so ASU's assessment DB captures them.
+          assessmentTags: (a.assessmentTags || []).slice(),
           objectives: (a.objectives || []).slice(),
           contentComplete: !!a.contentComplete,
           editToken: a.editToken,
