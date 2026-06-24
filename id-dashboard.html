@@ -3686,6 +3686,9 @@
     loadCoursePhaseTotals();
     setInterval(loadWorksheetSessions, 120000); // refresh every 2 min
     setInterval(loadCoursePhaseTotals, 120000);
+    // Pending access requests (faculty asking to be let into a course) → banner.
+    try { loadAccessRequestsBanner(); } catch(e) {}
+    setInterval(function(){ try { loadAccessRequestsBanner(); } catch(e){} }, 120000);
   })();
 
   // ===== LIVE SYNC =====
@@ -6392,6 +6395,54 @@
     var ok = await window.ComposeGrants.revoke(grantId);
     if (!ok) { alert('Could not remove access. Try again, or check you are signed in.'); return; }
     _renderSigninAccess(courseId);
+  }
+
+  // ===== ACCESS REQUESTS (from the worksheet "request access" page) =====
+  // Pending requests for the owner's courses show in a banner under the top nav;
+  // Approve creates the grant, Dismiss removes the request. RLS scopes the list to
+  // courses the signed-in owner actually owns, so it's empty for everyone else.
+  async function loadAccessRequestsBanner() {
+    if (!window.ComposeGrants || !window.ComposeGrants.listAccessRequests) return;
+    var reqs = [];
+    try { reqs = await window.ComposeGrants.listAccessRequests(); } catch (e) { reqs = []; }
+    var bar = document.getElementById('access-requests-bar');
+    if (!reqs.length) { if (bar) bar.remove(); return; }
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'access-requests-bar';
+      var nav = document.querySelector('.topnav');
+      if (nav) nav.insertAdjacentElement('afterend', bar);
+      else document.body.insertBefore(bar, document.body.firstChild);
+    }
+    bar.style.cssText = 'background:#fff8e1; border-bottom:1px solid #ffe082; padding:9px 20px; font-family:Inter,sans-serif;';
+    var esc = function (s) { return String(s == null ? '' : s).replace(/</g, '&lt;'); };
+    var rows = reqs.map(function (r) {
+      var who = (r.name && r.name.trim()) ? (esc(r.name) + ' (' + esc(r.email) + ')') : esc(r.email);
+      var code = esc(String(r.course_id || '').toUpperCase());
+      var ee = encodeURIComponent(r.email);
+      return '<div style="display:flex; align-items:center; gap:8px; padding:5px 0; font-size:13px; flex-wrap:wrap;">' +
+        '<span style="flex:1; min-width:200px;"><strong>' + who + '</strong> requested access to <strong>' + code + '</strong></span>' +
+        '<button onclick="approveAccessRequest(\'' + r.id + '\',\'' + r.course_id + '\',\'' + ee + '\',\'instructor\')" style="background:#8c1d40; color:#fff; border:none; padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer;">Approve as Faculty</button>' +
+        '<button onclick="approveAccessRequest(\'' + r.id + '\',\'' + r.course_id + '\',\'' + ee + '\',\'reviewer\')" style="background:#fff; color:#8c1d40; border:1px solid #8c1d40; padding:5px 12px; border-radius:6px; font-size:12px; cursor:pointer;">as Reviewer</button>' +
+        '<button onclick="dismissAccessRequest(\'' + r.id + '\')" title="Dismiss" style="background:none; border:none; color:#c0392b; font-size:13px; cursor:pointer;">Dismiss</button>' +
+      '</div>';
+    }).join('');
+    bar.innerHTML = '<div style="font-weight:600; color:#8c1d40; font-size:12px; margin-bottom:3px;">🔔 Access requests (' + reqs.length + ')</div>' + rows;
+  }
+
+  async function approveAccessRequest(id, courseId, emailEnc, role) {
+    var email = decodeURIComponent(emailEnc);
+    var res = await window.ComposeGrants.resolveAccessRequest(id, { approve: true, courseId: courseId, email: email, role: role });
+    if (!res || !res.ok) { alert('Could not approve: ' + ((res && res.error) || 'error')); return; }
+    loadAccessRequestsBanner();
+    // Refresh the Course Info modal's access list if it's open on this course.
+    try { if (document.getElementById('edit-course-overlay').classList.contains('open')) renderEditCourseFacultyAccess(courseId); } catch (e) {}
+  }
+
+  async function dismissAccessRequest(id) {
+    var res = await window.ComposeGrants.resolveAccessRequest(id, { approve: false });
+    if (!res || !res.ok) { alert('Could not dismiss the request.'); return; }
+    loadAccessRequestsBanner();
   }
 
   // ===== EMAIL TEMPLATE DROPDOWN =====

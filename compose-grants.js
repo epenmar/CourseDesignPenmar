@@ -104,6 +104,51 @@
     } catch (e) { console.warn('[compose-grants] myCourses failed:', e && e.message); return []; }
   }
 
+  // ----- access requests (denial page → owner's dashboard) -----
+  // A signed-in person with no grant asks for access to a course. Stored in
+  // access_requests; the course owner sees it on the dashboard and approves
+  // (→ grant) or dismisses. RLS lets a requester file only for their own email.
+  async function requestAccess(courseId) {
+    if (!enabled() || !courseId) return { ok: false, error: 'unavailable' };
+    var sb = _client(); var email = _myEmail();
+    if (!sb || !email) return { ok: false, error: 'sign in first' };
+    var name = (window.ComposeAuth && window.ComposeAuth.profile && window.ComposeAuth.profile.full_name) || '';
+    try {
+      var resp = await sb.from('access_requests')
+        .upsert({ course_id: courseId, email: email, name: name, status: 'pending' },
+                { onConflict: 'course_id,email' });
+      if (resp && resp.error) return { ok: false, error: resp.error.message };
+      return { ok: true };
+    } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  }
+
+  // Owner/admin: pending requests across the courses they own (RLS scopes them).
+  async function listAccessRequests() {
+    var sb = _client(); if (!sb) return [];
+    try {
+      var resp = await sb.from('access_requests')
+        .select('id,course_id,email,name,created_at')
+        .eq('status', 'pending').order('created_at', { ascending: true });
+      if (resp && resp.error) { console.warn('[compose-grants] listAccessRequests:', resp.error.message); return []; }
+      return (resp && resp.data) || [];
+    } catch (e) { console.warn('[compose-grants] listAccessRequests failed:', e && e.message); return []; }
+  }
+
+  // Approve (creates the grant) or dismiss a request, then remove it.
+  async function resolveAccessRequest(id, opts) {
+    opts = opts || {};
+    var sb = _client(); if (!sb || !id) return { ok: false };
+    try {
+      if (opts.approve) {
+        var g = await grant(opts.courseId, opts.email, opts.role === 'reviewer' ? 'reviewer' : 'instructor');
+        if (!g || !g.ok) return { ok: false, error: (g && g.error) || 'grant failed' };
+      }
+      var resp = await sb.from('access_requests').delete().eq('id', id);
+      if (resp && resp.error) return { ok: false, error: resp.error.message };
+      return { ok: true };
+    } catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
+  }
+
   window.ComposeGrants = {
     enabled: enabled,
     grant: grant,
@@ -111,5 +156,8 @@
     revoke: revoke,
     myGrantFor: myGrantFor,
     myCourses: myCourses,
+    requestAccess: requestAccess,
+    listAccessRequests: listAccessRequests,
+    resolveAccessRequest: resolveAccessRequest,
   };
 })();

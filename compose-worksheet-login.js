@@ -112,10 +112,20 @@
   function _renderPicker(requestedCourse, courses) {
     var roleLabel = { instructor: 'Edit access', reviewer: 'Comment only' };
     var body;
+    // When they came in on a specific course they can't open, offer to request it.
+    var requestBlock = requestedCourse
+      ? '<div id="ws-req-block" style="margin:0 0 16px;">' +
+          '<button id="ws-req-btn" style="background:' + MAROON + '; color:#fff; border:none; padding:10px 18px; ' +
+            'border-radius:8px; font-size:14px; cursor:pointer;">Request access to ' +
+            String(requestedCourse).toUpperCase().replace(/</g, '&lt;') + '</button>' +
+          '<div id="ws-req-msg" style="font-size:12px; color:#666; margin-top:8px; min-height:14px;"></div>' +
+        '</div>'
+      : '';
     if (!courses || !courses.length) {
-      body = '<p style="color:#666; margin:0 0 20px; font-size:14px; line-height:1.5;">' +
-        'You don’t have access to a course worksheet yet. Ask your instructional designer to add you, ' +
-        'then sign in again.</p>';
+      body = '<p style="color:#666; margin:0 0 16px; font-size:14px; line-height:1.5;">' +
+        'You don’t have access to a course worksheet yet.' +
+        (requestedCourse ? ' You can request it below, or ask' : ' Ask') +
+        ' your instructional designer to add you.</p>' + requestBlock;
     } else {
       var note = requestedCourse
         ? '<p style="color:#a33; margin:0 0 16px; font-size:13px;">You don’t have access to that course. Choose one you can open:</p>'
@@ -130,7 +140,7 @@
           '<span style="color:#999; font-size:12px;">' + (roleLabel[c.role] || c.role) + '</span>' +
         '</button>';
       }).join('');
-      body = note + '<div style="max-height:50vh; overflow:auto;">' + items + '</div>';
+      body = note + requestBlock + '<div style="max-height:50vh; overflow:auto;">' + items + '</div>';
     }
     var d = _overlay(
       '<div style="text-align:center; max-width:420px; width:100%;">' +
@@ -145,6 +155,20 @@
     });
     var sw = d.querySelector('#compose-ws-switch');
     if (sw) sw.onclick = switchAccount;
+    var reqBtn = d.querySelector('#ws-req-btn');
+    if (reqBtn) reqBtn.onclick = async function () {
+      var msg = d.querySelector('#ws-req-msg');
+      reqBtn.disabled = true;
+      if (msg) { msg.style.color = '#666'; msg.textContent = 'Sending…'; }
+      var res = window.ComposeGrants ? await window.ComposeGrants.requestAccess(requestedCourse) : { ok: false, error: 'unavailable' };
+      if (res && res.ok) {
+        reqBtn.style.display = 'none';
+        if (msg) { msg.style.color = '#2e7d32'; msg.textContent = '✓ Request sent to your course designer. You’ll get access once they approve it.'; }
+      } else {
+        reqBtn.disabled = false;
+        if (msg) { msg.style.color = '#c0392b'; msg.textContent = 'Could not send: ' + ((res && res.error) || 'unknown error'); }
+      }
+    };
   }
 
   // ---------- masquerade / preview-as ----------
