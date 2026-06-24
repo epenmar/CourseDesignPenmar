@@ -1127,21 +1127,20 @@
   <!-- SIDEBAR -->
   <div class="sidebar">
     <div class="sidebar-header" style="position:relative;">
-      <div style="display:flex; align-items:start; justify-content:space-between;">
-        <div>
-          <h2>COURSECOMPOSE</h2>
-          <div class="course-name">MNS 521 — AI Technologies</div>
-        </div>
-        <div style="display:flex; flex-direction:column; gap:4px; align-items:flex-end;">
-          <div style="display:flex; gap:2px; align-items:center;" id="ws-header-icons">
-            <button class="comment-btn" id="ws-invite-btn" title="Invite / add a user to this course" onclick="ComposeWorksheetLogin.toggleInvite()" style="display:none;">👤</button>
-            <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
-            <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
-              💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
-            </button>
-          </div>
-          <button class="comment-btn" title="Find &amp; Replace (Ctrl+Shift+F)" onclick="openFindReplace()">🔍</button>
-        </div>
+      <div>
+        <h2>COURSECOMPOSE</h2>
+        <div class="course-name">MNS 521 — AI Technologies</div>
+      </div>
+      <!-- Header toolbar: full-width wrapping row below the title so adding icons
+           (e.g. the owner 👤 invite button) never crushes the course name. The
+           invite popup anchors to this container (position:relative). -->
+      <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap; margin-top:10px; position:relative;" id="ws-header-icons">
+        <button class="comment-btn" id="ws-invite-btn" title="Invite / add a user to this course" onclick="ComposeWorksheetLogin.toggleInvite()" style="display:none;">👤</button>
+        <a id="sidebar-drive-link" href="#" target="_blank" title="Open Google Drive folder" class="comment-btn" style="display:none; padding:4px 6px; text-decoration:none;"><img src="gdrive-icon.png" width="20" height="17" alt="Google Drive" style="display:block;"></a>
+        <button class="comment-btn" id="global-comment-btn" title="All comments in this course" onclick="openAllCommentsPanel()">
+          💬 <span class="comment-count" id="global-comment-count" style="display:none;">0</span>
+        </button>
+        <button class="comment-btn" title="Find &amp; Replace (Ctrl+Shift+F)" onclick="openFindReplace()">🔍</button>
       </div>
       <div id="cloud-sync-indicator" style="font-size:10px; color:#2e7d32; margin-top:4px; min-height:12px;"></div>
       <div id="presence-bar" style="display:none; margin-top:8px; padding:6px 8px; background:rgba(255,255,255,0.08); border-radius:6px; font-size:11px; color:#ccc;">
