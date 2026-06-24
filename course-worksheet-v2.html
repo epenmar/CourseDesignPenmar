@@ -1067,9 +1067,9 @@
   .comment-date { font-size: 10px; color: #999; }
   .comment-text { font-size: 13px; line-height: 1.5; color: #333; overflow-wrap: anywhere; word-break: break-word; white-space: pre-wrap; }
   .comment-text a, .comment-link { color: #8c1d40; text-decoration: underline; overflow-wrap: anywhere; word-break: break-all; }
-  .comment-actions { margin-top: 6px; display: flex; gap: 8px; }
-  .comment-action-btn { border: none; background: none; font-size: 11px; color: #888; cursor: pointer; padding: 2px 0; }
-  .comment-action-btn:hover { color: #8c1d40; }
+  .comment-actions { margin-top: 6px; display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .comment-action-btn { border: 1px solid #e0ddd5; background: #fff; font-size: 11px; color: #666; cursor: pointer; padding: 3px 9px; border-radius: 6px; font-family: 'Inter', sans-serif; transition: all 0.15s; }
+  .comment-action-btn:hover { color: #8c1d40; border-color: #8c1d40; }
   .comment-input-area { padding: 12px 16px; border-top: 1px solid #e0ddd5; }
   .comment-input-row { display: flex; gap: 8px; }
   .comment-input { flex: 1; padding: 10px 14px; border: 1px solid #e0ddd5; border-radius: 8px; font-size: 13px; font-family: 'Inter', sans-serif; resize: none; min-height: 40px; }
@@ -24710,7 +24710,12 @@
     if (typeof applyFieldCommentIndicators === 'function') applyFieldCommentIndicators();
 
     try {
-      var resp = await supabaseClient.from('comments').update({ resolved: true }).eq('id', commentId);
+      // Resolve the comment AND any replies threaded under it — resolving a root
+      // closes the whole conversation. (If commentId is itself a reply,
+      // parent_id.eq.<id> matches nothing, so only that reply resolves.)
+      var resp = await supabaseClient.from('comments').update({ resolved: true })
+        .eq('course_id', courseId)
+        .or('id.eq.' + commentId + ',parent_id.eq.' + commentId);
       // Supabase resolves the await even on RLS / validation errors —
       // the error rides in resp.error rather than being thrown. Surface
       // it explicitly so a silent failure doesn't masquerade as success.
