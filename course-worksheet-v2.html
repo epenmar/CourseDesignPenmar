@@ -24265,6 +24265,7 @@
         .order('created_at', { ascending: false });
       if (error) throw error;
       window._allCommentsData = data || [];
+      _currentReplyInfo = await _fetchReplyInfo((data || []).map(function(c) { return c.id; }));
       renderAllComments(window._allCommentsData);
     } catch(e) {
       console.error('Failed to load all comments:', e);
@@ -24351,6 +24352,33 @@
     }
   }
 
+  // Reply summary per root comment (id -> {count, lastAuthor, lastRole}), so the
+  // list views can flag "💬 N replies" — otherwise a faculty reply is invisible
+  // until you open that exact thread. Read by renderCommentItem.
+  var _currentReplyInfo = {};
+  async function _fetchReplyInfo(rootIds) {
+    var info = {};
+    if (!supabaseClient || !rootIds || !rootIds.length) return info;
+    try {
+      const { data, error } = await supabaseClient
+        .from('comments')
+        .select('id,parent_id,author_name,author_role,deleted_at,created_at')
+        .eq('course_id', courseId)
+        .in('parent_id', rootIds)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+      (data || []).forEach(function(rp) {
+        if (rp.deleted_at) return;
+        var k = rp.parent_id;
+        if (!info[k]) info[k] = { count: 0, lastAuthor: '', lastRole: '' };
+        info[k].count++;
+        info[k].lastAuthor = rp.author_name || '';
+        info[k].lastRole = rp.author_role || '';
+      });
+    } catch (e) { console.warn('[comments] reply-info fetch failed:', e && e.message); }
+    return info;
+  }
+
   async function loadComments(sectionId, highlightId) {
     const msgContainer = document.getElementById('comment-messages');
     msgContainer.innerHTML = '<div class="comment-empty">Loading...</div>';
@@ -24371,6 +24399,7 @@
           .or('id.eq.' + highlightId + ',parent_id.eq.' + highlightId)
           .order('created_at', { ascending: true });
         if (error) throw error;
+        _currentReplyInfo = {}; // thread view already shows the replies
         renderComments(data || [], true);
       } else {
         // Load section-level comments (no parent, no highlight) + highlight roots for this section
@@ -24383,6 +24412,7 @@
           .order('created_at', { ascending: true });
         if (error) throw error;
         commentCache[sectionId] = data || [];
+        _currentReplyInfo = await _fetchReplyInfo((data || []).map(function(c) { return c.id; }));
         renderComments(data || [], false);
         updateCommentCounts();
       }
@@ -24458,6 +24488,17 @@
     if (isDeleted) statusTag = '<span style="font-size:10px;color:#c62828;font-style:italic;">Deleted</span>';
     else if (c.resolved) statusTag = '<span style="font-size:11px;color:#4caf50;">Resolved</span>';
 
+    // Reply badge — flags faculty/reviewer responses in the list views so they
+    // aren't invisible until you open the exact thread.
+    let replyBadge = '';
+    const ri = (!isThread && _currentReplyInfo) ? _currentReplyInfo[c.id] : null;
+    if (ri && ri.count) {
+      const firstName = ri.lastAuthor ? escapeHtml(String(ri.lastAuthor).split(/\s+/)[0]) : '';
+      const roleWord = ri.lastRole === 'instructor' ? 'Faculty' : ri.lastRole === 'reviewer' ? 'Reviewer' : ri.lastRole === 'id' ? 'ID' : '';
+      const label = ri.count + ' repl' + (ri.count === 1 ? 'y' : 'ies') + (firstName ? ' · latest from ' + firstName + (roleWord ? ' (' + roleWord + ')' : '') : '');
+      replyBadge = '<div class="comment-reply-badge" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')" title="Open this thread to read the replies" style="margin-top:6px;display:inline-flex;align-items:center;gap:5px;cursor:pointer;background:#8c1d40;color:#fff;font-size:11px;font-weight:600;padding:3px 9px;border-radius:11px;">💬 ' + label + '</div>';
+    }
+
     return '<div class="comment-item' + (c.resolved ? ' resolved' : '') + (isDeleted ? ' resolved' : '') + '">' +
       '<div class="comment-meta">' +
         '<span class="comment-author">' + escapeHtml(c.author_name) + '<span class="role-tag ' + roleClass + '">' + roleLabel + '</span></span>' +
@@ -24465,6 +24506,7 @@
       '</div>' +
       highlightBadge +
       '<div class="comment-text" id="ctext-' + c.id + '"' + (isDeleted ? ' style="font-style:italic;color:#999;"' : '') + '>' + (isDeleted ? '<em>This comment was deleted.</em>' : _linkifyComment(c.content)) + '</div>' +
+      replyBadge +
       '<div class="comment-actions">' +
         (!isThread && c.highlight_text && !isDeleted ? '<button class="comment-action-btn" onclick="openCommentPanel(\'' + c.section_id + '\',\'' + c.id + '\')">Reply</button>' : '') +
         (!isDeleted && c.section_id ? '<button class="comment-action-btn" onclick="navigateToCommentInContext(\'' + c.section_id + '\',\'' + (c.id || '') + '\')">View in context</button>' : '') +
