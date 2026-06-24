@@ -24287,7 +24287,7 @@
     var inputArea = document.getElementById('comment-input-area');
     var msgContainer = document.getElementById('comment-messages');
 
-    titleEl.textContent = 'All Comments';
+    titleEl.textContent = showingHistory ? 'All Comments — Resolved' : 'All Comments';
     panel.classList.add('open');
     var _vaBtn = document.getElementById('comment-viewall-btn');
     if (_vaBtn) _vaBtn.style.display = 'none'; // already viewing all
@@ -24301,7 +24301,7 @@
         .select('*')
         .eq('course_id', courseId)
         .is('parent_id', null)
-        .is('resolved', false)
+        .is('resolved', showingHistory ? true : false)
         .is('deleted_at', null)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -24317,7 +24317,7 @@
   function renderAllComments(comments) {
     var msgContainer = document.getElementById('comment-messages');
     if (!comments || comments.length === 0) {
-      msgContainer.innerHTML = '<div class="comment-empty">No active comments in this course.</div>';
+      msgContainer.innerHTML = '<div class="comment-empty">' + (showingHistory ? 'No resolved comments in this course.' : 'No active comments in this course.') + '</div>';
       return;
     }
     // Group by section
@@ -24390,6 +24390,10 @@
     if (btn) btn.classList.toggle('active', showingHistory);
     if (currentCommentSection) {
       loadComments(currentCommentSection, currentHighlightCommentId);
+    } else {
+      // All-Comments view: re-query honoring showingHistory (the global view
+      // otherwise only ever loads active comments, so History looked dead).
+      openAllCommentsPanel();
     }
   }
 
