@@ -8771,7 +8771,7 @@
   // is stripped by DOMPurify. Same sanitizer is used for the typing
   // indicator so the call shape stays uniform.
   var AI_HTML_ALLOWED = {
-    ALLOWED_TAGS: ['br', 'strong', 'em', 'b', 'i', 'u', 'ul', 'ol', 'li', 'p', 'span', 'code', 'pre', 'h3', 'h4'],
+    ALLOWED_TAGS: ['br', 'strong', 'em', 'b', 'i', 'u', 'ul', 'ol', 'li', 'p', 'div', 'span', 'code', 'pre', 'h1', 'h2', 'h3', 'h4'],
     ALLOWED_ATTR: ['class', 'style']
   };
   function sanitizeAIHtml(html) {
@@ -17785,9 +17785,9 @@
       html += '<div style="margin:2px 0 10px 34px;">';
       if (_ovStored) {
         var _ovSafe = (typeof sanitizeAIHtml === 'function') ? sanitizeAIHtml(_ovStored) : _ovStored;
-        html += '<details class="cp-ov-gen"><summary>✓ Overview page generated — preview / regenerate</summary>';
-        html += '<div class="cp-ov-body">' + _ovSafe + '</div>';
-        html += '<div class="cp-ov-actions"><button class="cp-gen-btn" onclick="generateModuleOverview(' + mod.number + ', this)">✨ Regenerate</button></div>';
+        html += '<details class="cp-ov-gen" open><summary>✓ Overview page — click the text to edit, or regenerate</summary>';
+        html += '<div class="cp-ov-body" contenteditable="true" spellcheck="true" data-ov-module="' + mod.number + '" oninput="scheduleOverviewSave(' + mod.number + ', this)" onblur="saveOverviewEdit(' + mod.number + ', this)" style="border:1px solid #e0ddd5; border-radius:6px; padding:10px 12px; background:#fff; outline:none; min-height:40px;">' + _ovSafe + '</div>';
+        html += '<div class="cp-ov-actions"><span style="font-size:11px; color:#999; margin-right:8px;">Edits save automatically.</span><button class="cp-gen-btn" onclick="generateModuleOverview(' + mod.number + ', this)">✨ Regenerate</button></div>';
         html += '</details>';
       } else {
         html += '<button class="cp-gen-btn" onclick="generateModuleOverview(' + mod.number + ', this)" title="Generate the Overview page (intro paragraph, objectives, student to-do list) from this module\'s content">✨ Generate overview page</button>';
@@ -17982,17 +17982,29 @@
         return '- ' + (a.name || 'Activity') + (a.type ? ' [' + a.type + ']' : '') + (ov ? ': ' + ov.slice(0, 180) : '');
       }).join('\n') + '\n';
       if (mats.length) ctx += '\nLearning materials this module:\n' + mats.map(function(m) { return '- ' + (m.title || m.type || 'material') + (m.type ? ' (' + m.type + ')' : ''); }).join('\n') + '\n';
-      var p = 'Write the student-facing OVERVIEW PAGE for this course module as HTML, in three parts:\n'
-        + '1. An intro paragraph in a <p> (3-5 sentences, second person) on what the module covers and why it matters.\n'
-        + '2. <p><strong>What you will be able to do</strong></p> then a <ul> of the module objectives (use the MLOs; you may phrase as "you will…" but keep the meaning). One <li> per objective.\n'
-        + '3. <p><strong>Your to-do list</strong></p> then a <ul> of the concrete steps to complete this module (review the readings/videos, take part in the discussion, complete each assignment/quiz). Derive these ONLY from the materials and assignments listed; do NOT invent items or add due dates.\n\n'
-        + 'Encouraging, concise, second person. Never use em-dashes. Return ONLY the HTML, no commentary or code fences.\n\n=== MODULE CONTENT ===\n' + ctx;
+      // The AI writes only the Overview and To-Do List sections; the Learning
+      // Objectives section is built in code from the module's MLOs (copied
+      // verbatim) so it always matches the module overview page exactly.
+      var p = 'Write the student-facing OVERVIEW PAGE for this course module as HTML, in TWO sections, each beginning with an <h2> heading:\n'
+        + '1. <h2>Overview</h2> then an intro <p> (3-5 sentences, second person) on what the module covers and why it matters.\n'
+        + '2. <h2>To-Do List</h2> then a <ul> of the concrete steps to complete this module (review the readings/videos, take part in the discussion, complete each assignment/quiz). Derive these ONLY from the materials and assignments listed; do NOT invent items or add due dates.\n\n'
+        + 'Do NOT write a Learning Objectives section — it is added separately. Encouraging, concise, second person. Never use em-dashes. Return ONLY the HTML for those two sections, no commentary or code fences.\n\n=== MODULE CONTENT ===\n' + ctx;
       var raw = await callCreateAI(p, 'You write welcoming, well-structured Canvas module Overview pages for students. Use only the provided content; never invent assignments or due dates; never use em-dashes.', 1500);
       var clean = (typeof _cleanAiHtml === 'function') ? _cleanAiHtml(raw) : String(raw || '').trim();
       if (!clean) throw new Error('AI returned no content.');
+      // Build the Learning Objectives section from the module's MLOs, verbatim.
+      var _esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s){ return String(s); };
+      var _loItems = (mlos && mlos.length)
+        ? mlos.map(function(o){ return '<li>' + _esc(String(o).trim()) + '</li>'; }).join('\n')
+        : '<li>(No module objectives yet — add them on the module overview page)</li>';
+      var _loSection = '<h2>Learning Objectives</h2>\n<ul>\n' + _loItems + '\n</ul>\n';
+      // Insert it right before the To-Do List heading (so the order is
+      // Overview → Learning Objectives → To-Do List); fall back to appending.
+      var _todoIdx = clean.search(/<h2[^>]*>\s*to-?\s*do\b/i);
+      var assembled = (_todoIdx >= 0) ? (clean.slice(0, _todoIdx) + _loSection + clean.slice(_todoIdx)) : (clean + '\n' + _loSection);
       var all = loadField('moduleOverviewData') || {};
       if (!all[modNum]) all[modNum] = {};
-      all[modNum].overviewPageHtml = clean;
+      all[modNum].overviewPageHtml = assembled;
       saveField('moduleOverviewData', all);
       // In batch mode the caller re-renders ONCE at the end. Re-rendering here
       // per-module would detach the "Generate all" button mid-loop and kill its
@@ -18003,6 +18015,25 @@
       alert('Generate failed: ' + (e && e.message ? e.message : e));
       if (btn) { btn.disabled = false; if (orig) btn.textContent = orig; }
     }
+  };
+
+  // Editable Overview page: persist inline edits to moduleOverviewData[mod].
+  // overviewPageHtml. Debounced on input, flushed on blur. We never re-render the
+  // editor while typing (that would move the caret), so the stored copy is the
+  // sanitized HTML and the next full Canvas-Plan render reflects it.
+  var _ovEditTimers = {};
+  window.scheduleOverviewSave = function(modNum, el) {
+    clearTimeout(_ovEditTimers[modNum]);
+    _ovEditTimers[modNum] = setTimeout(function(){ window.saveOverviewEdit(modNum, el); }, 700);
+  };
+  window.saveOverviewEdit = function(modNum, el) {
+    if (!el) return;
+    clearTimeout(_ovEditTimers[modNum]);
+    var clean = (typeof sanitizeAIHtml === 'function') ? sanitizeAIHtml(el.innerHTML) : el.innerHTML;
+    var all = loadField('moduleOverviewData') || {};
+    if (!all[modNum]) all[modNum] = {};
+    all[modNum].overviewPageHtml = clean;
+    saveField('moduleOverviewData', all);
   };
 
   window.generateAllModuleOverviews = async function(btn) {
