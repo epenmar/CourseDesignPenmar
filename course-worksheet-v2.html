@@ -2770,20 +2770,31 @@
     }
   } catch(e) {}
 
-  // ===== ONE-TIME MIGRATION: reseed module data from hardcoded config =====
+  // ===== ONE-TIME MIGRATION: seed module data from hardcoded config =====
+  // NON-DESTRUCTIVE. The old version REBUILT moduleOverviewData from
+  // activeCourse.modules, whose titles are the generic "Module N" placeholders
+  // (user_courses stores generic titles; the real titles live only in
+  // moduleOverviewData.topic). That clobbered real topics with "Module N", and
+  // because it didn't bump __modifiedAt the stale-local value won the cloud merge
+  // tie and propagated the corruption to the cloud. Now we ONLY seed modules that
+  // are entirely missing, NEVER overwrite an existing entry, and NEVER write a
+  // generic "Module N" as a topic (empty is correct for a blank module).
   (function() {
-    var migrationKey = 'mlo_migration_v2_' + courseId;
+    var migrationKey = 'mlo_migration_v3_' + courseId;
     if (!localStorage.getItem(migrationKey)) {
-      // Rebuild moduleOverviewData inside the worksheet storage bucket
       if (activeCourse.modules && activeCourse.modules.length > 0) {
-        var freshData = {};
-        for (var i = 0; i < activeCourse.modules.length; i++) {
-          var m = activeCourse.modules[i];
-          freshData[i + 1] = { topic: m.title || '', mlos: (m.mlos || []).slice() };
-        }
         var sk = 'worksheet_' + (courseId || 'default');
         var bucket = JSON.parse(localStorage.getItem(sk) || '{}');
-        bucket['moduleOverviewData'] = freshData;
+        var mov = (bucket.moduleOverviewData && typeof bucket.moduleOverviewData === 'object') ? bucket.moduleOverviewData : {};
+        for (var i = 0; i < activeCourse.modules.length; i++) {
+          var m = activeCourse.modules[i];
+          var key = String(i + 1);
+          if (mov[key] && typeof mov[key] === 'object') continue; // never touch an existing module
+          var t = (m.title || '').trim();
+          if (/^module\s*\d+$/i.test(t)) t = '';                  // never seed a generic title as a topic
+          mov[key] = { topic: t, mlos: (m.mlos || []).slice() };
+        }
+        bucket.moduleOverviewData = mov;
         localStorage.setItem(sk, JSON.stringify(bucket));
       }
       localStorage.setItem(migrationKey, '1');
@@ -7985,6 +7996,16 @@
     Object.keys(lVal).forEach(function(k) { modKeys[k] = true; });
     Object.keys(cVal).forEach(function(k) { modKeys[k] = true; });
     var ovText = function(m) { return (m && m.overviewPageHtml && String(m.overviewPageHtml).trim()) ? m.overviewPageHtml : ''; };
+    // A generic "Module N" (or empty) topic is never real user content — it's a
+    // stale reseed artifact — so it must never overwrite a real topic, regardless
+    // of timestamp. (This is what lets a good cloud topic beat a corrupted local
+    // one and self-heal.)
+    var isGenericTopic = function(t, modKey) {
+      t = (t == null ? '' : String(t)).trim();
+      if (!t) return true;
+      if (new RegExp('^module\\s*' + modKey + '$', 'i').test(t)) return true;
+      return /^module\s*\d+$/i.test(t);
+    };
     Object.keys(modKeys).forEach(function(k) {
       var lm = lVal[k], cm = cVal[k];
       if (!lm || typeof lm !== 'object') { out[k] = cm; return; }
@@ -7995,11 +8016,14 @@
       // A non-empty overview always survives, preferring the newer side (it's
       // generated content, not something the user deletes inline).
       merged.overviewPageHtml = ovText(base) || ovText(other) || '';
-      // mlos/topic follow NEWEST-WINS — the newer side's values win even when
-      // they're empty, so an intentional deletion isn't resurrected from the
-      // older copy on reload. (Stale/pre-pull empty saves are already blocked
-      // at the source: saveModuleOverviewSync only overlays rendered cards, and
-      // saveField suppresses empty destructive writes before the cloud pull.)
+      // TOPIC: a real topic always beats a generic/empty one. Among two real
+      // topics, newest wins (so a genuine rename still applies). This prevents
+      // the "Module N" reseed artifact from ever clobbering a real title.
+      var baseGen = isGenericTopic(base.topic, k), otherGen = isGenericTopic(other.topic, k);
+      if (baseGen && !otherGen) merged.topic = other.topic;
+      else merged.topic = base.topic;
+      // mlos follow NEWEST-WINS (incl. empty) so an intentional deletion isn't
+      // resurrected from the older copy on reload.
       out[k] = merged;
     });
     return out;
