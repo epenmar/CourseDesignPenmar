@@ -4101,6 +4101,37 @@
   });
 
   // ===== ACTIVITY BLOCK HTML GENERATOR =====
+  // Resolve a linked item's title for the at-a-glance badges below.
+  function _activityTitleById(aid) {
+    for (var m in courseActivities) { var arr = courseActivities[m] || []; for (var i = 0; i < arr.length; i++) { if (arr[i] && arr[i].id === aid) return (arr[i].name || '').trim() || '(untitled)'; } }
+    return null;
+  }
+  function _materialTitleById(mid) {
+    for (var m in courseMaterials) { var arr = courseMaterials[m] || []; for (var i = 0; i < arr.length; i++) { if (arr[i] && arr[i].id === mid) return (arr[i].title || '').trim() || '(untitled)'; } }
+    return null;
+  }
+  // At-a-glance file + cross-link chips on a module-view activity/material block,
+  // so the attachment/link is visible without expanding "Content". kind: 'activity'|'material'.
+  function _itemLinkBadgesHtml(item, kind) {
+    var norm = 'display:inline-flex;align-items:center;font-size:10px;font-weight:600;border-radius:10px;padding:1px 8px;color:#555;background:#f4f1ea;border:1px solid #e5e0d5;';
+    var lnk = 'display:inline-flex;align-items:center;font-size:10px;font-weight:600;border-radius:10px;padding:1px 8px;color:#1565c0;background:#eef4fc;border:1px solid #cfe0f5;';
+    var chip = function(txt, title, isL) { return '<span style="' + (isL ? lnk : norm) + '"' + (title ? ' title="' + escapeHtml(title) + '"' : '') + '>' + txt + '</span>'; };
+    var out = [];
+    var files = item.attachedFiles || [];
+    if (files.length) out.push(chip('📎 ' + files.length + ' file' + (files.length === 1 ? '' : 's'), files.map(function(f) { return (f && f.name) ? f.name : 'file'; }).join(', ')));
+    var links = item.links || [];
+    if (links.length) out.push(chip('🔗 ' + links.length + ' link' + (links.length === 1 ? '' : 's'), links.join('\n')));
+    if (kind === 'material') {
+      var an = (item.linkedActivityIds || []).map(_activityTitleById).filter(Boolean);
+      if (an.length) out.push(chip('➜ ' + escapeHtml(an.join(', ')), 'Linked to assignment(s): ' + an.join(', '), true));
+    } else {
+      var mn = (item.linkedMaterialIds || []).map(_materialTitleById).filter(Boolean);
+      if (mn.length) out.push(chip('📚 ' + escapeHtml(mn.join(', ')), 'Uses material(s): ' + mn.join(', '), true));
+    }
+    if (!out.length) return '';
+    return '<div style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 2px;">' + out.join('') + '</div>';
+  }
+
   function buildActivityBlockHtml(act, moduleNum) {
     const id = act.id;
     const driveDisplay = activeCourse.driveFolder ? 'inline-flex' : 'none';
@@ -4124,6 +4155,7 @@
         '<input type="text" class="activity-input" data-managed="true" data-field="due" value="' + escapeHtml(act.due) + '" placeholder="Due" style="text-align:center;" />' +
         '<button class="overview-act-expand" style="flex-shrink:0;" onclick="toggleContentBody(this, \'' + id + '\')">▸ Content</button>' +
       '</div>' +
+      _itemLinkBadgesHtml(act, 'activity') +
       '<div class="content-attach overview-content-body" id="attach-' + id + '" style="margin-top:4px;">' +
         '<div class="content-attach-inner open" style="display:block;">' +
           _buildContentCompleteBarHtml(id) +
@@ -4221,6 +4253,7 @@
         '</div>' +
         '<textarea class="activity-input" data-managed="true" data-field="specificObjective" data-material-id="' + id + '" data-module-num="' + moduleNum + '" oninput="saveMaterialObjective(this); autoGrowTextarea(this)" placeholder="By engaging with this material, students will be able to..." style="width:100%; font-size:12px; min-height:28px; resize:none; overflow:hidden; line-height:1.4; padding:4px 8px; white-space:pre-wrap;">' + escapeHtml(mat.specificObjective || '') + '</textarea>' +
       '</div>' +
+      _itemLinkBadgesHtml(mat, 'material') +
       '<div class="content-attach overview-content-body" id="mat-attach-' + id + '" style="margin-top:4px;">' +
       '<div class="content-attach-inner open" style="display:block;">' +
         _buildContentCompleteBarHtml(id) +
@@ -17770,11 +17803,12 @@
         (mod.materials || []).forEach(function(mat) {
           var meta = [];
           meta.push(mat.type || 'Reading');
-          var fileCount = (mat.attachedFiles || []).length;
-          var linkCount = (mat.links || []).length;
-          if (fileCount) meta.push(fileCount + ' file' + (fileCount === 1 ? '' : 's'));
-          if (linkCount) meta.push(linkCount + ' link' + (linkCount === 1 ? '' : 's'));
-          if ((mat.linkedActivityIds || []).length) meta.push('linked to ' + mat.linkedActivityIds.length + ' activit' + (mat.linkedActivityIds.length === 1 ? 'y' : 'ies'));
+          var mfiles = mat.attachedFiles || [];
+          if (mfiles.length) meta.push('📎 ' + mfiles.map(function(f) { return esc((f && f.name) || 'file'); }).join(', '));
+          var mlinks = mat.links || [];
+          if (mlinks.length) meta.push('🔗 ' + mlinks.length + ' link' + (mlinks.length === 1 ? '' : 's'));
+          var matLinkedActs = (mat.linkedActivityIds || []).map(_activityTitleById).filter(Boolean);
+          if (matLinkedActs.length) meta.push('➜ ' + esc(matLinkedActs.join(', ')));
           var matGap = gaps.byRef['mat-' + mat.id] || { status: 'ok', reasons: [] };
           html += _canvasPlanRow({
             icon: '•',
@@ -17815,6 +17849,11 @@
           var meta = [];
           if (act.points) meta.push(act.points + ' pts');
           if (act.due) meta.push('due ' + act.due);
+          // Reverse cross-link: which of this module's materials feed this
+          // assignment (with a 📎 if that material carries a file).
+          var feeders = (mod.materials || []).filter(function(mm) { return (mm.linkedActivityIds || []).indexOf(act.id) !== -1; })
+            .map(function(mm) { return esc(mm.title || '(untitled)') + ((mm.attachedFiles || []).length ? ' 📎' : ''); });
+          if (feeders.length) meta.push('📚 ' + feeders.join(', '));
           var tool = (act.aiFillPrefs && act.aiFillPrefs.tool) || '';
           if (tool && tool !== 'other') meta.push('via ' + tool);
           else if (tool === 'other' && act.aiFillPrefs && act.aiFillPrefs.toolCustom) meta.push('via ' + act.aiFillPrefs.toolCustom);
