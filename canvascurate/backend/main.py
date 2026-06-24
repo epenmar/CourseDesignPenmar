@@ -20,6 +20,7 @@ import os  # noqa: E402
 import time  # noqa: E402
 
 from api.admin.router import router as admin_router
+from api.archive.router import router as archive_router
 from api.documents import router as api_documents
 from api.course_creation.router import router as course_creation_router
 from api.coursecompose.router import router as coursecompose_router
@@ -54,6 +55,10 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=os.getenv("ALLOWED_ORIGINS", "http://localhost:3000").split(","),
+    # Also allow the CourseCompose / Curate Vercel projects by pattern so a domain
+    # rename (e.g. course-compose / course-curate / course-development-sand) doesn't
+    # silently break the handoff again. Matches https://<course-…|canvascurate…>.vercel.app.
+    allow_origin_regex=r"https://(course-[a-z0-9-]+|canvascurate[a-z0-9-]*)\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -62,6 +67,7 @@ app.add_middleware(
 
 app.include_router(health.router)
 app.include_router(admin_router)
+app.include_router(archive_router)
 app.include_router(coursecompose_router)
 app.include_router(canvas.router)
 app.include_router(editor_router)
